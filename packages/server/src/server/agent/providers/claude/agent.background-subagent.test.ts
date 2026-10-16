@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { createTestLogger } from "../../../../test-utils/test-logger.js";
-import type { AgentStreamEvent } from "../../agent-sdk-types.js";
+import type { AgentSession, AgentStreamEvent } from "../../agent-sdk-types.js";
 import type { AgentTimelineRow } from "../../agent-manager.js";
 import { projectTimelineRows } from "../../timeline-projection.js";
 import { ClaudeAgentClient } from "./agent.js";
@@ -103,6 +103,39 @@ async function collectUntilTerminal(
     }
   }
   return events;
+}
+
+async function collectTimelineAcrossTurns(
+  session: AgentSession,
+  prompt: string,
+  turnCount: number,
+): Promise<AgentTimelineRow[]> {
+  const rows: AgentTimelineRow[] = [];
+  let currentTurnId: string | undefined;
+  let completedTurns = 0;
+  let unsubscribe = () => {};
+  const turnsCompleted = new Promise<void>((resolve) => {
+    unsubscribe = session.subscribe((event) => {
+      if (event.type === "turn_started") currentTurnId = event.turnId;
+      if (event.type === "timeline") {
+        rows.push({
+          seq: rows.length + 1,
+          timestamp: new Date(Date.UTC(2026, 9, 4, 0, 0, rows.length)).toISOString(),
+          item: event.item,
+          ...(currentTurnId ? { turnId: currentTurnId } : {}),
+        });
+      }
+      if (event.type === "turn_completed" && ++completedTurns === turnCount) resolve();
+    });
+  });
+  try {
+    await session.startTurn(prompt);
+    await turnsCompleted;
+    return rows;
+  } finally {
+    unsubscribe();
+    await session.close();
+  }
 }
 
 describe("background Claude subagents", () => {
@@ -437,8 +470,8 @@ describe("background Claude subagents", () => {
   });
 
   test("keeps one logged Task card when the child streams on after the parent's turn ends", async () => {
-    // Claude Code usually ends the launching turn before a background child finishes, so the
-    // child's later frames land in the next turn.
+    // A child can stream across the main session's turn boundary. Claude opens the next
+    // main-session turn with system/init; bare child frames do not open a turn.
     queryFactory.mockImplementation(() =>
       buildQueryMock([
         { type: "system", subtype: "init", session_id: "bg-session", permissionMode: "default" },
@@ -500,6 +533,7 @@ describe("background Claude subagents", () => {
           },
         },
         { type: "result", subtype: "success", usage: {}, total_cost_usd: 0 },
+        { type: "system", subtype: "init", session_id: "bg-session", permissionMode: "default" },
         {
           type: "user",
           parent_tool_use_id: "toolu_background",
@@ -534,26 +568,7 @@ describe("background Claude subagents", () => {
       queryFactory,
       resolveBinary: async () => "/test/claude/bin",
     }).createSession({ provider: "claude", cwd: process.cwd() });
-    const rows: AgentTimelineRow[] = [];
-    let currentTurnId: string | undefined;
-    let completedTurns = 0;
-    const bothTurnsCompleted = new Promise<void>((resolve) => {
-      session.subscribe((event) => {
-        if (event.type === "turn_started") currentTurnId = event.turnId;
-        if (event.type === "timeline") {
-          rows.push({
-            seq: rows.length + 1,
-            timestamp: new Date(Date.UTC(2026, 9, 4, 0, 0, rows.length)).toISOString(),
-            item: event.item,
-            ...(currentTurnId ? { turnId: currentTurnId } : {}),
-          });
-        }
-        if (event.type === "turn_completed" && ++completedTurns === 2) resolve();
-      });
-    });
-    await session.startTurn("delegate work");
-    await bothTurnsCompleted;
-    await session.close();
+    const rows = await collectTimelineAcrossTurns(session, "delegate work", 2);
 
     const cards = projectTimelineRows({ rows, mode: "projected" })
       .map((entry) => entry.item)
