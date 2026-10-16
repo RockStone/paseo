@@ -299,6 +299,7 @@ function installBrowserWindowOpenHandler(input: {
 
 // A custom desktop build must not acquire or upgrade the official app's daemon.
 if (app.isPackaged && app.getVersion().includes("-rockstone.")) {
+  app.setPath("userData", path.join(app.getPath("appData"), "Paseo Custom"));
   process.env.PASEO_HOME ??= path.join(app.getPath("appData"), "Paseo Custom", "daemon");
   process.env.PASEO_LISTEN ??= "127.0.0.1:6770";
 }

@@ -45,8 +45,9 @@ npm ci
 npm run build:custom:desktop
 ```
 
-The output is `packages/desktop/release/mac-arm64/Paseo Custom.app` on Apple
-Silicon. The build has a separate app identity, Electron settings, and daemon
+The output is `packages/desktop/release/mac-arm64/Paseoi.app` on Apple
+Silicon. The app is named Paseoi. It keeps the existing custom build's app identity,
+Electron settings directory (`Paseo Custom`), and daemon
 home at `~/Library/Application Support/Paseo Custom/daemon`, with port `6770`.
 Explicit `PASEO_HOME` and `PASEO_LISTEN` overrides still apply. It does not import
 existing official app sessions; connect to an existing host from the custom app
@@ -54,7 +55,8 @@ if you want to view those sessions. Do not restart that host to test this featur
 
 Versions end in `-rockstone.N`. Official update checks and installation are
 disabled for those versions, so updating cannot discard the local patch. Set
-`PASEO_CUSTOM_REVISION=2` for the next build from the same upstream version.
+`PASEO_CUSTOM_REVISION` to a higher number for each build from the same upstream
+version (the default is 2).
 The local build uses an ad-hoc signature and is not notarized.
 
 Keep `upstream` pointed at `getpaseo/paseo` and `origin` at `RockStone/paseo`.
