@@ -4568,7 +4568,14 @@ describe("send_agent_prompt MCP tool to an OMP child", () => {
     const parentClient = new HeldTurnAgentClient("claude", false);
     const omp = new FakeOmp();
     const agentManager = new AgentManager({
-      clients: { claude: parentClient, omp: new OmpAgentClient({ logger, runtime: omp }) },
+      clients: {
+        claude: parentClient,
+        omp: new OmpAgentClient({
+          logger,
+          runtime: omp,
+          runtimeSettings: { command: { mode: "replace", argv: [process.execPath] } },
+        }),
+      },
       registry: storage,
       logger,
     });
