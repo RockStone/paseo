@@ -869,6 +869,7 @@ async function smokePackagedDesktopApp({
   executablePath = getExecutablePath(appPath),
   launchArgs = [],
   expectedSandbox,
+  customDefaults = false,
 }) {
   assertExecutable(executablePath, "Packaged app executable");
   assertLinuxDesktopIdentity(appPath);
@@ -876,7 +877,7 @@ async function smokePackagedDesktopApp({
 
   const userData = createTempDir("paseo-smoke-user-data-");
   const daemonHome = createTempDir("paseo-smoke-daemon-home-");
-  const daemonPort = await reserveLocalTcpPort();
+  const daemonPort = customDefaults ? 6770 : await reserveLocalTcpPort();
   let cdpPort = await reserveLocalTcpPort();
   for (let attempt = 0; cdpPort === daemonPort && attempt < 10; attempt += 1) {
     cdpPort = await reserveLocalTcpPort();
@@ -885,13 +886,14 @@ async function smokePackagedDesktopApp({
     throw new Error("Failed to reserve distinct TCP ports for the daemon and CDP");
   }
   const listen = `127.0.0.1:${daemonPort}`;
-  configureIsolatedDaemonHome(daemonHome, listen);
+  if (!customDefaults) configureIsolatedDaemonHome(daemonHome, listen);
   const env = createIsolatedDesktopEnv({
     home: daemonHome,
     listen,
     userData,
     cdpPort,
   });
+  if (customDefaults) delete env.PASEO_LISTEN;
 
   const stdout = [];
   const stderr = [];
@@ -997,7 +999,10 @@ if (require.main === module) {
     process.exit(2);
   }
 
-  smokePackagedDesktopApp({ appPath }).catch((error) => {
+  smokePackagedDesktopApp({
+    appPath,
+    customDefaults: process.argv.includes("--custom-defaults"),
+  }).catch((error) => {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
     process.stderr.write(`${message}\n`);
     process.exit(1);

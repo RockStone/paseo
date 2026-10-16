@@ -49,14 +49,17 @@ The output is `packages/desktop/release/mac-arm64/Paseoi.app` on Apple
 Silicon. The app is named Paseoi. It keeps the existing custom build's app identity,
 Electron settings directory (`Paseo Custom`), and daemon
 home at `~/Library/Application Support/Paseo Custom/daemon`, with port `6770`.
-Explicit `PASEO_HOME` and `PASEO_LISTEN` overrides still apply. It does not import
+Managed daemons read their listener from `config.json`; `PASEO_LISTEN` is discarded.
+The custom app initializes that file to port `6770` and repairs the old custom
+build's generated `6767` default. Explicit alternate listeners are preserved.
+`PASEO_HOME` still selects the daemon home. It does not import
 existing official app sessions; connect to an existing host from the custom app
 if you want to view those sessions. Do not restart that host to test this feature.
 
 Versions end in `-rockstone.N`. Official update checks and installation are
 disabled for those versions, so updating cannot discard the local patch. Set
 `PASEO_CUSTOM_REVISION` to a higher number for each build from the same upstream
-version (the default is 2).
+version (the default is 3).
 The local build uses an ad-hoc signature and is not notarized.
 
 Keep `upstream` pointed at `getpaseo/paseo` and `origin` at `RockStone/paseo`.

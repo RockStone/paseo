@@ -115,7 +115,9 @@ const DEV_SERVER_URL = process.env.EXPO_DEV_URL ?? "http://localhost:8081";
 const APP_SCHEME = "paseo";
 const PASEO_DEBUG = process.env.PASEO_DEBUG === "1";
 const DISABLE_SINGLE_INSTANCE_LOCK = process.env.PASEO_DISABLE_SINGLE_INSTANCE_LOCK === "1";
-const APP_NAME = process.env.PASEO_TEST_APP_NAME?.trim() || "Paseo";
+const customBuild = app.isPackaged && app.getVersion().includes("-rockstone.");
+const defaultAppName = customBuild ? "Paseoi" : "Paseo";
+const APP_NAME = process.env.PASEO_TEST_APP_NAME?.trim() || defaultAppName;
 const DESKTOP_WINDOW_CHROME_MODE = resolveDesktopWindowChromeMode({
   platform: process.platform,
   override: process.env.PASEO_DESKTOP_WINDOW_CONTROLS,
@@ -137,6 +139,7 @@ let bootstrapIsComplete = false;
 app.setName(APP_NAME);
 log.info("[desktop] app startup", {
   version: app.getVersion(),
+  appName: app.getName(),
   platform: process.platform,
   arch: process.arch,
   isPackaged: app.isPackaged,
@@ -298,10 +301,9 @@ function installBrowserWindowOpenHandler(input: {
 }
 
 // A custom desktop build must not acquire or upgrade the official app's daemon.
-if (app.isPackaged && app.getVersion().includes("-rockstone.")) {
+if (customBuild) {
   app.setPath("userData", path.join(app.getPath("appData"), "Paseo Custom"));
   process.env.PASEO_HOME ??= path.join(app.getPath("appData"), "Paseo Custom", "daemon");
-  process.env.PASEO_LISTEN ??= "127.0.0.1:6770";
 }
 
 // In dev mode, detect git worktrees and isolate each instance so multiple

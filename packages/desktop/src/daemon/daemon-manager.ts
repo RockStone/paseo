@@ -1,3 +1,4 @@
+import { ensureCustomDaemonConfig } from "./custom-build.js";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
@@ -301,6 +302,9 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
   }
 
   const home = getPaseoHome();
+  if (app.isPackaged && app.getVersion().includes("-rockstone.")) {
+    ensureCustomDaemonConfig(home);
+  }
   const invocation = createNodeEntrypointInvocation({
     entrypoint: resolveDaemonRunnerEntrypoint(),
     argvMode: "node-script",
