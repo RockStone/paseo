@@ -35,4 +35,8 @@ test("home actions fit on a desktop screen without overlap", async ({ page }) =>
   await page.setViewportSize({ width: 1280, height: 900 });
   await openProjectHome(page);
   await expectHomeActionsReachable(page);
+  await expect(page.getByTestId("open-project-setup-providers")).toHaveCSS(
+    "-webkit-app-region",
+    "none",
+  );
 });

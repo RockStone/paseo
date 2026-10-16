@@ -18,10 +18,11 @@ import {
   HEADER_INNER_HEIGHT_MOBILE,
   HEADER_TOP_PADDING_MOBILE,
 } from "@/constants/layout";
-import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
 import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 import { PairDeviceModal } from "@/desktop/components/pair-device-modal";
 import { buildSettingsHostSectionRoute } from "@/utils/host-routes";
+
+const WINDOW_CONTENT_DATASET = { "window-content": "" };
 
 export function OpenProjectScreen() {
   const { t } = useTranslation();
@@ -61,9 +62,12 @@ export function OpenProjectScreen() {
   return (
     <View style={styles.container}>
       <MenuHeader borderless />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        dataSet={WINDOW_CONTENT_DATASET}
+      >
         <View style={styles.content}>
-          <TitlebarDragRegion />
           <View style={styles.logo}>
             <PaseoLogo size={52} />
           </View>
