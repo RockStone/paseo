@@ -2,6 +2,7 @@ import type {
   OmpRuntime,
   OmpRuntimeLaunch,
   OmpRuntimeSession,
+  OmpPromptInput,
   OmpStartSessionInput,
 } from "../runtime.js";
 import type {
@@ -219,19 +220,15 @@ export class FakeOmpSession implements OmpRuntimeSession {
     };
   }
 
-  async prompt(
-    message: string,
-    images?: Array<{ type: "image"; data: string; mimeType: string }>,
-    options?: { streamingBehavior?: "steer" | "followUp" },
-  ): Promise<OmpPromptAck> {
+  async prompt({ message, images, streamingBehavior }: OmpPromptInput): Promise<OmpPromptAck> {
     const busy = this.state.isStreaming || this.state.isCompacting;
-    if (busy && !options?.streamingBehavior) {
+    if (busy && !streamingBehavior) {
       throw new Error("Agent is already processing");
     }
     this.prompts.push({
       message,
       imageCount: images?.length ?? 0,
-      ...(options?.streamingBehavior ? { streamingBehavior: options.streamingBehavior } : {}),
+      ...(streamingBehavior ? { streamingBehavior: streamingBehavior } : {}),
     });
     if (busy) {
       return {};

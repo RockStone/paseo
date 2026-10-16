@@ -4573,6 +4573,7 @@ describe("send_agent_prompt MCP tool to an OMP child", () => {
         omp: new OmpAgentClient({
           logger,
           runtime: omp,
+          noTurnScheduler: { waitForSettle: async () => {} },
           runtimeSettings: { command: { mode: "replace", argv: [process.execPath] } },
         }),
       },
@@ -4662,6 +4663,44 @@ describe("send_agent_prompt MCP tool to an OMP child", () => {
     },
   );
 
+  it.each(["before ack", "after ack"])(
+    "reports an idle follow-up rejected %s and notifies its parent",
+    async (order) => {
+      const { agentManager, storage, workdir, parentClient, ompSession, childId, tool } =
+        await setupOmpChild();
+      try {
+        ompSession.promptAck = { requestId: "follow-up-rejected" };
+        const rejection = {
+          type: "prompt_result",
+          id: "follow-up-rejected",
+          agentInvoked: false,
+          status: "error",
+          sessionSettled: true,
+          error: { message: "Provider rejected the follow-up", retryable: false },
+        } as const;
+        const promptStarted = ompSession.nextPrompt();
+        const response = invokeToolWithParsedInput(tool, {
+          agentId: childId,
+          prompt: "/follow-up check the build",
+        });
+        await promptStarted;
+        if (order === "before ack") ompSession.emit(rejection);
+        await response;
+        if (order === "after ack") ompSession.emit(rejection);
+        await vi.waitFor(() => expect(agentManager.getAgent(childId)?.lifecycle).toBe("error"));
+        expect(agentManager.getAgent(childId)?.lastError).toContain(
+          "Provider rejected the follow-up",
+        );
+        await vi.waitFor(() => expect(parentClient.sessions[0]!.prompts).toHaveLength(1));
+        expect(parentClient.sessions[0]!.prompts[0]).toContain(
+          `Agent ${childId} (OMP child) errored.`,
+        );
+      } finally {
+        await removeAgentStateDir(agentManager, storage, workdir);
+      }
+    },
+  );
+
   it("lets an idle child start a run with the follow-up", async () => {
     const { agentManager, storage, workdir, parentClient, ompSession, childId, tool } =
       await setupOmpChild();
@@ -4674,7 +4713,7 @@ describe("send_agent_prompt MCP tool to an OMP child", () => {
       expect(response.structuredContent).toMatchObject({
         success: true,
         disposition: "out_of_band",
-        status: "idle",
+        status: "running",
       });
       await vi.waitFor(() => {
         expect(ompSession.prompts).toEqual([

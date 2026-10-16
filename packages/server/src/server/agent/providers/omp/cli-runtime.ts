@@ -15,6 +15,7 @@ import {
   type OmpRuntime,
   type OmpRuntimeLaunch,
   type OmpRuntimeSession,
+  type OmpPromptInput,
   type OmpStartSessionInput,
 } from "./runtime.js";
 import {
@@ -142,16 +143,12 @@ class OmpCliRuntimeSession implements OmpRuntimeSession {
     };
   }
 
-  async prompt(
-    message: string,
-    images?: Array<{ type: "image"; data: string; mimeType: string }>,
-    options?: { streamingBehavior?: "steer" | "followUp" },
-  ): Promise<OmpPromptAck> {
+  async prompt({ message, images, streamingBehavior }: OmpPromptInput): Promise<OmpPromptAck> {
     const { id: requestId, promise } = this.process.startRequest({
       type: "prompt",
       message,
       ...(images?.length ? { images } : {}),
-      ...(options?.streamingBehavior ? { streamingBehavior: options.streamingBehavior } : {}),
+      ...(streamingBehavior ? { streamingBehavior: streamingBehavior } : {}),
     });
     const ack = OmpPromptAckSchema.parse(await promise) ?? {};
     return { requestId, ...ack };

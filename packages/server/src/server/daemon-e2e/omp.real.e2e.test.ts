@@ -338,9 +338,9 @@ describe("daemon E2E (real OMP)", () => {
     TIMEOUT_MS,
   );
 
-  test(
-    "a prompt OMP rejects before its agent runs fails the turn with OMP's error",
-    async () => {
+  test.each(["Reply with ok.", "/follow-up Reply with ok."])(
+    "a rejected %s fails the turn with OMP's error",
+    async (prompt) => {
       const harness = await createHarness({ ompHome: createOfflineOmpHome() });
       try {
         const agent = await harness.client.createAgent({
@@ -350,7 +350,7 @@ describe("daemon E2E (real OMP)", () => {
           model: "anthropic/claude-haiku-4-5",
           modeId: "full",
         });
-        await harness.client.sendMessage(agent.id, "Reply with ok.");
+        await harness.client.sendMessage(agent.id, prompt);
         const finish = await harness.client.waitForFinish(agent.id, 60_000);
         expect(finish.status).toBe("error");
         expect(finish.error).toContain("No API key found for anthropic");

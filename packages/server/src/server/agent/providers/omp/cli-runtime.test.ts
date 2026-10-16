@@ -149,11 +149,7 @@ describe("OMP CLI runtime", () => {
 
     for (const streamingBehavior of ["followUp", undefined] as const) {
       const pending = capturePendingCommand(child, "prompt");
-      const result = session.prompt(
-        "after this, update the docs",
-        undefined,
-        streamingBehavior ? { streamingBehavior } : undefined,
-      );
+      const result = session.prompt({ message: "after this, update the docs", streamingBehavior });
       const command = await pending;
       expect(withoutRequestId(command)).toEqual({
         type: "prompt",
@@ -462,7 +458,7 @@ describe("OMP CLI runtime", () => {
     replyToCommands(child, () => undefined);
     const session = await createRuntime(child).startSession({ cwd: "/workspace/project" });
 
-    await expect(session.prompt("hello")).resolves.toEqual({ requestId: "req_1" });
+    await expect(session.prompt({ message: "hello" })).resolves.toEqual({ requestId: "req_1" });
   });
 
   test("reports OMP 18.3's late prompt rejection as a failed prompt result", async () => {
@@ -479,7 +475,7 @@ describe("OMP CLI runtime", () => {
     const events: unknown[] = [];
     session.onEvent((event) => events.push(event));
 
-    await expect(session.prompt("hello")).resolves.toEqual({ requestId: "req_1" });
+    await expect(session.prompt({ message: "hello" })).resolves.toEqual({ requestId: "req_1" });
 
     expect(events).toContainEqual({
       type: "prompt_result",
