@@ -297,6 +297,12 @@ function installBrowserWindowOpenHandler(input: {
   });
 }
 
+// A custom desktop build must not acquire or upgrade the official app's daemon.
+if (app.isPackaged && app.getVersion().includes("-rockstone.")) {
+  process.env.PASEO_HOME ??= path.join(app.getPath("appData"), "Paseo Custom", "daemon");
+  process.env.PASEO_LISTEN ??= "127.0.0.1:6770";
+}
+
 // In dev mode, detect git worktrees and isolate each instance so multiple
 // Electron windows can run side-by-side (separate userData = separate lock).
 let devWorktreeName: string | null = null;

@@ -26,6 +26,7 @@ export const ko: TranslationResources = {
     total: "일치 항목 {{total}}개",
   },
   common: {
+    reply: "답장",
     bottomSheetBackdrop: "하단 시트 배경",
     back: "뒤로",
     loading: "불러오는 중...",

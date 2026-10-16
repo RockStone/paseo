@@ -27,6 +27,7 @@ export const ru: TranslationResources = {
     total: "Совпадений: {{total}}",
   },
   common: {
+    reply: "Ответить",
     bottomSheetBackdrop: "Фон нижней панели",
     back: "Назад",
     loading: "Загрузка...",

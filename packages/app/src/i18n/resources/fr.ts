@@ -27,6 +27,7 @@ export const fr: TranslationResources = {
     total: "{{total}} résultats",
   },
   common: {
+    reply: "Répondre",
     bottomSheetBackdrop: "Arrière-plan du panneau inférieur",
     back: "Retour",
     loading: "Chargement…",

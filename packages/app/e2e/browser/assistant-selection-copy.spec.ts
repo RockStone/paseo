@@ -1,3 +1,4 @@
+import { composerLocator } from "../support/helpers/composer";
 import type { BrowserContext, Locator } from "@playwright/test";
 import { expect, test, type Page } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
@@ -719,6 +720,51 @@ test("copying a selection across an assistant image keeps its Markdown source an
     await copySelection(page);
 
     expect((await readRichClipboard(page)).plainText).toBe("After the");
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("replying to selected assistant text preserves the draft and focuses the composer", async ({
+  page,
+}, testInfo) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "assistant-selection-reply-",
+    title: "Reply to selected text",
+    initialPrompt: "Explain the ports.",
+    featureValues: {
+      mockAssistantResponse:
+        "Docker ports are **PostgreSQL databases**.\n\nKeep the existing configuration.",
+    },
+  });
+  try {
+    await agent.client.waitForAgentUpsert(
+      agent.agentId,
+      (snapshot) => snapshot.status === "idle",
+      30_000,
+    );
+    await openAgentRoute(page, agent);
+    const composer = composerLocator(page);
+    await composer.fill("My existing draft");
+    await selectAssistantText(page, "PostgreSQL databases");
+    const reply = page.getByTestId("reply-to-selection");
+    await expect(reply).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("selection-reply-action.png") });
+    await reply.click();
+    await expect(composer).toHaveValue("My existing draft\n\n> PostgreSQL databases\n\n");
+    await expect(composer).toBeFocused();
+    await composer.pressSequentially("Please clarify this.");
+    await expect(composer).toHaveValue(
+      "My existing draft\n\n> PostgreSQL databases\n\nPlease clarify this.",
+    );
+    await page.screenshot({ path: testInfo.outputPath("selection-reply-composer.png") });
+    await selectAssistantText(page, "PostgreSQL databases");
+    await expect(reply).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(reply).toHaveCount(0);
+    await expect(composer).toHaveValue(
+      "My existing draft\n\n> PostgreSQL databases\n\nPlease clarify this.",
+    );
   } finally {
     await agent.cleanup();
   }

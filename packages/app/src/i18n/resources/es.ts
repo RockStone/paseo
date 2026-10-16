@@ -27,6 +27,7 @@ export const es: TranslationResources = {
     total: "{{total}} coincidencias",
   },
   common: {
+    reply: "Responder",
     bottomSheetBackdrop: "Fondo del panel inferior",
     back: "Atrás",
     loading: "Cargando...",

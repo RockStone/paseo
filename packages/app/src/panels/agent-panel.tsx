@@ -20,6 +20,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import invariant from "tiny-invariant";
 import { shallow, useShallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
+import { SelectionReplyContext, appendQuotedReply } from "@/assistant-selection-copy/reply";
 import { AgentStreamView, type AgentStreamViewHandle } from "@/agent-stream/view";
 import { ArchivedAgentCallout } from "@/components/archived-agent-callout";
 import { ComposerDock } from "@/composer/dock";
@@ -1229,6 +1230,14 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       composerState,
     ],
   );
+  const [replyFocusKey, setReplyFocusKey] = useState(0);
+  const replyToSelection = useCallback(
+    (text: string) => {
+      replaceText(appendQuotedReply(textSource.getSnapshot(), text));
+      setReplyFocusKey((key) => key + 1);
+    },
+    [replaceText, textSource],
+  );
   const composerSection = showsComposer ? (
     <RenderProfile id={`AgentComposerSection:${agentId}`}>
       <AgentComposerSection
@@ -1240,6 +1249,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
         cwd={cwd}
         isSubmitLoading={false}
         agentInputDraft={agentInputDraft}
+        replyFocusKey={replyFocusKey}
         editingSession={composerEditingSession}
         onAttentionInputFocus={onAttentionInputFocus}
         onAttentionPromptSend={onAttentionPromptSend}
@@ -1253,6 +1263,9 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       {showsComposer ? null : <SheetAgentFacts serverId={serverId} agentId={agentId} />}
       <RenderProfile id={`AgentStreamSection:${agentId}`}>
         <AgentStreamSection
+          onReplyToSelection={
+            hasActiveComposer && showsComposer && isHydrated ? replyToSelection : null
+          }
           streamViewRef={streamViewRef}
           serverId={serverId}
           workspaceId={workspaceId}
@@ -1410,6 +1423,7 @@ function SheetAgentFacts({ serverId, agentId }: { serverId: string; agentId: str
 }
 
 const AgentStreamSection = memo(function AgentStreamSection({
+  onReplyToSelection,
   streamViewRef,
   serverId,
   workspaceId,
@@ -1422,6 +1436,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
   toast,
   onOpenWorkspaceFile,
 }: {
+  onReplyToSelection: ((text: string) => void) | null;
   streamViewRef: React.RefObject<AgentStreamViewHandle | null>;
   serverId: string;
   workspaceId: string;
@@ -1490,22 +1505,24 @@ const AgentStreamSection = memo(function AgentStreamSection({
   }, [pendingPermissionList]);
 
   return (
-    <AgentStreamView
-      ref={streamViewRef}
-      agentId={agent.id}
-      serverId={serverId}
-      context={agent}
-      streamItems={streamItems}
-      pendingPermissions={pendingPermissions}
-      routeBottomAnchorRequest={routeBottomAnchorRequest}
-      isAuthoritativeHistoryReady={hasAppliedAuthoritativeHistory}
-      bottomOverlayTailClearance={bottomOverlayTailClearance}
-      bottomOverlayControlClearance={bottomOverlayControlClearance}
-      toast={toast}
-      pendingMessageSubmissions={pendingMessageSubmissions}
-      turnPresentation={turnPresentation}
-      onOpenWorkspaceFile={onOpenWorkspaceFile}
-    />
+    <SelectionReplyContext.Provider value={onReplyToSelection}>
+      <AgentStreamView
+        ref={streamViewRef}
+        agentId={agent.id}
+        serverId={serverId}
+        context={agent}
+        streamItems={streamItems}
+        pendingPermissions={pendingPermissions}
+        routeBottomAnchorRequest={routeBottomAnchorRequest}
+        isAuthoritativeHistoryReady={hasAppliedAuthoritativeHistory}
+        bottomOverlayTailClearance={bottomOverlayTailClearance}
+        bottomOverlayControlClearance={bottomOverlayControlClearance}
+        toast={toast}
+        pendingMessageSubmissions={pendingMessageSubmissions}
+        turnPresentation={turnPresentation}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+      />
+    </SelectionReplyContext.Provider>
   );
 });
 
@@ -1518,6 +1535,7 @@ const AgentComposerSection = memo(function AgentComposerSection({
   cwd,
   isSubmitLoading,
   agentInputDraft,
+  replyFocusKey,
   editingSession,
   onAttentionInputFocus,
   onAttentionPromptSend,
@@ -1532,6 +1550,7 @@ const AgentComposerSection = memo(function AgentComposerSection({
   cwd: string;
   isSubmitLoading: boolean;
   agentInputDraft: AgentInputDraft;
+  replyFocusKey: number;
   editingSession: ComposerEditingSession;
   onAttentionInputFocus: () => void;
   onAttentionPromptSend: () => void;
@@ -1556,6 +1575,7 @@ const AgentComposerSection = memo(function AgentComposerSection({
       cwd={cwd}
       isSubmitLoading={isSubmitLoading}
       agentInputDraft={agentInputDraft}
+      replyFocusKey={replyFocusKey}
       editingSession={editingSession}
       onAttentionInputFocus={onAttentionInputFocus}
       onAttentionPromptSend={onAttentionPromptSend}
@@ -1572,6 +1592,7 @@ function ActiveAgentComposer({
   cwd,
   isSubmitLoading,
   agentInputDraft,
+  replyFocusKey,
   editingSession,
   onAttentionInputFocus,
   onAttentionPromptSend,
@@ -1584,6 +1605,7 @@ function ActiveAgentComposer({
   cwd: string;
   isSubmitLoading: boolean;
   agentInputDraft: AgentInputDraft;
+  replyFocusKey: number;
   editingSession: ComposerEditingSession;
   onAttentionInputFocus: () => void;
   onAttentionPromptSend: () => void;
@@ -1683,7 +1705,7 @@ function ActiveAgentComposer({
         clearDraft={agentInputDraft.clear}
         editingSession={editingSession}
         autoFocus
-        autoFocusKey={String(agentInputDraft.attachmentFocusRequestId)}
+        autoFocusKey={`${agentInputDraft.attachmentFocusRequestId}:${replyFocusKey}`}
         isSubmitLoading={isSubmitLoading}
         onAttentionInputFocus={onAttentionInputFocus}
         onAttentionPromptSend={onAttentionPromptSend}

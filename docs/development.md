@@ -29,6 +29,41 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 `npm run dev` is only a shorthand for `npm run dev:server`. Keep `127.0.0.1:6767` for the packaged app and production-style `~/.paseo` state.
 
+## RockStone custom desktop build
+
+The `custom/reply-selection` branch adds desktop/browser selection replies. Select
+assistant prose and choose **Reply** to append an editable Markdown quote to the
+current draft, then type your comment. Existing draft text is preserved. Native
+clients do not have this action. This adapts the selection interaction from
+[crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
+the PR's persistent annotation markers or separate comment editor.
+
+Build a locally signed macOS app for your machine:
+
+```bash
+npm ci
+npm run build:custom:desktop
+```
+
+The output is `packages/desktop/release/mac-arm64/Paseo Custom.app` on Apple
+Silicon. The build has a separate app identity, Electron settings, and daemon
+home at `~/Library/Application Support/Paseo Custom/daemon`, with port `6770`.
+Explicit `PASEO_HOME` and `PASEO_LISTEN` overrides still apply. It does not import
+existing official app sessions; connect to an existing host from the custom app
+if you want to view those sessions. Do not restart that host to test this feature.
+
+Versions end in `-rockstone.N`. Official update checks and installation are
+disabled for those versions, so updating cannot discard the local patch. Set
+`PASEO_CUSTOM_REVISION=2` for the next build from the same upstream version.
+The local build uses an ad-hoc signature and is not notarized.
+
+Keep `upstream` pointed at `getpaseo/paseo` and `origin` at `RockStone/paseo`.
+For a new official release, fetch its tag, create a branch from that tag, and
+cherry-pick the custom commits in order. Resolve conflicts, run typecheck, lint,
+and the focused selection-reply and updater tests, then rebuild. Drop a build
+compatibility commit if upstream has already fixed it. Keep each updated custom
+branch on the fork so you can recover the source for an installed build.
+
 ## Nix desktop package
 
 The flake exposes `packages.<system>.desktop` on Linux and macOS:

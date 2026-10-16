@@ -22,6 +22,7 @@ export const en = {
     total: "{{total}} matches",
   },
   common: {
+    reply: "Reply",
     bottomSheetBackdrop: "Bottom sheet backdrop",
     back: "Back",
     loading: "Loading...",

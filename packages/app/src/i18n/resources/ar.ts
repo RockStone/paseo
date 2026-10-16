@@ -26,6 +26,7 @@ export const ar: TranslationResources = {
     total: "{{total}} تطابقات",
   },
   common: {
+    reply: "رد",
     bottomSheetBackdrop: "خلفية اللوحة السفلية",
     back: "خلف",
     loading: "تحميل...",

@@ -246,6 +246,15 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
     releaseChannel: AppReleaseChannel;
     intent: AppUpdateCheckIntent;
   }): Promise<AppUpdateCheckResult> {
+    if (currentVersion.includes("-rockstone.")) {
+      return buildCheckResult({
+        currentVersion,
+        hasUpdate: false,
+        readyToInstall: false,
+        errorMessage:
+          "RockStone custom build: install updates from your fork to preserve custom features.",
+      });
+    }
     if (!deps.isPackaged()) {
       return buildCheckResult({
         currentVersion,
@@ -333,6 +342,13 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
     },
     onBeforeQuit?: () => Promise<void>,
   ): Promise<AppUpdateInstallResult> {
+    if (currentVersion.includes("-rockstone.")) {
+      return {
+        installed: false,
+        version: currentVersion,
+        message: "RockStone custom builds are updated manually from your fork.",
+      };
+    }
     if (!deps.isPackaged()) {
       return {
         installed: false,
@@ -473,7 +489,7 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
     releaseChannel: AppReleaseChannel;
     signal: AbortSignal;
   }): Promise<boolean> {
-    if (!deps.isPackaged() || !downloadedUpdateVersion) {
+    if (currentVersion.includes("-rockstone.") || !deps.isPackaged() || !downloadedUpdateVersion) {
       return false;
     }
 

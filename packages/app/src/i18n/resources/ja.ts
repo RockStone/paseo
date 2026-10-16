@@ -27,6 +27,7 @@ export const ja: TranslationResources = {
     total: "{{total}} 件の一致",
   },
   common: {
+    reply: "返信",
     bottomSheetBackdrop: "ボトムシートの背景",
     back: "戻る",
     loading: "読み込み中...",

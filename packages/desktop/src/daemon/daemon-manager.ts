@@ -260,7 +260,7 @@ export async function resolveDesktopDaemonStatus(): Promise<DesktopDaemonStatus>
 function normalizeVersion(version: string | null): string | null {
   const trimmed = version?.trim();
   if (!trimmed) return null;
-  return trimmed.replace(/^v/i, "");
+  return trimmed.replace(/^v/i, "").replace(/-rockstone\.\d+$/, "");
 }
 
 function shouldRestartForVersion(current: DesktopDaemonStatus): boolean {
