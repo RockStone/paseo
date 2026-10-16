@@ -30,7 +30,11 @@ export async function runHooksCommand(
   agent: string,
   event: string,
   runtime: HooksRuntime = {
-    env: process.env,
+    env: {
+      PASEO_TERMINAL_ID: process.env.PASEO_TERMINAL_ID,
+      PASEO_ACTIVITY_TOKEN: process.env.PASEO_ACTIVITY_TOKEN,
+      PASEO_TERMINAL_ACTIVITY_URL: process.env.PASEO_TERMINAL_ACTIVITY_URL,
+    },
     input: process.stdin,
     fetch,
   },

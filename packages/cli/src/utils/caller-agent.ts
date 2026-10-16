@@ -8,7 +8,7 @@ interface CallerLookupClient {
 // targeting another daemon (--host or --home) have no caller on that daemon.
 export async function resolveCallerAgentId(
   client: CallerLookupClient,
-  env: { PASEO_AGENT_ID?: string } = process.env,
+  env: { PASEO_AGENT_ID?: string } = { PASEO_AGENT_ID: process.env.PASEO_AGENT_ID },
 ): Promise<string | undefined> {
   const agentId = env.PASEO_AGENT_ID?.trim();
   if (!agentId) return undefined;

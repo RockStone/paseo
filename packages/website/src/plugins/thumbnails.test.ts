@@ -96,13 +96,15 @@ function imageResponse(body: string, headers: Record<string, string> = {}) {
 // A typed fetch dependency, returning real Responses without patching the global fetch.
 function imageFetch(...responses: (Response | Error)[]) {
   const calls: { input: Parameters<typeof fetch>[0]; init: Parameters<typeof fetch>[1] }[] = [];
-  const fetchImage: typeof fetch = async (input, init) => {
-    calls.push({ input, init });
-    const response = responses.shift();
-    if (!response) throw new Error("Unexpected fetch");
-    if (response instanceof Error) throw response;
-    return response;
-  };
+  const fetchImage = new Proxy(fetch, {
+    async apply(_target, _thisArg, [input, init]: Parameters<typeof fetch>) {
+      calls.push({ input, init });
+      const response = responses.shift();
+      if (!response) throw new Error("Unexpected fetch");
+      if (response instanceof Error) throw response;
+      return response;
+    },
+  });
   return { calls, fetchImage };
 }
 

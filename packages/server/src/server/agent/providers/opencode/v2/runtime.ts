@@ -239,18 +239,20 @@ export class V2Runtime {
         headers: {
           Authorization: `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`,
         },
-        fetch: async (request, init) => {
-          const signal = init?.signal
-            ? AbortSignal.any([init.signal, processAbort.signal])
-            : processAbort.signal;
-          const response = await fetch(request, { ...init, signal });
-          const html = response.headers.get("content-type")?.includes("text/html") ?? false;
-          if (!response.ok || html) {
-            const requestUrl = request instanceof Request ? request.url : String(request);
-            throw new OpenCodeHttpError(new URL(requestUrl).pathname, response.status, html);
-          }
-          return response;
-        },
+        fetch: new Proxy(fetch, {
+          async apply(target, _thisArg, [request, init]: Parameters<typeof fetch>) {
+            const signal = init?.signal
+              ? AbortSignal.any([init.signal, processAbort.signal])
+              : processAbort.signal;
+            const response = await target(request, { ...init, signal });
+            const html = response.headers.get("content-type")?.includes("text/html") ?? false;
+            if (!response.ok || html) {
+              const requestUrl = request instanceof Request ? request.url : String(request);
+              throw new OpenCodeHttpError(new URL(requestUrl).pathname, response.status, html);
+            }
+            return response;
+          },
+        }),
       });
       await client.server.info({ signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())) });
       const generation: Generation = { client, users: 0, stop, exited };
