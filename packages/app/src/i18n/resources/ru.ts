@@ -5,12 +5,14 @@ export const ru: TranslationResources = {
   responseChanges: {
     title_one: "Изменён {{count}} файл",
     title_other: "Изменено файлов: {{count}}",
-    unavailable: "Число строк недоступно",
+    unavailable: "Посмотреть изменения",
     edit: "Записанное изменение {{count}}",
     noDiff: "Разница между версиями этого файла не записана.",
     openFile: "Открыть файл",
     showLess: "Показать меньше файлов",
     showMore: "Ещё файлов: {{count}}",
+    workspace: "Изменения рабочей области во время этого ответа",
+    recordedTotals: "Записанные правки; строка может учитываться несколько раз",
   },
   paneFind: {
     connectionFailure:

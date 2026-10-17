@@ -1,5 +1,105 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryAgentTimelineStore } from "./agent-timeline-store.js";
+import { ResponseChangeRecorder } from "./response-change-recorder.js";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, writeFile, rm, symlink, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AgentStreamEvent } from "./agent-sdk-types.js";
+
+describe("saved response workspace changes", () => {
+  async function fixture() {
+    const directory = await mkdtemp(join(tmpdir(), "paseoi-changes-test-"));
+    const root = join(directory, "repo");
+    await mkdir(root);
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    git("init", "-q");
+    git("config", "user.email", "test@example.com");
+    git("config", "user.name", "Test");
+    await writeFile(join(root, "code.ts"), "const old = 1;\n");
+    await writeFile(join(root, "removed.ts"), "gone\n");
+    await writeFile(join(root, ".gitignore"), "ignored\n");
+    git("add", ".");
+    git("commit", "-qm", "baseline");
+    return {
+      directory,
+      root,
+      git,
+      recorder: new ResponseChangeRecorder(join(directory, "records")),
+    };
+  }
+
+  it("records shell edits, creates and deletes after a commit without including prior dirty changes; restores saved records", async () => {
+    const f = await fixture();
+    try {
+      await writeFile(join(f.root, "preexisting.ts"), "unrelated dirty file\n");
+      await f.recorder.begin("a", f.root);
+      await writeFile(join(f.root, "code.ts"), "const middle = 2;\n");
+      await writeFile(join(f.root, "code.ts"), "const final = 3;\nextra();\n");
+      await writeFile(join(f.root, "new.ts"), "created();\n");
+      await rm(join(f.root, "removed.ts"));
+      await writeFile(join(f.root, "ignored"), "not recorded\n");
+      f.git("add", ".");
+      f.git("commit", "-qm", "shell edits");
+      const items = await f.recorder.finish("a", "turn");
+      const edits = items.filter(
+        (item) => item.type === "tool_call" && item.detail.type === "edit",
+      );
+      expect(edits).toHaveLength(3);
+      expect(JSON.stringify(items)).not.toContain("unrelated dirty file");
+      expect(JSON.stringify(items)).not.toContain("not recorded");
+      expect(JSON.stringify(items)).toContain("+const final = 3;");
+      expect(JSON.stringify(items)).not.toContain("middle =");
+      await f.recorder.save("a", "final-answer", items);
+      const restored = new ResponseChangeRecorder(join(f.directory, "records"));
+      const events: Extract<AgentStreamEvent, { type: "timeline" }>[] = [
+        {
+          type: "timeline",
+          provider: "claude",
+          item: { type: "assistant_message", text: "Done", messageId: "final-answer" },
+        },
+      ];
+      await restored.replay("a", events);
+      expect(events.slice(1).map((event) => event.item)).toEqual(items);
+      const rewound: typeof events = [];
+      await restored.replay("a", rewound);
+      expect(rewound).toEqual([]);
+    } finally {
+      await rm(f.directory, { recursive: true, force: true });
+    }
+  });
+
+  it("omits inferred changes for overlapping agents, including a nested working directory", async () => {
+    const f = await fixture();
+    try {
+      await mkdir(join(f.root, "nested"));
+      await f.recorder.begin("a", f.root);
+      await f.recorder.begin("b", join(f.root, "nested"));
+      await writeFile(join(f.root, "code.ts"), "ambiguous\n");
+      expect(await f.recorder.finish("a", "one")).toEqual([]);
+      expect(await f.recorder.finish("b", "two")).toEqual([]);
+    } finally {
+      await rm(f.directory, { recursive: true, force: true });
+    }
+  });
+
+  it("skips symlinks, binary and oversized files while retaining bounded text diffs", async () => {
+    const f = await fixture();
+    try {
+      await writeFile(join(f.root, "large"), "x".repeat(300_000));
+      await writeFile(join(f.root, "binary"), Buffer.from([0, 1, 2]));
+      await symlink(join(f.root, "code.ts"), join(f.root, "link"));
+      await f.recorder.begin("a", f.root);
+      await writeFile(join(f.root, "code.ts"), "changed\n");
+      const items = await f.recorder.finish("a", "turn");
+      expect(items).toHaveLength(2);
+      expect(items.at(-1)).toMatchObject({ metadata: { complete: false } });
+    } finally {
+      await rm(f.directory, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("InMemoryAgentTimelineStore", () => {
   it("clamps an overshooting before cursor into the bounded tail window", () => {

@@ -143,6 +143,15 @@ export const ChangedFilesCard = memo(function ChangedFilesCard({
       />
       {expanded ? (
         <>
+          {summary.scope === "workspace" || summary.recordedTotals ? (
+            <Text style={styles.note}>
+              {t(
+                summary.recordedTotals
+                  ? "responseChanges.recordedTotals"
+                  : "responseChanges.workspace",
+              )}
+            </Text>
+          ) : null}
           {files.map((file) => (
             <ChangedFileRow key={file.path} file={file} onOpenFile={onOpenFile} />
           ))}
@@ -186,6 +195,12 @@ const styles = StyleSheet.create((theme) => ({
   },
   path: { flex: 1, color: theme.colors.foreground, fontSize: theme.fontSize.sm },
   muted: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm },
+  note: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    paddingHorizontal: theme.spacing[3],
+    paddingBottom: theme.spacing[2],
+  },
   previews: { paddingHorizontal: theme.spacing[2], gap: theme.spacing[2] },
   preview: { gap: theme.spacing[1] },
 }));

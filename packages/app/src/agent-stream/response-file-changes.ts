@@ -21,6 +21,8 @@ export interface ResponseFileChange {
 export interface ResponseFileChanges {
   files: ResponseFileChange[];
   counts: ChangeCounts | null;
+  scope?: "workspace";
+  recordedTotals?: boolean;
 }
 
 function textLines(text: string): string[] {
@@ -108,14 +110,69 @@ function patchPath(patch: string): string | null {
 }
 
 function fileCounts(edits: RecordedFileEdit[]): ChangeCounts | null {
-  // Snippets do not identify their position. Even a matching before/after chain
-  // could edit two different occurrences, so repeated edits have no proven net total.
-  if (edits.length !== 1) return null;
+  // Repeated snippets are recorded edit volume, not a proven net file diff.
+  if (edits.length !== 1) {
+    const counts = edits.map((edit) => fileCounts([edit]));
+    return counts.every((count) => count !== null)
+      ? counts.reduce(
+          (sum, count) => ({
+            additions: sum.additions + count!.additions,
+            deletions: sum.deletions + count!.deletions,
+          }),
+          { additions: 0, deletions: 0 },
+        )
+      : null;
+  }
   const edit = edits[0]!;
   if (edit.patch) return countPatch(edit.patch);
   if (edit.before !== undefined && edit.after !== undefined)
     return countTextChange(edit.before, edit.after);
   return null;
+}
+
+function isSnapshot(item: StreamItem): boolean {
+  return (
+    item.kind === "tool_call" &&
+    item.payload.source === "agent" &&
+    item.payload.data.status === "completed" &&
+    item.payload.data.metadata?.paseoiWorkspaceSnapshot === true
+  );
+}
+
+function coveredBySnapshot(
+  detail: import("@getpaseo/protocol/agent-types").ToolCallDetail,
+  snapshotRoot: unknown,
+  root: string,
+): boolean {
+  if (typeof snapshotRoot !== "string" || (detail.type !== "write" && detail.type !== "edit"))
+    return false;
+  const path = detail.filePath.replace(/\\/g, "/");
+  const absolute = /^(?:\/|[A-Za-z]:\/)/.test(path) ? path : root.replace(/\/$/, "") + "/" + path;
+  return absolute.startsWith(snapshotRoot + "/");
+}
+
+function appendEdit(
+  detail: import("@getpaseo/protocol/agent-types").ToolCallDetail,
+  id: string,
+  add: (path: string, edit: RecordedFileEdit) => void,
+): void {
+  if (detail.type === "write") {
+    add(detail.filePath, { id: id, after: detail.content });
+  } else if (detail.type === "edit") {
+    if (detail.unifiedDiff) {
+      const patches = detail.unifiedDiff.split(/(?=^diff --git )/m).filter((patch) => patch.trim());
+      for (const patch of patches) {
+        add(patchPath(patch) ?? detail.filePath, {
+          id: `${id}:${patchPath(patch) ?? detail.filePath}`,
+          patch,
+          before: detail.oldString,
+          after: detail.newString,
+        });
+      }
+    } else {
+      add(detail.filePath, { id: id, before: detail.oldString, after: detail.newString });
+    }
+  }
 }
 
 function summarize(items: StreamItem[], root: string): ResponseFileChanges | null {
@@ -124,6 +181,14 @@ function summarize(items: StreamItem[], root: string): ResponseFileChanges | nul
     if (item.kind === "tool_call") calls.set(item.id, item);
   }
   const files = new Map<string, RecordedFileEdit[]>();
+  const snapshots = [...calls.values()].filter(isSnapshot);
+  const completeSnapshot = snapshots.find(
+    (item) => item.payload.source === "agent" && item.payload.data.metadata?.complete === true,
+  );
+  const snapshotRoot =
+    completeSnapshot?.payload.source === "agent"
+      ? completeSnapshot.payload.data.metadata?.root
+      : undefined;
   function add(path: string, edit: RecordedFileEdit) {
     const key = relativePath(path, root);
     const edits = files.get(key) ?? [];
@@ -134,26 +199,13 @@ function summarize(items: StreamItem[], root: string): ResponseFileChanges | nul
     if (item.payload.source !== "agent") continue;
     const { status, detail } = item.payload.data;
     if (status !== "completed") continue;
-    if (detail.type === "write") {
-      add(detail.filePath, { id: item.id, after: detail.content });
-    } else if (detail.type === "edit") {
-      if (detail.unifiedDiff) {
-        const patches = detail.unifiedDiff
-          .split(/(?=^diff --git )/m)
-          .filter((patch) => patch.trim());
-        for (const patch of patches) {
-          add(patchPath(patch) ?? detail.filePath, {
-            id: `${item.id}:${patchPath(patch) ?? detail.filePath}`,
-            patch,
-            before: detail.oldString,
-            after: detail.newString,
-          });
-        }
-      } else {
-        add(detail.filePath, { id: item.id, before: detail.oldString, after: detail.newString });
-      }
-    }
+    if (!isSnapshot(item) && coveredBySnapshot(detail, snapshotRoot, root)) continue;
+    // A saved before/after snapshot supersedes snippet edits for the same file.
+    if (isSnapshot(item) && detail.type === "edit")
+      files.delete(relativePath(detail.filePath, root));
+    appendEdit(detail, item.id, add);
   }
+
   const changes = Array.from(files, ([path, edits]) => ({
     path,
     edits,
@@ -169,7 +221,14 @@ function summarize(items: StreamItem[], root: string): ResponseFileChanges | nul
         { additions: 0, deletions: 0 },
       )
     : null;
-  return { files: changes, counts };
+  return {
+    files: changes,
+    counts,
+    ...(snapshots.length ? { scope: "workspace" as const } : {}),
+    ...(changes.some((file) => file.edits.length > 1 && file.counts)
+      ? { recordedTotals: true }
+      : {}),
+  };
 }
 
 /** Saved tool events survive commits; the current checkout is never used to attribute edits. */

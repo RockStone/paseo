@@ -49,6 +49,12 @@ export function createStreamPresentation() {
   let preparedHistory: PreparedToolCallHistory | null = null;
 
   function presentRows(item: StreamItem): StreamItem[] {
+    if (
+      item.kind === "tool_call" &&
+      item.payload.source === "agent" &&
+      item.payload.data.metadata?.paseoiWorkspaceSnapshot === true
+    )
+      return [];
     return [item.kind === "user_message" ? presentUserMessage(item) : item];
   }
 

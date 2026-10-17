@@ -1,4 +1,5 @@
 import { projectTimelineRows } from "./timeline-projection.js";
+import { ResponseChangeRecorder } from "./response-change-recorder.js";
 import type { PluginLifecycle } from "../plugins/lifecycle/index.js";
 import { describeHookAgent, publishAgentStream } from "../plugins/lifecycle/index.js";
 import type { PluginSessionOpenRequest } from "@getpaseo/plugin/server";
@@ -752,6 +753,7 @@ export class AgentManager {
   private readonly idFactory: () => string;
   private readonly registry?: AgentStorage;
   private readonly durableTimelineStore?: AgentTimelineStore;
+  private readonly responseChanges: ResponseChangeRecorder;
   private readonly previousStatuses = new Map<string, AgentLifecycleStatus>();
   private readonly backgroundTasks = new Set<Promise<void>>();
   private readonly agentRegistrationTasks = new Set<Promise<void>>();
@@ -779,7 +781,8 @@ export class AgentManager {
   constructor(options: AgentManagerOptions) {
     this.pluginLifecycle = options.pluginLifecycle;
     this.idFactory = options?.idFactory ?? (() => randomUUID());
-    this.registry = options?.registry;
+    this.registry = options.registry;
+    this.responseChanges = new ResponseChangeRecorder(this.registry?.responseChangesDirectory);
     this.durableTimelineStore = options?.durableTimelineStore;
     this.onAgentAttention = options?.onAgentAttention;
     this.onWorkspaceStateMayHaveChanged = options?.onWorkspaceStateMayHaveChanged;
@@ -2541,12 +2544,16 @@ export class AgentManager {
   }): Promise<string> {
     const { agent, agentId, pendingRun, prompt, options } = params;
     try {
+      // The load-test provider emits illustrative tool calls without touching files.
+      if (!agent.internal && agent.provider !== "mock")
+        await this.responseChanges.begin(agentId, agent.cwd);
       const result = await agent.session.startTurn(prompt, options);
       if (pendingRun.settled) {
         throw new Error(`Agent ${agentId} run was canceled before its turn started`);
       }
       return result.turnId;
     } catch (error) {
+      this.responseChanges.discard(agentId);
       if (pendingRun.settled) {
         throw error;
       }
@@ -3308,6 +3315,7 @@ export class AgentManager {
   async deleteAgentState(agentId: string): Promise<void> {
     this.discardRetainedAgentState(agentId);
     await this.deleteCommittedTimeline(agentId);
+    await this.responseChanges.remove(agentId);
   }
 
   async deleteCommittedTimeline(agentId: string): Promise<void> {
@@ -3806,6 +3814,7 @@ export class AgentManager {
     agent: LiveManagedAgent,
     cancelReason: string,
   ): ManagedAgentClosed {
+    this.responseChanges.discard(agent.id);
     this.agentStreamCoalescer.flushAndDiscard(agent.id);
     this.agents.delete(agent.id);
     this.previousStatuses.delete(agent.id);
@@ -4117,6 +4126,17 @@ export class AgentManager {
     await this.primeTimelineFromLegacyProviderHistory(agent, broadcast);
   }
 
+  private async replayResponseChanges(
+    agentId: string,
+    events: Extract<AgentStreamEvent, { type: "timeline" }>[],
+  ): Promise<void> {
+    try {
+      await this.responseChanges.replay(agentId, events);
+    } catch (err) {
+      this.logger.warn({ err, agentId }, "Could not restore saved workspace changes");
+    }
+  }
+
   private async forceHydrateTimelineFromLegacyProviderHistory(
     agent: ActiveManagedAgent,
     broadcast: boolean,
@@ -4135,6 +4155,7 @@ export class AgentManager {
       }
     }
 
+    await this.replayResponseChanges(agent.id, historyEvents);
     this.agentStreamCoalescer.flushAndDiscard(agent.id);
     await this.deleteCommittedTimeline(agent.id);
     this.timelineStore.delete(agent.id);
@@ -4203,6 +4224,7 @@ export class AgentManager {
       throw error;
     }
 
+    await this.replayResponseChanges(agent.id, historyEvents);
     // The replay is the timeline, so drop the rows a previous hydration committed.
     // Keeping them would leave getTimelineRows reading one copy per hydration.
     await this.deleteCommittedTimeline(agent.id);
@@ -4278,6 +4300,42 @@ export class AgentManager {
     );
   }
 
+  private async recordResponseChanges(
+    agent: ActiveManagedAgent,
+    event: AgentStreamEvent,
+    turnId: string | undefined,
+    fromHistory: boolean,
+  ): Promise<void> {
+    if (
+      fromHistory ||
+      !isTurnTerminalEvent(event) ||
+      !turnId ||
+      agent.activeForegroundTurnId !== turnId
+    )
+      return;
+    try {
+      const items = await this.responseChanges.finish(agent.id, turnId);
+      const turnRows = this.timelineStore.getRows(agent.id).filter((row) => row.turnId === turnId);
+      const lastAssistant = turnRows.findLast((row) => row.item.type === "assistant_message")?.item;
+      const hadExplicitEdits = turnRows.some(
+        ({ item }) =>
+          item.type === "tool_call" &&
+          (item.detail.type === "edit" || item.detail.type === "write"),
+      );
+      if (
+        (items.length > 1 || (items.length && hadExplicitEdits)) &&
+        lastAssistant?.type === "assistant_message" &&
+        lastAssistant.messageId
+      ) {
+        await this.responseChanges.save(agent.id, lastAssistant.messageId, items);
+        for (const item of items)
+          this.recordAndDispatchTimelineItem(agent.id, item, agent.provider, turnId);
+      }
+    } catch (err) {
+      this.logger.warn({ err, agentId: agent.id }, "Could not record response workspace changes");
+    }
+  }
+
   private async handleStreamEvent(
     agent: ActiveManagedAgent,
     event: AgentStreamEvent,
@@ -4306,6 +4364,8 @@ export class AgentManager {
       }
       this.agentStreamCoalescer.flushFor(agent.id);
     }
+
+    await this.recordResponseChanges(agent, event, eventTurnId, options?.fromHistory === true);
 
     let terminalDisposition: ActiveTurnTerminalDisposition = "untracked";
     if (isTurnTerminalEvent(event)) {

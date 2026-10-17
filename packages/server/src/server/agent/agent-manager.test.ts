@@ -4,7 +4,7 @@ import {
   formatSystemNotificationPrompt,
 } from "./agent-messages/index.js";
 import { expect, test, vi } from "vitest";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -667,6 +667,83 @@ async function startAndSteerThroughManager(
   });
   return { manager, agentId: agent.id, workdir };
 }
+
+test("records response workspace changes before completion and restores them from provider history", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-response-changes-"));
+  const git = (...args: string[]) =>
+    execFileSync("git", ["-C", workdir, ...args], { encoding: "utf8" });
+  git("init", "-q");
+  git("config", "user.name", "Test");
+  git("config", "user.email", "test@example.com");
+  writeFileSync(join(workdir, ".gitignore"), "agents/\n");
+  writeFileSync(join(workdir, "code.ts"), "const old = 1;\n");
+  git("add", ".");
+  git("commit", "-qm", "baseline");
+  class ShellSession extends TestAgentSession {
+    private ran = false;
+    override async startTurn(): Promise<{ turnId: string }> {
+      writeFileSync(join(workdir, "code.ts"), "const updated = 2;\n");
+      git("add", "code.ts");
+      git("commit", "-qm", "shell write");
+      this.ran = true;
+      const result = await super.startTurn();
+      this.pushEvent({
+        type: "timeline",
+        provider: "codex",
+        turnId: result.turnId,
+        item: { type: "assistant_message", text: "Done", messageId: "final-answer" },
+      });
+      return result;
+    }
+    override async *streamHistory(): AsyncGenerator<AgentStreamEvent> {
+      if (this.ran)
+        yield {
+          type: "timeline",
+          provider: "codex",
+          item: { type: "assistant_message", text: "Done", messageId: "final-answer" },
+        };
+    }
+  }
+  const manager = new AgentManager({
+    registry: new AgentStorage(join(workdir, "agents"), logger),
+    logger,
+    clients: {
+      codex: new (class extends TestAgentClient {
+        override async createSession(config: AgentSessionConfig) {
+          return new ShellSession(config);
+        }
+      })(),
+    },
+  });
+  let agentId: string | undefined;
+  try {
+    const agent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {});
+    agentId = agent.id;
+    for await (const _event of manager.streamAgent(agent.id, "Change code", {
+      clientMessageId: "prompt",
+    })) {
+      /* drain */
+    }
+    const recorded = manager
+      .getTimeline(agent.id)
+      .filter(
+        (item) => item.type === "tool_call" && item.metadata?.paseoiWorkspaceSnapshot === true,
+      );
+    expect(recorded).toHaveLength(2);
+    expect(JSON.stringify(recorded)).toContain("+const updated = 2;");
+    await manager.hydrateTimelineFromProvider(agent.id, { force: true });
+    expect(manager.getTimeline(agent.id).filter((item) => item.type === "tool_call")).toEqual(
+      recorded,
+    );
+    await manager.hydrateTimelineFromProvider(agent.id, { force: true });
+    expect(manager.getTimeline(agent.id).filter((item) => item.type === "tool_call")).toEqual(
+      recorded,
+    );
+  } finally {
+    if (agentId) await manager.closeAgent(agentId);
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
 
 test("uses an injected timeline store without making it a production requirement", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-timeline-store-"));

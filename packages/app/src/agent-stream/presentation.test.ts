@@ -677,18 +677,21 @@ function changeResponse(details: ToolCallDetail[]): StreamItem[] {
 }
 
 describe("recorded file-change accuracy", () => {
-  it("does not infer net counts from snippets that could refer to different occurrences", () => {
+  it("labels summed repeated snippets as recorded edit volume rather than net totals", () => {
     const details: ToolCallDetail[] = [
       { type: "edit", filePath: "/repo/a", oldString: "old\n", newString: "middle\n" },
       { type: "edit", filePath: "a", oldString: "middle\n", newString: "new\nextra\n" },
     ];
     expect(
       collectResponseFileChanges(changeResponse(details), "/repo").get("reply")?.counts,
-    ).toBeNull();
+    ).toEqual({ additions: 3, deletions: 2 });
+    expect(
+      collectResponseFileChanges(changeResponse(details), "/repo").get("reply")?.recordedTotals,
+    ).toBe(true);
     details.push({ type: "edit", filePath: "a", oldString: "new\nextra\n", newString: "old\n" });
     expect(
       collectResponseFileChanges(changeResponse(details), "/repo").get("reply")?.counts,
-    ).toBeNull();
+    ).toEqual({ additions: 4, deletions: 4 });
   });
 
   it("does not invent net totals for unrelated repeated snippets or a file overwrite", () => {
@@ -701,10 +704,44 @@ describe("recorded file-change accuracy", () => {
       "/repo",
     ).get("reply");
     expect(summary?.files.map((file) => [file.path, file.counts])).toEqual([
-      ["a", null],
+      ["a", { additions: 2, deletions: 2 }],
       ["b", null],
     ]);
     expect(summary?.counts).toBeNull();
+  });
+
+  it("uses saved workspace net diffs instead of double-counting provider snippets", () => {
+    const items = changeResponse([
+      { type: "edit", filePath: "/repo/a", oldString: "old", newString: "middle" },
+      { type: "edit", filePath: "/repo/a", oldString: "middle", newString: "new" },
+      {
+        type: "edit",
+        filePath: "/repo/a",
+        unifiedDiff: '--- "a//repo/a"\n+++ "b//repo/a"\n@@ -1 +1 @@\n-old\n+new\n',
+      },
+      { type: "plain_text", text: "Workspace changes" },
+    ]);
+    for (const item of items.slice(3, 5)) {
+      if (item.kind === "tool_call" && item.payload.source === "agent")
+        item.payload.data.metadata = {
+          paseoiWorkspaceSnapshot: true,
+          complete: true,
+          root: "/repo",
+        };
+    }
+    const summary = collectResponseFileChanges(items, "/repo").get("reply");
+    expect(summary).toMatchObject({ scope: "workspace", counts: { additions: 1, deletions: 1 } });
+    expect(summary?.files[0]?.edits).toHaveLength(1);
+    const present = createStreamPresentation()({
+      tail: items,
+      head: [],
+      level: "detailed",
+      transform: undefined,
+      isTurnActive: false,
+    });
+    expect(JSON.stringify(present)).not.toContain("paseoiWorkspaceSnapshot");
+    items.splice(3, 1);
+    expect(collectResponseFileChanges(items, "/repo").size).toBe(0);
   });
 
   it("splits multi-file patches and counts changed lines that look like file headers", () => {

@@ -112,6 +112,10 @@ export class AgentStorage {
     this.logger = logger.child({ module: "agent", component: "agent-storage" });
   }
 
+  get responseChangesDirectory(): string {
+    return path.join(this.baseDir, ".response-changes");
+  }
+
   async initialize(): Promise<void> {
     await this.load();
   }

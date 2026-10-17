@@ -871,7 +871,7 @@ test("response changed-files cards retain recorded diffs after completion and re
     const card = page.getByTestId("response-changed-files");
     await expect(card).toHaveCount(1);
     await expect(card).toContainText("1 file changed");
-    await expect(card).toContainText("Counts unavailable");
+    await expect(card).toContainText("View changes");
     await expect(card.getByTestId("response-changed-file")).toContainText(
       "packages/app/src/hooks/use-scroll-anchor.ts",
     );

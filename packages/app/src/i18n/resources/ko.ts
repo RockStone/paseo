@@ -5,12 +5,14 @@ export const ko: TranslationResources = {
   responseChanges: {
     title_one: "파일 {{count}}개 변경",
     title_other: "파일 {{count}}개 변경",
-    unavailable: "줄 수 없음",
+    unavailable: "변경 사항 보기",
     edit: "기록된 수정 {{count}}",
     noDiff: "이 파일의 변경 전후 차이가 기록되지 않았습니다.",
     openFile: "파일 열기",
     showLess: "파일 적게 보기",
     showMore: "파일 {{count}}개 더 보기",
+    workspace: "이 응답 중 작업 공간 변경 사항",
+    recordedTotals: "기록된 편집: 같은 줄이 여러 번 집계될 수 있습니다",
   },
   paneFind: {
     connectionFailure: "이 채팅을 검색할 수 없습니다. 호스트 연결을 확인하고 다시 시도하세요.",

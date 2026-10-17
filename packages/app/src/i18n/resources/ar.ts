@@ -5,12 +5,14 @@ export const ar: TranslationResources = {
   responseChanges: {
     title_one: "تم تغيير {{count}} ملف",
     title_other: "تم تغيير {{count}} ملفات",
-    unavailable: "عدد الأسطر غير متاح",
+    unavailable: "عرض التغييرات",
     edit: "التعديل المسجل {{count}}",
     noDiff: "لم يتم تسجيل الفرق قبل التعديل وبعده لهذا الملف.",
     openFile: "فتح الملف",
     showLess: "عرض ملفات أقل",
     showMore: "عرض {{count}} ملفات أخرى",
+    workspace: "تغييرات مساحة العمل أثناء هذا الرد",
+    recordedTotals: "التعديلات المسجلة؛ قد يُحتسب السطر أكثر من مرة",
   },
   paneFind: {
     connectionFailure: "تعذر البحث في هذه المحادثة. تحقق من الاتصال بالمضيف وأعد المحاولة.",

@@ -40,14 +40,14 @@ clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
 the PR's persistent annotation markers or separate comment editor.
 
-Completed responses also show a changed-files card derived from saved, successful
-edit/write events normalized by the agent providers. This keeps historical cards
-available after a commit without attributing another agent's checkout changes to
-this response. Counts are unavailable for incomplete patches, overwrites without
-a baseline, or repeated edits without enough information to establish the net
-change. Shell-only writes are not inferred from the current Git diff. The shared
-client UI supports compact layouts; official mobile binaries do not acquire this
-custom UI from a daemon update.
+Completed responses show a changed-files card from saved provider edit events and
+[daemon workspace snapshots](data-model.md#custom-build-response-changes). Snapshots
+cover shell writes and give net totals across repeated edits, including changes
+committed before the response finishes. Provider-only totals describe recorded edit
+volume and can count the same line more than once. Missing baselines and incomplete
+patches show **View changes** instead of a numeric total. The shared client UI supports
+compact layouts; official mobile binaries do not acquire this custom UI from a
+daemon update.
 
 Build a locally signed macOS app for your machine:
 

@@ -74,6 +74,28 @@ The `agents/{sanitized-cwd}/` directory name is derived from the agent's `cwd` b
 
 ---
 
+## Custom build response changes
+
+Paseoi saves derived workspace diffs under
+`$PASEO_HOME/agents/.response-changes/{hex-encoded-agentId}/history.json`.
+These additive records attach to provider assistant-message IDs. Provider
+transcripts and existing agent records are unchanged; replay restores a snapshot
+only when its matching assistant message still exists. Older shell-only changes
+are not backfilled. Deleting an agent removes its derived history.
+
+A snapshot describes workspace activity during a response, not process ownership.
+An overlapping Paseo turn in the same checkout suppresses inferred snapshots for
+both turns; explicit provider edit records remain available. External editors
+can still contribute workspace changes. Already dirty content is the baseline,
+so it is not counted unless it changes during the response.
+
+Snapshots respect Git ignore rules for untracked files, skip symlinks and binary
+files, and retain at most 256 KiB per file and 32 MiB per baseline. Repositories
+above 20,000 listed paths are skipped. At most four captures run concurrently;
+saved patches are capped at 128 KiB per response. Partial captures supplement
+explicit edits rather than claiming complete coverage. New snapshots require a
+response started on the rebuilt daemon; installing only the UI cannot add them.
+
 ## 1. Agent Record
 
 **Path:** `$PASEO_HOME/agents/{project-dir}/{agentId}.json`

@@ -5,12 +5,14 @@ export const es: TranslationResources = {
   responseChanges: {
     title_one: "{{count}} archivo modificado",
     title_other: "{{count}} archivos modificados",
-    unavailable: "Recuento no disponible",
+    unavailable: "Ver cambios",
     edit: "Edición registrada {{count}}",
     noDiff: "No se registró una comparación antes/después de este archivo.",
     openFile: "Abrir archivo",
     showLess: "Mostrar menos archivos",
     showMore: "Ver {{count}} archivos más",
+    workspace: "Cambios del espacio de trabajo durante esta respuesta",
+    recordedTotals: "Ediciones registradas; una línea puede contarse más de una vez",
   },
   paneFind: {
     connectionFailure:
