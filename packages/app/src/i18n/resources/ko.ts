@@ -2,7 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ko: TranslationResources = {
+  sessionReference: en.sessionReference,
   commitHistoryPill: {
+    commitPush: "커밋 및 푸시",
+    requestSent: "요청 전송됨",
+    sendFailed: "요청을 보내지 못했습니다. 다시 시도하세요.",
+
     label: "기록",
     title: "최근 커밋 25개",
     disconnected: "기록을 보려면 호스트에 연결하세요.",

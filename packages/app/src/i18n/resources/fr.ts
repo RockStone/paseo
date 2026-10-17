@@ -2,7 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const fr: TranslationResources = {
+  sessionReference: en.sessionReference,
   commitHistoryPill: {
+    commitPush: "Commit et push",
+    requestSent: "Demande envoyée",
+    sendFailed: "Impossible d’envoyer la demande. Réessayez.",
+
     label: "Historique",
     title: "25 derniers commits",
     disconnected: "Connectez-vous à l’hôte pour voir l’historique.",

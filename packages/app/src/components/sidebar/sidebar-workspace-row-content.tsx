@@ -1,3 +1,4 @@
+import { useSessionDragSource } from "@/attachments/use-session-drag-source";
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
 import { Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -120,6 +121,10 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   const {
     settings: { workspaceTitleSource },
   } = useAppSettings();
+  const sessionDragRef = useSessionDragSource({
+    serverId: workspace.serverId,
+    workspaceId: workspace.workspaceId,
+  });
   const workspaceLabel = resolveSidebarWorkspacePrimaryLabel({ workspace, workspaceTitleSource });
   // The workspace carries label names; their colors live in its host's catalog, so the row is
   // where the two meet — the meta line is handed finished definitions.
@@ -156,7 +161,12 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
         )}
         <View style={styles.workspaceContentColumn}>
           <View style={styles.workspaceTitleRow}>
-            <Text style={workspaceBranchTextStyle} numberOfLines={1}>
+            <Text
+              ref={sessionDragRef}
+              testID={`sidebar-session-drag-${workspace.workspaceKey}`}
+              style={workspaceBranchTextStyle}
+              numberOfLines={1}
+            >
               {workspaceLabel}
             </Text>
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>

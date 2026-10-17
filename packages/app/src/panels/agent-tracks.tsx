@@ -161,14 +161,21 @@ export const AgentTracks = memo(function AgentTracks({
           testID="composer-branch-pill"
         />
       ) : null}
-      {gitCheckout ? <ComposerCommitHistoryPill serverId={serverId} cwd={cwd} /> : null}
+      {gitCheckout ? (
+        <ComposerCommitHistoryPill serverId={serverId} cwd={cwd} agentId={agentId} />
+      ) : null}
       <WorkspaceDiffStatPill
         serverId={serverId}
         workspaceId={workspaceId}
         onPress={handleOpenChanges}
       />
       {workingTree && workingTree.total > 0 ? (
-        <ComposerGitStatusPill summary={workingTree} serverId={serverId} cwd={cwd} />
+        <ComposerGitStatusPill
+          summary={workingTree}
+          serverId={serverId}
+          cwd={cwd}
+          agentId={agentId}
+        />
       ) : null}
     </ComposerTrackBar>
   );

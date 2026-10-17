@@ -4,6 +4,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { Undo2 } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import type { CheckoutWorkingTreeSummary } from "@getpaseo/protocol/messages";
+import { CommitPushButton } from "@/composer/commit-push-button";
 import { ComposerTrackPill } from "@/composer/tracks";
 import { useMenuContext } from "@/components/ui/menu";
 import { useCheckoutGitActionsStore } from "@/git/actions-store";
@@ -18,10 +19,12 @@ export const ComposerGitStatusPill = memo(function ComposerGitStatusPill({
   summary,
   serverId,
   cwd,
+  agentId,
 }: {
   summary: CheckoutWorkingTreeSummary;
   serverId: string;
   cwd: string;
+  agentId: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -30,7 +33,7 @@ export const ComposerGitStatusPill = memo(function ComposerGitStatusPill({
       panelTitle={t("gitStatusPill.heading")}
       testID="composer-git-status-pill"
     >
-      <GitStatusList summary={summary} serverId={serverId} cwd={cwd} />
+      <GitStatusList summary={summary} serverId={serverId} cwd={cwd} agentId={agentId} />
     </ComposerTrackPill>
   );
 });
@@ -39,10 +42,12 @@ function GitStatusList({
   summary,
   serverId,
   cwd,
+  agentId,
 }: {
   summary: CheckoutWorkingTreeSummary;
   serverId: string;
   cwd: string;
+  agentId: string;
 }) {
   const { t } = useTranslation();
   const discardChanges = useCheckoutGitActionsStore((state) => state.discardChanges);
@@ -98,7 +103,10 @@ function GitStatusList({
   );
   return (
     <View style={styles.list}>
-      <Text style={styles.heading}>{t("gitStatusPill.heading")}</Text>
+      <View style={styles.header}>
+        <Text style={styles.heading}>{t("gitStatusPill.heading")}</Text>
+        <CommitPushButton serverId={serverId} agentId={agentId} />
+      </View>
       <Text style={styles.meta}>
         {t("gitStatusPill.breakdown", { tracked: summary.tracked, untracked: summary.untracked })}
       </Text>
@@ -157,6 +165,12 @@ function GitStatusRow({
 
 const styles = StyleSheet.create((theme) => ({
   list: { gap: theme.spacing[2], padding: theme.spacing[3] },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[3],
+  },
   heading: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.foreground,

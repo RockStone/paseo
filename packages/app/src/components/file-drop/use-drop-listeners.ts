@@ -1,3 +1,4 @@
+import { SESSION_DRAG_MIME, parseSessionDragPayload } from "@/attachments/session-drag";
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { SharedValue } from "react-native-reanimated";
@@ -200,7 +201,11 @@ export function useDropListeners({
         const types = new Set(e.dataTransfer?.types ?? []);
         const acceptsWorkspaceFile =
           types.has(WORKSPACE_FILE_DRAG_MIME) && Boolean(getSink()?.onWorkspaceFile);
-        if (types.has("Files") || acceptsWorkspaceFile) {
+        if (
+          types.has("Files") ||
+          acceptsWorkspaceFile ||
+          (types.has(SESSION_DRAG_MIME) && Boolean(getSink()?.onSession))
+        ) {
           isDragging.value = true;
         }
       }
@@ -215,7 +220,8 @@ export function useDropListeners({
         const types = new Set(e.dataTransfer.types);
         const acceptsWorkspaceFile =
           types.has(WORKSPACE_FILE_DRAG_MIME) && Boolean(getSink()?.onWorkspaceFile);
-        const acceptsDrop = types.has("Files") || acceptsWorkspaceFile;
+        const acceptsSession = types.has(SESSION_DRAG_MIME) && Boolean(getSink()?.onSession);
+        const acceptsDrop = types.has("Files") || acceptsWorkspaceFile || acceptsSession;
         const canAccept = acceptsDrop && !disabledRef.current && !suppressed.value && hasSink.value;
         e.dataTransfer.dropEffect = canAccept ? "copy" : "none";
       }
@@ -243,6 +249,13 @@ export function useDropListeners({
 
         const sink = getSink();
         if (!sink) return;
+
+        const serializedSession = e.dataTransfer?.getData(SESSION_DRAG_MIME);
+        if (serializedSession && sink.onSession) {
+          const payload = parseSessionDragPayload(serializedSession);
+          if (payload) sink.onSession(payload);
+          return;
+        }
 
         const serializedWorkspaceFile = e.dataTransfer?.getData(WORKSPACE_FILE_DRAG_MIME);
         if (serializedWorkspaceFile && sink.onWorkspaceFile) {

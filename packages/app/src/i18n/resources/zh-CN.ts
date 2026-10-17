@@ -2,7 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const zhCN: TranslationResources = {
+  sessionReference: en.sessionReference,
   commitHistoryPill: {
+    commitPush: "提交并推送",
+    requestSent: "已发送请求",
+    sendFailed: "无法发送请求，请重试。",
+
     label: "历史",
     title: "最近 25 次提交",
     disconnected: "连接到主机以查看历史记录。",

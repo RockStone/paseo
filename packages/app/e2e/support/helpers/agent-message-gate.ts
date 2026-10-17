@@ -87,6 +87,26 @@ export async function gateNextAgentMessage(page: Page) {
       serverSocket.send(heldMessage);
       heldMessages[index] = null;
     },
+    reject(index: number, error: string) {
+      const request = requests[index];
+      if (!browserSocket || !heldMessages[index] || !request)
+        throw new Error("No held request to reject");
+      browserSocket.send(
+        JSON.stringify({
+          type: "session",
+          message: {
+            type: "send_agent_message_response",
+            payload: {
+              requestId: request.requestId,
+              agentId: request.agentId,
+              accepted: false,
+              error,
+            },
+          },
+        }),
+      );
+      heldMessages[index] = null;
+    },
     async disconnect(): Promise<void> {
       if (!browserSocket) throw new Error("No browser daemon socket to disconnect");
       await browserSocket.close({ code: 1008, reason: "Dropped by submission test." });

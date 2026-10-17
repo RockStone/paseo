@@ -9,7 +9,12 @@ import {
   forkMostRecentAssistantTurnToNewWorkspace,
   observeForkAttachment,
 } from "../support/helpers/assistant-fork";
-import { expectComposerVisible, submitMessage } from "../support/helpers/composer";
+import { gateNextAgentMessage } from "../support/helpers/agent-message-gate";
+import {
+  expectComposerVisible,
+  submitMessage,
+  fillComposerDraft,
+} from "../support/helpers/composer";
 import { getE2EDaemonPort } from "../support/helpers/daemon-port";
 import {
   openAgentRoute,
@@ -220,4 +225,66 @@ test.describe("Assistant fork menu", () => {
     await expect(userMessage).toBeVisible({ timeout: 30_000 });
     await expect(userMessage).not.toContainText("Source agent:");
   });
+});
+
+test("dragging another workspace title attaches its conversation and sends it with the current draft", async ({
+  page,
+  seedForkWorkspace,
+}) => {
+  const source = await seedForkWorkspace({
+    repoPrefix: "conversation-drop-source-",
+    title: "Review owner TODO items",
+    initialPrompt:
+      "emit 1 coalesced agent stream updates about the source conversation secret detail.",
+  });
+  const target = await seedForkWorkspace({
+    repoPrefix: "conversation-drop-target-",
+    title: "Use another conversation",
+  });
+  await source.client.waitForFinish(source.agentId, 45_000);
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const gate = await gateNextAgentMessage(page);
+  await openAgentRoute(page, target);
+  await expectComposerVisible(page);
+  await fillComposerDraft(page, "Use this context please");
+  const dragTitle = page.getByTestId(`sidebar-session-drag-${getServerId()}:${source.workspaceId}`);
+  await expect(dragTitle).toBeVisible({ timeout: 30_000 });
+  await expect(dragTitle).toHaveAttribute("draggable", "true");
+  const input = page.getByRole("textbox", { name: "Message agent..." }).first();
+  await dragTitle.dragTo(input);
+  const pill = page.getByTestId("composer-chat-history-attachment-pill");
+  await expect(pill).toContainText("Review owner TODO items");
+  await expect(input).toHaveValue("Use this context please");
+  await expect(input).toBeFocused();
+  await dragTitle.dragTo(input);
+  await expect(pill).toHaveCount(1);
+  await pill.hover();
+  await page.getByRole("button", { name: "Remove chat history attachment" }).click();
+  await expect(pill).toHaveCount(0);
+  await dragTitle.dragTo(input);
+  await expect(pill).toContainText("Review owner TODO items");
+  await page.screenshot({ path: "/tmp/paseoi-session-reference.png" });
+  await submitMessage(page, "Use this context please");
+  const request = await gate.waitForRequest();
+  expect(request.agentId).toBe(target.agentId);
+  expect(request.text).toBe("Use this context please");
+  expect(request.attachments).toEqual([
+    expect.objectContaining({
+      type: "text",
+      contextKind: "chat_history",
+      title: "Review owner TODO items",
+      text: expect.stringContaining(source.agentId),
+    }),
+  ]);
+  expect(JSON.stringify(request.attachments)).toContain("source conversation secret detail");
+  gate.accept();
+  await expect(
+    page.getByTestId("user-message").filter({ hasText: "Review owner TODO items" }).last(),
+  ).toBeVisible();
+  await expect(pill).toHaveCount(0);
+  await dragTitle.click();
+  await expect(page.getByTestId(`workspace-tab-agent_${source.agentId}`)).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });

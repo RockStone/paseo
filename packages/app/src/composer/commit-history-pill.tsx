@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useFetchQuery } from "@/data/query";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native-unistyles";
+import { CommitPushButton } from "@/composer/commit-push-button";
 import { ComposerTrackPill } from "@/composer/tracks";
 import { useMenuContext } from "@/components/ui/menu";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
@@ -13,9 +14,11 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 export const ComposerCommitHistoryPill = memo(function ComposerCommitHistoryPill({
   serverId,
   cwd,
+  agentId,
 }: {
   serverId: string;
   cwd: string;
+  agentId: string;
 }) {
   const { t } = useTranslation();
   // COMPAT(composerGitDetails): added in Paseoi r17, remove after 2027-04-17.
@@ -29,12 +32,20 @@ export const ComposerCommitHistoryPill = memo(function ComposerCommitHistoryPill
       panelTitle={t("commitHistoryPill.title")}
       testID="composer-commit-history-pill"
     >
-      <CommitHistoryList serverId={serverId} cwd={cwd} />
+      <CommitHistoryList serverId={serverId} cwd={cwd} agentId={agentId} />
     </ComposerTrackPill>
   );
 });
 
-function CommitHistoryList({ serverId, cwd }: { serverId: string; cwd: string }) {
+function CommitHistoryList({
+  serverId,
+  cwd,
+  agentId,
+}: {
+  serverId: string;
+  cwd: string;
+  agentId: string;
+}) {
   const { t, i18n } = useTranslation();
   const { open } = useMenuContext("CommitHistoryList");
   const client = useHostRuntimeClient(serverId);
@@ -101,7 +112,10 @@ function CommitHistoryList({ serverId, cwd }: { serverId: string; cwd: string })
   }
   return (
     <View style={styles.list}>
-      <Text style={styles.heading}>{t("commitHistoryPill.title")}</Text>
+      <View style={styles.header}>
+        <Text style={styles.heading}>{t("commitHistoryPill.title")}</Text>
+        <CommitPushButton serverId={serverId} agentId={agentId} />
+      </View>
       {content}
     </View>
   );
@@ -109,6 +123,12 @@ function CommitHistoryList({ serverId, cwd }: { serverId: string; cwd: string })
 
 const styles = StyleSheet.create((theme) => ({
   list: { padding: theme.spacing[3], gap: theme.spacing[3] },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[3],
+  },
   heading: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.foreground,

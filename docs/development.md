@@ -44,6 +44,13 @@ Typing or pasting with Cmd+V/Ctrl+V in the active chat focuses its composer firs
 Pasted images use the normal attachment flow; text goes into the draft. Other
 editors, terminals, and open overlays retain their own keyboard input.
 
+Drag a sidebar workspace title into the composer to attach its focused conversation,
+falling back to its latest session when no agent tab is focused. The removable
+attachment includes the source host/session identity and a context snapshot from
+the existing fork-context API. It works across connected hosts and providers;
+the source host must support `agentForkContext`. It captures up to the existing
+100,000-character context budget at drop time, not a live feed of later messages.
+
 Completed responses show a changed-files card from saved provider edit events and
 [daemon workspace snapshots](data-model.md#custom-build-response-changes). Snapshots
 cover shell writes and give net totals across repeated edits, including changes
@@ -71,6 +78,9 @@ observation, without subscribing to full file diffs. Hosts need `composerGitDeta
 Each row's undo action confirms before discarding all staged and unstaged edits
 to that file, or deleting an untracked file. A rename restores its original path
 as well. No stash is created.
+Both Git lists have **Commit & Push** in the header. It sends a separate request
+to the current agent; the agent reviews and performs Git operations. Composer
+drafts and attachments stay intact.
 
 Build a locally signed macOS app for your machine:
 

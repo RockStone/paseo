@@ -2,7 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ar: TranslationResources = {
+  sessionReference: en.sessionReference,
   commitHistoryPill: {
+    commitPush: "التثبيت والدفع",
+    requestSent: "تم إرسال الطلب",
+    sendFailed: "تعذر إرسال الطلب. حاول مرة أخرى.",
+
     label: "السجل",
     title: "آخر 25 عمليات إيداع",
     disconnected: "اتصل بالمضيف لعرض السجل.",

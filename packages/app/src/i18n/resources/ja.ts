@@ -2,7 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ja: TranslationResources = {
+  sessionReference: en.sessionReference,
   commitHistoryPill: {
+    commitPush: "コミット＆プッシュ",
+    requestSent: "リクエスト送信済み",
+    sendFailed: "リクエストを送信できませんでした。再試行してください。",
+
     label: "履歴",
     title: "最近の25件のコミット",
     disconnected: "履歴を表示するにはホストに接続してください。",

@@ -1,5 +1,13 @@
 export const en = {
+  sessionReference: {
+    failed: "Could not attach this conversation. Try again.",
+    unavailable: "Connect to the source host and update it to attach conversation context.",
+    self: "This conversation is already open here.",
+  },
   commitHistoryPill: {
+    commitPush: "Commit & Push",
+    requestSent: "Request sent",
+    sendFailed: "Could not send the request. Try again.",
     label: "History",
     title: "Recent 25 commits",
     disconnected: "Connect to the host to view history.",

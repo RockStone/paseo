@@ -1146,3 +1146,45 @@ test("response changed-files cards retain recorded diffs after completion and re
     await agent.cleanup();
   }
 });
+
+test("Commit & Push asks only the current agent and preserves the composer draft", async ({
+  page,
+}) => {
+  const workspace = await seedChangedAgent("composer-commit-push-");
+  try {
+    const gate = await gateNextAgentMessage(page);
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await openAgentRoute(page, workspace);
+    await fillComposerDraft(page, "Keep this unfinished question");
+    await page.getByTestId("composer-git-status-pill").click();
+    const button = page.getByTestId("composer-commit-push");
+    await expect(button).toBeVisible();
+    await button.click();
+    const request = await gate.waitForRequest();
+    expect(request.agentId).toBe(workspace.agentId);
+    expect(request.text).toContain("commit the changes for this task");
+    expect(request.text).toContain("push the current branch");
+    expect(request.attachments).toEqual([]);
+    await expectComposerDraft(page, "Keep this unfinished question");
+    await expect(button).toBeDisabled();
+    gate.reject(0, "Host rejected the request; try again.");
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Host rejected the request" }),
+    ).toBeVisible();
+    await expect(button).toBeEnabled();
+    await expectComposerDraft(page, "Keep this unfinished question");
+    await button.click();
+    await gate.waitForRequest(2);
+    expect(gate.requestCount()).toBe(2);
+    gate.accept(1);
+    await expect(button).toContainText("Request sent");
+    await page.keyboard.press("Escape");
+    await page.getByTestId("composer-commit-history-pill").click();
+    await expect(page.getByTestId("composer-commit-push")).toBeVisible();
+    await expectComposerDraft(page, "Keep this unfinished question");
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: "/tmp/paseoi-commit-push.png" });
+  } finally {
+    await workspace.cleanup();
+  }
+});

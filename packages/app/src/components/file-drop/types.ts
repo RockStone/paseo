@@ -1,3 +1,4 @@
+import type { SessionDragPayload } from "@/attachments/session-drag";
 import type { ImageAttachment } from "@/composer/types";
 import type { WorkspaceFileDragPayload } from "@/attachments/workspace-file-drag";
 
@@ -19,5 +20,6 @@ export type DroppedItem = DroppedFileItem | DroppedPathItem;
 export interface FileDropSink {
   onFiles: (images: ImageAttachment[]) => void;
   onGenericFiles?: (items: DroppedItem[]) => void;
+  onSession?: (payload: SessionDragPayload) => void;
   onWorkspaceFile?: (payload: WorkspaceFileDragPayload) => void;
 }

@@ -1,4 +1,9 @@
 import {
+  createSessionContextAttachment,
+  type SessionDragPayload,
+} from "@/attachments/session-drag";
+import { useWorkspaceAttachmentsStore } from "@/attachments/workspace-attachments-store";
+import {
   useComposerEditingSession,
   useComposerFullscreen,
   type ComposerEditingSession,
@@ -1498,6 +1503,64 @@ function ComposerContentImpl({
     });
   }, []);
 
+  const [isAddingSession, setIsAddingSession] = useState(false);
+  const addingSessionRef = useRef(false);
+  const handleSessionDropped = useCallback(
+    (source: SessionDragPayload) => {
+      if (addingSessionRef.current) return;
+      if (source.serverId === serverId && source.agentId === agentId) {
+        toastErrorRef.current(t("sessionReference.self"));
+        return;
+      }
+      const sourceRuntime = getHostRuntimeStore().getSnapshot(source.serverId);
+      const sourceSession = useSessionStore.getState().sessions[source.serverId];
+      if (
+        sourceRuntime?.connectionStatus !== "online" ||
+        !sourceRuntime.client ||
+        !sourceSession?.serverInfo?.features?.agentForkContext
+      ) {
+        toastErrorRef.current(t("sessionReference.unavailable"));
+        return;
+      }
+      const sourceClient = sourceRuntime.client;
+      const scopeKey = attachmentScopeKeys[0];
+      if (!scopeKey) return;
+      const existing = useWorkspaceAttachmentsStore.getState().attachmentsByScope[scopeKey] ?? [];
+      const alreadyAttached = existing.some(
+        (attachment) =>
+          attachment.kind === "chat_history" &&
+          attachment.source.serverId === source.serverId &&
+          attachment.source.agentId === source.agentId,
+      );
+      if (alreadyAttached) {
+        focusInput();
+        return;
+      }
+      addingSessionRef.current = true;
+      setIsAddingSession(true);
+      focusInput();
+      void sourceClient
+        .buildAgentForkContext(source.agentId)
+        .then((payload) => {
+          useWorkspaceAttachmentsStore.getState().addWorkspaceAttachment({
+            scopeKey,
+            attachment: createSessionContextAttachment({ source, payload }),
+          });
+          return undefined;
+        })
+        .catch((error: unknown) => {
+          toastErrorRef.current(
+            error instanceof Error ? error.message : t("sessionReference.failed"),
+          );
+        })
+        .finally(() => {
+          addingSessionRef.current = false;
+          setIsAddingSession(false);
+        });
+    },
+    [agentId, attachmentScopeKeys, focusInput, serverId, t],
+  );
+
   const handleWorkspaceFileDropped = useCallback(
     (payload: WorkspaceFileDragPayload) => {
       if (!workspaceId) {
@@ -2356,7 +2419,11 @@ function ComposerContentImpl({
   const messageInputContainerRef = useRef<View>(null);
 
   const isSubmitLoadingVisible =
-    isProcessing || isSubmitLoading || isUploadingFile || pendingNativeImagePastes > 0;
+    isProcessing ||
+    isSubmitLoading ||
+    isUploadingFile ||
+    pendingNativeImagePastes > 0 ||
+    isAddingSession;
   const isSubmitDisabled =
     isSubmitLoadingVisible || (waitForForgeAutoAttachOnSubmit && isForgeResolving);
 
@@ -2368,6 +2435,7 @@ function ComposerContentImpl({
       onFiles: addImages,
       onGenericFiles: handleGenericFilesDropped,
       onWorkspaceFile: handleWorkspaceFileDropped,
+      onSession: attachmentScopeKeys.length > 0 ? handleSessionDropped : undefined,
     },
     { disabled: isSubmitLoadingVisible },
   );
