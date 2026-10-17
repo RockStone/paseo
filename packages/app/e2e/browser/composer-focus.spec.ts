@@ -28,6 +28,7 @@ import {
   swipeOpenMobileAgentSidebar,
   swipeOpenMobileExplorer,
 } from "../support/helpers/sidebar";
+import { openCommandCenter } from "../support/helpers/command-center";
 import { readScrollMetrics } from "../support/helpers/agent-bottom-anchor";
 import {
   expectTimelinePromptPositionPreserved,
@@ -316,3 +317,38 @@ for (const panel of COMPACT_PANELS) {
     }
   });
 }
+
+test("typing in the active chat focuses the composer without losing the first character", async ({
+  page,
+}) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "composer-type-to-focus-",
+    title: "Type to focus",
+  });
+  try {
+    await openAgentRoute(page, agent);
+    const composer = composerLocator(page);
+    const feed = page.getByTestId("agent-chat-scroll").filter({ visible: true });
+    await composer.fill("Existing draft ");
+    await feed.click({ position: { x: 2, y: 40 } });
+    await expect(feed).toBeFocused();
+    await page.keyboard.type("Hello!");
+    await expectComposerFocused(page);
+    await expectComposerDraft(page, "Existing draft Hello!");
+
+    await feed.click({ position: { x: 2, y: 40 } });
+    await page.keyboard.press("Shift+ArrowLeft");
+    await expect(feed).toBeFocused();
+    await expectComposerDraft(page, "Existing draft Hello!");
+
+    const commandCenter = await openCommandCenter(page);
+    const search = commandCenter.getByTestId("command-center-input");
+    await search.fill("");
+    await page.keyboard.type("search stays here");
+    await expect(search).toBeFocused();
+    await expect(search).toHaveValue("search stays here");
+    await expectComposerDraft(page, "Existing draft Hello!");
+  } finally {
+    await agent.cleanup();
+  }
+});

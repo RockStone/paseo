@@ -62,6 +62,7 @@ import { useIsCompactFormFactor } from "@/constants/layout";
 import { useComposerKeyboardScope } from "@/composer/keyboard-scope";
 import { RenderProfile } from "@/utils/render-profiler";
 import { useComposerHeight } from "./height";
+import { useTypingFocus } from "./typing-focus";
 import { ComposerInputPresentation } from "./presentation";
 import { resolveComposerInputMode, type ComposerInputMode } from "@/composer/input-mode";
 import type { NativePastedFile } from "@/composer/native-pasted-image";
@@ -1241,7 +1242,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       textReplacement,
       submitLabel,
     } = resolveMessageInputProps(props);
-    const { isPaneFocused } = useComposerKeyboardScope();
+    const { isPaneFocused, isActiveComposer } = useComposerKeyboardScope();
     const mode = resolveComposerInputMode(inputMode);
     const { t } = useTranslation();
     const isCompact = useIsCompactFormFactor();
@@ -1265,6 +1266,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const rootRef = useRef<View | null>(null);
     const inputWrapperRef = useRef<View | null>(null);
     const textInputRef = useRef<ComposerTextInputHandle | null>(null);
+    useTypingFocus({ enabled: isActiveComposer && !readOnly, inputRef: textInputRef });
     const isInputFocusedRef = useRef(false);
     const focusIntentRef = useRef(false);
     const valueRef = useRef(value);
