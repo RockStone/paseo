@@ -1180,7 +1180,8 @@ test("Commit & Push asks only the current agent and preserves the composer draft
     await expect(button).toContainText("Request sent");
     await page.keyboard.press("Escape");
     await page.getByTestId("composer-commit-history-pill").click();
-    await expect(page.getByTestId("composer-commit-push")).toBeVisible();
+    await expect(page.getByText("Recent 25 commits", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("composer-commit-push")).toHaveCount(0);
     await expectComposerDraft(page, "Keep this unfinished question");
     await page.waitForTimeout(500);
     await page.screenshot({ path: "/tmp/paseoi-commit-push.png" });

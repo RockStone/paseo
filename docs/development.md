@@ -78,7 +78,7 @@ observation, without subscribing to full file diffs. Hosts need `composerGitDeta
 Each row's undo action confirms before discarding all staged and unstaged edits
 to that file, or deleting an untracked file. A rename restores its original path
 as well. No stash is created.
-Both Git lists have **Commit & Push** in the header. It sends a separate request
+The **Uncommitted** list has **Commit & Push** in its header. It sends a separate request
 to the current agent; the agent reviews and performs Git operations. Composer
 drafts and attachments stay intact.
 
