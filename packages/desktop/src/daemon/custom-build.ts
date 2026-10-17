@@ -1,4 +1,17 @@
 import { loadPersistedConfig, savePersistedConfig } from "@getpaseo/server/configuration";
+import path from "node:path";
+
+export function resolveCustomBuildPaths(input: {
+  appData: string;
+  home: string;
+  daemonHome?: string;
+  userData?: string;
+}): { daemonHome: string; userData: string } {
+  return {
+    daemonHome: input.daemonHome ?? path.join(input.home, ".paseo"),
+    userData: input.userData?.trim() || path.join(input.appData, "Paseoi"),
+  };
+}
 
 export function ensureCustomDaemonConfig(home: string): void {
   const config = loadPersistedConfig(home);

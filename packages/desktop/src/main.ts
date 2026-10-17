@@ -30,6 +30,7 @@ import {
   webContents,
 } from "electron";
 import { registerDaemonManager } from "./daemon/daemon-manager.js";
+import { resolveCustomBuildPaths } from "./daemon/custom-build.js";
 import { parsePassthroughCliArgsFromArgv, runPassthroughCli } from "./daemon/cli/passthrough.js";
 import { closeAllTransportSessions } from "./daemon/local-transport.js";
 import {
@@ -300,10 +301,15 @@ function installBrowserWindowOpenHandler(input: {
   });
 }
 
-// A custom desktop build must not acquire or upgrade the official app's daemon.
 if (customBuild) {
-  app.setPath("userData", path.join(app.getPath("appData"), "Paseo Custom"));
-  process.env.PASEO_HOME ??= path.join(app.getPath("appData"), "Paseo Custom", "daemon");
+  const customPaths = resolveCustomBuildPaths({
+    appData: app.getPath("appData"),
+    home: app.getPath("home"),
+    daemonHome: process.env.PASEO_HOME,
+    userData: process.env.PASEO_ELECTRON_USER_DATA_DIR,
+  });
+  app.setPath("userData", customPaths.userData);
+  process.env.PASEO_HOME = customPaths.daemonHome;
 }
 
 // In dev mode, detect git worktrees and isolate each instance so multiple
