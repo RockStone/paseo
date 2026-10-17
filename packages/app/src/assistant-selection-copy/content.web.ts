@@ -90,6 +90,19 @@ turndown.addRule("compactListItem", {
   },
 });
 
+/** Reply can quote any visible transcript text; clipboard Markdown remains assistant-only. */
+export function createSelectionReplyText(
+  selection: Selection | null,
+  surface: Element,
+): string | null {
+  if (!selection || selection.rangeCount !== 1 || selection.isCollapsed) return null;
+  const range = selection.getRangeAt(0);
+  if (!surface.contains(range.startContainer) || !surface.contains(range.endContainer)) return null;
+  const text =
+    createAssistantSelectionClipboardContent(selection)?.plainText ?? selection.toString();
+  return text.trim() ? text : null;
+}
+
 export function createAssistantSelectionClipboardContent(
   selection: Selection | null,
 ): MarkdownClipboardContent | null {

@@ -4,7 +4,8 @@ export const SelectionReplyContext = createContext<((text: string) => void) | nu
 
 export function appendQuotedReply(draft: string, selectedText: string): string {
   const quote = selectedText
-    .trim()
+    .replace(/^(?:[ \t]*\r?\n)+/, "")
+    .trimEnd()
     .split("\n")
     .map((line) => `> ${line}`)
     .join("\n");

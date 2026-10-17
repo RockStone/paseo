@@ -884,3 +884,92 @@ test("Reply follows the active end of wrapped text selections", async ({ page },
     await agent.cleanup();
   }
 });
+
+async function selectTranscriptExcerpt(page: Page, start: string, end: string): Promise<string> {
+  return page
+    .getByTestId("agent-chat-scroll")
+    .filter({ visible: true })
+    .evaluate(
+      (feed, excerpt) => {
+        const walker = document.createTreeWalker(feed, NodeFilter.SHOW_TEXT);
+        const range = document.createRange();
+        let started = false;
+        let node = walker.nextNode();
+        while (node) {
+          const text = node.textContent ?? "";
+          const startOffset = text.indexOf(excerpt.start);
+          if (!started && startOffset >= 0) {
+            range.setStart(node, startOffset);
+            started = true;
+          }
+          const endOffset = text.indexOf(
+            excerpt.end,
+            node === range.startContainer ? range.startOffset : 0,
+          );
+          if (started && endOffset >= 0) {
+            range.setEnd(node, endOffset + excerpt.end.length);
+            const selection = window.getSelection();
+            if (!selection) throw new Error("Expected transcript selection");
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return selection.toString();
+          }
+          node = walker.nextNode();
+        }
+        throw new Error(`Transcript excerpt not found: ${excerpt.start} -> ${excerpt.end}`);
+      },
+      { start, end },
+    );
+}
+
+test("Reply quotes Thinking, shell output, and selections spanning both", async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("@paseo:app-settings", JSON.stringify({ autoExpandReasoning: true }));
+  });
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "transcript-selection-reply-",
+    title: "Reply to all transcript text",
+    model: "ten-second-stream",
+    initialPrompt: "Show reasoning and shell output.",
+  });
+  try {
+    await agent.client.waitForFinish(agent.agentId, 20_000);
+    await openAgentRoute(page, agent);
+    const composer = composerLocator(page);
+    await expect(composer).toBeVisible();
+    const shell = page
+      .getByTestId("tool-call-badge")
+      .filter({ hasText: "node scripts/simulate-stream-burst.mjs" })
+      .last();
+    await shell
+      .getByRole("button")
+      .first()
+      .click({ position: { x: 8, y: 8 } });
+    const output = page.locator("[data-pmono]").filter({ hasText: "[burst] tick 1" }).last();
+    await expect(output).toBeVisible();
+
+    for (const excerpt of [
+      { start: "Need to find the scroll container", end: "watches for new messages" },
+      { start: "[burst] tick 1", end: "[burst] tick 2 userIsAtBottom=true" },
+      { start: "Need to find the scroll container", end: "[burst] tick 2 userIsAtBottom=true" },
+    ]) {
+      await composer.fill("Existing comment");
+      const selected = await selectTranscriptExcerpt(page, excerpt.start, excerpt.end);
+      const reply = page.getByTestId("reply-to-selection");
+      await expect(reply).toBeVisible();
+      await reply.click();
+      const quote = selected
+        .trimEnd()
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n");
+      await expect(composer).toHaveValue(`Existing comment\n\n${quote}\n\n`);
+      await expect(composer).toBeFocused();
+    }
+    await page.screenshot({ path: testInfo.outputPath("thinking-and-output-reply.png") });
+  } finally {
+    await agent.cleanup();
+  }
+});

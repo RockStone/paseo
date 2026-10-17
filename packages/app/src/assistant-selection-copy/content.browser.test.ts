@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createAssistantSelectionClipboardContent } from "./content.web";
+import { createAssistantSelectionClipboardContent, createSelectionReplyText } from "./content.web";
 
 const fixture = `
   <div data-testid="assistant-message">
@@ -814,4 +814,34 @@ it("copies a workspace image path instead of its temporary display URL", () => {
   expect(createAssistantSelectionClipboardContent(selection)?.plainText).toBe(
     "![chart](assets/chart.png)",
   );
+});
+
+describe("selection replies across transcript text", () => {
+  it("quotes Thinking and command output with their original whitespace", () => {
+    const transcript = document.createElement("div");
+    transcript.innerHTML =
+      '<p>Need to check the configuration.</p><pre>  $ cat config.json\n    {"port": 8787}\n  done</pre>';
+    document.body.append(transcript);
+    const thinking = fixtureElement(transcript, "p");
+    const output = fixtureElement(transcript, "pre");
+    expect(createSelectionReplyText(selectText(thinking, 8, 17), transcript)).toBe("check the");
+    expect(createSelectionReplyText(selectNodeContents(output), transcript)).toBe(
+      '  $ cat config.json\n    {"port": 8787}\n  done',
+    );
+    const selection = selectRange(thinking, 8, output, 20);
+    expect(createSelectionReplyText(selection, transcript)).toBe(selection.toString());
+  });
+
+  it("keeps assistant Markdown formatting and rejects selections outside its transcript", () => {
+    const message = mountFixture();
+    const strong = fixtureElement(message, '[data-paseo-markdown-tag="strong"]');
+    expect(createSelectionReplyText(selectNodeContents(strong), message)).toBe("**bold text**");
+    const outside = document.createElement("p");
+    outside.textContent = "Other workspace";
+    document.body.append(outside);
+    expect(createSelectionReplyText(selectNodeContents(outside), message)).toBeNull();
+    expect(createSelectionReplyText(selectRange(strong, 0, outside, 5), message)).toBeNull();
+    expect(createSelectionReplyText(selectText(strong, 0, 0), message)).toBeNull();
+    expect(createSelectionReplyText(null, message)).toBeNull();
+  });
 });

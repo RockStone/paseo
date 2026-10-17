@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { getOverlayRoot, useOverlayLayer, useWebOverlayRegistration } from "@/lib/overlay-root";
 import { useRetainedPanelActive } from "@/components/retained-panel";
-import { createAssistantSelectionClipboardContent } from "./content.web";
+import { createAssistantSelectionClipboardContent, createSelectionReplyText } from "./content.web";
 import { SelectionReplyContext } from "./reply";
 import { selectionReplyAnchor, type SelectionReplyAnchor } from "./position.web";
 
@@ -54,16 +54,13 @@ export function AssistantSelectionCopySurface({
         setReply(null);
         return;
       }
-      const range = selection.getRangeAt(0);
-      const contained =
-        surface.contains(range.startContainer) && surface.contains(range.endContainer);
-      const content = contained ? createAssistantSelectionClipboardContent(selection) : null;
+      const text = createSelectionReplyText(selection, surface);
       const anchor = selectionReplyAnchor(selection);
-      if (!content || !anchor) {
+      if (!text || !anchor) {
         setReply(null);
         return;
       }
-      setReply({ text: content.plainText, anchor });
+      setReply({ text, anchor });
     }
     function dismiss() {
       setReply(null);

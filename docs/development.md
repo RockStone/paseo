@@ -32,8 +32,10 @@ the titlebar row. Production builds leave the variable unset and show no label.
 ## RockStone custom desktop build
 
 The `custom/reply-selection` branch adds desktop/browser selection replies. Select
-assistant prose and choose **Reply** to append an editable Markdown quote to the
-current draft, then type your comment. Existing draft text is preserved. Native
+chat text, including Thinking, commands, tool output, or assistant messages, and
+choose **Reply** to append an editable Markdown quote to the current draft, then
+type your comment. Selections can span sections; code indentation and existing
+draft text are preserved. Native
 clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
 the PR's persistent annotation markers or separate comment editor.
@@ -63,7 +65,7 @@ daemon are stopped. Startup never copies or merges older state over live data.
 Versions end in `-rockstone.N`. Official update checks and installation are
 disabled for those versions, so updating cannot discard the local patch. Set
 `PASEO_CUSTOM_REVISION` to a higher number for each build from the same upstream
-version (the default is 6).
+version (the default is 7).
 The local build uses an ad-hoc signature and is not notarized.
 
 macOS uses `CFBundleName` to find Electron's UI helpers. The custom packager adds
