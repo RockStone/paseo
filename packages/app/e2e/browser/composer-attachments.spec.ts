@@ -168,6 +168,26 @@ test.describe("Composer attachments", () => {
 
     await attachImageFromMenu(page, TEST_IMAGE);
     await expectAttachmentPill(page, "composer-image-attachment-pill");
+    const preview = page.getByTestId("composer-image-attachment-pill");
+    const remove = page.getByRole("button", { name: "Remove image attachment" });
+    await page.mouse.move(0, 0);
+    await expect(remove).toBeVisible();
+    await expect(remove).toHaveCSS("opacity", "1");
+    const previewBox = await preview.boundingBox();
+    const removeBox = await remove.boundingBox();
+    if (!previewBox || !removeBox)
+      throw new Error("Image attachment controls could not be measured");
+    expect(previewBox.width).toBeGreaterThanOrEqual(120);
+    expect(previewBox.height).toBeGreaterThanOrEqual(120);
+    expect(removeBox.x).toBeGreaterThan(previewBox.x + previewBox.width / 2);
+    expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(previewBox.x + previewBox.width);
+    expect(removeBox.y).toBeGreaterThanOrEqual(previewBox.y);
+    expect(removeBox.y + removeBox.height).toBeLessThan(previewBox.y + previewBox.height / 2);
+    await attachImageFromMenu(page, { ...TEST_IMAGE, name: "second.png" });
+    await expect(preview).toHaveCount(2);
+    await remove.first().click();
+    await expect(preview).toHaveCount(1);
+    await page.screenshot({ path: "/tmp/paseoi-large-image-preview.png" });
 
     await openImageLightbox(page);
     await closeImageLightbox(page);

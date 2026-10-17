@@ -732,6 +732,7 @@ function ImageAttachmentPill({
   }, [onRemove, index]);
   return (
     <AttachmentPill
+      variant="image"
       testID="composer-image-attachment-pill"
       onOpen={handleOpen}
       onRemove={handleRemove}
@@ -739,7 +740,7 @@ function ImageAttachmentPill({
       removeAccessibilityLabel={removeLabel}
       disabled={disabled}
     >
-      <AttachmentThumbnail metadata={attachment.metadata} />
+      <AttachmentThumbnail metadata={attachment.metadata} size="large" />
     </AttachmentPill>
   );
 }

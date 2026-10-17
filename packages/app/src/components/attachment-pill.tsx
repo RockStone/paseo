@@ -8,9 +8,8 @@ import type { AttachmentMetadata } from "@/attachments/types";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import type { Theme } from "@/styles/theme";
 
-// Every attachment pill body — image thumbnail or labelled — renders at this
-// height so mixed attachment trays line up.
 const ATTACHMENT_CONTENT_HEIGHT = 48;
+const IMAGE_PREVIEW_SIZE = 120;
 
 interface AttachmentPillProps {
   onOpen: () => void;
@@ -19,6 +18,7 @@ interface AttachmentPillProps {
   removeAccessibilityLabel: string;
   disabled?: boolean;
   testID?: string;
+  variant?: "default" | "image";
   children: ReactNode;
 }
 
@@ -29,17 +29,25 @@ export function AttachmentPill({
   removeAccessibilityLabel,
   disabled = false,
   testID,
+  variant = "default",
   children,
 }: AttachmentPillProps) {
   const isCompact = useIsCompactFormFactor();
   const [isBodyHovered, setIsBodyHovered] = useState(false);
   const [isCloseHovered, setIsCloseHovered] = useState(false);
-  const alwaysShow = isNative || isCompact;
+  const isImage = variant === "image";
+  const alwaysShow = isImage || isNative || isCompact;
   const showRemove = alwaysShow || isBodyHovered || isCloseHovered;
   const closeButtonStyle = useMemo(
-    () => [styles.closeButton, !showRemove && styles.closeButtonHidden],
-    [showRemove],
+    () => [
+      styles.closeButton,
+      isImage ? styles.imageCloseButton : styles.labelCloseButton,
+      !showRemove && styles.closeButtonHidden,
+    ],
+    [isImage, showRemove],
   );
+  const closeIconColor = isImage ? iconForegroundMapping : iconForegroundMutedMapping;
+  const closeIconSize = isImage ? 16 : 12;
   const handleBodyHoverIn = useCallback(() => setIsBodyHovered(true), []);
   const handleBodyHoverOut = useCallback(() => setIsBodyHovered(false), []);
   const handleCloseHoverIn = useCallback(() => setIsCloseHovered(true), []);
@@ -68,7 +76,7 @@ export function AttachmentPill({
         accessibilityLabel={removeAccessibilityLabel}
         style={closeButtonStyle}
       >
-        <ThemedX size={12} uniProps={iconForegroundMutedMapping} />
+        <ThemedX size={closeIconSize} uniProps={closeIconColor} />
       </Pressable>
     </View>
   );
@@ -132,16 +140,31 @@ export function AttachmentLabel({ icon, title, subtitle }: AttachmentLabelProps)
 }
 
 /** Square image preview pill body. */
-export function AttachmentThumbnail({ metadata }: { metadata: AttachmentMetadata }) {
+export function AttachmentThumbnail({
+  metadata,
+  size = "small",
+}: {
+  metadata: AttachmentMetadata;
+  size?: "small" | "large";
+}) {
   const uri = useAttachmentPreviewUrl(metadata);
   const source = useMemo(() => ({ uri: uri ?? "" }), [uri]);
+  const thumbnailStyle = useMemo(
+    () => [styles.thumbnail, size === "large" && styles.largeThumbnail],
+    [size],
+  );
+  const placeholderStyle = useMemo(
+    () => [thumbnailStyle, styles.thumbnailPlaceholder],
+    [thumbnailStyle],
+  );
   if (!uri) {
-    return <View style={styles.thumbnailPlaceholder} />;
+    return <View style={placeholderStyle} />;
   }
-  return <Image source={source} style={styles.thumbnail} />;
+  return <Image source={source} style={thumbnailStyle} resizeMode="cover" />;
 }
 
 const ThemedX = withUnistyles(X);
+const iconForegroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const iconForegroundMutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
 const styles = StyleSheet.create((theme) => ({
@@ -184,15 +207,12 @@ const styles = StyleSheet.create((theme) => ({
     width: ATTACHMENT_CONTENT_HEIGHT,
     height: ATTACHMENT_CONTENT_HEIGHT,
   },
+  largeThumbnail: { width: IMAGE_PREVIEW_SIZE, height: IMAGE_PREVIEW_SIZE },
   thumbnailPlaceholder: {
-    width: ATTACHMENT_CONTENT_HEIGHT,
-    height: ATTACHMENT_CONTENT_HEIGHT,
     backgroundColor: theme.colors.surface1,
   },
   closeButton: {
     position: "absolute",
-    top: -8,
-    left: -8,
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -203,6 +223,8 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
     zIndex: 1,
   },
+  labelCloseButton: { top: -8, left: -8 },
+  imageCloseButton: { top: 6, right: 6 },
   closeButtonHidden: {
     opacity: 0,
     pointerEvents: "none",
