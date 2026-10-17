@@ -82,6 +82,7 @@ import {
 } from "@/screens/agent/agent-ready-screen-bottom-anchor";
 import { WorkspaceDraftAgentTab } from "@/composer/draft/workspace-tab";
 import { AgentTracks, hasAgentTracks } from "@/panels/agent-tracks";
+import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
 import { buildDraftStoreKey, generateDraftId } from "@/stores/draft-keys";
 import {
@@ -1451,8 +1452,10 @@ const AgentStreamSection = memo(function AgentStreamSection({
 }) {
   const isCompactFormFactor = useIsCompactFormFactor();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
+  const { status: checkoutStatus } = useCheckoutStatusQuery({ serverId, cwd: agent.cwd ?? "" });
+  const hasBranchPill = checkoutStatus?.isGit && !checkoutStatus.error;
   const hasVisibleComposerTracks =
-    hasActiveComposer && (hasVisibleAgentTracks || hasWorkspaceDiffStat);
+    hasActiveComposer && (hasVisibleAgentTracks || hasWorkspaceDiffStat || hasBranchPill);
   const bottomOverlayTailClearance = hasVisibleComposerTracks
     ? resolveComposerTrackTailClearance(isCompactFormFactor)
     : 0;

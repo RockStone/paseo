@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 BASE_VERSION="$(node -p 'require("./package.json").version')"
-CUSTOM_VERSION="${BASE_VERSION}-rockstone.${PASEO_CUSTOM_REVISION:-13}"
+CUSTOM_VERSION="${BASE_VERSION}-rockstone.${PASEO_CUSTOM_REVISION:-14}"
 
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:desktop -- \
   --publish never --mac --dir \

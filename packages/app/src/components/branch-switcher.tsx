@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { GitBranch } from "lucide-react-native";
+import { ChevronDown, GitBranch } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import type { Theme } from "@/styles/theme";
@@ -11,6 +11,7 @@ import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-
 import { useToast } from "@/contexts/toast-context";
 import { useBranchSwitcher } from "@/hooks/use-branch-switcher";
 import { ToolbarLabelSelectTrigger } from "@/components/ui/toolbar-label-trigger";
+import { composerPillStyles } from "@/composer/pill-styles";
 
 interface BranchSwitcherProps {
   currentBranchName: string | null;
@@ -18,6 +19,8 @@ interface BranchSwitcherProps {
   workspaceId: string;
   workspaceDirectory: string | null;
   isGitCheckout: boolean;
+  variant?: "toolbar" | "composer";
+  checkoutPath?: string;
   testID?: string;
 }
 
@@ -25,6 +28,7 @@ const foregroundMutedIconColorMapping = (theme: Theme) => ({
   color: theme.colors.foregroundMuted,
 });
 const ThemedGitBranch = withUnistyles(GitBranch);
+const ThemedChevronDown = withUnistyles(ChevronDown);
 
 export function BranchSwitcher({
   currentBranchName,
@@ -32,6 +36,8 @@ export function BranchSwitcher({
   workspaceId,
   workspaceDirectory,
   isGitCheckout,
+  variant = "toolbar",
+  checkoutPath,
   testID = "workspace-header-branch-switcher",
 }: BranchSwitcherProps) {
   const { t } = useTranslation();
@@ -73,32 +79,71 @@ export function BranchSwitcher({
     [branchLeadingSlot],
   );
 
-  if (!currentBranchName) {
+  const checkoutFooter = useMemo(
+    () =>
+      checkoutPath ? (
+        <Text style={[styles.tooltipText, styles.checkoutPath]}>{checkoutPath}</Text>
+      ) : undefined,
+    [checkoutPath],
+  );
+
+  if (!currentBranchName && variant !== "composer") {
     return null;
   }
+  const label = currentBranchName ?? "HEAD";
+  const accessibilityLabel = t("branchSwitcher.currentBranch", { branchName: label });
 
   return (
     <View ref={anchorRef} collapsable={false} style={styles.anchor}>
       <Tooltip delayDuration={300} enabledOnDesktop enabledOnMobile={false}>
         <TooltipTrigger asChild>
-          <ToolbarLabelSelectTrigger
-            testID={testID}
-            label={currentBranchName}
-            open={isOpen}
-            onPress={handleOpen}
-            accessibilityRole="button"
-            accessibilityLabel={t("branchSwitcher.currentBranch", {
-              branchName: currentBranchName,
-            })}
-          />
+          {variant === "composer" ? (
+            <Pressable
+              testID={testID}
+              accessibilityRole="button"
+              accessibilityLabel={accessibilityLabel}
+              onPress={handleOpen}
+              style={[
+                composerPillStyles.body,
+                styles.pill,
+                isOpen && composerPillStyles.bodyActive,
+              ]}
+            >
+              {branchLeadingSlot}
+              <Text
+                style={[composerPillStyles.label, styles.branchLabel]}
+                numberOfLines={1}
+                ellipsizeMode="middle"
+              >
+                {label}
+              </Text>
+              <ThemedChevronDown size={12} uniProps={foregroundMutedIconColorMapping} />
+            </Pressable>
+          ) : (
+            <ToolbarLabelSelectTrigger
+              testID={testID}
+              label={label}
+              open={isOpen}
+              onPress={handleOpen}
+              accessibilityRole="button"
+              accessibilityLabel={accessibilityLabel}
+            />
+          )}
         </TooltipTrigger>
-        <TooltipContent side="bottom">
-          <Text style={styles.tooltipText}>{t("branchSwitcher.triggerTooltip")}</Text>
+        <TooltipContent side={variant === "composer" ? "top" : "bottom"} maxWidth={420}>
+          <Text style={styles.tooltipText}>
+            {variant === "composer" ? label : t("branchSwitcher.triggerTooltip")}
+          </Text>
+          {checkoutPath ? (
+            <Text testID="composer-checkout-path" style={styles.tooltipText}>
+              {checkoutPath}
+            </Text>
+          ) : null}
         </TooltipContent>
       </Tooltip>
       <Combobox
         options={branchOptions}
-        value={currentBranchName}
+        value={currentBranchName ?? ""}
         onSelect={handleBranchSelect}
         searchable
         placeholder={t("branchSwitcher.placeholder")}
@@ -108,7 +153,8 @@ export function BranchSwitcher({
         open={isOpen}
         onOpenChange={setIsOpen}
         anchorRef={anchorRef}
-        desktopPlacement="bottom-start"
+        desktopPlacement={variant === "composer" ? "top-start" : "bottom-start"}
+        footer={checkoutFooter}
         desktopPreventInitialFlash
         desktopMinWidth={280}
         renderOption={renderBranchOption}
@@ -122,6 +168,9 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 1,
     minWidth: 0,
   },
+  pill: { maxWidth: 240 },
+  branchLabel: { flexShrink: 1 },
+  checkoutPath: { padding: theme.spacing[3] },
   tooltipText: {
     color: theme.colors.popoverForeground,
     fontSize: theme.fontSize.sm,

@@ -49,6 +49,11 @@ patches show **View changes** instead of a numeric total. The shared client UI s
 compact layouts; official mobile binaries do not acquire this custom UI from a
 daemon update.
 
+The composer shows the live branch to the left of branch-total +/−. Hover to see
+the checkout path; click to use the existing branch picker in that same checkout.
+This does not relocate an agent to another worktree. A clean checkout still shows
+the branch pill; detached checkouts show `HEAD`.
+
 The composer keeps branch-total +/− separate from **Uncommitted** status. The
 status pill previews up to ten paths and counts each file once, including staged
 and untracked files. Committing clears that pill without requiring a push;

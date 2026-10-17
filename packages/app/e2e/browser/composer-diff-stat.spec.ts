@@ -877,6 +877,8 @@ test("uncommitted status pill sits to the right, previews ten files and clears o
     await expect(total).toBeVisible();
     const left = await total.boundingBox();
     const right = await pill.boundingBox();
+    const branch = await page.getByTestId("composer-branch-pill").boundingBox();
+    expect(branch!.x + branch!.width).toBeLessThanOrEqual(left!.x);
     expect(right!.x).toBeGreaterThanOrEqual(left!.x + left!.width);
     await pill.hover();
     const preview = page.getByTestId("composer-git-status-preview");
@@ -899,6 +901,44 @@ test("uncommitted status pill sits to the right, previews ten files and clears o
     expect((await agent.client.getCheckoutStatus(agent.cwd)).workingTree?.total).toBe(0);
     await expect(pill).toHaveCount(0);
     await expect(total).toBeVisible();
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("composer branch pill identifies the checkout and switches branches on a clean workspace", async ({
+  page,
+}, testInfo) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "composer-branch-",
+    title: "Branch context",
+    repo: { branches: ["main", "dev"] },
+  });
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: agent.cwd, encoding: "utf8" }).trim();
+  try {
+    await openAgentRoute(page, agent);
+    const pill = page.getByTestId("composer-branch-pill");
+    await expect(pill).toHaveText("main");
+    await expect(composerChangesPill(page)).toHaveCount(0);
+    await pill.hover();
+    await expect(page.getByTestId("composer-checkout-path")).toHaveText(
+      git("rev-parse", "--show-toplevel"),
+    );
+    await pill.click();
+    const picker = page.getByTestId("combobox-desktop-container");
+    await expect(picker).toBeVisible();
+    await expect(picker).toContainText(git("rev-parse", "--show-toplevel"));
+    await page.getByPlaceholder("Filter branches...").fill("dev");
+    await picker.getByText("dev", { exact: true }).click();
+    await expect(pill).toHaveText("dev");
+    expect(git("branch", "--show-current")).toBe("dev");
+    await page.screenshot({ path: testInfo.outputPath("composer-branch-pill.png") });
+    await page.reload();
+    await expect(pill).toHaveText("dev");
+    git("checkout", "--detach");
+    await agent.client.checkoutRefresh(agent.cwd);
+    await expect(pill).toHaveText("HEAD");
   } finally {
     await agent.cleanup();
   }

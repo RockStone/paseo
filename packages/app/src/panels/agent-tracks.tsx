@@ -1,6 +1,7 @@
 import { memo, useCallback, type ReactElement } from "react";
 import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
 import { ComposerGitStatusPill } from "@/composer/git-status-pill";
+import { BranchSwitcher } from "@/components/branch-switcher";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { selectWorkingDiffComparison } from "@/git/working-diff-comparison";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
@@ -56,6 +57,7 @@ export const AgentTracks = memo(function AgentTracks({
   const { tabId } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const { status } = useCheckoutStatusQuery({ serverId, cwd });
+  const gitCheckout = status?.isGit && !status.error ? status : null;
   const supportsGitStatus = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.checkoutWorkingTreeSummary === true,
   );
@@ -126,6 +128,7 @@ export const AgentTracks = memo(function AgentTracks({
 
   if (
     !hasWorkspaceDiffStat &&
+    !gitCheckout &&
     !workingTree?.total &&
     !hasAgentTracks({
       subagentRows,
@@ -157,6 +160,18 @@ export const AgentTracks = memo(function AgentTracks({
         agentId={agentId}
         compact={isCompact}
       />
+      {gitCheckout ? (
+        <BranchSwitcher
+          serverId={serverId}
+          workspaceId={workspaceId}
+          workspaceDirectory={cwd}
+          currentBranchName={gitCheckout.currentBranch}
+          isGitCheckout
+          variant="composer"
+          checkoutPath={gitCheckout.repoRoot}
+          testID="composer-branch-pill"
+        />
+      ) : null}
       <WorkspaceDiffStatPill
         serverId={serverId}
         workspaceId={workspaceId}
