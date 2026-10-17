@@ -4,11 +4,16 @@ import { pluginSettings } from "./plugin-settings";
 export const ja: TranslationResources = {
   commitHistoryPill: {
     label: "履歴",
-    title: "最近の10件のコミット",
+    title: "最近の25件のコミット",
     disconnected: "履歴を表示するにはホストに接続してください。",
   },
 
   gitStatusPill: {
+    discard: "変更を破棄",
+    discardFile: "{{path}} の変更を破棄",
+    discardTracked:
+      "「{{path}}」のステージ済みと未ステージの変更をすべて破棄しますか？既存のファイルは最後のコミットに戻り、新規ファイルは削除されます。この操作は取り消せません。",
+    discardUntracked: "未追跡ファイル「{{path}}」を削除しますか？この操作は取り消せません。",
     heading: "未コミットのファイル",
     title_one: "未コミット {{count}} 件",
     title_other: "未コミット {{count}} 件",

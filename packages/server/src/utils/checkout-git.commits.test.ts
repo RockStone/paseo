@@ -95,31 +95,41 @@ function addBareRemote(repoDir: string, tempDir: string): string {
 }
 
 describe("listCheckoutCommits", () => {
-  it("bounds recent HEAD history to ten, including base commits and detached worktrees", async () => {
+  it("bounds recent HEAD history to twenty-five, including base commits and detached worktrees", async () => {
     const { repoDir, tempDir } = initRepoOnMain();
     importLinearHistory({
       repoDir,
       branch: "main",
       file: "history.txt",
       subject: "History",
-      count: 12,
+      count: 27,
     });
     const recent = await listCheckoutCommits({ cwd: repoDir, recent: true });
     expect(recent.commits.map((entry) => entry.subject)).toEqual(
-      Array.from({ length: 10 }, (_, index) => `History ${12 - index}`),
+      Array.from({ length: 25 }, (_, index) => `History ${27 - index}`),
     );
     const worktree = join(tempDir, "detached");
     git(["worktree", "add", "--detach", worktree, "HEAD~2"], repoDir);
     const detached = await listCheckoutCommits({ cwd: worktree, recent: true });
-    expect(detached.commits).toHaveLength(10);
-    expect(detached.commits[0]?.subject).toBe("History 10");
-    expect(detached.commits[9]?.subject).toBe("History 1");
+    expect(detached.commits).toHaveLength(25);
+    expect(detached.commits[0]?.subject).toBe("History 25");
+    expect(detached.commits[24]?.subject).toBe("History 1");
   });
 
   it("returns empty recent history for an unborn checkout", async () => {
     const repoDir = makeTempDir();
     git(["init", "-b", "main"], repoDir);
     expect((await listCheckoutCommits({ cwd: repoDir, recent: true })).commits).toEqual([]);
+  });
+
+  it("returns the complete multiline message in recent history", async () => {
+    const { repoDir } = initRepoOnMain();
+    const message =
+      "Detailed commit\n\nFirst paragraph.\nSecond line with café and 日本語.\n\nFinal paragraph.";
+    commitFile(repoDir, "details.txt", "content\n", message);
+    const result = await listCheckoutCommits({ cwd: repoDir, recent: true });
+    expect(result.commits[0]?.subject).toBe("Detailed commit");
+    expect(result.commits[0]?.message).toBe(message);
   });
 
   it("keeps fixture authors independent of command-scoped Git configuration", async () => {

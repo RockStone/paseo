@@ -4,11 +4,16 @@ import { pluginSettings } from "./plugin-settings";
 export const zhCN: TranslationResources = {
   commitHistoryPill: {
     label: "历史",
-    title: "最近 10 次提交",
+    title: "最近 25 次提交",
     disconnected: "连接到主机以查看历史记录。",
   },
 
   gitStatusPill: {
+    discard: "放弃更改",
+    discardFile: "放弃 {{path}} 的更改",
+    discardTracked:
+      "放弃“{{path}}”的所有已暂存和未暂存更改？现有文件将恢复到上次提交，新文件将被删除。此操作无法撤销。",
+    discardUntracked: "删除未跟踪文件“{{path}}”？此操作无法撤销。",
     heading: "未提交的文件",
     title_one: "{{count}} 个未提交",
     title_other: "{{count}} 个未提交",

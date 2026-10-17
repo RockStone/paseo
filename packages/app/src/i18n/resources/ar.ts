@@ -4,11 +4,16 @@ import { pluginSettings } from "./plugin-settings";
 export const ar: TranslationResources = {
   commitHistoryPill: {
     label: "السجل",
-    title: "آخر 10 عمليات إيداع",
+    title: "آخر 25 عمليات إيداع",
     disconnected: "اتصل بالمضيف لعرض السجل.",
   },
 
   gitStatusPill: {
+    discard: "تجاهل التغييرات",
+    discardFile: "تجاهل تغييرات {{path}}",
+    discardTracked:
+      'تجاهل جميع التغييرات المرحّلة وغير المرحّلة في "{{path}}"؟ ستُستعاد الملفات الموجودة من آخر إيداع، وستُحذف الملفات الجديدة. لا يمكن التراجع عن ذلك.',
+    discardUntracked: 'حذف الملف غير المتتبع "{{path}}"؟ لا يمكن التراجع عن ذلك.',
     heading: "ملفات غير مثبتة",
     title_one: "{{count}} غير مثبتة",
     title_other: "{{count}} غير مثبتة",

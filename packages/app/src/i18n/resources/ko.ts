@@ -4,11 +4,16 @@ import { pluginSettings } from "./plugin-settings";
 export const ko: TranslationResources = {
   commitHistoryPill: {
     label: "기록",
-    title: "최근 커밋 10개",
+    title: "최근 커밋 25개",
     disconnected: "기록을 보려면 호스트에 연결하세요.",
   },
 
   gitStatusPill: {
+    discard: "변경 사항 버리기",
+    discardFile: "{{path}}의 변경 사항 버리기",
+    discardTracked:
+      '"{{path}}"의 스테이징된 변경과 스테이징되지 않은 변경을 모두 버릴까요? 기존 파일은 마지막 커밋으로 복원되고 새 파일은 삭제됩니다. 이 작업은 되돌릴 수 없습니다.',
+    discardUntracked: '추적되지 않는 파일 "{{path}}"을 삭제할까요? 이 작업은 되돌릴 수 없습니다.',
     heading: "커밋되지 않은 파일",
     title_one: "미커밋 {{count}}개",
     title_other: "미커밋 {{count}}개",

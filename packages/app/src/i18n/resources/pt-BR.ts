@@ -4,11 +4,17 @@ import { pluginSettings } from "./plugin-settings";
 export const ptBR: TranslationResources = {
   commitHistoryPill: {
     label: "Histórico",
-    title: "Últimos 10 commits",
+    title: "Últimos 25 commits",
     disconnected: "Conecte-se ao host para ver o histórico.",
   },
 
   gitStatusPill: {
+    discard: "Descartar alterações",
+    discardFile: "Descartar alterações de {{path}}",
+    discardTracked:
+      'Descartar todas as alterações preparadas e não preparadas de "{{path}}"? Os arquivos existentes voltarão ao último commit; os novos serão excluídos. Esta ação não pode ser desfeita.',
+    discardUntracked:
+      'Excluir o arquivo não rastreado "{{path}}"? Esta ação não pode ser desfeita.',
     heading: "Arquivos não commitados",
     title_one: "{{count}} não commitados",
     title_other: "{{count}} não commitados",

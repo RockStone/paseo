@@ -2307,6 +2307,7 @@ const CheckoutCommitSchema = z.object({
   sha: z.string(),
   shortSha: z.string(),
   subject: z.string(),
+  message: z.string().optional(),
   authorName: z.string(),
   authorDate: z.string(), // ISO 8601
   isOnRemote: z.boolean(), // false = local-only (unpushed)
@@ -3678,6 +3679,7 @@ export const ServerInfoStatusPayloadSchema = z
         // COMPAT(checkoutWorkingTreeSummary): added in Paseoi r10, remove gate after 2027-04-17.
         checkoutWorkingTreeSummary: z.boolean().optional(),
         recentCheckoutCommits: z.boolean().optional(),
+        composerGitDetails: z.boolean().optional(),
         // COMPAT(agentThinkingUpdate): added in v0.2.4, remove gate after 2027-01-28.
         agentThinkingUpdate: z.boolean().optional(),
         // COMPAT(daemonDiagnostics): added in v0.1.100, remove gate after 2026-12-25 once daemon floor >= v0.1.100.
@@ -5215,7 +5217,9 @@ const CheckoutWorkingTreeSummarySchema = z.object({
   total: z.number(),
   tracked: z.number(),
   untracked: z.number(),
-  files: z.array(z.object({ path: z.string(), status: z.string() })),
+  files: z.array(
+    z.object({ path: z.string(), status: z.string(), originalPath: z.string().optional() }),
+  ),
 });
 export type CheckoutWorkingTreeSummary = z.infer<typeof CheckoutWorkingTreeSummarySchema>;
 

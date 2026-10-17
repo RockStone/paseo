@@ -1,6 +1,6 @@
 import type { Locator } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
@@ -857,7 +857,7 @@ async function expectReviewEditorBody(page: Page, body: string) {
   );
 }
 
-test("uncommitted status pill sits to the right, previews ten files and clears on commit", async ({
+test("uncommitted status pill opens all files in a capped list and clears on commit", async ({
   page,
 }, testInfo) => {
   const agent = await seedChangedAgent("composer-git-status-");
@@ -881,20 +881,16 @@ test("uncommitted status pill sits to the right, previews ten files and clears o
     expect(branch!.x + branch!.width).toBeLessThanOrEqual(left!.x);
     expect(right!.x).toBeGreaterThanOrEqual(left!.x + left!.width);
     await pill.hover();
-    const preview = page.getByTestId("composer-git-status-preview");
+    const preview = page.getByTestId("composer-git-status-pill-panel");
+    await expect(preview).toHaveCount(0);
+    await pill.click();
     await expect(preview).toBeVisible();
     await expect(preview).toContainText("1 tracked · 12 untracked");
-    await expect(preview.getByTestId("composer-git-status-file")).toHaveCount(10);
-    await expect(preview).toContainText("… 3 more");
+    await expect(preview.getByTestId("composer-git-status-file")).toHaveCount(13);
     await expect(preview).not.toContainText("committed-only.ts");
-    await page.screenshot({ path: testInfo.outputPath("git-status-pill-hover.png") });
-    await pill.click();
-    await pill.click();
-    const panel = page.getByTestId("working-diff-panel");
-    await expect(panel).toBeVisible();
-    await expect(panel).not.toContainText("committed-only.ts");
-    await page.getByTestId(`workspace-tab-agent_${agent.agentId}`).click();
-    await expect(pill).toBeVisible();
+    expect((await preview.boundingBox())!.height).toBeLessThanOrEqual(440);
+    await page.screenshot({ path: testInfo.outputPath("git-status-pill-list.png") });
+    await page.keyboard.press("Escape");
     git("add", ".");
     git("commit", "-m", "Commit working changes without pushing");
     await agent.client.checkoutRefresh(agent.cwd);
@@ -902,6 +898,88 @@ test("uncommitted status pill sits to the right, previews ten files and clears o
     await expect(pill).toHaveCount(0);
     await expect(total).toBeVisible();
   } finally {
+    await agent.cleanup();
+  }
+});
+
+test("status file undo confirms discard, preserves other files and recovers from a Git error", async ({
+  page,
+}) => {
+  const agent = await seedChangedAgent("composer-discard-file-");
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: agent.cwd, encoding: "utf8" }).trim();
+  const target = path.join(agent.cwd, "tracked.txt");
+  const untracked = path.join(agent.cwd, "new [scratch].txt");
+  const lock = path.join(agent.cwd, ".git", "index.lock");
+  try {
+    await writeFile(target, "baseline\n");
+    await writeFile(path.join(agent.cwd, "before-rename.txt"), "original\n");
+    git("add", "tracked.txt", "before-rename.txt");
+    git("commit", "-m", "Add tracked fixtures");
+    await writeFile(target, "staged\n");
+    git("add", "tracked.txt");
+    await writeFile(target, "staged and unstaged\n");
+    await writeFile(untracked, "temporary\n");
+    await writeFile(path.join(agent.cwd, "keep.txt"), "keep this\n");
+    git("mv", "before-rename.txt", "after-rename.txt");
+    await agent.client.checkoutRefresh(agent.cwd);
+    await openAgentRoute(page, agent);
+    await page.getByTestId("composer-git-status-pill").click();
+    const panel = page.getByTestId("composer-git-status-pill-panel");
+    const discardTracked = panel.getByRole("button", {
+      name: "Discard changes to tracked.txt",
+      exact: true,
+    });
+    page.once("dialog", async (dialog) => {
+      expect(dialog.message()).toContain("staged and unstaged");
+      await dialog.dismiss();
+    });
+    await discardTracked.click();
+    await expect(discardTracked).toBeEnabled();
+    expect(await readFile(target, "utf8")).toBe("staged and unstaged\n");
+    expect(git("diff", "--cached", "--", "tracked.txt")).toContain("staged");
+
+    await writeFile(lock, "locked by test\n");
+    page.once("dialog", (dialog) => dialog.accept());
+    await discardTracked.click();
+    await expect(page.getByTestId("composer-discard-error")).toContainText("index.lock");
+    expect(await readFile(target, "utf8")).toBe("staged and unstaged\n");
+    await rm(lock);
+    page.once("dialog", (dialog) => dialog.accept());
+    await discardTracked.click();
+    await expect(discardTracked).toHaveCount(0);
+    expect(await readFile(target, "utf8")).toBe("baseline\n");
+    expect(git("diff", "--cached", "--", "tracked.txt")).toBe("");
+
+    page.once("dialog", async (dialog) => {
+      expect(dialog.message()).toContain("Delete untracked file");
+      expect(dialog.message()).toContain("cannot be undone");
+      await dialog.accept();
+    });
+    await panel
+      .getByRole("button", { name: "Discard changes to new [scratch].txt", exact: true })
+      .click();
+    await expect(
+      panel.getByRole("button", { name: "Discard changes to new [scratch].txt", exact: true }),
+    ).toHaveCount(0);
+    await expect(readFile(untracked)).rejects.toMatchObject({ code: "ENOENT" });
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await panel
+      .getByRole("button", { name: "Discard changes to after-rename.txt", exact: true })
+      .click();
+    await expect(
+      panel.getByRole("button", { name: "Discard changes to after-rename.txt", exact: true }),
+    ).toHaveCount(0);
+    expect(await readFile(path.join(agent.cwd, "before-rename.txt"), "utf8")).toBe("original\n");
+    await expect(readFile(path.join(agent.cwd, "after-rename.txt"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(await readFile(path.join(agent.cwd, "keep.txt"), "utf8")).toBe("keep this\n");
+    expect(await readFile(path.join(agent.cwd, "README.md"), "utf8")).toContain("export const one");
+    expect(git("stash", "list")).toBe("");
+  } finally {
+    await rm(lock, { force: true });
     await agent.cleanup();
   }
 });
@@ -944,7 +1022,7 @@ test("composer branch pill identifies the checkout and switches branches on a cl
   }
 });
 
-test("composer history pill lists ten HEAD commits and refreshes after a commit and branch switch", async ({
+test("composer history pill lists twenty-five HEAD commits and refreshes after a commit and branch switch", async ({
   page,
 }, testInfo) => {
   const agent = await seedMockAgentWorkspace({
@@ -959,8 +1037,20 @@ test("composer history pill lists ten HEAD commits and refreshes after a commit 
   const git = (...args: string[]) =>
     execFileSync("git", args, { cwd: agent.cwd, encoding: "utf8" }).trim();
   try {
-    for (let index = 1; index <= 11; index++)
-      git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", `History entry ${index}`);
+    for (let index = 1; index <= 27; index++)
+      git(
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "--allow-empty",
+        "-m",
+        `History entry ${index}`,
+        "-m",
+        Array.from(
+          { length: 45 },
+          (_, line) => `Detailed paragraph for history ${index}, line ${line}`,
+        ).join("\n"),
+      );
     await writeFile(path.join(agent.cwd, "README.md"), "# Temp Repo\nHistory preview test\n");
     await agent.client.checkoutRefresh(agent.cwd);
     await openAgentRoute(page, agent);
@@ -974,12 +1064,27 @@ test("composer history pill lists ten HEAD commits and refreshes after a commit 
     await pill.click();
     const panel = page.getByTestId("composer-commit-history-pill-panel");
     const rows = panel.getByTestId("composer-commit-history-row");
-    await expect(rows).toHaveCount(10);
-    await expect(rows.first()).toContainText("History entry 11");
+    await expect(rows).toHaveCount(25);
+    await expect(rows.first()).toContainText("History entry 27");
     await expect(rows.first()).toContainText(git("rev-parse", "--short", "HEAD"));
-    await expect(rows.last()).toContainText("History entry 2");
+    await expect(rows.last()).toContainText("History entry 3");
     await expect(panel.getByText("History entry 1", { exact: true })).toHaveCount(0);
-    await page.screenshot({ path: testInfo.outputPath("composer-commit-history.png") });
+    await rows.first().hover();
+    const bubble = page.getByTestId("composer-commit-message");
+    await expect(bubble).toHaveCount(1);
+    await expect(bubble).toBeVisible();
+    await expect(bubble).toContainText("Detailed paragraph for history");
+    const messageScroll = page.getByTestId("composer-commit-message-scroll");
+    expect((await messageScroll.boundingBox())!.height).toBeLessThanOrEqual(260);
+    await messageScroll.hover();
+    await page.mouse.wheel(0, 600);
+    await expect
+      .poll(() => messageScroll.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+    await expect(bubble).toBeVisible();
+    await expect(panel).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("composer-commit-history-message.png") });
+    await page.keyboard.press("Escape");
     git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fresh local commit");
     await agent.client.checkoutRefresh(agent.cwd);
     await expect(rows.first()).toContainText("Fresh local commit");

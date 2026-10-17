@@ -1,11 +1,16 @@
 export const en = {
   commitHistoryPill: {
     label: "History",
-    title: "Recent 10 commits",
+    title: "Recent 25 commits",
     disconnected: "Connect to the host to view history.",
   },
 
   gitStatusPill: {
+    discard: "Discard changes",
+    discardFile: "Discard changes to {{path}}",
+    discardTracked:
+      'Discard all staged and unstaged changes to "{{path}}"? Existing files will be restored to the last commit; newly added files will be deleted. This cannot be undone.',
+    discardUntracked: 'Delete untracked file "{{path}}"? This cannot be undone.',
     heading: "Uncommitted files",
     title_one: "{{count}} uncommitted",
     title_other: "{{count}} uncommitted",

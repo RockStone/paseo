@@ -1,71 +1,170 @@
-import { memo } from "react";
-import { Pressable, Text, View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { memo, useCallback, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { Undo2 } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import type { CheckoutWorkingTreeSummary } from "@getpaseo/protocol/messages";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { composerPillStyles } from "@/composer/pill-styles";
+import { ComposerTrackPill } from "@/composer/tracks";
+import { useMenuContext } from "@/components/ui/menu";
+import { useCheckoutGitActionsStore } from "@/git/actions-store";
+import { confirmDialog } from "@/utils/confirm-dialog";
+import type { Theme } from "@/styles/theme";
+
+const ThemedUndo = withUnistyles(Undo2);
+const iconColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+type WorkingFile = CheckoutWorkingTreeSummary["files"][number];
 
 export const ComposerGitStatusPill = memo(function ComposerGitStatusPill({
   summary,
-  onPress,
+  serverId,
+  cwd,
 }: {
   summary: CheckoutWorkingTreeSummary;
-  onPress: () => void;
+  serverId: string;
+  cwd: string;
 }) {
   const { t } = useTranslation();
-  const remaining = summary.total - summary.files.length;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Pressable
-          testID="composer-git-status-pill"
-          accessibilityRole="button"
-          accessibilityLabel={t("gitStatusPill.title", { count: summary.total })}
-          style={composerPillStyles.body}
-          onPress={onPress}
-        >
-          <Text style={composerPillStyles.label}>
-            {t("gitStatusPill.title", { count: summary.total })}
-          </Text>
-        </Pressable>
-      </TooltipTrigger>
-      <TooltipContent side="top" align="start" maxWidth={420} testID="composer-git-status-preview">
-        <View style={styles.preview}>
-          <Text style={styles.heading}>{t("gitStatusPill.heading")}</Text>
-          <Text style={styles.muted}>
-            {t("gitStatusPill.breakdown", {
-              tracked: summary.tracked,
-              untracked: summary.untracked,
-            })}
-          </Text>
-          {summary.files.slice(0, 10).map((file) => (
-            <Text
-              key={file.path}
-              testID="composer-git-status-file"
-              style={styles.file}
-              numberOfLines={1}
-              ellipsizeMode="middle"
-            >
-              {file.status.trim()} {file.path}
-            </Text>
-          ))}
-          {remaining > 0 ? (
-            <Text style={styles.muted}>{t("gitStatusPill.more", { count: remaining })}</Text>
-          ) : null}
-        </View>
-      </TooltipContent>
-    </Tooltip>
+    <ComposerTrackPill
+      segments={[{ bucket: null, text: t("gitStatusPill.title", { count: summary.total }) }]}
+      panelTitle={t("gitStatusPill.heading")}
+      testID="composer-git-status-pill"
+    >
+      <GitStatusList summary={summary} serverId={serverId} cwd={cwd} />
+    </ComposerTrackPill>
   );
 });
 
+function GitStatusList({
+  summary,
+  serverId,
+  cwd,
+}: {
+  summary: CheckoutWorkingTreeSummary;
+  serverId: string;
+  cwd: string;
+}) {
+  const { t } = useTranslation();
+  const discardChanges = useCheckoutGitActionsStore((state) => state.discardChanges);
+  const { selectItem } = useMenuContext("GitStatusList");
+  const [pending, setPending] = useState<string | null>(null);
+  const pendingRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const discardFile = useCallback(
+    async (file: WorkingFile) => {
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      setPending(file.path);
+      setError(null);
+      try {
+        const name = file.originalPath ? `${file.originalPath} → ${file.path}` : file.path;
+        const confirmed = await confirmDialog({
+          title: t("workspace.fileActions.confirmRevert.title"),
+          message: t(
+            file.status === "??"
+              ? "gitStatusPill.discardUntracked"
+              : "gitStatusPill.discardTracked",
+            { path: name },
+          ),
+          confirmLabel: t("gitStatusPill.discard"),
+          cancelLabel: t("common.actions.cancel"),
+          destructive: true,
+        });
+        if (!confirmed) return;
+        await discardChanges({
+          serverId,
+          cwd,
+          paths: file.originalPath ? [file.path, file.originalPath] : [file.path],
+        });
+      } catch (failure) {
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : t("workspace.fileActions.confirmRevert.failed"),
+        );
+      } finally {
+        pendingRef.current = false;
+        setPending(null);
+      }
+    },
+    [cwd, discardChanges, serverId, t],
+  );
+  const handleDiscard = useCallback(
+    (file: WorkingFile) =>
+      selectItem(() => {
+        void discardFile(file);
+      }, false),
+    [selectItem, discardFile],
+  );
+  return (
+    <View style={styles.list}>
+      <Text style={styles.heading}>{t("gitStatusPill.heading")}</Text>
+      <Text style={styles.meta}>
+        {t("gitStatusPill.breakdown", { tracked: summary.tracked, untracked: summary.untracked })}
+      </Text>
+      {error ? (
+        <Text accessibilityRole="alert" testID="composer-discard-error" style={styles.error}>
+          {error}
+        </Text>
+      ) : null}
+      {summary.files.map((file) => (
+        <GitStatusRow
+          key={file.path}
+          file={file}
+          disabled={pending !== null}
+          pending={pending === file.path}
+          onDiscard={handleDiscard}
+        />
+      ))}
+    </View>
+  );
+}
+
+function GitStatusRow({
+  file,
+  disabled,
+  pending,
+  onDiscard,
+}: {
+  file: WorkingFile;
+  disabled: boolean;
+  pending: boolean;
+  onDiscard: (file: WorkingFile) => void;
+}) {
+  const { t } = useTranslation();
+  const handlePress = useCallback(() => onDiscard(file), [onDiscard, file]);
+  return (
+    <View style={styles.row} testID="composer-git-status-file">
+      <Text style={styles.path} numberOfLines={1} ellipsizeMode="middle">
+        {file.status.trim()} {file.path}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("gitStatusPill.discardFile", { path: file.path })}
+        disabled={disabled}
+        onPress={handlePress}
+        style={styles.undo}
+      >
+        {pending ? (
+          <ActivityIndicator size="small" />
+        ) : (
+          <ThemedUndo size={16} uniProps={iconColor} />
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create((theme) => ({
-  preview: { gap: theme.spacing[1], maxWidth: 390 },
+  list: { gap: theme.spacing[2], padding: theme.spacing[3] },
   heading: {
-    color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,
+    color: theme.colors.foreground,
     fontWeight: theme.fontWeight.medium,
   },
-  muted: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm },
-  file: { color: theme.colors.foreground, fontSize: theme.fontSize.sm },
+  meta: { fontSize: theme.fontSize.sm, color: theme.colors.foregroundMuted },
+  row: { flexDirection: "row", alignItems: "center", gap: theme.spacing[2] },
+  path: { flex: 1, minWidth: 0, fontSize: theme.fontSize.sm, color: theme.colors.foreground },
+  undo: { padding: theme.spacing[2], borderRadius: theme.borderRadius.md },
+  error: { fontSize: theme.fontSize.sm, color: theme.colors.destructive },
 }));

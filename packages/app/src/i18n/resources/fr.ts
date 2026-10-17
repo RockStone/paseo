@@ -4,11 +4,16 @@ import { pluginSettings } from "./plugin-settings";
 export const fr: TranslationResources = {
   commitHistoryPill: {
     label: "Historique",
-    title: "10 derniers commits",
+    title: "25 derniers commits",
     disconnected: "Connectez-vous à l’hôte pour voir l’historique.",
   },
 
   gitStatusPill: {
+    discard: "Abandonner les modifications",
+    discardFile: "Abandonner les modifications de {{path}}",
+    discardTracked:
+      'Abandonner toutes les modifications indexées et non indexées de "{{path}}" ? Les fichiers existants seront restaurés au dernier commit ; les nouveaux seront supprimés. Cette action est irréversible.',
+    discardUntracked: 'Supprimer le fichier non suivi "{{path}}" ? Cette action est irréversible.',
     heading: "Fichiers non commités",
     title_one: "{{count}} non commités",
     title_other: "{{count}} non commités",

@@ -7,18 +7,22 @@ canonical files and are trying to add or change one.
 
 ## Canonical files
 
-| File                                     | Use case                                                          |
-| ---------------------------------------- | ----------------------------------------------------------------- |
-| `components/ui/combobox.tsx`             | Anchored picker with search; mobile falls back to bottom sheet    |
-| `components/ui/tooltip.tsx`              | Non-interactive hover/long-press tooltip                          |
-| `components/ui/hover-card.tsx`           | Desktop-web hover card the pointer can move onto; Portal          |
-| `components/ui/autocomplete-popover.tsx` | Slash-command autocomplete anchored to the focused composer input |
+| File                                     | Use case                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------- |
+| `components/ui/combobox.tsx`             | Anchored picker with search; mobile falls back to bottom sheet            |
+| `components/ui/tooltip.tsx`              | Non-interactive hover/long-press tooltip                                  |
+| `components/ui/hover-card.tsx`           | Desktop-web hover card the pointer can move onto; shared web overlay root |
+| `components/ui/autocomplete-popover.tsx` | Slash-command autocomplete anchored to the focused composer input         |
 
 Each handles a different mix of concerns: combobox owns input focus, tooltip is
 non-interactive, hover-card is web-only desktop, autocomplete keeps the composer
 input focused while its scrollable list lives in a Portal. There is no shared
 "floating panel" primitive yet — when a fifth use case shows up we can revisit;
 until then prefer copying the closest file and trimming.
+
+On web, hover cards opened inside menus use the shared overlay root. An app-local
+portal stays below the menu backdrop regardless of the card's own z-index, which
+prevents the pointer from reaching scrollable content.
 
 ## Popover width contract
 
@@ -55,7 +59,7 @@ events. This is the bug that put autocomplete on this path: the popover was
 positioned `bottom: 100%` of its parent and worked on iOS/web for months;
 Android touches sailed straight through to the chat scroll view behind it.
 
-Two escape hatches in the codebase:
+Native panels use two escape hatches:
 
 - **`Modal`** (combobox, dropdown menu and tooltip on native) — opens a new Android window, so
   hit-testing starts fresh in that window. If its children use gesture-handler,
@@ -65,7 +69,7 @@ Two escape hatches in the codebase:
   Android can detach the IME from an underlying TextInput. Fine for combobox
   (it has its own input) and tooltip (no input). **Not** fine for autocomplete
   (the composer's input must stay focused so the user keeps typing).
-- **`<Portal>` from `@gorhom/portal`** (hover-card, autocomplete-popover) —
+- **`<Portal>` from `@gorhom/portal`** (autocomplete-popover) —
   hoists the React subtree to a fixed mount point whose bounds cover the
   screen. Same window, same IME, hit-test works because the new parent is
   full-screen. This is the right default when you must keep IME attachment.

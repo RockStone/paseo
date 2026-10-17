@@ -57,17 +57,20 @@ The composer shows the live branch to the left of branch-total +/−. Hover to s
 the checkout path; click to use the existing branch picker in that same checkout.
 This does not relocate an agent to another worktree. A clean checkout still shows
 the branch pill; detached checkouts show `HEAD`.
-The adjacent **History** pill lists the latest ten commits reachable from that
-checkout's `HEAD`, including local commits. It loads when opened and refreshes
-with checkout observations. Hosts need `recentCheckoutCommits`; viewing history
-does not change the branch or the agent's working directory.
+The adjacent **History** pill lists the latest 25 commits reachable from that
+checkout's `HEAD`, including local commits. Hover a row to read its full message
+in a separate scrollable card. It loads when opened and refreshes with checkout
+observations. Hosts need `composerGitDetails`; viewing history does not change
+the branch or the agent's working directory.
 
 The composer keeps branch-total +/− separate from **Uncommitted** status. The
-status pill previews up to ten paths and counts each file once, including staged
-and untracked files. Committing clears that pill without requiring a push;
-clicking selects the uncommitted comparison in Changes. Its metadata comes from
-the shared checkout status observation, so hovering does not subscribe to full
-file diffs. Hosts need the `checkoutWorkingTreeSummary` capability.
+status pill opens a capped, scrollable list of every changed path and counts each
+file once, including staged and untracked files. Committing clears that pill
+without requiring a push. Its metadata comes from the shared checkout status
+observation, without subscribing to full file diffs. Hosts need `composerGitDetails`.
+Each row's undo action confirms before discarding all staged and unstaged edits
+to that file, or deleting an untracked file. A rename restores its original path
+as well. No stash is created.
 
 Build a locally signed macOS app for your machine:
 

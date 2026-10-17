@@ -4,7 +4,6 @@ import { ComposerGitStatusPill } from "@/composer/git-status-pill";
 import { ComposerCommitHistoryPill } from "@/composer/commit-history-pill";
 import { BranchSwitcher } from "@/components/branch-switcher";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
-import { selectWorkingDiffComparison } from "@/git/working-diff-comparison";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
 import { AgentTaskList } from "@/composer/task-list";
 import { ComposerTrackBar } from "@/composer/tracks";
@@ -60,7 +59,7 @@ export const AgentTracks = memo(function AgentTracks({
   const { status } = useCheckoutStatusQuery({ serverId, cwd });
   const gitCheckout = status?.isGit && !status.error ? status : null;
   const supportsGitStatus = useSessionStore(
-    (state) => state.sessions[serverId]?.serverInfo?.features?.checkoutWorkingTreeSummary === true,
+    (state) => state.sessions[serverId]?.serverInfo?.features?.composerGitDetails === true,
   );
   const workingTree =
     supportsGitStatus && status?.isGit && !status.error ? status.workingTree : undefined;
@@ -116,17 +115,6 @@ export const AgentTracks = memo(function AgentTracks({
     });
   }, [cwd, isCompact, openInSidePane, serverId, workspaceKey]);
 
-  const handleOpenUncommitted = useCallback(() => {
-    selectWorkingDiffComparison({
-      serverId,
-      workspaceId,
-      cwd,
-      comparison: "uncommitted",
-      isDirty: true,
-    });
-    handleOpenChanges();
-  }, [serverId, workspaceId, cwd, handleOpenChanges]);
-
   if (
     !hasWorkspaceDiffStat &&
     !gitCheckout &&
@@ -180,7 +168,7 @@ export const AgentTracks = memo(function AgentTracks({
         onPress={handleOpenChanges}
       />
       {workingTree && workingTree.total > 0 ? (
-        <ComposerGitStatusPill summary={workingTree} onPress={handleOpenUncommitted} />
+        <ComposerGitStatusPill summary={workingTree} serverId={serverId} cwd={cwd} />
       ) : null}
     </ComposerTrackBar>
   );

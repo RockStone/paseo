@@ -4,11 +4,16 @@ import { pluginSettings } from "./plugin-settings";
 export const ru: TranslationResources = {
   commitHistoryPill: {
     label: "История",
-    title: "Последние 10 коммитов",
+    title: "Последние 25 коммитов",
     disconnected: "Подключитесь к хосту для просмотра истории.",
   },
 
   gitStatusPill: {
+    discard: "Отменить изменения",
+    discardFile: "Отменить изменения в {{path}}",
+    discardTracked:
+      'Отменить все индексированные и неиндексированные изменения в "{{path}}"? Существующие файлы будут восстановлены из последнего коммита, новые будут удалены. Это действие нельзя отменить.',
+    discardUntracked: 'Удалить неотслеживаемый файл "{{path}}"? Это действие нельзя отменить.',
     heading: "Незакоммиченные файлы",
     title_one: "{{count}} без коммита",
     title_other: "{{count}} без коммита",

@@ -1,5 +1,5 @@
 import { memo, useCallback } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useFetchQuery } from "@/data/query";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native-unistyles";
@@ -8,6 +8,7 @@ import { useMenuContext } from "@/components/ui/menu";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { useSessionStore } from "@/stores/session-store";
 import { checkoutCommitsQueryKey } from "@/git/query-keys";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 export const ComposerCommitHistoryPill = memo(function ComposerCommitHistoryPill({
   serverId,
@@ -17,9 +18,9 @@ export const ComposerCommitHistoryPill = memo(function ComposerCommitHistoryPill
   cwd: string;
 }) {
   const { t } = useTranslation();
-  // COMPAT(recentCheckoutCommits): added in Paseoi r15, remove after 2027-04-17.
+  // COMPAT(composerGitDetails): added in Paseoi r17, remove after 2027-04-17.
   const supported = useSessionStore(
-    (state) => state.sessions[serverId]?.serverInfo?.features?.recentCheckoutCommits === true,
+    (state) => state.sessions[serverId]?.serverInfo?.features?.composerGitDetails === true,
   );
   if (!supported) return null;
   return (
@@ -71,15 +72,31 @@ function CommitHistoryList({ serverId, cwd }: { serverId: string; cwd: string })
     content = <Text style={styles.meta}>{t("workspace.git.diff.commits.empty")}</Text>;
   } else {
     content = query.data.commits.map((commit) => (
-      <View key={commit.sha} style={styles.row} testID="composer-commit-history-row">
-        <Text style={styles.subject} numberOfLines={2}>
-          {commit.subject}
-        </Text>
-        <Text style={styles.meta}>
-          {commit.shortSha} · {commit.authorName} ·{" "}
-          {new Date(commit.authorDate).toLocaleDateString(i18n.resolvedLanguage)}
-        </Text>
-      </View>
+      <HoverCard key={commit.sha}>
+        <HoverCardTrigger focusable accessibilityLabel={commit.subject}>
+          <View style={styles.row} testID="composer-commit-history-row">
+            <Text style={styles.subject} numberOfLines={2}>
+              {commit.subject}
+            </Text>
+            <Text style={styles.meta}>
+              {commit.shortSha} · {commit.authorName} ·{" "}
+              {new Date(commit.authorDate).toLocaleDateString(i18n.resolvedLanguage)}
+            </Text>
+          </View>
+        </HoverCardTrigger>
+        <HoverCardContent
+          placement="right"
+          alignment="start"
+          testID="composer-commit-message"
+          style={styles.bubble}
+        >
+          <ScrollView style={styles.messageScroll} testID="composer-commit-message-scroll">
+            <Text selectable style={styles.subject}>
+              {commit.message}
+            </Text>
+          </ScrollView>
+        </HoverCardContent>
+      </HoverCard>
     ));
   }
   return (
@@ -100,4 +117,6 @@ const styles = StyleSheet.create((theme) => ({
   row: { gap: theme.spacing[1] },
   subject: { fontSize: theme.fontSize.sm, color: theme.colors.foreground },
   meta: { fontSize: theme.fontSize.sm, color: theme.colors.foregroundMuted },
+  bubble: { width: 420, maxWidth: 420, padding: theme.spacing[3] },
+  messageScroll: { maxHeight: 260 },
 }));

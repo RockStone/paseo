@@ -499,7 +499,7 @@ describe("checkout git utilities", () => {
     ).toContain("refs/heads/feature/new-name");
   });
 
-  it("summarizes uncommitted status with unique paths, staged renames and a bounded preview", async () => {
+  it("summarizes uncommitted status with unique paths, staged renames and the complete file list", async () => {
     execFileSync("git", ["mv", "file.txt", "renamed file.txt"], { cwd: repoDir });
     writeFileSync(join(repoDir, "renamed file.txt"), "changed again\n");
     writeFileSync(join(repoDir, "a\nnewline.ts"), "new\n");
@@ -511,10 +511,11 @@ describe("checkout git utilities", () => {
       tracked: 1,
       untracked: 13,
     });
-    expect(status.isGit && status.workingTree?.files).toHaveLength(10);
+    expect(status.isGit && status.workingTree?.files).toHaveLength(14);
     expect(status.isGit && status.workingTree?.files).toContainEqual({
       path: "renamed file.txt",
       status: "RM",
+      originalPath: "file.txt",
     });
     await commitAll(repoDir, "commit without push");
     const committed = await getCheckoutStatus(repoDir);
@@ -530,7 +531,7 @@ describe("checkout git utilities", () => {
         tracked: 2,
         untracked: 1,
         files: [
-          { path: "destination", status: "R " },
+          { path: "destination", status: "R ", originalPath: "source" },
           { path: "line\nbreak", status: "??" },
           { path: "file", status: " M" },
         ],

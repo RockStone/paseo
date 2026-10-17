@@ -1368,9 +1368,13 @@ export function summarizeWorkingTreeStatus(stdout: string): CheckoutWorkingTreeS
     summary.total++;
     if (status === "??") summary.untracked++;
     else summary.tracked++;
-    if (summary.files.length < 10) summary.files.push({ path, status });
     // Porcelain -z puts the destination first, followed by the source path.
-    if (/[RC]/.test(status)) index++;
+    const source = /[RC]/.test(status) ? records[++index] : undefined;
+    summary.files.push({
+      path,
+      status,
+      ...(/R/.test(status) && source ? { originalPath: source } : {}),
+    });
   }
   return summary;
 }
@@ -2624,12 +2628,31 @@ export async function listCheckoutCommits({
       envOverlay: READ_ONLY_GIT_ENV,
     });
     if (head.exitCode !== 0) return { baseRef: null, commits: [] };
-    const records = await getCheckoutCommitRecords({
-      cwd,
-      revision: head.stdout.trim(),
-      maxCount: 10,
-      summaryOnly: true,
-    });
+    const result = await runGitCommand(
+      [
+        "log",
+        "-25",
+        "-z",
+        "--no-patch",
+        "--format=%H%x00%h%x00%an%x00%aI%x00%s%x00%B",
+        head.stdout.trim(),
+      ],
+      { cwd, envOverlay: READ_ONLY_GIT_ENV },
+    );
+    if (result.truncated) throw new Error("Commit history exceeded the git output limit");
+    const fields = result.stdout.split("\0");
+    const records = [];
+    for (let index = 0; index + 5 < fields.length; index += 6) {
+      records.push({
+        sha: fields[index]!.trim(),
+        shortSha: fields[index + 1]!,
+        authorName: fields[index + 2]!,
+        authorDate: fields[index + 3]!,
+        subject: fields[index + 4]!,
+        message: fields[index + 5]!.trimEnd(),
+        files: [],
+      });
+    }
     const unpushedShas = await getUnpushedCommitShas(cwd);
     return {
       baseRef: null,
@@ -2637,6 +2660,7 @@ export async function listCheckoutCommits({
         sha: record.sha,
         shortSha: record.shortSha,
         subject: record.subject,
+        message: record.message,
         authorName: record.authorName,
         authorDate: record.authorDate,
         files: record.files,
