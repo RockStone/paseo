@@ -2215,6 +2215,7 @@ class ClaudeAgentSession implements AgentSession {
   private planResumeMode: PermissionMode | null = null;
   private availableModes: AgentMode[] = DEFAULT_MODES;
   private toolUseCache = new Map<string, ToolUseCacheEntry>();
+  private readonly settledToolUseIds = new Set<string>();
   private toolUseIndexToId = new Map<number, string>();
   private toolUseInputBuffers = new Map<string, string>();
   private subagentHandbackIds = new Set<string>();
@@ -5070,6 +5071,13 @@ class ClaudeAgentSession implements AgentSession {
     if (!item) {
       return;
     }
+    // Claude can repeat a tool_use after its tool_result, both live and in JSONL.
+    // A tool ID identifies one invocation, so a late start cannot reopen it.
+    if (item.status === "running") {
+      if (this.settledToolUseIds.has(item.callId)) return;
+    } else {
+      this.settledToolUseIds.add(item.callId);
+    }
     if (target) {
       target.push(item);
       return;
@@ -5162,6 +5170,7 @@ class ClaudeAgentSession implements AgentSession {
   }
 
   private loadPersistedHistory(sessionId: string): void {
+    this.settledToolUseIds.clear();
     let historyPath: string | null = null;
     try {
       this.taskState.reset();
@@ -5809,6 +5818,7 @@ class ClaudeAgentSession implements AgentSession {
     if (!id) {
       return null;
     }
+    if (this.settledToolUseIds.has(id)) return null;
     const existing = this.toolUseCache.get(id) ?? createDefaultToolUseCacheEntry(id, block);
 
     if (typeof block.name === "string" && block.name.length > 0) {
