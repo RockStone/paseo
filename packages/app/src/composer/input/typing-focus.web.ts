@@ -8,7 +8,12 @@ export function useTypingFocus({ enabled, inputRef }: TypingFocusInput): void {
     if (!enabled) return;
     function handleKeyDown(event: KeyboardEvent): void {
       const isTyping = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
-      if (!isTyping || event.defaultPrevented || event.isComposing) return;
+      const isPaste =
+        event.key.toLowerCase() === "v" &&
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey;
+      if ((!isTyping && !isPaste) || event.defaultPrevented || event.isComposing) return;
       if (hasActiveWebOverlay() || hasOpenDomPopover()) return;
       const scope = resolveKeyboardFocusScope({ target: event.target, commandCenterOpen: false });
       if (scope !== "other") return;
@@ -20,8 +25,9 @@ export function useTypingFocus({ enabled, inputRef }: TypingFocusInput): void {
       ) {
         return;
       }
-      // Let the browser insert the original keystroke after focus moves. Replaying
-      // it would bypass the editor's normal text input and composition handling.
+      // Move focus before the browser performs typing or paste. The original
+      // paste reaches the composer's normal image/text handler exactly once;
+      // reading the clipboard or replaying the event here would bypass it.
       inputRef.current?.focus();
     }
     window.addEventListener("keydown", handleKeyDown);

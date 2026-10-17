@@ -352,3 +352,54 @@ test("typing in the active chat focuses the composer without losing the first ch
     await agent.cleanup();
   }
 });
+
+test("pasting in the active chat focuses the composer and adds clipboard images once", async ({
+  page,
+  context,
+}, testInfo) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "composer-paste-to-focus-",
+    title: "Paste to focus",
+  });
+  try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await openAgentRoute(page, agent);
+    const composer = composerLocator(page);
+    const feed = page.getByTestId("agent-chat-scroll").filter({ visible: true });
+    await composer.fill("Existing draft ");
+    await page.evaluate(() => navigator.clipboard.writeText("pasted text"));
+    await feed.click({ position: { x: 2, y: 40 } });
+    await expect(feed).toBeFocused();
+    await page.keyboard.press("ControlOrMeta+v");
+    await expectComposerFocused(page);
+    await expectComposerDraft(page, "Existing draft pasted text");
+
+    await page.evaluate(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 16;
+      canvas.height = 16;
+      canvas.getContext("2d")!.fillRect(0, 0, 16, 16);
+      const blob = await (await fetch(canvas.toDataURL("image/png"))).blob();
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    });
+    await feed.click({ position: { x: 2, y: 40 } });
+    await page.keyboard.press("ControlOrMeta+v");
+    await expectComposerFocused(page);
+    await expect(page.getByTestId("composer-image-attachment-pill")).toHaveCount(1);
+    await expectComposerFocused(page);
+    await expectComposerDraft(page, "Existing draft pasted text");
+    await page.screenshot({ path: testInfo.outputPath("paste-to-focus-image.png") });
+
+    const commandCenter = await openCommandCenter(page);
+    const search = commandCenter.getByTestId("command-center-input");
+    await search.fill("");
+    await page.evaluate(() => navigator.clipboard.writeText("search paste stays here"));
+    await page.keyboard.press("ControlOrMeta+v");
+    await expect(search).toBeFocused();
+    await expect(search).toHaveValue("search paste stays here");
+    await expectComposerDraft(page, "Existing draft pasted text");
+    await expect(page.getByTestId("composer-image-attachment-pill")).toHaveCount(1);
+  } finally {
+    await agent.cleanup();
+  }
+});

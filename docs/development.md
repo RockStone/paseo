@@ -40,6 +40,10 @@ clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
 the PR's persistent annotation markers or separate comment editor.
 
+Typing or pasting with Cmd+V/Ctrl+V in the active chat focuses its composer first.
+Pasted images use the normal attachment flow; text goes into the draft. Other
+editors, terminals, and open overlays retain their own keyboard input.
+
 Completed responses show a changed-files card from saved provider edit events and
 [daemon workspace snapshots](data-model.md#custom-build-response-changes). Snapshots
 cover shell writes and give net totals across repeated edits, including changes
