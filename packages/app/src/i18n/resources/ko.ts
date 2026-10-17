@@ -2,6 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ko: TranslationResources = {
+  commitHistoryPill: {
+    label: "기록",
+    title: "최근 커밋 10개",
+    disconnected: "기록을 보려면 호스트에 연결하세요.",
+  },
+
   gitStatusPill: {
     heading: "커밋되지 않은 파일",
     title_one: "미커밋 {{count}}개",

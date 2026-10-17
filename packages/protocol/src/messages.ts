@@ -2318,6 +2318,7 @@ const CheckoutCommitSchema = z.object({
 export const CheckoutCommitsListRequestSchema = z.object({
   type: z.literal("checkout.commits.list.request"),
   cwd: z.string(),
+  recent: z.boolean().optional(),
   requestId: z.string(),
 });
 
@@ -3676,6 +3677,7 @@ export const ServerInfoStatusPayloadSchema = z
         agentDetach: z.boolean().optional(),
         // COMPAT(checkoutWorkingTreeSummary): added in Paseoi r10, remove gate after 2027-04-17.
         checkoutWorkingTreeSummary: z.boolean().optional(),
+        recentCheckoutCommits: z.boolean().optional(),
         // COMPAT(agentThinkingUpdate): added in v0.2.4, remove gate after 2027-01-28.
         agentThinkingUpdate: z.boolean().optional(),
         // COMPAT(daemonDiagnostics): added in v0.1.100, remove gate after 2026-12-25 once daemon floor >= v0.1.100.

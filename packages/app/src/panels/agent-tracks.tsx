@@ -1,6 +1,7 @@
 import { memo, useCallback, type ReactElement } from "react";
 import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
 import { ComposerGitStatusPill } from "@/composer/git-status-pill";
+import { ComposerCommitHistoryPill } from "@/composer/commit-history-pill";
 import { BranchSwitcher } from "@/components/branch-switcher";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { selectWorkingDiffComparison } from "@/git/working-diff-comparison";
@@ -172,6 +173,7 @@ export const AgentTracks = memo(function AgentTracks({
           testID="composer-branch-pill"
         />
       ) : null}
+      {gitCheckout ? <ComposerCommitHistoryPill serverId={serverId} cwd={cwd} /> : null}
       <WorkspaceDiffStatPill
         serverId={serverId}
         workspaceId={workspaceId}

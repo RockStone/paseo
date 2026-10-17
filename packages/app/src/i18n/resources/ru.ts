@@ -2,6 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ru: TranslationResources = {
+  commitHistoryPill: {
+    label: "История",
+    title: "Последние 10 коммитов",
+    disconnected: "Подключитесь к хосту для просмотра истории.",
+  },
+
   gitStatusPill: {
     heading: "Незакоммиченные файлы",
     title_one: "{{count}} без коммита",

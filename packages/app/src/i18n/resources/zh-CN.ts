@@ -2,6 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const zhCN: TranslationResources = {
+  commitHistoryPill: {
+    label: "历史",
+    title: "最近 10 次提交",
+    disconnected: "连接到主机以查看历史记录。",
+  },
+
   gitStatusPill: {
     heading: "未提交的文件",
     title_one: "{{count}} 个未提交",

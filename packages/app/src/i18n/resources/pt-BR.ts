@@ -2,6 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ptBR: TranslationResources = {
+  commitHistoryPill: {
+    label: "Histórico",
+    title: "Últimos 10 commits",
+    disconnected: "Conecte-se ao host para ver o histórico.",
+  },
+
   gitStatusPill: {
     heading: "Arquivos não commitados",
     title_one: "{{count}} não commitados",

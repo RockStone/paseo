@@ -53,6 +53,10 @@ The composer shows the live branch to the left of branch-total +/−. Hover to s
 the checkout path; click to use the existing branch picker in that same checkout.
 This does not relocate an agent to another worktree. A clean checkout still shows
 the branch pill; detached checkouts show `HEAD`.
+The adjacent **History** pill lists the latest ten commits reachable from that
+checkout's `HEAD`, including local commits. It loads when opened and refreshes
+with checkout observations. Hosts need `recentCheckoutCommits`; viewing history
+does not change the branch or the agent's working directory.
 
 The composer keeps branch-total +/− separate from **Uncommitted** status. The
 status pill previews up to ten paths and counts each file once, including staged

@@ -2,6 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ar: TranslationResources = {
+  commitHistoryPill: {
+    label: "السجل",
+    title: "آخر 10 عمليات إيداع",
+    disconnected: "اتصل بالمضيف لعرض السجل.",
+  },
+
   gitStatusPill: {
     heading: "ملفات غير مثبتة",
     title_one: "{{count}} غير مثبتة",

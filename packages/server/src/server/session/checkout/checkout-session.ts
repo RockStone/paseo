@@ -276,6 +276,7 @@ export class CheckoutSession {
     try {
       const { baseRef, commits } = await listCheckoutCommits({
         cwd: expandTilde(cwd),
+        recent: msg.recent,
         context: { paseoHome: this.paseoHome, worktreesRoot: this.worktreesRoot },
       });
       this.host.emit({

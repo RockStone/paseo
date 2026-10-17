@@ -944,6 +944,58 @@ test("composer branch pill identifies the checkout and switches branches on a cl
   }
 });
 
+test("composer history pill lists ten HEAD commits and refreshes after a commit and branch switch", async ({
+  page,
+}, testInfo) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "composer-history-",
+    title: "Commit history",
+    repo: {
+      branches: ["main", "dev"],
+      withRemote: true,
+      files: [{ path: ".gitignore", content: "/remote.git/\n" }],
+    },
+  });
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: agent.cwd, encoding: "utf8" }).trim();
+  try {
+    for (let index = 1; index <= 11; index++)
+      git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", `History entry ${index}`);
+    await writeFile(path.join(agent.cwd, "README.md"), "# Temp Repo\nHistory preview test\n");
+    await agent.client.checkoutRefresh(agent.cwd);
+    await openAgentRoute(page, agent);
+    const pill = page.getByTestId("composer-commit-history-pill");
+    await expect(pill).toBeVisible();
+    const branch = await page.getByTestId("composer-branch-pill").boundingBox();
+    const history = await pill.boundingBox();
+    const diff = await composerChangesPill(page).boundingBox();
+    expect(history!.x).toBeGreaterThanOrEqual(branch!.x + branch!.width);
+    expect(history!.x + history!.width).toBeLessThanOrEqual(diff!.x);
+    await pill.click();
+    const panel = page.getByTestId("composer-commit-history-pill-panel");
+    const rows = panel.getByTestId("composer-commit-history-row");
+    await expect(rows).toHaveCount(10);
+    await expect(rows.first()).toContainText("History entry 11");
+    await expect(rows.first()).toContainText(git("rev-parse", "--short", "HEAD"));
+    await expect(rows.last()).toContainText("History entry 2");
+    await expect(panel.getByText("History entry 1", { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath("composer-commit-history.png") });
+    git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fresh local commit");
+    await agent.client.checkoutRefresh(agent.cwd);
+    await expect(rows.first()).toContainText("Fresh local commit");
+    await page.keyboard.press("Escape");
+    git("checkout", "dev");
+    await agent.client.checkoutRefresh(agent.cwd);
+    await expect(page.getByTestId("composer-branch-pill")).toHaveText("dev");
+    await pill.click();
+    await expect(panel).not.toContainText("Fresh local commit");
+    await expect(rows.first()).toContainText("Add dev marker");
+    expect(git("branch", "--show-current")).toBe("dev");
+  } finally {
+    await agent.cleanup();
+  }
+});
+
 test("response changed-files cards retain recorded diffs after completion and reload", async ({
   page,
 }, testInfo) => {

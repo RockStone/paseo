@@ -1,4 +1,10 @@
 export const en = {
+  commitHistoryPill: {
+    label: "History",
+    title: "Recent 10 commits",
+    disconnected: "Connect to the host to view history.",
+  },
+
   gitStatusPill: {
     heading: "Uncommitted files",
     title_one: "{{count}} uncommitted",

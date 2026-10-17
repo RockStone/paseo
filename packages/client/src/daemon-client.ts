@@ -4283,6 +4283,7 @@ export class DaemonClient {
   async listCheckoutCommits(
     cwd: string,
     requestId?: string,
+    options?: { recent?: boolean },
   ): Promise<{ baseRef: string | null; commits: CheckoutCommit[] }> {
     const payload =
       await this.sendNamespacedCorrelatedSessionRequest<"checkout.commits.list.response">({
@@ -4290,6 +4291,7 @@ export class DaemonClient {
         message: {
           type: "checkout.commits.list.request",
           cwd,
+          recent: options?.recent,
         },
         timeout: 60000,
       });

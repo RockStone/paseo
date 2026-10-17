@@ -95,6 +95,33 @@ function addBareRemote(repoDir: string, tempDir: string): string {
 }
 
 describe("listCheckoutCommits", () => {
+  it("bounds recent HEAD history to ten, including base commits and detached worktrees", async () => {
+    const { repoDir, tempDir } = initRepoOnMain();
+    importLinearHistory({
+      repoDir,
+      branch: "main",
+      file: "history.txt",
+      subject: "History",
+      count: 12,
+    });
+    const recent = await listCheckoutCommits({ cwd: repoDir, recent: true });
+    expect(recent.commits.map((entry) => entry.subject)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `History ${12 - index}`),
+    );
+    const worktree = join(tempDir, "detached");
+    git(["worktree", "add", "--detach", worktree, "HEAD~2"], repoDir);
+    const detached = await listCheckoutCommits({ cwd: worktree, recent: true });
+    expect(detached.commits).toHaveLength(10);
+    expect(detached.commits[0]?.subject).toBe("History 10");
+    expect(detached.commits[9]?.subject).toBe("History 1");
+  });
+
+  it("returns empty recent history for an unborn checkout", async () => {
+    const repoDir = makeTempDir();
+    git(["init", "-b", "main"], repoDir);
+    expect((await listCheckoutCommits({ cwd: repoDir, recent: true })).commits).toEqual([]);
+  });
+
   it("keeps fixture authors independent of command-scoped Git configuration", async () => {
     const overrides = {
       GIT_CONFIG_COUNT: "1",

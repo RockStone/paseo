@@ -2417,6 +2417,7 @@ interface CheckoutCommitLogInput {
   cwd: string;
   revision: string;
   maxCount?: number;
+  summaryOnly?: boolean;
 }
 
 function mapNameStatusLetter(letter: string): CheckoutCommitFileStatus | undefined {
@@ -2560,15 +2561,14 @@ async function getCheckoutCommitRecords({
   cwd,
   revision,
   maxCount,
+  summaryOnly = false,
 }: CheckoutCommitLogInput): Promise<ParsedCheckoutCommit[]> {
   const args = [
     "log",
     revision,
     "--diff-merges=first-parent",
     `--format=${COMMIT_LOG_FORMAT}`,
-    "--raw",
-    "--numstat",
-    "-M",
+    ...(summaryOnly ? ["--no-patch"] : ["--raw", "--numstat", "-M"]),
   ];
   if (maxCount !== undefined) {
     args.splice(2, 0, `--max-count=${maxCount}`);
@@ -2611,10 +2611,40 @@ async function tryResolveCheckoutCommitsBaseRef(
 export async function listCheckoutCommits({
   cwd,
   context,
+  recent = false,
 }: {
   cwd: string;
   context?: CheckoutContext;
+  recent?: boolean;
 }): Promise<CheckoutCommitsResult> {
+  if (recent) {
+    const head = await runGitCommand(["rev-parse", "--verify", "--quiet", "HEAD"], {
+      cwd,
+      acceptExitCodes: [0, 1],
+      envOverlay: READ_ONLY_GIT_ENV,
+    });
+    if (head.exitCode !== 0) return { baseRef: null, commits: [] };
+    const records = await getCheckoutCommitRecords({
+      cwd,
+      revision: head.stdout.trim(),
+      maxCount: 10,
+      summaryOnly: true,
+    });
+    const unpushedShas = await getUnpushedCommitShas(cwd);
+    return {
+      baseRef: null,
+      commits: records.map((record) => ({
+        sha: record.sha,
+        shortSha: record.shortSha,
+        subject: record.subject,
+        authorName: record.authorName,
+        authorDate: record.authorDate,
+        files: record.files,
+        isOnRemote: !unpushedShas.has(record.sha),
+        isOnBase: false,
+      })),
+    };
+  }
   const currentBranch = await getCurrentBranch(cwd);
   if (!currentBranch) {
     return { baseRef: null, commits: [] };

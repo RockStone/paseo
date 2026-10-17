@@ -2,6 +2,12 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ja: TranslationResources = {
+  commitHistoryPill: {
+    label: "履歴",
+    title: "最近の10件のコミット",
+    disconnected: "履歴を表示するにはホストに接続してください。",
+  },
+
   gitStatusPill: {
     heading: "未コミットのファイル",
     title_one: "未コミット {{count}} 件",
