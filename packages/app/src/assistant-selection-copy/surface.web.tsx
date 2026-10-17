@@ -2,6 +2,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useMemo,
   type PointerEvent as ReactPointerEvent,
@@ -18,6 +19,7 @@ import { getOverlayRoot, useOverlayLayer, useWebOverlayRegistration } from "@/li
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { createAssistantSelectionClipboardContent } from "./content.web";
 import { SelectionReplyContext } from "./reply";
+import { selectionReplyAnchor, type SelectionReplyAnchor } from "./position.web";
 
 interface AssistantSelectionCopySurfaceProps {
   children: ReactNode;
@@ -26,8 +28,7 @@ interface AssistantSelectionCopySurfaceProps {
 
 interface SelectionReply {
   text: string;
-  left: number;
-  top: number;
+  anchor: SelectionReplyAnchor;
 }
 
 const DISPLAY_CONTENTS: CSSProperties = { display: "contents" };
@@ -57,18 +58,12 @@ export function AssistantSelectionCopySurface({
       const contained =
         surface.contains(range.startContainer) && surface.contains(range.endContainer);
       const content = contained ? createAssistantSelectionClipboardContent(selection) : null;
-      const rect = range.getBoundingClientRect();
-      if (!content || rect.width <= 0 || rect.height <= 0) {
+      const anchor = selectionReplyAnchor(selection);
+      if (!content || !anchor) {
         setReply(null);
         return;
       }
-      // Adapted from crpboy's PR #3421: anchor the action to the selected range,
-      // clamp it to the viewport, and preserve Markdown in the reply context.
-      setReply({
-        text: content.plainText,
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 100)),
-        top: Math.max(8, rect.top - 40),
-      });
+      setReply({ text: content.plainText, anchor });
     }
     function dismiss() {
       setReply(null);
@@ -121,15 +116,29 @@ export function AssistantSelectionCopySurface({
     setReply(null);
   }, [reply, onReply]);
   const actionStyle = useMemo<CSSProperties>(
-    () => ({
-      position: "fixed",
-      left: reply?.left,
-      top: reply?.top,
-      zIndex: layer,
-      pointerEvents: "auto",
-    }),
-    [reply, layer],
+    () => ({ position: "fixed", zIndex: layer, pointerEvents: "auto", visibility: "hidden" }),
+    [layer],
   );
+  useLayoutEffect(() => {
+    const action = actionRef.current;
+    if (!action || !reply) return;
+    const { anchor } = reply;
+    const placeAction = () => {
+      const { width, height } = action.getBoundingClientRect();
+      const gutter = 8;
+      const maximumLeft = Math.max(gutter, window.innerWidth - width - gutter);
+      const left = Math.max(gutter, Math.min(anchor.x - width / 2, maximumLeft));
+      const above = anchor.top - height - gutter;
+      const preferredTop = above >= gutter ? above : anchor.bottom + gutter;
+      const maximumTop = Math.max(gutter, window.innerHeight - height - gutter);
+      const top = Math.max(gutter, Math.min(preferredTop, maximumTop));
+      Object.assign(action.style, { left: `${left}px`, top: `${top}px`, visibility: "visible" });
+    };
+    placeAction();
+    const observer = new ResizeObserver(placeAction);
+    observer.observe(action);
+    return () => observer.disconnect();
+  }, [reply, active, onReply]);
 
   const handleCopy = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
     const content = createAssistantSelectionClipboardContent(window.getSelection());

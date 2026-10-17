@@ -1,3 +1,4 @@
+import { waitForTimelineGeometryToSettle } from "../support/helpers/timeline-pagination";
 import { composerLocator } from "../support/helpers/composer";
 import type { BrowserContext, Locator } from "@playwright/test";
 import { expect, test, type Page } from "../support/fixtures";
@@ -765,6 +766,120 @@ test("replying to selected assistant text preserves the draft and focuses the co
     await expect(composer).toHaveValue(
       "My existing draft\n\n> PostgreSQL databases\n\nPlease clarify this.",
     );
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("Reply follows the active end of wrapped text selections", async ({ page }, testInfo) => {
+  const paragraph =
+    "Existing subscriber prices are preserved. Apple remains unsubmitted; Google changes are saved. I updated the completion report and kept the existing configuration. ".repeat(
+      6,
+    );
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "assistant-selection-position-",
+    title: "Selection reply position",
+    initialPrompt: "Explain the current configuration.",
+    featureValues: { mockAssistantResponse: paragraph },
+  });
+  try {
+    await agent.client.waitForAgentUpsert(
+      agent.agentId,
+      (snapshot) => snapshot.status === "idle",
+      30_000,
+    );
+    await openAgentRoute(page, agent);
+    await waitForTimelineGeometryToSettle(page);
+    await page
+      .getByTestId("agent-chat-scroll")
+      .filter({ visible: true })
+      .click({ position: { x: 2, y: 2 } });
+    const message = assistantMessageBlocks(page).locator("p").first();
+    await expect(message).toBeVisible();
+    await message.scrollIntoViewIfNeeded();
+    const points = await message.evaluate((element) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const node = walker.nextNode();
+      if (!(node instanceof Text)) throw new Error("Expected response text");
+      const lines = new Map<number, { rect: DOMRect; offset: number }[]>();
+      for (let offset = 0; offset < node.length; offset++) {
+        const range = document.createRange();
+        range.setStart(node, offset);
+        range.setEnd(node, offset + 1);
+        const rect = range.getBoundingClientRect();
+        if (rect.width <= 0) continue;
+        const line = lines.get(rect.top) ?? [];
+        line.push({ rect, offset });
+        lines.set(rect.top, line);
+      }
+      const rows = Array.from(lines.values());
+      const second = rows[1];
+      const third = rows[2];
+      if (!second || !third) throw new Error("Expected three wrapped lines");
+      function point(row: { rect: DOMRect; offset: number }[], fraction: number) {
+        return row[Math.floor(row.length * fraction)]!.offset;
+      }
+      return {
+        secondStart: point(second, 0.25),
+        secondEnd: point(second, 0.7),
+        thirdEnd: point(third, 0.65),
+      };
+    });
+    const cases = [
+      { name: "partial-second-line", start: points.secondStart, end: points.secondEnd },
+      { name: "wrapped-forward", start: points.secondStart, end: points.thirdEnd },
+      { name: "wrapped-backward", start: points.thirdEnd, end: points.secondStart },
+    ];
+    for (const selectionCase of cases) {
+      await test.step(selectionCase.name, async () => {
+        await message.evaluate(
+          (element, selectionOffsets) => {
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+            const node = walker.nextNode();
+            if (!(node instanceof Text)) throw new Error("Expected response text");
+            const selection = window.getSelection();
+            if (!selection) throw new Error("Expected browser selection");
+            selection.setBaseAndExtent(node, selectionOffsets.start, node, selectionOffsets.end);
+          },
+          { start: selectionCase.start, end: selectionCase.end },
+        );
+        const reply = page.getByTestId("reply-to-selection");
+        await expect(reply).toBeVisible();
+        const focus = await page.evaluate(() => {
+          const selection = window.getSelection();
+          if (!selection?.focusNode || selection.isCollapsed)
+            throw new Error("Expected selected text");
+          const range = document.createRange();
+          range.setStart(selection.focusNode, selection.focusOffset);
+          range.collapse(true);
+          const rect = range.getBoundingClientRect();
+          return { x: rect.left, top: rect.top };
+        });
+        await expect
+          .poll(async () => {
+            const rect = await reply.boundingBox();
+            if (!rect) throw new Error("Expected Reply action");
+            return Math.abs(rect.x + rect.width / 2 - focus.x);
+          })
+          .toBeLessThan(2);
+        const rect = await reply.boundingBox();
+        if (!rect) throw new Error("Expected Reply action");
+        expect(Math.abs(rect.y + rect.height + 8 - focus.top)).toBeLessThan(2);
+        await page.screenshot({ path: testInfo.outputPath(`${selectionCase.name}.png`) });
+      });
+    }
+  } catch (error) {
+    await page.screenshot({ path: testInfo.outputPath("selection-position-failure.png") });
+    const selected = await page.evaluate(() => ({
+      text: window.getSelection()?.toString(),
+      focus: window.getSelection()?.focusNode?.parentElement?.outerHTML,
+      active: document.activeElement?.outerHTML,
+    }));
+    await testInfo.attach("selection-state", {
+      body: JSON.stringify(selected),
+      contentType: "application/json",
+    });
+    throw error;
   } finally {
     await agent.cleanup();
   }

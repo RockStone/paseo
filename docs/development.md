@@ -59,7 +59,7 @@ if you want to view those sessions. Do not restart that host to test this featur
 Versions end in `-rockstone.N`. Official update checks and installation are
 disabled for those versions, so updating cannot discard the local patch. Set
 `PASEO_CUSTOM_REVISION` to a higher number for each build from the same upstream
-version (the default is 3).
+version (the default is 4).
 The local build uses an ad-hoc signature and is not notarized.
 
 Keep `upstream` pointed at `getpaseo/paseo` and `origin` at `RockStone/paseo`.
