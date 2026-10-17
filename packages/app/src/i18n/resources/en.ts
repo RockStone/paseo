@@ -1,4 +1,11 @@
 export const en = {
+  gitStatusPill: {
+    heading: "Uncommitted files",
+    title_one: "{{count}} uncommitted",
+    title_other: "{{count}} uncommitted",
+    breakdown: "{{tracked}} tracked · {{untracked}} untracked",
+    more: "… {{count}} more",
+  },
   responseChanges: {
     title_one: "{{count}} file changed",
     title_other: "{{count}} files changed",

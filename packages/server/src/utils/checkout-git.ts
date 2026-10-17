@@ -4,7 +4,11 @@ import { existsSync, realpathSync } from "fs";
 import { open as openFile, readFile, stat as statFile } from "fs/promises";
 import { setImmediate } from "node:timers/promises";
 import { TTLCache } from "@isaacs/ttlcache";
-import type { CheckoutCommit, CheckoutCommitFile } from "@getpaseo/protocol/messages";
+import type {
+  CheckoutCommit,
+  CheckoutCommitFile,
+  CheckoutWorkingTreeSummary,
+} from "@getpaseo/protocol/messages";
 import { parseGitHubRemoteIdentity, parseGitRemoteLocation } from "@getpaseo/protocol/git-remote";
 import { maxBase64EncryptedPlaintextByteLength } from "@getpaseo/relay";
 import type { Logger } from "pino";
@@ -862,6 +866,7 @@ export interface CheckoutStatus {
 }
 
 export interface CheckoutStatusGitNonPaseo {
+  workingTree?: CheckoutWorkingTreeSummary;
   isGit: true;
   repoRoot: string;
   mainRepoRoot: string | null;
@@ -881,6 +886,7 @@ export interface CheckoutStatusGitNonPaseo {
 }
 
 export interface CheckoutStatusGitPaseo {
+  workingTree?: CheckoutWorkingTreeSummary;
   isGit: true;
   repoRoot: string;
   mainRepoRoot: string;
@@ -1351,13 +1357,37 @@ function resolveOperationBaseRef(input: {
   return input.storedBaseRef ?? input.requestedBaseRef ?? input.resolvedBaseRef;
 }
 
-async function isWorkingTreeDirty(cwd: string, context?: CheckoutContext): Promise<boolean> {
-  const { stdout } = await getRunGitCommand(context)(["status", "--porcelain"], {
-    cwd,
-    envOverlay: READ_ONLY_GIT_ENV,
-    logger: context?.logger,
-  });
-  return stdout.trim().length > 0;
+export function summarizeWorkingTreeStatus(stdout: string): CheckoutWorkingTreeSummary {
+  const records = stdout.split("\0");
+  const summary: CheckoutWorkingTreeSummary = { total: 0, tracked: 0, untracked: 0, files: [] };
+  for (let index = 0; index < records.length; index++) {
+    const record = records[index]!;
+    if (record.length < 4) continue;
+    const status = record.slice(0, 2);
+    const path = record.slice(3);
+    summary.total++;
+    if (status === "??") summary.untracked++;
+    else summary.tracked++;
+    if (summary.files.length < 10) summary.files.push({ path, status });
+    // Porcelain -z puts the destination first, followed by the source path.
+    if (/[RC]/.test(status)) index++;
+  }
+  return summary;
+}
+
+async function getWorkingTreeSummary(
+  cwd: string,
+  context?: CheckoutContext,
+): Promise<CheckoutWorkingTreeSummary> {
+  const { stdout } = await getRunGitCommand(context)(
+    ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    {
+      cwd,
+      envOverlay: READ_ONLY_GIT_ENV,
+      logger: context?.logger,
+    },
+  );
+  return summarizeWorkingTreeStatus(stdout);
 }
 
 export async function getOriginRemoteUrl(
@@ -2304,7 +2334,8 @@ export async function getCheckoutStatus(
   const currentBranch = facts.currentBranch;
   const remoteUrl = facts.remoteUrl;
   const paseoWorktree = facts.paseoWorktree;
-  const isDirty = await isWorkingTreeDirty(cwd, context);
+  const workingTree = await getWorkingTreeSummary(cwd, context);
+  const isDirty = workingTree.total > 0;
   const hasRemote = remoteUrl !== null;
   const baseRef = facts.resolvedBaseRef;
   const mainRepoRoot = facts.mainRepoRoot;
@@ -2329,6 +2360,7 @@ export async function getCheckoutStatus(
       mainRepoRoot: mainRepoRoot ?? worktreeRoot,
       currentBranch,
       isDirty,
+      workingTree,
       baseRef: displayBaseRef ?? baseRef,
       aheadBehind,
       upstreamRef,
@@ -2347,6 +2379,7 @@ export async function getCheckoutStatus(
       mainRepoRoot && resolve(mainRepoRoot) !== resolve(worktreeRoot) ? mainRepoRoot : null,
     currentBranch,
     isDirty,
+    workingTree,
     baseRef: displayBaseRef,
     aheadBehind,
     upstreamRef,
@@ -3086,6 +3119,7 @@ export async function getCheckoutRefDerivedState(
 }
 
 export interface CheckoutWorktreeState {
+  workingTree?: CheckoutWorkingTreeSummary;
   isDirty: boolean;
   diffStat: CheckoutShortstat | null;
 }
@@ -3094,11 +3128,11 @@ export async function getCheckoutWorktreeState(
   cwd: string,
   context: CheckoutContext,
 ): Promise<CheckoutWorktreeState> {
-  const [isDirty, diffStat] = await Promise.all([
-    isWorkingTreeDirty(cwd, context),
+  const [workingTree, diffStat] = await Promise.all([
+    getWorkingTreeSummary(cwd, context),
     getCheckoutShortstat(cwd, context, { force: true }),
   ]);
-  return { isDirty, diffStat };
+  return { isDirty: workingTree.total > 0, diffStat, workingTree };
 }
 
 export function getCachedCheckoutShortstat(cwd: string): CheckoutShortstat | null | undefined {

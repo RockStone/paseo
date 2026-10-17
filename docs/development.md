@@ -49,6 +49,13 @@ patches show **View changes** instead of a numeric total. The shared client UI s
 compact layouts; official mobile binaries do not acquire this custom UI from a
 daemon update.
 
+The composer keeps branch-total +/− separate from **Uncommitted** status. The
+status pill previews up to ten paths and counts each file once, including staged
+and untracked files. Committing clears that pill without requiring a push;
+clicking selects the uncommitted comparison in Changes. Its metadata comes from
+the shared checkout status observation, so hovering does not subscribe to full
+file diffs. Hosts need the `checkoutWorkingTreeSummary` capability.
+
 Build a locally signed macOS app for your machine:
 
 ```bash
@@ -74,7 +81,7 @@ daemon are stopped. Startup never copies or merges older state over live data.
 Versions end in `-rockstone.N`. Official update checks and installation are
 disabled for those versions, so updating cannot discard the local patch. Set
 `PASEO_CUSTOM_REVISION` to a higher number for each build from the same upstream
-version (the default is 8).
+version.
 The local build uses an ad-hoc signature and is not notarized.
 
 macOS uses `CFBundleName` to find Electron's UI helpers. The custom packager adds

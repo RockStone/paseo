@@ -2,6 +2,13 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const zhCN: TranslationResources = {
+  gitStatusPill: {
+    heading: "未提交的文件",
+    title_one: "{{count}} 个未提交",
+    title_other: "{{count}} 个未提交",
+    breakdown: "{{tracked}} 个已跟踪 · {{untracked}} 个未跟踪",
+    more: "… 另有 {{count}} 个",
+  },
   responseChanges: {
     title_one: "{{count}} 个文件已更改",
     title_other: "{{count}} 个文件已更改",

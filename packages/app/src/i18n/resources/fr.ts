@@ -2,6 +2,13 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const fr: TranslationResources = {
+  gitStatusPill: {
+    heading: "Fichiers non commités",
+    title_one: "{{count}} non commités",
+    title_other: "{{count}} non commités",
+    breakdown: "{{tracked}} suivis · {{untracked}} non suivis",
+    more: "… {{count}} de plus",
+  },
   responseChanges: {
     title_one: "{{count}} fichier modifié",
     title_other: "{{count}} fichiers modifiés",

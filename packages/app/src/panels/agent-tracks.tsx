@@ -1,5 +1,8 @@
 import { memo, useCallback, type ReactElement } from "react";
 import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
+import { ComposerGitStatusPill } from "@/composer/git-status-pill";
+import { useCheckoutStatusQuery } from "@/git/use-status-query";
+import { selectWorkingDiffComparison } from "@/git/working-diff-comparison";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
 import { AgentTaskList } from "@/composer/task-list";
 import { ComposerTrackBar } from "@/composer/tracks";
@@ -52,6 +55,12 @@ export const AgentTracks = memo(function AgentTracks({
 }): ReactElement | null {
   const { tabId } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
+  const { status } = useCheckoutStatusQuery({ serverId, cwd });
+  const supportsGitStatus = useSessionStore(
+    (state) => state.sessions[serverId]?.serverInfo?.features?.checkoutWorkingTreeSummary === true,
+  );
+  const workingTree =
+    supportsGitStatus && status?.isGit && !status.error ? status.workingTree : undefined;
   const isCompact = useIsCompactFormFactor();
   const openInSidePane = useSettings((settings) => settings.openInSidePane);
   const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
@@ -104,8 +113,20 @@ export const AgentTracks = memo(function AgentTracks({
     });
   }, [cwd, isCompact, openInSidePane, serverId, workspaceKey]);
 
+  const handleOpenUncommitted = useCallback(() => {
+    selectWorkingDiffComparison({
+      serverId,
+      workspaceId,
+      cwd,
+      comparison: "uncommitted",
+      isDirty: true,
+    });
+    handleOpenChanges();
+  }, [serverId, workspaceId, cwd, handleOpenChanges]);
+
   if (
     !hasWorkspaceDiffStat &&
+    !workingTree?.total &&
     !hasAgentTracks({
       subagentRows,
       tasks,
@@ -141,6 +162,9 @@ export const AgentTracks = memo(function AgentTracks({
         workspaceId={workspaceId}
         onPress={handleOpenChanges}
       />
+      {workingTree && workingTree.total > 0 ? (
+        <ComposerGitStatusPill summary={workingTree} onPress={handleOpenUncommitted} />
+      ) : null}
     </ComposerTrackBar>
   );
 });

@@ -30,6 +30,7 @@ import {
   getCheckoutShortstat,
   getPullRequestStatus,
   getCheckoutStatus,
+  summarizeWorkingTreeStatus,
   checkoutResolvedBranch,
   listBranchSuggestions,
   mergeToBase,
@@ -496,6 +497,45 @@ describe("checkout git utilities", () => {
         .toString()
         .trim(),
     ).toContain("refs/heads/feature/new-name");
+  });
+
+  it("summarizes uncommitted status with unique paths, staged renames and a bounded preview", async () => {
+    execFileSync("git", ["mv", "file.txt", "renamed file.txt"], { cwd: repoDir });
+    writeFileSync(join(repoDir, "renamed file.txt"), "changed again\n");
+    writeFileSync(join(repoDir, "a\nnewline.ts"), "new\n");
+    for (let index = 0; index < 12; index++)
+      writeFileSync(join(repoDir, `untracked-${index}.ts`), "new\n");
+    const status = await getCheckoutStatus(repoDir);
+    expect(status.isGit && status.workingTree).toMatchObject({
+      total: 14,
+      tracked: 1,
+      untracked: 13,
+    });
+    expect(status.isGit && status.workingTree?.files).toHaveLength(10);
+    expect(status.isGit && status.workingTree?.files).toContainEqual({
+      path: "renamed file.txt",
+      status: "RM",
+    });
+    await commitAll(repoDir, "commit without push");
+    const committed = await getCheckoutStatus(repoDir);
+    expect(committed.isGit && committed.workingTree).toEqual({
+      total: 0,
+      tracked: 0,
+      untracked: 0,
+      files: [],
+    });
+    expect(summarizeWorkingTreeStatus("R  destination\0source\0?? line\nbreak\0 M file\0")).toEqual(
+      {
+        total: 3,
+        tracked: 2,
+        untracked: 1,
+        files: [
+          { path: "destination", status: "R " },
+          { path: "line\nbreak", status: "??" },
+          { path: "file", status: " M" },
+        ],
+      },
+    );
   });
 
   it("handles status/diff/commit in a normal repo", async () => {

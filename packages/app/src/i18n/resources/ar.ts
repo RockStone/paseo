@@ -2,6 +2,13 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ar: TranslationResources = {
+  gitStatusPill: {
+    heading: "ملفات غير مثبتة",
+    title_one: "{{count}} غير مثبتة",
+    title_other: "{{count}} غير مثبتة",
+    breakdown: "{{tracked}} متتبعة · {{untracked}} غير متتبعة",
+    more: "… {{count}} أخرى",
+  },
   responseChanges: {
     title_one: "تم تغيير {{count}} ملف",
     title_other: "تم تغيير {{count}} ملفات",

@@ -2,6 +2,13 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ko: TranslationResources = {
+  gitStatusPill: {
+    heading: "커밋되지 않은 파일",
+    title_one: "미커밋 {{count}}개",
+    title_other: "미커밋 {{count}}개",
+    breakdown: "추적 {{tracked}}개 · 미추적 {{untracked}}개",
+    more: "… {{count}}개 더",
+  },
   responseChanges: {
     title_one: "파일 {{count}}개 변경",
     title_other: "파일 {{count}}개 변경",

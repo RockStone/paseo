@@ -3674,6 +3674,8 @@ export const ServerInfoStatusPayloadSchema = z
         providerUsageList: z.boolean().optional(),
         // COMPAT(agentDetach): added in v0.1.98, remove gate after 2026-12-19 once daemon floor >= v0.1.98.
         agentDetach: z.boolean().optional(),
+        // COMPAT(checkoutWorkingTreeSummary): added in Paseoi r10, remove gate after 2027-04-17.
+        checkoutWorkingTreeSummary: z.boolean().optional(),
         // COMPAT(agentThinkingUpdate): added in v0.2.4, remove gate after 2027-01-28.
         agentThinkingUpdate: z.boolean().optional(),
         // COMPAT(daemonDiagnostics): added in v0.1.100, remove gate after 2026-12-25 once daemon floor >= v0.1.100.
@@ -5207,7 +5209,16 @@ const AheadBehindSchema = z.object({
   behind: z.number(),
 });
 
+const CheckoutWorkingTreeSummarySchema = z.object({
+  total: z.number(),
+  tracked: z.number(),
+  untracked: z.number(),
+  files: z.array(z.object({ path: z.string(), status: z.string() })),
+});
+export type CheckoutWorkingTreeSummary = z.infer<typeof CheckoutWorkingTreeSummarySchema>;
+
 const CheckoutStatusCommonSchema = z.object({
+  workingTree: CheckoutWorkingTreeSummarySchema.optional(),
   cwd: z.string(),
   error: CheckoutErrorSchema.nullable(),
   requestId: z.string(),

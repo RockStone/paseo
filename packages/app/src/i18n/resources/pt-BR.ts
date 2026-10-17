@@ -2,6 +2,13 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ptBR: TranslationResources = {
+  gitStatusPill: {
+    heading: "Arquivos não commitados",
+    title_one: "{{count}} não commitados",
+    title_other: "{{count}} não commitados",
+    breakdown: "{{tracked}} rastreados · {{untracked}} não rastreados",
+    more: "… mais {{count}}",
+  },
   responseChanges: {
     title_one: "{{count}} arquivo alterado",
     title_other: "{{count}} arquivos alterados",

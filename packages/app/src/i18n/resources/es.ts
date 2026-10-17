@@ -2,6 +2,13 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const es: TranslationResources = {
+  gitStatusPill: {
+    heading: "Archivos sin confirmar",
+    title_one: "{{count}} sin confirmar",
+    title_other: "{{count}} sin confirmar",
+    breakdown: "{{tracked}} rastreados · {{untracked}} sin rastrear",
+    more: "… {{count}} más",
+  },
   responseChanges: {
     title_one: "{{count}} archivo modificado",
     title_other: "{{count}} archivos modificados",

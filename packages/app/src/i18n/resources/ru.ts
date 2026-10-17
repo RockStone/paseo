@@ -2,6 +2,13 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ru: TranslationResources = {
+  gitStatusPill: {
+    heading: "Незакоммиченные файлы",
+    title_one: "{{count}} без коммита",
+    title_other: "{{count}} без коммита",
+    breakdown: "{{tracked}} отслеживаемых · {{untracked}} неотслеживаемых",
+    more: "… ещё {{count}}",
+  },
   responseChanges: {
     title_one: "Изменён {{count}} файл",
     title_other: "Изменено файлов: {{count}}",

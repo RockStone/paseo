@@ -2,6 +2,13 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ja: TranslationResources = {
+  gitStatusPill: {
+    heading: "未コミットのファイル",
+    title_one: "未コミット {{count}} 件",
+    title_other: "未コミット {{count}} 件",
+    breakdown: "追跡済み {{tracked}} 件 · 未追跡 {{untracked}} 件",
+    more: "… 他 {{count}} 件",
+  },
   responseChanges: {
     title_one: "{{count}} 個のファイルを変更",
     title_other: "{{count}} 個のファイルを変更",

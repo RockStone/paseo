@@ -1,13 +1,57 @@
 import { describe, expect, test } from "vitest";
 
-import { CheckoutPrStatusSchema } from "@getpaseo/protocol/messages";
+import { CheckoutPrStatusSchema, CheckoutStatusResponseSchema } from "@getpaseo/protocol/messages";
 import type { WorkspaceGitRuntimeSnapshot } from "../workspace-git-service.js";
 import {
   buildCheckoutPrStatusPayloadFromSnapshot,
   normalizeCheckoutPrStatusPayload,
+  buildCheckoutStatusPayloadFromSnapshot,
 } from "./status-projection.js";
 
 describe("checkout status projection", () => {
+  test("preserves bounded working-tree metadata while accepting older status payloads", () => {
+    const workingTree = {
+      total: 1,
+      tracked: 0,
+      untracked: 1,
+      files: [{ path: "new.ts", status: "??" }],
+    };
+    const snapshot: WorkspaceGitRuntimeSnapshot = {
+      cwd: "/repo",
+      git: {
+        isGit: true,
+        repoRoot: "/repo",
+        mainRepoRoot: null,
+        currentBranch: "main",
+        remoteUrl: null,
+        isPaseoOwnedWorktree: false,
+        isDirty: true,
+        baseRef: "main",
+        aheadBehind: null,
+        upstreamRef: null,
+        aheadOfOrigin: null,
+        behindOfOrigin: null,
+        hasRemote: false,
+        diffStat: null,
+        workingTree,
+      },
+      forge: { featuresEnabled: false, authState: "no_remote", pullRequest: null, error: null },
+    };
+    const payload = buildCheckoutStatusPayloadFromSnapshot({
+      cwd: "/repo",
+      requestId: "status",
+      snapshot,
+    });
+    expect(
+      CheckoutStatusResponseSchema.parse({ type: "checkout_status_response", payload }).payload
+        .workingTree,
+    ).toEqual(workingTree);
+    const { workingTree: _metadata, ...older } = payload;
+    expect(
+      CheckoutStatusResponseSchema.safeParse({ type: "checkout_status_response", payload: older })
+        .success,
+    ).toBe(true);
+  });
   test("includes repository identity fields on the PR status wire payload", () => {
     const payload = normalizeCheckoutPrStatusPayload(
       {

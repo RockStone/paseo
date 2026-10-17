@@ -1,4 +1,5 @@
 import type { Locator } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "../support/fixtures";
@@ -855,6 +856,53 @@ async function expectReviewEditorBody(page: Page, body: string) {
     body,
   );
 }
+
+test("uncommitted status pill sits to the right, previews ten files and clears on commit", async ({
+  page,
+}, testInfo) => {
+  const agent = await seedChangedAgent("composer-git-status-");
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: agent.cwd, encoding: "utf8" });
+  try {
+    await writeFile(path.join(agent.cwd, "committed-only.ts"), "export const committed = true;\n");
+    git("add", "committed-only.ts");
+    git("commit", "-m", "Local commit awaiting push");
+    for (let index = 0; index < 12; index++)
+      await writeFile(path.join(agent.cwd, `new-${index}.ts`), "export const fresh = true;\n");
+    await agent.client.checkoutRefresh(agent.cwd);
+    await openAgentRoute(page, agent);
+    const pill = page.getByTestId("composer-git-status-pill");
+    await expect(pill).toHaveText("13 uncommitted");
+    const total = composerChangesPill(page);
+    await expect(total).toBeVisible();
+    const left = await total.boundingBox();
+    const right = await pill.boundingBox();
+    expect(right!.x).toBeGreaterThanOrEqual(left!.x + left!.width);
+    await pill.hover();
+    const preview = page.getByTestId("composer-git-status-preview");
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText("1 tracked · 12 untracked");
+    await expect(preview.getByTestId("composer-git-status-file")).toHaveCount(10);
+    await expect(preview).toContainText("… 3 more");
+    await expect(preview).not.toContainText("committed-only.ts");
+    await page.screenshot({ path: testInfo.outputPath("git-status-pill-hover.png") });
+    await pill.click();
+    await pill.click();
+    const panel = page.getByTestId("working-diff-panel");
+    await expect(panel).toBeVisible();
+    await expect(panel).not.toContainText("committed-only.ts");
+    await page.getByTestId(`workspace-tab-agent_${agent.agentId}`).click();
+    await expect(pill).toBeVisible();
+    git("add", ".");
+    git("commit", "-m", "Commit working changes without pushing");
+    await agent.client.checkoutRefresh(agent.cwd);
+    expect((await agent.client.getCheckoutStatus(agent.cwd)).workingTree?.total).toBe(0);
+    await expect(pill).toHaveCount(0);
+    await expect(total).toBeVisible();
+  } finally {
+    await agent.cleanup();
+  }
+});
 
 test("response changed-files cards retain recorded diffs after completion and reload", async ({
   page,

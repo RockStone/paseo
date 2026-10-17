@@ -5,7 +5,10 @@ import { LRUCache } from "lru-cache";
 import { CheckoutDiffCache } from "./checkout-diff-cache.js";
 import pLimit from "p-limit";
 import type pino from "pino";
-import type { ProjectCheckoutLitePayload } from "@getpaseo/protocol/messages";
+import type {
+  ProjectCheckoutLitePayload,
+  CheckoutWorkingTreeSummary,
+} from "@getpaseo/protocol/messages";
 import { parseGitRemoteLocation } from "@getpaseo/protocol/git-remote";
 import type { CheckoutContext } from "../utils/checkout-git.js";
 import {
@@ -156,6 +159,7 @@ export const getWorkspaceGitSelfHealPhaseMs = getWorkspaceGitObservationReensure
 export interface WorkspaceGitRuntimeSnapshot {
   cwd: string;
   git: {
+    workingTree?: CheckoutWorkingTreeSummary;
     isGit: boolean;
     repoRoot: string | null;
     mainRepoRoot: string | null;
@@ -3338,6 +3342,7 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
     target.latestGit = {
       ...latestGit,
       isDirty: worktree.isDirty,
+      workingTree: worktree.workingTree,
       diffStat: worktree.diffStat,
     };
     const loadedAtMs = this.deps.now().getTime();
@@ -3391,6 +3396,7 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
       isDirty: refreshWorktree
         ? checkoutStatus.isDirty
         : (target.latestGit?.isDirty ?? checkoutStatus.isDirty),
+      workingTree: refreshWorktree ? checkoutStatus.workingTree : target.latestGit?.workingTree,
       baseRef: checkoutStatus.baseRef,
       aheadBehind: checkoutStatus.aheadBehind,
       upstreamRef: checkoutStatus.upstreamRef,
