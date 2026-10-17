@@ -1,4 +1,14 @@
 export const en = {
+  responseChanges: {
+    title_one: "{{count}} file changed",
+    title_other: "{{count}} files changed",
+    unavailable: "Counts unavailable",
+    edit: "Recorded edit {{count}}",
+    noDiff: "A before/after diff was not recorded for this file.",
+    openFile: "Open file",
+    showLess: "Show fewer files",
+    showMore: "View {{count}} more files",
+  },
   paneFind: {
     connectionFailure: "Could not search this chat. Check the host connection and retry.",
     historyChangedFailure: "The chat changed while searching. Search again.",

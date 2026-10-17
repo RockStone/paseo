@@ -2,6 +2,16 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const fr: TranslationResources = {
+  responseChanges: {
+    title_one: "{{count}} fichier modifié",
+    title_other: "{{count}} fichiers modifiés",
+    unavailable: "Décompte indisponible",
+    edit: "Modification enregistrée {{count}}",
+    noDiff: "Les différences avant/après de ce fichier ne sont pas enregistrées.",
+    openFile: "Ouvrir le fichier",
+    showLess: "Afficher moins de fichiers",
+    showMore: "Voir {{count}} autres fichiers",
+  },
   paneFind: {
     connectionFailure:
       "Impossible de rechercher dans cette conversation. Vérifiez la connexion à l’hôte et réessayez.",

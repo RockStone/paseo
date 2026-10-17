@@ -1,3 +1,5 @@
+import type { ToolCallDetail } from "@getpaseo/protocol/agent-types";
+import { collectResponseFileChanges } from "./response-file-changes";
 import { runPluginClientBundle, type PluginClientRuntime } from "@/plugins/evaluate";
 import { transformTimelineItem, type TimelineItemTransform } from "@/plugins/timeline/model";
 import type { InstalledPlugin } from "@/plugins/types";
@@ -579,4 +581,229 @@ describe("timeline presentation", () => {
     ]);
     expect(projectTimelineItems([source], () => [])).toEqual([]);
   });
+});
+
+describe("response changed-files summaries", () => {
+  it("summarizes successful Codex and Claude edits under the final reply", () => {
+    const edit = (id: string, provider: "codex" | "claude", filePath: string): StreamItem => ({
+      kind: "tool_call",
+      id,
+      turnId: "turn",
+      timestamp: new Date(0),
+      payload: {
+        source: "agent",
+        data: {
+          provider,
+          callId: id,
+          name: "Edit",
+          status: "completed",
+          error: null,
+          detail: { type: "edit", filePath, oldString: "before\n", newString: "after\nextra\n" },
+        },
+      },
+    });
+    const items: StreamItem[] = [
+      {
+        kind: "user_message",
+        id: "prompt",
+        text: "Change files",
+        turnId: "turn",
+        timestamp: new Date(0),
+      },
+      edit("codex", "codex", "/repo/src/a.ts"),
+      {
+        kind: "assistant_message",
+        id: "intermediate",
+        text: "Working",
+        turnId: "turn",
+        timestamp: new Date(0),
+      },
+      edit("claude", "claude", "src/b.ts"),
+      {
+        kind: "assistant_message",
+        id: "final",
+        text: "Done",
+        turnId: "turn",
+        timestamp: new Date(0),
+      },
+    ];
+    const summaries = collectResponseFileChanges(items, "/repo");
+    expect(summaries.has("intermediate")).toBe(false);
+    expect(
+      summaries.get("final")?.files.map((file) => ({ path: file.path, counts: file.counts })),
+    ).toEqual([
+      { path: "src/a.ts", counts: { additions: 2, deletions: 1 } },
+      { path: "src/b.ts", counts: { additions: 2, deletions: 1 } },
+    ]);
+  });
+});
+
+function changeResponse(details: ToolCallDetail[]): StreamItem[] {
+  return [
+    {
+      kind: "user_message",
+      id: "prompt",
+      turnId: "change-turn",
+      text: "Edit",
+      timestamp: new Date(0),
+    },
+    ...details.map(
+      (detail, index): StreamItem => ({
+        kind: "tool_call",
+        id: `edit-${index}`,
+        turnId: "change-turn",
+        timestamp: new Date(0),
+        payload: {
+          source: "agent",
+          data: {
+            provider: "claude",
+            callId: `edit-${index}`,
+            name: "Edit",
+            status: "completed",
+            error: null,
+            detail,
+          },
+        },
+      }),
+    ),
+    {
+      kind: "assistant_message",
+      id: "reply",
+      turnId: "change-turn",
+      text: "Done",
+      timestamp: new Date(0),
+    },
+  ];
+}
+
+describe("recorded file-change accuracy", () => {
+  it("does not infer net counts from snippets that could refer to different occurrences", () => {
+    const details: ToolCallDetail[] = [
+      { type: "edit", filePath: "/repo/a", oldString: "old\n", newString: "middle\n" },
+      { type: "edit", filePath: "a", oldString: "middle\n", newString: "new\nextra\n" },
+    ];
+    expect(
+      collectResponseFileChanges(changeResponse(details), "/repo").get("reply")?.counts,
+    ).toBeNull();
+    details.push({ type: "edit", filePath: "a", oldString: "new\nextra\n", newString: "old\n" });
+    expect(
+      collectResponseFileChanges(changeResponse(details), "/repo").get("reply")?.counts,
+    ).toBeNull();
+  });
+
+  it("does not invent net totals for unrelated repeated snippets or a file overwrite", () => {
+    const summary = collectResponseFileChanges(
+      changeResponse([
+        { type: "edit", filePath: "a", oldString: "one", newString: "two" },
+        { type: "edit", filePath: "a", oldString: "three", newString: "four" },
+        { type: "write", filePath: "b", content: "new content\n" },
+      ]),
+      "/repo",
+    ).get("reply");
+    expect(summary?.files.map((file) => [file.path, file.counts])).toEqual([
+      ["a", null],
+      ["b", null],
+    ]);
+    expect(summary?.counts).toBeNull();
+  });
+
+  it("splits multi-file patches and counts changed lines that look like file headers", () => {
+    const patch = [
+      "diff --git a/a b/a",
+      "--- a/a",
+      "+++ b/a",
+      "@@ -1 +1,2 @@",
+      "---old",
+      "+++new",
+      "+extra",
+      "diff --git a/deleted b/deleted",
+      "--- a/deleted",
+      "+++ /dev/null",
+      "@@ -1 +0,0 @@",
+      "-removed",
+    ].join("\n");
+    const summary = collectResponseFileChanges(
+      changeResponse([{ type: "edit", filePath: "a", unifiedDiff: patch }]),
+      "/repo",
+    ).get("reply");
+    expect(summary?.files.map((file) => [file.path, file.counts])).toEqual([
+      ["a", { additions: 2, deletions: 1 }],
+      ["deleted", { additions: 0, deletions: 1 }],
+    ]);
+    expect(summary?.counts).toEqual({ additions: 2, deletions: 2 });
+  });
+
+  it("keeps truncated patches visible without reporting partial counts", () => {
+    const summary = collectResponseFileChanges(
+      changeResponse([
+        {
+          type: "edit",
+          filePath: "a",
+          unifiedDiff: "--- a/a\n+++ b/a\n@@ -1,3 +1,3 @@\n-old\n+new",
+        },
+      ]),
+      "/repo",
+    ).get("reply");
+    expect(summary?.files[0]?.counts).toBeNull();
+  });
+
+  it("deduplicates replayed tool events and excludes failed or running edits", () => {
+    const items = changeResponse([
+      { type: "edit", filePath: "a", oldString: "old", newString: "new" },
+    ]);
+    const edit = items[1]!;
+    expect(
+      collectResponseFileChanges([items[0]!, edit, edit, items[2]!], "/repo").get("reply")?.counts,
+    ).toEqual({ additions: 1, deletions: 1 });
+    if (edit.kind !== "tool_call" || edit.payload.source !== "agent")
+      throw new Error("Expected edit");
+    edit.payload.data.status = "failed";
+    expect(collectResponseFileChanges(items, "/repo").size).toBe(0);
+    edit.payload.data.status = "running";
+    expect(collectResponseFileChanges(items, "/repo").size).toBe(0);
+  });
+
+  it("never carries a previous response's files into a later response", () => {
+    const items = changeResponse([{ type: "write", filePath: "a", content: "content" }]);
+    items.push(
+      {
+        kind: "user_message",
+        id: "second",
+        turnId: "second",
+        text: "Just explain",
+        timestamp: new Date(1),
+      },
+      {
+        kind: "assistant_message",
+        id: "second-reply",
+        turnId: "second",
+        text: "Explanation",
+        timestamp: new Date(2),
+      },
+    );
+    const summaries = collectResponseFileChanges(items, "/repo");
+    expect(Array.from(summaries.keys())).toEqual(["reply"]);
+  });
+});
+
+it("uses patch metadata rather than hunk contents to identify files", () => {
+  const summary = collectResponseFileChanges(
+    changeResponse([
+      {
+        type: "edit",
+        filePath: "actual.ts",
+        unifiedDiff: "@@ -1 +1 @@\n--- old code\n+++ new code",
+      },
+      {
+        type: "edit",
+        filePath: "binary.dat",
+        unifiedDiff:
+          "diff --git a/binary.dat b/binary.dat\nBinary files differ\ndiff --git a/mode.sh b/mode.sh\nold mode 100644\nnew mode 100755",
+      },
+    ]),
+    "/repo",
+  ).get("reply");
+  expect(summary?.files.map((file) => file.path)).toEqual(["actual.ts", "binary.dat", "mode.sh"]);
+  expect(summary?.files[0]?.counts).toEqual({ additions: 1, deletions: 1 });
+  expect(summary?.files[1]?.counts).toBeNull();
 });

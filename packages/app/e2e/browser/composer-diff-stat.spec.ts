@@ -855,3 +855,49 @@ async function expectReviewEditorBody(page: Page, body: string) {
     body,
   );
 }
+
+test("response changed-files cards retain recorded diffs after completion and reload", async ({
+  page,
+}, testInfo) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "response-changed-files-",
+    title: "Recorded file changes",
+    model: "ten-second-stream",
+    initialPrompt: "Edit the scroll threshold.",
+  });
+  try {
+    await agent.client.waitForFinish(agent.agentId, 20_000);
+    await openAgentRoute(page, agent);
+    const card = page.getByTestId("response-changed-files");
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText("1 file changed");
+    await expect(card).toContainText("Counts unavailable");
+    await expect(card.getByTestId("response-changed-file")).toContainText(
+      "packages/app/src/hooks/use-scroll-anchor.ts",
+    );
+    await expect(composerChangesPill(page)).toHaveCount(0);
+
+    await card.getByTestId("response-changed-file").click();
+    await expect(card.getByTestId("response-file-diff")).toBeVisible();
+    await expect(card.getByTestId("response-file-diff")).toContainText(
+      "const NEAR_BOTTOM_PX = 160;",
+    );
+    await card.getByTestId("response-changed-file").click();
+    await card.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath("response-changed-files-desktop.png") });
+
+    await agent.client.sendAgentMessage(agent.agentId, "emit 1 coalesced agent stream updates");
+    await agent.client.waitForFinish(agent.agentId, 15_000);
+    await page.reload();
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText("1 file changed");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(card).toHaveCount(1);
+    await expect(card.getByTestId("response-changed-file")).toContainText("use-scroll-anchor.ts");
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("response-changed-files-compact.png") });
+  } finally {
+    await agent.cleanup();
+  }
+});

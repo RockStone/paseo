@@ -2,6 +2,16 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const zhCN: TranslationResources = {
+  responseChanges: {
+    title_one: "{{count}} 个文件已更改",
+    title_other: "{{count}} 个文件已更改",
+    unavailable: "行数不可用",
+    edit: "已记录的编辑 {{count}}",
+    noDiff: "未记录此文件的前后差异。",
+    openFile: "打开文件",
+    showLess: "收起文件列表",
+    showMore: "查看其余 {{count}} 个文件",
+  },
   paneFind: {
     connectionFailure: "无法搜索此聊天。请检查主机连接后重试。",
     historyChangedFailure: "搜索期间聊天已更改。请重新搜索。",

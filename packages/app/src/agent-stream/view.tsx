@@ -1,3 +1,5 @@
+import { ChangedFilesCard } from "./changed-files-card";
+import { collectResponseFileChanges } from "./response-file-changes";
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import React, {
@@ -524,6 +526,16 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const effectiveStreamHead = useRetainedValue(streamHead, isActive);
     const effectiveTurnPresentation = useRetainedValue(turnPresentation, isActive);
     const isTurnActive = effectiveTurnPresentation.isActive;
+    const completedChangeTail = useRetainedValue(effectiveStreamItems, !isTurnActive);
+    const completedChangeHead = useRetainedValue(effectiveStreamHead, !isTurnActive);
+    const fileChangesByAssistant = useMemo(
+      () =>
+        collectResponseFileChanges(
+          [...completedChangeTail, ...(completedChangeHead ?? [])],
+          workspaceRoot ?? context.cwd,
+        ),
+      [completedChangeTail, completedChangeHead, workspaceRoot, context.cwd],
+    );
     const presentStream = useMemo(() => createStreamPresentation(), []);
     const presentation = useMemo(
       () =>
@@ -732,10 +744,25 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
                 />
               )}
             </ChatFindExpansion>
+            {layoutItem.phase === "complete" && fileChangesByAssistant.has(item.id) ? (
+              <ChangedFilesCard
+                summary={fileChangesByAssistant.get(item.id)!}
+                onOpenFile={handleToolCallOpenFile}
+              />
+            ) : null}
           </AssistantFileLinkResolverProvider>
         );
       },
-      [agentId, client, handleInlinePathPress, resolvedServerId, toast, workspaceRoot],
+      [
+        agentId,
+        client,
+        fileChangesByAssistant,
+        handleInlinePathPress,
+        handleToolCallOpenFile,
+        resolvedServerId,
+        toast,
+        workspaceRoot,
+      ],
     );
 
     const renderThoughtItem = useCallback(

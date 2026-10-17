@@ -2,6 +2,16 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ko: TranslationResources = {
+  responseChanges: {
+    title_one: "파일 {{count}}개 변경",
+    title_other: "파일 {{count}}개 변경",
+    unavailable: "줄 수 없음",
+    edit: "기록된 수정 {{count}}",
+    noDiff: "이 파일의 변경 전후 차이가 기록되지 않았습니다.",
+    openFile: "파일 열기",
+    showLess: "파일 적게 보기",
+    showMore: "파일 {{count}}개 더 보기",
+  },
   paneFind: {
     connectionFailure: "이 채팅을 검색할 수 없습니다. 호스트 연결을 확인하고 다시 시도하세요.",
     historyChangedFailure: "검색 중에 채팅이 변경되었습니다. 다시 검색하세요.",

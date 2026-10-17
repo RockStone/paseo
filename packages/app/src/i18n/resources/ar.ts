@@ -2,6 +2,16 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ar: TranslationResources = {
+  responseChanges: {
+    title_one: "تم تغيير {{count}} ملف",
+    title_other: "تم تغيير {{count}} ملفات",
+    unavailable: "عدد الأسطر غير متاح",
+    edit: "التعديل المسجل {{count}}",
+    noDiff: "لم يتم تسجيل الفرق قبل التعديل وبعده لهذا الملف.",
+    openFile: "فتح الملف",
+    showLess: "عرض ملفات أقل",
+    showMore: "عرض {{count}} ملفات أخرى",
+  },
   paneFind: {
     connectionFailure: "تعذر البحث في هذه المحادثة. تحقق من الاتصال بالمضيف وأعد المحاولة.",
     historyChangedFailure: "تغيّرت المحادثة أثناء البحث. أعد البحث.",

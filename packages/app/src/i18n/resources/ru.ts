@@ -2,6 +2,16 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ru: TranslationResources = {
+  responseChanges: {
+    title_one: "Изменён {{count}} файл",
+    title_other: "Изменено файлов: {{count}}",
+    unavailable: "Число строк недоступно",
+    edit: "Записанное изменение {{count}}",
+    noDiff: "Разница между версиями этого файла не записана.",
+    openFile: "Открыть файл",
+    showLess: "Показать меньше файлов",
+    showMore: "Ещё файлов: {{count}}",
+  },
   paneFind: {
     connectionFailure:
       "Не удалось выполнить поиск в чате. Проверьте подключение к хосту и повторите попытку.",

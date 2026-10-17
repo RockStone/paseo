@@ -2,6 +2,16 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ptBR: TranslationResources = {
+  responseChanges: {
+    title_one: "{{count}} arquivo alterado",
+    title_other: "{{count}} arquivos alterados",
+    unavailable: "Contagem indisponível",
+    edit: "Edição registrada {{count}}",
+    noDiff: "A comparação antes/depois deste arquivo não foi registrada.",
+    openFile: "Abrir arquivo",
+    showLess: "Mostrar menos arquivos",
+    showMore: "Ver mais {{count}} arquivos",
+  },
   paneFind: {
     connectionFailure:
       "Não foi possível pesquisar nesta conversa. Verifique a conexão com o host e tente novamente.",

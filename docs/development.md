@@ -40,6 +40,15 @@ clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
 the PR's persistent annotation markers or separate comment editor.
 
+Completed responses also show a changed-files card derived from saved, successful
+edit/write events normalized by the agent providers. This keeps historical cards
+available after a commit without attributing another agent's checkout changes to
+this response. Counts are unavailable for incomplete patches, overwrites without
+a baseline, or repeated edits without enough information to establish the net
+change. Shell-only writes are not inferred from the current Git diff. The shared
+client UI supports compact layouts; official mobile binaries do not acquire this
+custom UI from a daemon update.
+
 Build a locally signed macOS app for your machine:
 
 ```bash
@@ -65,7 +74,7 @@ daemon are stopped. Startup never copies or merges older state over live data.
 Versions end in `-rockstone.N`. Official update checks and installation are
 disabled for those versions, so updating cannot discard the local patch. Set
 `PASEO_CUSTOM_REVISION` to a higher number for each build from the same upstream
-version (the default is 7).
+version (the default is 8).
 The local build uses an ad-hoc signature and is not notarized.
 
 macOS uses `CFBundleName` to find Electron's UI helpers. The custom packager adds

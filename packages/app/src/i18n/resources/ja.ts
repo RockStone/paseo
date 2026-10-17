@@ -2,6 +2,16 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ja: TranslationResources = {
+  responseChanges: {
+    title_one: "{{count}} 個のファイルを変更",
+    title_other: "{{count}} 個のファイルを変更",
+    unavailable: "行数を取得できません",
+    edit: "記録された編集 {{count}}",
+    noDiff: "このファイルの変更前後の差分は記録されていません。",
+    openFile: "ファイルを開く",
+    showLess: "表示を減らす",
+    showMore: "残り {{count}} 個のファイルを表示",
+  },
   paneFind: {
     connectionFailure:
       "このチャットを検索できませんでした。ホストへの接続を確認して再試行してください。",
