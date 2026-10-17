@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 BASE_VERSION="$(node -p 'require("./package.json").version')"
-CUSTOM_VERSION="${BASE_VERSION}-rockstone.${PASEO_CUSTOM_REVISION:-10}"
+CUSTOM_VERSION="${BASE_VERSION}-rockstone.${PASEO_CUSTOM_REVISION:-11}"
 
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:desktop -- \
   --publish never --mac --dir \
@@ -12,6 +12,7 @@ CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:desktop -- \
   --config.productName=Paseo \
   --config.extraMetadata.productName=Paseoi \
   --config.mac.extendInfo.CFBundleDisplayName=Paseoi \
+  --config.mac.icon="$ROOT_DIR/Paseoi.icns" \
   --config.extraMetadata.version="$CUSTOM_VERSION" \
   --config.mac.identity=null \
   --config.mac.notarize=false \
@@ -24,6 +25,8 @@ for CUSTOM_ARCH_DIR in mac mac-arm64; do
     mv -- "$CUSTOM_OUTPUT_DIR/Paseo.app" "$CUSTOM_OUTPUT_DIR/Paseoi.app"
     /usr/libexec/PlistBuddy -c "Set :CFBundleName Paseoi" \
       "$CUSTOM_OUTPUT_DIR/Paseoi.app/Contents/Info.plist"
+    sips -s format png "$ROOT_DIR/Paseoi.icns" \
+      --out "$CUSTOM_OUTPUT_DIR/Paseoi.app/Contents/Resources/icon.png" >/dev/null
     # Electron locates UI helpers by CFBundleName. Retain the original helpers
     # too: the bundled CLI and daemon resolve them from the main executable name.
     for CUSTOM_HELPER_SUFFIX in "" " (GPU)" " (Plugin)" " (Renderer)"; do

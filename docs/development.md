@@ -64,7 +64,8 @@ npm run build:custom:desktop
 ```
 
 The output is `packages/desktop/release/mac-arm64/Paseoi.app` on Apple
-Silicon. The app is named Paseoi. It keeps the existing custom build's app identity,
+Silicon. The app is named Paseoi and uses the root `Paseoi.icns` for its bundle and
+runtime icon. It preserves the existing custom build's app identity,
 Electron settings directory (`~/Library/Application Support/Paseoi`), and daemon
 home at `~/.paseo`, with port `6770`.
 Managed daemons read their listener from `config.json`; `PASEO_LISTEN` is discarded.
