@@ -245,8 +245,61 @@ test.describe("Composer attachments", () => {
       await images.nth(1).click();
       await page.screenshot({ path: "/tmp/paseoi-sent-image-gallery.png" });
       await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 2");
+      // Sample actual painted-frame geometry while changing images, not just the final state.
+      await page.evaluate(() => {
+        interface Frame {
+          images: Array<{ width: number; height: number }>;
+          error: boolean;
+        }
+        const trace = window as Window & { __paseoiGalleryFrames?: Frame[] };
+        const frames: Frame[] = [];
+        trace.__paseoiGalleryFrames = frames;
+        const sample = () => {
+          const visibleImages: Array<{ width: number; height: number }> = [];
+          for (const image of document.querySelectorAll(
+            '[data-testid="attachment-lightbox-image"]',
+          )) {
+            const layer = image.closest('[data-testid="attachment-lightbox-layer"]');
+            if (layer && getComputedStyle(layer).opacity === "1") {
+              const rect = image.getBoundingClientRect();
+              visibleImages.push({ width: rect.width, height: rect.height });
+            }
+          }
+          frames.push({
+            images: visibleImages,
+            error: document.body.textContent?.includes("Couldn't load image") ?? false,
+          });
+          if (frames.length < 30) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
       await page.getByTestId("attachment-lightbox-previous").click();
       await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 2");
+      await page.waitForFunction(
+        () =>
+          ((window as Window & { __paseoiGalleryFrames?: unknown[] }).__paseoiGalleryFrames
+            ?.length ?? 0) >= 15,
+      );
+      const frames = await page.evaluate(
+        () =>
+          (
+            window as Window & {
+              __paseoiGalleryFrames?: Array<{
+                images: Array<{ width: number; height: number }>;
+                error: boolean;
+              }>;
+            }
+          ).__paseoiGalleryFrames ?? [],
+      );
+      expect(frames.length).toBeGreaterThanOrEqual(15);
+      for (const frame of frames) {
+        expect(frame.error).toBe(false);
+        expect(frame.images).toHaveLength(1);
+        expect(frame.images[0].width).toBeGreaterThan(0);
+        expect(frame.images[0].height).toBeGreaterThan(0);
+        expect(frame.images[0].width).toBeLessThanOrEqual(961);
+        expect(frame.images[0].height).toBeLessThanOrEqual(641);
+      }
       await page.keyboard.press("ArrowRight");
       await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 2");
       await closeImageLightbox(page);

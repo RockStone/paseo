@@ -6,47 +6,54 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { AttachmentLightbox, type ImageLightboxSource } from "./attachment-lightbox";
 
-const { theme, imageMetadata, useAttachmentPreviewUrlMock } = vi.hoisted(() => {
-  const hoistedTheme = {
-    spacing: { 1: 4, 2: 8, 3: 12, 4: 16 },
-    iconSize: { sm: 14, md: 18, lg: 22 },
-    borderWidth: { 1: 1 },
-    borderRadius: { full: 999, md: 6, lg: 8 },
-    fontSize: { xs: 11, sm: 13, base: 15 },
-    fontWeight: { normal: "400" },
-    colors: {
-      surface1: "#111",
-      surface2: "#222",
-      foreground: "#fff",
-      foregroundMuted: "#aaa",
-      border: "#555",
-      borderAccent: "#444",
-    },
-  };
+const { theme, imageMetadata, useAttachmentPreviewUrlMock, imageReadyCallbacks, imageLoading } =
+  vi.hoisted(() => {
+    const hoistedTheme = {
+      spacing: { 1: 4, 2: 8, 3: 12, 4: 16 },
+      iconSize: { sm: 14, md: 18, lg: 22 },
+      borderWidth: { 1: 1 },
+      borderRadius: { full: 999, md: 6, lg: 8 },
+      fontSize: { xs: 11, sm: 13, base: 15 },
+      fontWeight: { normal: "400" },
+      colors: {
+        surface1: "#111",
+        surface2: "#222",
+        foreground: "#fff",
+        foregroundMuted: "#aaa",
+        border: "#555",
+        borderAccent: "#444",
+      },
+    };
 
-  const hoistedImageMetadata: AttachmentMetadata = {
-    id: "img-1",
-    mimeType: "image/png",
-    storageType: "web-indexeddb",
-    storageKey: "img-1",
-    fileName: "img-1.png",
-    byteSize: 42,
-    createdAt: 1,
-  };
+    const hoistedImageMetadata: AttachmentMetadata = {
+      id: "img-1",
+      mimeType: "image/png",
+      storageType: "web-indexeddb",
+      storageKey: "img-1",
+      fileName: "img-1.png",
+      byteSize: 42,
+      createdAt: 1,
+    };
 
-  return {
-    theme: hoistedTheme,
-    imageMetadata: hoistedImageMetadata,
-    useAttachmentPreviewUrlMock: vi.fn<(metadata: AttachmentMetadata | null) => string | null>(
-      () => "blob:preview",
-    ),
-  };
-});
+    return {
+      imageReadyCallbacks: new Map<string, () => void>(),
+      imageLoading: { manual: false, previewPending: false },
+      theme: hoistedTheme,
+      imageMetadata: hoistedImageMetadata,
+      useAttachmentPreviewUrlMock: vi.fn<(metadata: AttachmentMetadata | null) => string | null>(
+        () => "blob:preview",
+      ),
+    };
+  });
 const attachmentSource: ImageLightboxSource = { type: "attachment", metadata: imageMetadata };
 const assistantImageSource: ImageLightboxSource = {
   type: "uri",
   uri: "blob:assistant-image",
 };
+
+const secondImageSource: ImageLightboxSource = { type: "uri", uri: "blob:second" };
+const abandonedImageSource: ImageLightboxSource = { type: "uri", uri: "blob:abandoned" };
+const latestImageSource: ImageLightboxSource = { type: "uri", uri: "blob:latest" };
 
 vi.mock("react-native-unistyles", () => ({
   StyleSheet: {
@@ -67,6 +74,7 @@ vi.mock("react-i18next", () => ({
         "message.attachments.closeImage": "Close image",
         "message.attachments.dismissImage": "Dismiss image",
         "message.attachments.imageLoadFailed": "Couldn't load image",
+        "common.loading": "Loading...",
       })[key] ?? key,
   }),
 }));
@@ -92,6 +100,11 @@ vi.mock("lucide-react-native", () => {
 
 vi.mock("@/components/zoomable-viewport/image", () => ({
   ZoomableImage: (props: Record<string, unknown>) => {
+    React.useEffect(() => {
+      const ready = props.onReady as () => void;
+      imageReadyCallbacks.set(String(props.uri), ready);
+      if (!imageLoading.manual) ready();
+    }, [props.onReady, props.uri]);
     const actions = props.actions as Array<{
       label: string;
       onPress: () => void;
@@ -129,14 +142,19 @@ vi.mock("react-native", async () => {
 });
 
 vi.mock("@/attachments/use-attachment-preview-url", () => ({
-  useAttachmentPreviewUrl: (metadata: AttachmentMetadata | null) =>
-    useAttachmentPreviewUrlMock(metadata),
+  useAttachmentPreview: (metadata: AttachmentMetadata | null) => {
+    const url = useAttachmentPreviewUrlMock(metadata);
+    let status = "ready";
+    if (!url) status = imageLoading.previewPending ? "loading" : "error";
+    return { url, status };
+  },
 }));
 
 let root: Root | null = null;
 let container: HTMLElement | null = null;
 
 beforeEach(() => {
+  vi.useFakeTimers();
   const dom = new JSDOM("<!doctype html><html><body></body></html>");
   dom.window.requestAnimationFrame = vi.fn(() => 1);
   dom.window.cancelAnimationFrame = vi.fn();
@@ -152,6 +170,9 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   useAttachmentPreviewUrlMock.mockReturnValue("blob:preview");
+  imageLoading.manual = false;
+  imageLoading.previewPending = false;
+  imageReadyCallbacks.clear();
 });
 
 afterEach(() => {
@@ -162,6 +183,7 @@ afterEach(() => {
   }
   root = null;
   container = null;
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -263,12 +285,75 @@ describe("AttachmentLightbox", () => {
       );
     }
     render(<Gallery />);
+    act(() => vi.advanceTimersByTime(500));
     expect(document.body.textContent).toContain("Couldn't load image");
     click(queryByTestId("attachment-lightbox-next")!);
     expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
       "blob:assistant-image",
     );
     expect(document.body.textContent).not.toContain("Couldn't load image");
+  });
+
+  it("keeps the previous image painted until the next viewport and image are ready", () => {
+    const onClose = vi.fn();
+    render(<AttachmentLightbox source={assistantImageSource} onClose={onClose} />);
+    imageLoading.manual = true;
+    render(<AttachmentLightbox source={secondImageSource} onClose={onClose} />);
+    const layers = [...document.querySelectorAll('[data-testid="attachment-lightbox-layer"]')];
+    expect(layers).toHaveLength(2);
+    expect(layers[0].getAttribute("aria-hidden")).toBeNull();
+    expect(layers[1].getAttribute("aria-hidden")).toBe("true");
+    expect(document.body.textContent).not.toContain("Couldn't load image");
+    act(() => imageReadyCallbacks.get("blob:second")!());
+    expect(document.querySelectorAll('[data-testid="attachment-lightbox-layer"]')).toHaveLength(1);
+    expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
+      "blob:second",
+    );
+    expect(queryByTestId("attachment-lightbox-layer")?.getAttribute("aria-hidden")).toBeNull();
+  });
+
+  it("does not show a failure while the next attachment URL is still resolving", () => {
+    render(<AttachmentLightbox source={assistantImageSource} onClose={vi.fn()} />);
+    imageLoading.previewPending = true;
+    useAttachmentPreviewUrlMock.mockReturnValue(null);
+    render(<AttachmentLightbox source={attachmentSource} onClose={vi.fn()} />);
+    expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
+      "blob:assistant-image",
+    );
+    expect(document.body.textContent).not.toContain("Couldn't load image");
+    useAttachmentPreviewUrlMock.mockReturnValue("blob:preview");
+    render(<AttachmentLightbox source={attachmentSource} onClose={vi.fn()} />);
+    expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
+      "blob:preview",
+    );
+  });
+
+  it("ignores readiness from an abandoned image after rapid navigation", () => {
+    render(<AttachmentLightbox source={assistantImageSource} onClose={vi.fn()} />);
+    imageLoading.manual = true;
+    render(<AttachmentLightbox source={abandonedImageSource} onClose={vi.fn()} />);
+    imageLoading.manual = false;
+    render(<AttachmentLightbox source={latestImageSource} onClose={vi.fn()} />);
+    act(() => imageReadyCallbacks.get("blob:abandoned")!());
+    expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
+      "blob:latest",
+    );
+    expect(document.querySelectorAll('[data-testid="attachment-lightbox-layer"]')).toHaveLength(1);
+  });
+
+  it("delays loading and confirmed failure status messages for 500ms", () => {
+    imageLoading.previewPending = true;
+    useAttachmentPreviewUrlMock.mockReturnValue(null);
+    render(<AttachmentLightbox source={attachmentSource} onClose={vi.fn()} />);
+    act(() => vi.advanceTimersByTime(499));
+    expect(queryByTestId("attachment-lightbox-loading")).toBeNull();
+    expect(document.body.textContent).not.toContain("Couldn't load image");
+    act(() => vi.advanceTimersByTime(1));
+    expect(queryByTestId("attachment-lightbox-loading")?.textContent).toBe("Loading...");
+    imageLoading.previewPending = false;
+    render(<AttachmentLightbox source={attachmentSource} onClose={vi.fn()} />);
+    expect(document.body.textContent).toContain("Couldn't load image");
+    expect(queryByTestId("attachment-lightbox-loading")).toBeNull();
   });
 
   it("does not show navigation for a single image", () => {
@@ -313,6 +398,7 @@ describe("AttachmentLightbox", () => {
     render(<AttachmentLightbox source={attachmentSource} onClose={vi.fn()} />);
 
     expect(queryByTestId("attachment-lightbox-image")).toBeNull();
+    act(() => vi.advanceTimersByTime(500));
     expect(document.body.textContent ?? "").toContain("Couldn't load image");
   });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image, View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { ViewportFitOptions, ViewportSize } from "./geometry";
@@ -14,6 +14,7 @@ interface ZoomableImageProps {
   maxScale?: number;
   minScale?: number;
   onError?: () => void;
+  onReady?: () => void;
   onPressOutsideContent?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -29,23 +30,32 @@ export function ZoomableImage({
   maxScale,
   minScale = 1,
   onError,
+  onReady,
   onPressOutsideContent,
   style,
   testID = "zoomable-image",
   wheelActivation = "always",
 }: ZoomableImageProps) {
-  const [loadedSize, setLoadedSize] = useState<ViewportSize | null>(null);
-  const resolvedSize = contentSize ?? loadedSize;
+  const [loadedSize, setLoadedSize] = useState<{ uri: string; size: ViewportSize } | null>(null);
+  const [loadedImage, setLoadedImage] = useState<string | null>(null);
+  const [readyViewport, setReadyViewport] = useState<string | null>(null);
+  const resolvedSize = contentSize ?? (loadedSize?.uri === uri ? loadedSize.size : null);
+  const handleLoad = useCallback(() => setLoadedImage(uri), [uri]);
+  const handleViewportReady = useCallback(() => setReadyViewport(uri), [uri]);
+  useEffect(() => {
+    if (loadedImage === uri && readyViewport === uri) onReady?.();
+  }, [loadedImage, readyViewport, uri, onReady]);
   const source = useMemo(() => ({ uri }), [uri]);
 
   useEffect(() => {
     if (contentSize) return;
     let active = true;
-    setLoadedSize(null);
     Image.getSize(
       uri,
       (width, height) => {
-        if (active && width > 0 && height > 0) setLoadedSize({ width, height });
+        if (!active) return;
+        if (width > 0 && height > 0) setLoadedSize({ uri, size: { width, height } });
+        else onError?.();
       },
       () => {
         if (active) onError?.();
@@ -56,24 +66,12 @@ export function ZoomableImage({
     };
   }, [contentSize, onError, uri]);
 
-  if (!resolvedSize) {
-    return (
-      <View style={[styles.root, style]} testID={testID}>
-        <Image
-          accessibilityLabel={accessibilityLabel}
-          accessibilityRole="image"
-          onError={onError}
-          resizeMode="contain"
-          source={source}
-          style={styles.image}
-          testID={`${testID}-image`}
-        />
-      </View>
-    );
-  }
+  if (!resolvedSize) return <View style={[styles.root, style]} testID={testID} />;
 
   return (
     <ZoomableViewport
+      key={uri}
+      onReady={handleViewportReady}
       accessibilityLabel={accessibilityLabel}
       actions={actions}
       contentSize={resolvedSize}
@@ -87,6 +85,7 @@ export function ZoomableImage({
     >
       <Image
         onError={onError}
+        onLoad={handleLoad}
         resizeMode="contain"
         source={source}
         style={styles.image}

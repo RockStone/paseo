@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native-unistyles";
@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft, ChevronRight, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import type { AttachmentMetadata } from "@/attachments/types";
-import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
+import { useAttachmentPreview } from "@/attachments/use-attachment-preview-url";
 import { isNative, isWeb } from "@/constants/platform";
 import { SPACING } from "@/styles/theme";
 import { WindowChromeRootRegion } from "@/utils/desktop-window";
@@ -107,7 +107,7 @@ export function AttachmentLightbox({
             />
             <View pointerEvents="box-none" style={contentLayerStyle}>
               <View pointerEvents="box-none" style={styles.imageArea}>
-                <LightboxImage key={sourceKey(source)} source={source} onClose={onClose} />
+                <LightboxImages source={source} onClose={onClose} />
               </View>
               {hasGallery ? (
                 <LightboxNavigation
@@ -168,15 +168,68 @@ function LightboxNavigation({
   );
 }
 
+function useDelayedStatus() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
+  return visible;
+}
+
+function DelayedLoadingStatus() {
+  const visible = useDelayedStatus();
+  const { t } = useTranslation();
+  return visible ? (
+    <Text pointerEvents="none" testID="attachment-lightbox-loading" style={styles.loadingStatus}>
+      {t("common.loading")}
+    </Text>
+  ) : null;
+}
+
+// Keep the last painted image mounted until its replacement is decoded and fitted.
+function LightboxImages({ source, onClose }: { source: ImageLightboxSource; onClose: () => void }) {
+  const [displayed, setDisplayed] = useState<ImageLightboxSource | null>(null);
+  const requested = useRef(source);
+  requested.current = source;
+  const activate = useCallback((ready: ImageLightboxSource) => {
+    if (sourceKey(ready) === sourceKey(requested.current)) setDisplayed(ready);
+  }, []);
+  const layers =
+    displayed && sourceKey(displayed) !== sourceKey(source) ? [displayed, source] : [source];
+  return (
+    <>
+      {layers.map((layer) => (
+        <LightboxImage
+          key={sourceKey(layer)}
+          source={layer}
+          visible={displayed !== null && sourceKey(displayed) === sourceKey(layer)}
+          onReady={activate}
+          onClose={onClose}
+        />
+      ))}
+      {!displayed || sourceKey(displayed) !== sourceKey(source) ? (
+        <DelayedLoadingStatus key={sourceKey(source)} />
+      ) : null}
+    </>
+  );
+}
+
 function LightboxImage({
   source,
   onClose,
-}: Pick<AttachmentLightboxProps, "onClose"> & { source: ImageLightboxSource }) {
+  visible,
+  onReady,
+}: {
+  source: ImageLightboxSource;
+  onClose: () => void;
+  visible: boolean;
+  onReady: (source: ImageLightboxSource) => void;
+}) {
   const { t } = useTranslation();
-  const attachmentUrl = useAttachmentPreviewUrl(
-    source.type === "attachment" ? source.metadata : null,
-  );
-  const url = source.type === "uri" ? source.uri : attachmentUrl;
+  const preview = useAttachmentPreview(source.type === "attachment" ? source.metadata : null);
+  const url = source.type === "uri" ? source.uri : preview.url;
+  const [imageReady, setImageReady] = useState(false);
   const [errored, setErrored] = useState(false);
   const actions = useMemo(
     () => [
@@ -191,21 +244,38 @@ function LightboxImage({
   );
 
   const handleImageError = useCallback(() => setErrored(true), []);
+  const handleImageReady = useCallback(() => setImageReady(true), []);
+  const showStatus = useDelayedStatus();
+  const failed = errored || (source.type === "attachment" && preview.status === "error");
+  useEffect(() => {
+    if ((failed && showStatus) || imageReady) onReady(source);
+  }, [failed, showStatus, imageReady, source, onReady]);
 
-  if (errored || !url)
-    return <Text style={styles.errorText}>{t("message.attachments.imageLoadFailed")}</Text>;
   return (
-    <ZoomableImage
-      accessibilityLabel={t("composer.attachments.openImage")}
-      actions={actions}
-      contentSize={source.type === "uri" ? source.contentSize : undefined}
-      fit={LIGHTBOX_FIT}
-      onError={handleImageError}
-      onPressOutsideContent={onClose}
-      style={styles.imageViewport}
-      testID="attachment-lightbox"
-      uri={url}
-    />
+    <View
+      testID="attachment-lightbox-layer"
+      aria-hidden={!visible}
+      pointerEvents={visible ? "box-none" : "none"}
+      style={[styles.layer, !visible && styles.hiddenLayer]}
+    >
+      {failed && showStatus ? (
+        <Text style={styles.errorText}>{t("message.attachments.imageLoadFailed")}</Text>
+      ) : null}
+      {!failed && url ? (
+        <ZoomableImage
+          accessibilityLabel={t("composer.attachments.openImage")}
+          actions={actions}
+          contentSize={source.type === "uri" ? source.contentSize : undefined}
+          fit={LIGHTBOX_FIT}
+          onError={handleImageError}
+          onReady={handleImageReady}
+          onPressOutsideContent={onClose}
+          style={styles.imageViewport}
+          testID="attachment-lightbox"
+          uri={url}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -235,6 +305,16 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "center",
   },
+  layer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hiddenLayer: { opacity: 0 },
   imageViewport: {
     flex: 1,
     width: "100%",
@@ -265,6 +345,15 @@ const styles = StyleSheet.create((theme) => ({
     right: 0,
     textAlign: "center",
     color: "#fff",
+    fontSize: theme.fontSize.sm,
+  },
+  loadingStatus: {
+    position: "absolute",
+    bottom: SPACING[4] * 3,
+    left: 0,
+    right: 0,
+    textAlign: "center",
+    color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
   },
   errorText: {

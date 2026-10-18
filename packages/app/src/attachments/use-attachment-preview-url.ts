@@ -2,62 +2,56 @@ import { useEffect, useRef, useState } from "react";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { releaseAttachmentPreviewUrl, resolveAttachmentPreviewUrl } from "@/attachments/service";
 
-export function useAttachmentPreviewUrl(
+interface AttachmentPreview {
+  url: string | null;
+  status: "loading" | "ready" | "error";
+}
+
+export function useAttachmentPreview(
   attachment: AttachmentMetadata | null | undefined,
-): string | null {
-  const [url, setUrl] = useState<string | null>(null);
-  const activeAttachmentRef = useRef<AttachmentMetadata | null>(null);
+): AttachmentPreview {
+  const key = JSON.stringify([
+    attachment?.id,
+    attachment?.storageType,
+    attachment?.storageKey,
+    attachment?.mimeType,
+  ]);
   const attachmentRef = useRef(attachment);
   attachmentRef.current = attachment;
-
-  const id = attachment?.id;
-  const storageType = attachment?.storageType;
-  const storageKey = attachment?.storageKey;
-  const mimeType = attachment?.mimeType;
-
+  const [result, setResult] = useState<(AttachmentPreview & { key: string }) | null>(null);
   useEffect(() => {
+    const current = attachmentRef.current;
+    if (!current) return;
     let disposed = false;
     let currentUrl: string | null = null;
-    const current = attachmentRef.current;
-
-    activeAttachmentRef.current = current ?? null;
-    if (!current) {
-      setUrl(null);
-      return;
-    }
-
     void (async () => {
       try {
-        const resolved = await resolveAttachmentPreviewUrl(current);
+        const url = await resolveAttachmentPreviewUrl(current);
         if (disposed) {
-          await releaseAttachmentPreviewUrl({ attachment: current, url: resolved });
+          await releaseAttachmentPreviewUrl({ attachment: current, url });
           return;
         }
-        currentUrl = resolved;
-        setUrl(resolved);
+        currentUrl = url;
+        setResult({ key, url, status: "ready" });
       } catch (error) {
         console.error("[attachments] Failed to resolve preview URL", {
           attachmentId: current.id,
           error,
         });
-        if (!disposed) {
-          setUrl(null);
-        }
+        if (!disposed) setResult({ key, url: null, status: "error" });
       }
     })();
-
     return () => {
       disposed = true;
-      const activeAttachment = activeAttachmentRef.current;
-      if (!currentUrl || !activeAttachment) {
-        return;
-      }
-      void releaseAttachmentPreviewUrl({
-        attachment: activeAttachment,
-        url: currentUrl,
-      });
+      if (currentUrl) void releaseAttachmentPreviewUrl({ attachment: current, url: currentUrl });
     };
-  }, [id, storageType, storageKey, mimeType]);
+  }, [key]);
+  if (!attachment) return { url: null, status: "ready" };
+  return result?.key === key ? result : { url: null, status: "loading" };
+}
 
-  return url;
+export function useAttachmentPreviewUrl(
+  attachment: AttachmentMetadata | null | undefined,
+): string | null {
+  return useAttachmentPreview(attachment).url;
 }

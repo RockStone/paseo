@@ -52,6 +52,7 @@ export function ZoomableViewport({
   maxScale = DEFAULT_MAX_SCALE,
   minScale = DEFAULT_MIN_SCALE,
   onPressOutsideContent,
+  onReady,
   style,
   testID,
   wheelActivation = "modifier",
@@ -71,6 +72,10 @@ export function ZoomableViewport({
     () => (viewport ? fitContentSize(contentSize, viewport, fit) : null),
     [contentSize, fit, viewport],
   );
+  useEffect(() => {
+    if (fittedContent) onReady?.();
+  }, [fittedContent, onReady]);
+
   const limits = useMemo(() => ({ minScale, maxScale }), [maxScale, minScale]);
 
   const commitTransform = useCallback((next: ViewportTransform) => {

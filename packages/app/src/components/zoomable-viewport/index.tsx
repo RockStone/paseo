@@ -26,6 +26,7 @@ export function ZoomableViewport({
   maxScale = DEFAULT_MAX_SCALE,
   minScale = DEFAULT_MIN_SCALE,
   onPressOutsideContent,
+  onReady,
   style,
   testID,
 }: ZoomableViewportProps) {
@@ -45,6 +46,10 @@ export function ZoomableViewport({
     () => (viewport ? fitContentSize(contentSize, viewport, fit) : null),
     [contentSize, fit, viewport],
   );
+
+  useEffect(() => {
+    if (fittedContent) onReady?.();
+  }, [fittedContent, onReady]);
 
   const reset = useCallback(() => {
     scale.value = FIT_TRANSFORM.scale;
