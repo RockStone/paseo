@@ -551,6 +551,15 @@ export const en = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "Filter files…",
+        clear: "Clear file filter",
+        searching: "Searching files…",
+        empty: "No matching files",
+        failed: "Could not search files. Try again.",
+        disconnected: "Connect to the host to search files.",
+        limit: "Showing the first 100 matches. Refine your filter.",
+      },
       sort: {
         name: "Name",
         modified: "Modified",

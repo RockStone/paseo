@@ -558,6 +558,15 @@ export const ja: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "ファイルを絞り込み…",
+        clear: "ファイルフィルターをクリア",
+        searching: "ファイルを検索中…",
+        empty: "一致するファイルがありません",
+        failed: "ファイルを検索できませんでした。再試行してください。",
+        disconnected: "ファイルを検索するにはホストに接続してください。",
+        limit: "最初の100件を表示しています。検索条件を絞り込んでください。",
+      },
       sort: {
         name: "名前",
         modified: "更新日時",

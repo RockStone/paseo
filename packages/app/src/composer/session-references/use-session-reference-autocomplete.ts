@@ -84,7 +84,7 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
         serverId: input.serverId,
         referenceType: "terminal",
         id: terminal.id,
-        title: terminal.name,
+        title: terminal.title?.trim() || terminal.name,
         cwd: terminal.cwd ?? "",
         workspaceId: terminal.workspaceId,
       });

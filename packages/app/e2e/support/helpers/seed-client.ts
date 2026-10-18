@@ -1,3 +1,4 @@
+import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import type { TerminalActivity } from "@getpaseo/protocol/terminal-activity";
@@ -81,6 +82,7 @@ export interface SeedDaemonClient {
    * of racing the filesystem watcher's debounce.
    */
   checkoutRefresh(cwd: string): Promise<{ success: boolean; error: unknown }>;
+  renameTerminal: DaemonClient["renameTerminal"];
   createTerminal(
     cwd: string,
     name?: string,

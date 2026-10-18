@@ -552,6 +552,15 @@ export const zhCN: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "筛选文件…",
+        clear: "清除文件筛选",
+        searching: "正在搜索文件…",
+        empty: "没有匹配的文件",
+        failed: "无法搜索文件，请重试。",
+        disconnected: "请连接主机以搜索文件。",
+        limit: "显示前 100 个匹配项，请缩小筛选范围。",
+      },
       sort: {
         name: "名称",
         modified: "修改时间",

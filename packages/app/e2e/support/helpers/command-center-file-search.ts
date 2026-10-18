@@ -59,12 +59,17 @@ export async function delayDirectorySuggestionResponses(page: Page, delayMs = 40
   });
 }
 
-export async function failDirectorySuggestionRequests(page: Page): Promise<void> {
+export async function failDirectorySuggestionRequests(
+  page: Page,
+  failures = Infinity,
+): Promise<void> {
+  let remainingFailures = failures;
   await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
     const server = ws.connectToServer();
     ws.onMessage((message) => {
       const sessionMessage = parseSessionMessage(message);
-      if (sessionMessage?.type === "directory_suggestions_request") {
+      if (sessionMessage?.type === "directory_suggestions_request" && remainingFailures > 0) {
+        remainingFailures -= 1;
         const requestId = sessionMessage.requestId;
         if (typeof requestId === "string") {
           ws.send(

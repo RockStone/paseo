@@ -557,6 +557,15 @@ export const ru: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "Фильтр файлов…",
+        clear: "Очистить фильтр файлов",
+        searching: "Поиск файлов…",
+        empty: "Подходящих файлов нет",
+        failed: "Не удалось найти файлы. Попробуйте снова.",
+        disconnected: "Подключитесь к хосту для поиска файлов.",
+        limit: "Показаны первые 100 совпадений. Уточните фильтр.",
+      },
       sort: {
         name: "Имя",
         modified: "Дата изменения",

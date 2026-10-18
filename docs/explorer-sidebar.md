@@ -55,6 +55,8 @@ the sheet's tab into a pane, and edits the autosave has not started writing are 
 
 ## Explorer sidebar
 
+Files has a name/path filter backed by the same workspace file index as the command center. It searches nested files without expanding directories and respects the hidden-files toggle. Discovery follows the command center's ignore and hidden-directory rules. Matches show their parent path; clearing the filter restores the tree and its expanded folders. The filter searches names and paths, not file contents, and shows up to 100 matches.
+
 `packages/app/src/workspace-tabs/explorer-sidebar.ts` owns show, hide, toggle, and view selection.
 On desktop, the shell is rendered outside the workspace split canvas so it divides the full
 workspace, including the header. It has its own persisted width and resize handle. Main-pane splits

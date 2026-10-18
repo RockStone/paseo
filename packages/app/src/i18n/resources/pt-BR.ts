@@ -559,6 +559,15 @@ export const ptBR: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "Filtrar arquivos…",
+        clear: "Limpar filtro de arquivos",
+        searching: "Buscando arquivos…",
+        empty: "Nenhum arquivo correspondente",
+        failed: "Não foi possível buscar arquivos. Tente novamente.",
+        disconnected: "Conecte-se ao host para buscar arquivos.",
+        limit: "Exibindo as primeiras 100 correspondências. Refine o filtro.",
+      },
       sort: {
         name: "Nome",
         modified: "Modificado",

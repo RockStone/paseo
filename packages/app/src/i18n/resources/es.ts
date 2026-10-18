@@ -561,6 +561,15 @@ export const es: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "Filtrar archivos…",
+        clear: "Borrar filtro de archivos",
+        searching: "Buscando archivos…",
+        empty: "No hay archivos coincidentes",
+        failed: "No se pudieron buscar archivos. Inténtalo de nuevo.",
+        disconnected: "Conéctate al host para buscar archivos.",
+        limit: "Se muestran las primeras 100 coincidencias. Refina el filtro.",
+      },
       sort: {
         name: "Nombre",
         modified: "Modificado",

@@ -557,6 +557,15 @@ export const fr: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "Filtrer les fichiers…",
+        clear: "Effacer le filtre",
+        searching: "Recherche de fichiers…",
+        empty: "Aucun fichier correspondant",
+        failed: "Impossible de rechercher les fichiers. Réessayez.",
+        disconnected: "Connectez-vous à l’hôte pour rechercher des fichiers.",
+        limit: "Les 100 premiers résultats sont affichés. Affinez le filtre.",
+      },
       sort: {
         name: "Nom",
         modified: "Date de modification",

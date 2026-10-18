@@ -552,6 +552,15 @@ export const ar: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "تصفية الملفات…",
+        clear: "مسح تصفية الملفات",
+        searching: "جارٍ البحث عن الملفات…",
+        empty: "لا توجد ملفات مطابقة",
+        failed: "تعذر البحث عن الملفات. حاول مجددًا.",
+        disconnected: "اتصل بالمضيف للبحث عن الملفات.",
+        limit: "تظهر أول 100 نتيجة. حدّد البحث.",
+      },
       sort: {
         name: "اسم",
         modified: "معدل",

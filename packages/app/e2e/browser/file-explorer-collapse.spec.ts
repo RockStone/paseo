@@ -1,4 +1,5 @@
-import { test } from "../support/fixtures";
+import { failDirectorySuggestionRequests } from "../support/helpers/command-center-file-search";
+import { test, expect } from "../support/fixtures";
 import {
   collapseFolder,
   expandFolder,
@@ -20,6 +21,8 @@ test.beforeAll(async () => {
       files: [
         { path: "assets/logo.png", content: "image bytes for explorer e2e\n" },
         { path: "docs/guide.md", content: "# Guide\n" },
+        { path: "src/nested/filter-needle.ts", content: "export const needle = true;\n" },
+        { path: ".claude/filter-secret.md", content: "Hidden filter fixture\n" },
       ],
     },
   });
@@ -48,4 +51,49 @@ test.describe("File explorer collapse", () => {
     await expandFolder(page, "docs");
     await expectExplorerEntryVisible(page, "guide.md");
   });
+});
+
+test("Files filter searches nested paths and restores the expanded tree when cleared", async ({
+  page,
+}) => {
+  await gotoWorkspace(page, workspace.workspaceId);
+  await openFileExplorer(page);
+  await expandFolder(page, "docs");
+  await expectExplorerEntryVisible(page, "guide.md");
+  const filter = page.getByTestId("files-filter-input");
+  await filter.fill("filter-needle");
+  const result = page.getByTestId("files-filter-result-src/nested/filter-needle.ts");
+  await expect(result).toBeVisible();
+  await expect(result).toContainText("filter-needle.ts");
+  await expect(result).toContainText("src/nested");
+  await result.click();
+  await expectFileTabOpen(page, "src/nested/filter-needle.ts");
+  await page.getByTestId("files-filter-clear").click();
+  await expect(filter).toHaveValue("");
+  await expectExplorerEntryVisible(page, "guide.md");
+  await filter.fill("nothing-matches-this-xyz");
+  await expect(page.getByTestId("files-filter-empty")).toHaveText("No matching files");
+  await filter.fill("src/nested");
+  await expect(result).toBeVisible();
+  await filter.fill("filter-secret");
+  const hidden = page.getByTestId("files-filter-result-.claude/filter-secret.md");
+  await expect(hidden).toBeVisible();
+  await page.getByTestId("files-hidden-toggle").click();
+  await expect(hidden).toHaveCount(0);
+  await expect(page.getByTestId("files-filter-empty")).toHaveText("No matching files");
+  await page.getByTestId("files-hidden-toggle").click();
+  await expect(hidden).toBeVisible();
+  await page.getByTestId("files-filter-clear").click();
+});
+
+test("Files filter exposes search errors and Retry recovers", async ({ page }) => {
+  await failDirectorySuggestionRequests(page, 1);
+  await gotoWorkspace(page, workspace.workspaceId);
+  await openFileExplorer(page);
+  await page.getByTestId("files-filter-input").fill("filter-needle");
+  const error = page.getByTestId("files-filter-error");
+  await expect(error).toContainText("Could not search files. Try again.");
+  await error.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(error).toHaveCount(0);
+  await expect(page.getByTestId("files-filter-result-src/nested/filter-needle.ts")).toBeVisible();
 });

@@ -553,6 +553,15 @@ export const ko: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "파일 필터…",
+        clear: "파일 필터 지우기",
+        searching: "파일 검색 중…",
+        empty: "일치하는 파일 없음",
+        failed: "파일을 검색하지 못했습니다. 다시 시도하세요.",
+        disconnected: "파일을 검색하려면 호스트에 연결하세요.",
+        limit: "처음 100개 결과입니다. 필터를 좁히세요.",
+      },
       sort: {
         name: "이름",
         modified: "수정일",

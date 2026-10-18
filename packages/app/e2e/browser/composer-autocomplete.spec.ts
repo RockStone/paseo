@@ -858,10 +858,14 @@ test.describe("Composer session references", () => {
       if (!created.terminal || created.error)
         throw new Error(created.error ?? "Terminal creation failed");
       const terminalId = created.terminal.id;
+      await workspace.client.renameTerminal({ terminalId, title: "Renamed Flutter terminal" });
       await openAgentRoute(page, workspace);
       await expectComposerVisible(page);
       const input = composerLocator(page);
       await input.fill("Inspect ##");
+      await expect(
+        page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`),
+      ).toContainText("Renamed Flutter terminal");
       await expect(
         page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`),
       ).toBeVisible();
@@ -878,7 +882,7 @@ test.describe("Composer session references", () => {
       await input.press("Enter");
       const pills = page.getByTestId("composer-session-reference-pill");
       await expect(pills).toHaveCount(1);
-      await expect(pills.first()).toContainText("#Flutter dev");
+      await expect(pills.first()).toContainText("#Renamed Flutter terminal");
       await expect(input).toHaveValue("Inspect ");
       await expect(input).toBeFocused();
       await input.fill(`##${terminalId}`);
@@ -907,7 +911,7 @@ test.describe("Composer session references", () => {
       expect(request.attachments).toEqual([
         expect.objectContaining({
           type: "text",
-          title: "terminal · Flutter dev",
+          title: "terminal · Renamed Flutter terminal",
           text: expect.stringContaining(`"id":"${terminalId}"`),
         }),
         expect.objectContaining({

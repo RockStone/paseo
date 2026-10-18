@@ -1,3 +1,4 @@
+import { FileExplorerFilter } from "@/file-explorer/filter";
 import {
   useCallback,
   useEffect,
@@ -1058,6 +1059,9 @@ export function FileExplorerPane({
       style={styles.container}
     >
       <FileExplorerPaneContent
+        serverId={serverId}
+        workspaceRoot={normalizedWorkspaceRoot}
+        onOpenFile={onOpenFile}
         error={error}
         isCompact={isCompact}
         showInitialLoading={showInitialLoading}
@@ -1132,6 +1136,9 @@ function RootCreationContextTarget({
 }
 
 interface FileExplorerPaneContentProps {
+  serverId: string;
+  workspaceRoot: string;
+  onOpenFile?: (path: string) => void;
   error: string | null;
   isCompact: boolean;
   showInitialLoading: boolean;
@@ -1313,42 +1320,50 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
           </ToolbarButton>
         </ToolbarControls>
       </PaneContentToolbar>
-      <ContextMenu>
-        <RootCreationContextTarget enabled={Boolean(onNewEntryAtRoot)}>
-          {listRows.length === 0 ? (
-            <View style={styles.centerState}>
-              <Text style={styles.emptyText}>{emptyLabel}</Text>
-            </View>
-          ) : (
-            <FlatList
-              ref={treeListRef}
-              style={styles.treeList}
-              data={listRows}
-              renderItem={renderTreeRow}
-              keyExtractor={listRowKeyExtractor}
-              testID="file-explorer-tree-scroll"
-              contentContainerStyle={styles.entriesContent}
-              onLayout={scrollbar.onLayout}
-              onScroll={scrollbar.onScroll}
-              onContentSizeChange={scrollbar.onContentSizeChange}
-              scrollEventThrottle={16}
-              showsVerticalScrollIndicator={!scrollbar.enabled}
-              initialNumToRender={24}
-              maxToRenderPerBatch={40}
-              windowSize={12}
+      <FileExplorerFilter
+        key={`${props.serverId}:${props.workspaceRoot}`}
+        serverId={props.serverId}
+        workspaceRoot={props.workspaceRoot}
+        showHiddenFiles={showHiddenFiles}
+        onOpenFile={props.onOpenFile}
+      >
+        <ContextMenu>
+          <RootCreationContextTarget enabled={Boolean(onNewEntryAtRoot)}>
+            {listRows.length === 0 ? (
+              <View style={styles.centerState}>
+                <Text style={styles.emptyText}>{emptyLabel}</Text>
+              </View>
+            ) : (
+              <FlatList
+                ref={treeListRef}
+                style={styles.treeList}
+                data={listRows}
+                renderItem={renderTreeRow}
+                keyExtractor={listRowKeyExtractor}
+                testID="file-explorer-tree-scroll"
+                contentContainerStyle={styles.entriesContent}
+                onLayout={scrollbar.onLayout}
+                onScroll={scrollbar.onScroll}
+                onContentSizeChange={scrollbar.onContentSizeChange}
+                scrollEventThrottle={16}
+                showsVerticalScrollIndicator={!scrollbar.enabled}
+                initialNumToRender={24}
+                maxToRenderPerBatch={40}
+                windowSize={12}
+              />
+            )}
+            {listRows.length > 0 ? scrollbar.overlay : null}
+          </RootCreationContextTarget>
+          {onNewEntryAtRoot ? (
+            <FileActionsContextMenuContent
+              fileKind="directory"
+              onNewFile={handleNewFileAtRoot}
+              onNewFolder={handleNewFolderAtRoot}
+              testIDPrefix="files-empty-area"
             />
-          )}
-          {listRows.length > 0 ? scrollbar.overlay : null}
-        </RootCreationContextTarget>
-        {onNewEntryAtRoot ? (
-          <FileActionsContextMenuContent
-            fileKind="directory"
-            onNewFile={handleNewFileAtRoot}
-            onNewFolder={handleNewFolderAtRoot}
-            testIDPrefix="files-empty-area"
-          />
-        ) : null}
-      </ContextMenu>
+          ) : null}
+        </ContextMenu>
+      </FileExplorerFilter>
     </View>
   );
 }
