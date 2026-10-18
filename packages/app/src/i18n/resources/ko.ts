@@ -9,8 +9,12 @@ export const ko: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    currentProject: "현재 프로젝트",
+    allProjects: "모든 프로젝트",
+    emptyCurrent: "이 프로젝트에 일치하는 터미널 또는 활성 스레드가 없습니다.",
+
     loading: "세션 로딩 중…",
-    empty: "이 호스트에 일치하는 터미널, 활성 스레드 또는 워크스페이스가 없습니다.",
+    empty: "이 호스트에 일치하는 터미널 또는 활성 스레드가 없습니다.",
     loadFailed: "세션을 불러오지 못했습니다. ##를 지우고 다시 입력하세요.",
     disconnected: "세션을 참조하려면 호스트에 연결하세요.",
     terminal: "터미널",

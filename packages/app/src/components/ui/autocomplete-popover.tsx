@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ReactElement,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { View, useWindowDimensions } from "react-native";
@@ -51,6 +52,7 @@ function measureElement(element: View): Promise<Rect> {
 }
 
 interface AutocompletePopoverProps {
+  header?: ReactNode;
   visible: boolean;
   anchorRef: RefObject<View | null>;
   options: readonly AutocompleteOption[];
@@ -63,6 +65,7 @@ interface AutocompletePopoverProps {
 }
 
 export function AutocompletePopover({
+  header,
   visible,
   anchorRef,
   options,
@@ -163,6 +166,7 @@ export function AutocompletePopover({
           style={[baseStyle, keyboardLayoutStyle]}
         >
           <Autocomplete
+            header={header}
             options={options}
             selectedIndex={selectedIndex}
             onSelect={onSelect}

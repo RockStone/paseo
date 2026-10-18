@@ -9,9 +9,12 @@ export const es: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    currentProject: "Proyecto actual",
+    allProjects: "Todos los proyectos",
+    emptyCurrent: "No hay terminales ni conversaciones activas coincidentes en este proyecto.",
+
     loading: "Cargando sesiones…",
-    empty:
-      "No hay terminales, conversaciones activas ni espacios de trabajo coincidentes en este host.",
+    empty: "No hay terminales ni conversaciones activas coincidentes en este host.",
     loadFailed:
       "No se pudieron cargar las sesiones. Borra ## y vuelve a escribirlo para reintentar.",
     disconnected: "Conéctate al host para referenciar sus sesiones.",

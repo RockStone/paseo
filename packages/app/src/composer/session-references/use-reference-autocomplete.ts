@@ -36,5 +36,5 @@ export function useComposerReferenceAutocomplete(input: ComposerReferenceAutocom
     [selectProfile, selectSession],
   );
   const active = sessions.isVisible ? sessions : profiles;
-  return { ...active, select };
+  return { ...active, select, header: sessions.isVisible ? sessions.header : undefined };
 }

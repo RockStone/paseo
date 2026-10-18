@@ -9,8 +9,12 @@ export const ar: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    currentProject: "المشروع الحالي",
+    allProjects: "كل المشاريع",
+    emptyCurrent: "لا توجد جلسات طرفية أو محادثات نشطة مطابقة في هذا المشروع.",
+
     loading: "جارٍ تحميل الجلسات…",
-    empty: "لا توجد جلسات طرفية أو محادثات نشطة أو مساحات عمل مطابقة على هذا المضيف.",
+    empty: "لا توجد جلسات طرفية أو محادثات نشطة مطابقة على هذا المضيف.",
     loadFailed: "تعذر تحميل الجلسات. امسح ## وأعد كتابته للمحاولة.",
     disconnected: "اتصل بالمضيف للإشارة إلى جلساته.",
     terminal: "طرفية",

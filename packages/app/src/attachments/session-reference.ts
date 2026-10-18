@@ -1,3 +1,4 @@
+import type { WorkspaceDescriptor } from "@/stores/session-store";
 import { z } from "zod";
 import type { AgentAttachment } from "@getpaseo/protocol/messages";
 import type { UserComposerAttachment } from "./types";
@@ -48,6 +49,39 @@ export function filterSessionReferences(input: {
     const rightHere = input.workspaceId !== undefined && right.workspaceId === input.workspaceId;
     if (leftHere !== rightHere) return leftHere ? -1 : 1;
     return left.title.localeCompare(right.title);
+  });
+}
+
+interface ReferenceWorkspace extends Pick<
+  WorkspaceDescriptor,
+  "projectId" | "projectRootPath" | "workspaceDirectory"
+> {}
+
+function normalizedReferencePath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "") || "/";
+}
+
+export function sessionReferencesInCurrentProject(input: {
+  entries: readonly SessionReferenceAttachment[];
+  workspaces: ReadonlyMap<string, ReferenceWorkspace>;
+  workspaceId?: string;
+}): SessionReferenceAttachment[] {
+  const current = input.workspaces.get(input.workspaceId ?? "");
+  if (!current) return [];
+  const projectDirectories = [current.projectRootPath];
+  for (const workspace of input.workspaces.values()) {
+    if (workspace.projectId === current.projectId)
+      projectDirectories.push(workspace.workspaceDirectory);
+  }
+  const roots = projectDirectories.map(normalizedReferencePath);
+  return input.entries.filter((entry) => {
+    const owner = input.workspaces.get(entry.workspaceId ?? "");
+    if (owner) return owner.projectId === current.projectId;
+    if (!entry.cwd) return false;
+    const cwd = normalizedReferencePath(entry.cwd);
+    return roots.some(
+      (root) => cwd === root || cwd.startsWith(root.endsWith("/") ? root : `${root}/`),
+    );
   });
 }
 

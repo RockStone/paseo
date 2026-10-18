@@ -9,8 +9,12 @@ export const fr: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    currentProject: "Projet actuel",
+    allProjects: "Tous les projets",
+    emptyCurrent: "Aucun terminal ou fil actif correspondant dans ce projet.",
+
     loading: "Chargement des sessions…",
-    empty: "Aucun terminal, fil actif ou espace de travail correspondant sur cet hôte.",
+    empty: "Aucun terminal ou fil actif correspondant sur cet hôte.",
     loadFailed: "Impossible de charger les sessions. Effacez ## puis retapez-le pour réessayer.",
     disconnected: "Connectez-vous à l’hôte pour référencer ses sessions.",
     terminal: "Terminal",

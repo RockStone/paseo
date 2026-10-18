@@ -1067,6 +1067,7 @@ function ComposerAutocompleteBinding({
   );
   return (
     <ComposerAutocomplete
+      header={autocomplete.header}
       visible={autocomplete.isVisible && show}
       anchorRef={anchorRef}
       options={autocomplete.options}

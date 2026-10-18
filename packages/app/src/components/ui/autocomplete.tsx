@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   ScrollView,
   Text,
@@ -33,6 +33,7 @@ const LEADING_ICONS = {
 };
 
 interface AutocompleteProps {
+  header?: ReactNode;
   options: readonly AutocompleteOption[];
   selectedIndex: number;
   onSelect: (option: AutocompleteOption) => void;
@@ -130,6 +131,7 @@ function AutocompleteRow({
 }
 
 export function Autocomplete({
+  header,
   options,
   selectedIndex,
   onSelect,
@@ -228,6 +230,7 @@ export function Autocomplete({
   if (isLoading) {
     return (
       <View style={containerStyle}>
+        {header}
         <View style={styles.emptyItem}>
           <Text style={styles.emptyText}>{resolvedLoadingText}</Text>
         </View>
@@ -238,6 +241,7 @@ export function Autocomplete({
   if (errorMessage) {
     return (
       <View style={containerStyle}>
+        {header}
         <View style={styles.emptyItem}>
           <Text style={styles.emptyText}>Error: {errorMessage}</Text>
         </View>
@@ -248,6 +252,7 @@ export function Autocomplete({
   if (options.length === 0) {
     return (
       <View style={containerStyle}>
+        {header}
         <View style={styles.emptyItem}>
           <Text style={styles.emptyText}>{resolvedEmptyText}</Text>
         </View>
@@ -271,6 +276,7 @@ export function Autocomplete({
         </View>
       ) : null}
       <View style={containerStyle}>
+        {header}
         <ScrollView
           ref={scrollRef}
           onLayout={handleScrollViewLayout}

@@ -5,8 +5,12 @@ export const en = {
     open: "Open thread: {{title}}",
   },
   sessionReference: {
+    currentProject: "Current project",
+    allProjects: "All projects",
+    emptyCurrent: "No matching terminals or active threads in this project.",
+
     loading: "Loading sessions…",
-    empty: "No matching terminals, active threads, or workspaces on this host.",
+    empty: "No matching terminals or active threads on this host.",
     loadFailed: "Could not load sessions. Clear ## and type it again to retry.",
     disconnected: "Connect to the host to reference its sessions.",
     terminal: "Terminal",

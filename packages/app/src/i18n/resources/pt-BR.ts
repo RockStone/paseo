@@ -9,8 +9,12 @@ export const ptBR: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    currentProject: "Projeto atual",
+    allProjects: "Todos os projetos",
+    emptyCurrent: "Nenhum terminal ou conversa ativa correspondente neste projeto.",
+
     loading: "Carregando sessões…",
-    empty: "Nenhum terminal, conversa ativa ou espaço de trabalho correspondente neste host.",
+    empty: "Nenhum terminal ou conversa ativa correspondente neste host.",
     loadFailed:
       "Não foi possível carregar as sessões. Apague ## e digite novamente para tentar de novo.",
     disconnected: "Conecte-se ao host para referenciar suas sessões.",

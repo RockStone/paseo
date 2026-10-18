@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { SessionReferenceScopeFilter, type SessionReferenceScope } from "./scope-filter";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { AutocompleteOption } from "@/components/ui/autocomplete";
 import { orderAutocompleteOptions } from "@/components/ui/autocomplete-utils";
@@ -12,6 +13,7 @@ import { useSessionStore } from "@/stores/session-store";
 import {
   findActiveSessionMention,
   filterSessionReferences,
+  sessionReferencesInCurrentProject,
   type SessionReferenceAttachment,
 } from "@/attachments/session-reference";
 
@@ -39,6 +41,19 @@ export interface ReferenceInputSnapshot {
 
 export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompleteInput) {
   const { t } = useTranslation();
+  const [scope, setScope] = useState<SessionReferenceScope>("current");
+  const onApplied = input.onAutocompleteApplied;
+  const changeScope = useCallback(
+    (next: SessionReferenceScope) => {
+      setScope(next);
+      onApplied?.();
+    },
+    [onApplied],
+  );
+  const header = useMemo(
+    () => <SessionReferenceScopeFilter scope={scope} onChange={changeScope} />,
+    [scope, changeScope],
+  );
   const mention = findActiveSessionMention({
     text: input.userInput,
     cursorIndex: input.cursorIndex,
@@ -101,18 +116,19 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
         workspaceId: agent.workspaceId,
       });
     }
-    for (const workspace of workspaces?.values() ?? []) {
-      entries.push({
-        kind: "session_reference",
-        serverId: input.serverId,
-        referenceType: "workspace",
-        id: workspace.id,
-        title: workspace.title ?? workspace.name,
-        cwd: workspace.workspaceDirectory,
-        workspaceId: workspace.id,
-      });
-    }
-    const matches = filterSessionReferences({ entries, query, workspaceId: input.workspaceId });
+    const scopedEntries =
+      scope === "current"
+        ? sessionReferencesInCurrentProject({
+            entries,
+            workspaces: workspaces ?? new Map(),
+            workspaceId: input.workspaceId,
+          })
+        : entries;
+    const matches = filterSessionReferences({
+      entries: scopedEntries,
+      query,
+      workspaceId: input.workspaceId,
+    });
     return orderAutocompleteOptions(matches).map((reference) => ({
       type: "session_reference",
       id: `session:${reference.referenceType}:${reference.id}`,
@@ -129,6 +145,7 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
     terminals.data,
     agents,
     workspaces,
+    scope,
     input.serverId,
     input.agentId,
     input.workspaceId,
@@ -174,13 +191,16 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
   return {
     isVisible,
     options,
-    query,
+    query: `${scope}\0${query}`,
+    header,
     select,
     presentation: {
       isLoading,
       errorMessage,
       loadingText: t("sessionReference.loading"),
-      emptyText: t("sessionReference.empty"),
+      emptyText: t(
+        scope === "current" ? "sessionReference.emptyCurrent" : "sessionReference.empty",
+      ),
     },
   };
 }

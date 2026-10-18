@@ -9,8 +9,12 @@ export const ja: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    currentProject: "現在のプロジェクト",
+    allProjects: "すべてのプロジェクト",
+    emptyCurrent: "このプロジェクトに一致するターミナルやアクティブなスレッドはありません。",
+
     loading: "セッションを読み込み中…",
-    empty: "このホストに一致するターミナル、アクティブなスレッド、ワークスペースはありません。",
+    empty: "このホストに一致するターミナルやアクティブなスレッドはありません。",
     loadFailed: "セッションを読み込めませんでした。## を消して再入力してください。",
     disconnected: "セッションを参照するにはホストに接続してください。",
     terminal: "ターミナル",

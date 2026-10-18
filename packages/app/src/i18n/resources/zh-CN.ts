@@ -9,8 +9,12 @@ export const zhCN: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    currentProject: "当前项目",
+    allProjects: "所有项目",
+    emptyCurrent: "此项目中没有匹配的终端或活跃对话。",
+
     loading: "正在加载会话…",
-    empty: "此主机上没有匹配的终端、活跃对话或工作区。",
+    empty: "此主机上没有匹配的终端或活跃对话。",
     loadFailed: "无法加载会话。请删除 ## 后重新输入以重试。",
     disconnected: "请连接主机以引用其会话。",
     terminal: "终端",

@@ -5,7 +5,7 @@ import {
 } from "@/composer/session-references/use-reference-autocomplete";
 import type { AgentProfile } from "@/agent-profiles";
 import type { SessionReferenceAttachment } from "@/attachments/session-reference";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -79,6 +79,7 @@ type AgentAutocompleteOption =
     });
 
 interface AgentAutocompleteResult {
+  header?: ReactNode;
   isVisible: boolean;
   options: AutocompleteOption[];
   selectedIndex: number;
@@ -660,6 +661,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
   const emptyText = resolveAutocompleteEmptyText({ mode, draft, t });
 
   return {
+    header: referenceCompletion.header,
     isVisible,
     options,
     selectedIndex,

@@ -1,6 +1,7 @@
 import {
   appendSessionReference,
   filterSessionReferences,
+  sessionReferencesInCurrentProject,
   findActiveSessionMention,
   sessionReferenceToAgentAttachment,
   type SessionReferenceAttachment,
@@ -1223,5 +1224,54 @@ describe("indexed session references", () => {
     expect(
       sessionReferenceToAgentAttachment({ ...terminalReference, referenceType: "workspace" }).text,
     ).toContain("workspaceId");
+  });
+});
+
+describe("session reference project scope", () => {
+  it("includes the project's other workspaces and worktrees without leaking another project", () => {
+    const workspaces = new Map([
+      ["main", { projectId: "p1", projectRootPath: "/repo/app", workspaceDirectory: "/repo/app" }],
+      [
+        "tree",
+        { projectId: "p1", projectRootPath: "/repo/app", workspaceDirectory: "/worktrees/feature" },
+      ],
+      [
+        "other",
+        {
+          projectId: "p2",
+          projectRootPath: "/repo/app-extra",
+          workspaceDirectory: "/repo/app-extra",
+        },
+      ],
+    ]);
+    const base: SessionReferenceAttachment = {
+      kind: "session_reference",
+      serverId: "host",
+      referenceType: "thread",
+      id: "a",
+      title: "A",
+      cwd: "/repo/app",
+      workspaceId: "main",
+    };
+    const tree = { ...base, id: "b", cwd: "/worktrees/feature", workspaceId: "tree" };
+    const other = { ...base, id: "c", cwd: "/repo/app-extra", workspaceId: "other" };
+    const unowned = {
+      ...base,
+      referenceType: "terminal" as const,
+      id: "d",
+      workspaceId: undefined,
+      cwd: "/worktrees/feature/subdir",
+    };
+    const prefixNeighbor = { ...unowned, id: "e", cwd: "/repo/app-extra" };
+    const entries = [base, tree, other, unowned, prefixNeighbor];
+    expect(sessionReferencesInCurrentProject({ entries, workspaces, workspaceId: "main" })).toEqual(
+      [base, tree, unowned],
+    );
+    expect(sessionReferencesInCurrentProject({ entries, workspaces, workspaceId: "tree" })).toEqual(
+      [base, tree, unowned],
+    );
+    expect(
+      sessionReferencesInCurrentProject({ entries, workspaces, workspaceId: "missing" }),
+    ).toEqual([]);
   });
 });
