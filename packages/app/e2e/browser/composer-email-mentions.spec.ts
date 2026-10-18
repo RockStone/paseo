@@ -21,7 +21,7 @@ async function selectReadmeMention(page: Page): Promise<void> {
   await expect(fileSuggestions(page).getByText("README.md", { exact: true })).toBeVisible();
   await expect(fileSuggestions(page).getByText("example.com", { exact: true })).toHaveCount(0);
   await composerLocator(page).press("Enter");
-  await expectComposerDraft(page, '"README.md"');
+  await expectComposerDraft(page, "[@README.md](README.md)");
 }
 
 async function sendEmailIntact(page: Page, email: string): Promise<void> {
@@ -29,7 +29,7 @@ async function sendEmailIntact(page: Page, email: string): Promise<void> {
   await expect(fileSuggestions(page)).not.toBeVisible();
   await composerLocator(page).press("Enter");
   await expectComposerDraft(page, "");
-  await expect(page.getByText(email, { exact: true })).toBeVisible();
+  await expect(page.getByTestId("user-message").last()).toContainText(email.replace(/[<>]/g, ""));
 }
 
 for (const email of [
@@ -79,8 +79,9 @@ test("fullscreen mention keys edit the draft while inline keys still complete fi
     await expect
       .poll(() =>
         composerLocator(page).evaluate((element) => {
-          const input = element as HTMLTextAreaElement;
-          return input.selectionStart === input.selectionEnd && input.selectionStart < 23;
+          const start = Number(element.getAttribute("data-selection-start"));
+          const end = Number(element.getAttribute("data-selection-end"));
+          return start === end && start < 23;
         }),
       )
       .toBe(true);

@@ -26,6 +26,7 @@ interface DecoratedInputProps extends Omit<
   onBlur?: () => void;
   referenceColor?: string;
   codeBackground?: string;
+  codeColor?: string;
 }
 
 const HOST_STYLE = { height: "100%", minWidth: 0 };
@@ -134,6 +135,7 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
           ".composer-bold": { fontWeight: "700" },
           ".composer-italic": { fontStyle: "italic" },
           ".composer-code": {
+            color: current.codeColor ?? "inherit",
             fontFamily: "monospace",
             backgroundColor: current.codeBackground ?? "transparent",
             borderRadius: "3px",
@@ -199,6 +201,7 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
       props.accessibilityLabel,
       props.referenceColor,
       props.codeBackground,
+      props.codeColor,
     ]);
 
     const hostStyle = useMemo(() => {
@@ -215,5 +218,6 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
 
 export const EditingTextInput = withUnistyles(DecoratedInput, (theme) => ({
   referenceColor: theme.colors.accent,
-  codeBackground: theme.colors.surface0,
+  codeBackground: theme.colors.surface4,
+  codeColor: theme.colors.palette.orange[theme.colorScheme === "dark" ? 500 : 600],
 }));

@@ -1,3 +1,4 @@
+import { messageReferenceDetails } from "@/attachments/reference-details";
 import { formatInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
   appendSessionReference,
@@ -1304,5 +1305,32 @@ describe("inline composer references", () => {
     expect(isReferenceInText({ ...reference, inlineMention: undefined }, "Legacy draft")).toBe(
       true,
     );
+  });
+});
+
+describe("sent inline reference details", () => {
+  it("hides only matching reference cards while preserving their saved details", () => {
+    const reference: SessionReferenceAttachment = {
+      kind: "session_reference",
+      serverId: "host",
+      referenceType: "thread",
+      id: "thread-id",
+      title: "Review",
+      cwd: "/repo",
+    };
+    const attachment = sessionReferenceToAgentAttachment(reference);
+    const unrelated: Extract<AgentAttachment, { type: "text" }> = {
+      type: "text",
+      text: "A separate attached note",
+      title: "Note",
+      mimeType: "text/plain",
+    };
+    const url = "thread://thread-id?hostId=host";
+    const result = messageReferenceDetails(`Review [#Review](${url})`, [attachment, unrelated]);
+    expect(result.visibleAttachments).toEqual([unrelated]);
+    expect(result.details.get(url)?.text).toBe(attachment.text);
+    expect(messageReferenceDetails("An older message", [attachment]).visibleAttachments).toEqual([
+      attachment,
+    ]);
   });
 });

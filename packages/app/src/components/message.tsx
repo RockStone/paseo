@@ -1,3 +1,8 @@
+import { messageReferenceDetails } from "@/attachments/reference-details";
+import { MarkdownReferenceContext } from "@/components/markdown/reference-context";
+import { AssistantFileLinkResolverProvider, type InlinePathTarget } from "@/assistant-file-links";
+import type { OpenFileDisposition } from "@/workspace/file-open";
+import { openExternalUrl } from "@/utils/open-external-url";
 import { useMarkdownSource } from "@/components/markdown/images";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
@@ -89,6 +94,7 @@ export type { InlinePathTarget } from "@/assistant-file-links";
 export type { AssistantForkTarget };
 
 interface UserMessageProps {
+  onOpenWorkspaceFile?: (target: InlinePathTarget, disposition: OpenFileDisposition) => void;
   serverId?: string;
   agentId?: string;
   messageId?: string;
@@ -428,6 +434,8 @@ const UserMessageContent = memo(function UserMessageContent({
   timestamp,
   capabilities,
   client,
+  workspaceRoot,
+  onOpenWorkspaceFile,
   isFirstInGroup = true,
   isLastInGroup = true,
   isPending = false,
@@ -452,7 +460,28 @@ const UserMessageContent = memo(function UserMessageContent({
   const resolvedDisableOuterSpacing = useDisableOuterSpacing(disableOuterSpacing);
   const hasText = message.trim().length > 0;
   const hasImages = images.length > 0;
-  const hasAttachments = attachments.length > 0;
+  const { details, visibleAttachments } = useMemo(
+    () => messageReferenceDetails(message, attachments),
+    [message, attachments],
+  );
+  const hasAttachments = visibleAttachments.length > 0;
+  const handleUserLinkPress = useCallback(
+    (url: string) => {
+      if (/^(thread|terminal|workspace|agent-profile):/.test(url)) return;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+        void openExternalUrl(url);
+        return;
+      }
+      let path = url;
+      try {
+        path = decodeURIComponent(url);
+      } catch {
+        /* A literal percent may be part of a path. */
+      }
+      onOpenWorkspaceFile?.({ raw: url, path }, "preferred");
+    },
+    [onOpenWorkspaceFile],
+  );
   const showTrailingRow = !isPending && hasText && (isCompact || isNative || isHovered);
   const formattedTimestamp = useMemo(
     () => formatMessageTimestamp(new Date(timestamp)),
@@ -536,7 +565,7 @@ const UserMessageContent = memo(function UserMessageContent({
           ) : null}
           {hasAttachments ? (
             <View style={attachmentPreviewContainerStyle}>
-              {attachments.map((attachment, index) => {
+              {visibleAttachments.map((attachment, index) => {
                 const content = getAgentAttachmentPillContent(attachment, t);
                 return (
                   <AttachmentFrame
@@ -553,9 +582,25 @@ const UserMessageContent = memo(function UserMessageContent({
             </View>
           ) : null}
           {hasText ? (
-            <Text selectable style={userMessageStylesheet.text} dataSet={MESSAGE_TEXT_DATASET}>
-              {message}
-            </Text>
+            <AssistantFileLinkResolverProvider
+              client={client}
+              serverId={serverId}
+              workspaceRoot={workspaceRoot}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+            >
+              <MarkdownReferenceContext.Provider value={details}>
+                <View dataSet={MESSAGE_TEXT_DATASET}>
+                  <MarkdownRenderer
+                    text={message}
+                    variant="user"
+                    onLinkPress={handleUserLinkPress}
+                    client={client ?? undefined}
+                    workspaceRoot={workspaceRoot}
+                    serverId={serverId}
+                  />
+                </View>
+              </MarkdownReferenceContext.Provider>
+            </AssistantFileLinkResolverProvider>
           ) : null}
         </View>
         {hasText ? (

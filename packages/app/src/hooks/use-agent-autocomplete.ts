@@ -603,9 +603,13 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
       const nextInput = applyFileMentionReplacement({
         text: current.text,
         mention: current.fileMention,
-        relativePath: selected.entryPath,
+        relativePath:
+          selected.kind === "directory"
+            ? `${selected.entryPath.replace(/\/$/, "")}/`
+            : selected.entryPath,
       });
-      setUserInput(nextInput);
+      const caret = nextInput.length - (current.text.length - current.fileMention.end);
+      setUserInput(nextInput, { start: caret, end: caret });
       onAutocompleteApplied?.();
     },
     [

@@ -1,3 +1,4 @@
+import { isWeb } from "@/constants/platform";
 import type { View } from "react-native";
 
 /**
@@ -23,12 +24,16 @@ export interface Size {
 /** Gap kept between the surface and the edge of the display area. */
 const EDGE_PADDING = 8;
 
-export function measureElement(element: View): Promise<Rect> {
-  return new Promise((resolve) => {
-    element.measureInWindow((x, y, width, height) => {
-      resolve({ x, y, width, height });
+export function measureElement(element: View | HTMLElement): Promise<Rect> {
+  if ("measureInWindow" in element)
+    return new Promise((resolve) => {
+      element.measureInWindow((x, y, width, height) => resolve({ x, y, width, height }));
     });
-  });
+  if (isWeb) {
+    const { x, y, width, height } = element.getBoundingClientRect();
+    return Promise.resolve({ x, y, width, height });
+  }
+  throw new Error("DOM anchors require web");
 }
 
 /**

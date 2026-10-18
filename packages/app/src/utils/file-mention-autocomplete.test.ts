@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyFileMentionReplacement,
   findActiveFileMention,
-  formatQuotedFileMentionPath,
+  formatFileMentionPath,
 } from "./file-mention-autocomplete";
 
 describe("findActiveFileMention", () => {
@@ -118,32 +118,37 @@ describe("findActiveFileMention", () => {
   });
 });
 
-describe("formatQuotedFileMentionPath", () => {
-  it("quotes workspace-relative paths using file mention escaping", () => {
-    expect(formatQuotedFileMentionPath('src/changed "file".ts')).toBe(
-      '"src/changed \\"file\\".ts"',
+describe("formatFileMentionPath", () => {
+  it("links workspace-relative paths with an at-sign label", () => {
+    expect(formatFileMentionPath('src/changed "file".ts')).toBe(
+      '[@src/changed "file".ts](src/changed%20%22file%22.ts)',
     );
   });
 });
 
 describe("applyFileMentionReplacement", () => {
-  it("replaces only the active @query segment with a quoted relative path", () => {
+  it("replaces only the active @query segment with a linked relative path", () => {
     const text = "open @src/com next";
     const next = applyFileMentionReplacement({
       text,
       mention: { start: 5, end: 13, query: "src/com" },
       relativePath: "src/components/chat.tsx",
     });
-    expect(next).toBe('open "src/components/chat.tsx" next');
+    expect(next).toBe("open [@src/components/chat.tsx](src/components/chat.tsx) next");
   });
 
-  it("escapes double quotes in replacement path", () => {
+  it("encodes special characters in link targets", () => {
     const text = "@foo";
     const next = applyFileMentionReplacement({
       text,
       mention: { start: 0, end: 4, query: "foo" },
       relativePath: 'src/"quoted".ts',
     });
-    expect(next).toBe('"src/\\"quoted\\".ts"');
+    expect(next).toBe('[@src/"quoted".ts](src/%22quoted%22.ts)');
   });
+});
+
+it("does not reopen autocomplete inside a completed inline reference", () => {
+  const text = "[@README.md](README.md)";
+  expect(findActiveFileMention({ text, cursorIndex: text.length })).toBeNull();
 });

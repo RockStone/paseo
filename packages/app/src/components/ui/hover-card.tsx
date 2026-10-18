@@ -39,8 +39,8 @@ const CLOSE_GRACE_MS = 100;
 interface HoverCardContextValue {
   open: boolean;
   layer: number;
-  setTriggerRef: (node: View | null) => void;
-  triggerRef: RefObject<View | null>;
+  setTriggerRef: (node: View | HTMLElement | null) => void;
+  triggerRef: RefObject<View | HTMLElement | null>;
   contentRef: RefObject<View | null>;
   openNow: () => void;
   scheduleClose: () => void;
@@ -80,7 +80,7 @@ function WebHoverCard({
   children: ReactNode;
 }): ReactElement {
   const layer = useOverlayLayer("floating");
-  const triggerRef = useRef<View>(null);
+  const triggerRef = useRef<View | HTMLElement>(null);
   const contentRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -164,7 +164,7 @@ function WebHoverCard({
     manageFocus: false,
   });
   const setTriggerRef = useCallback(
-    (node: View | null) => {
+    (node: View | HTMLElement | null) => {
       triggerRef.current = node;
       setOverlayScope(node);
     },
@@ -261,15 +261,29 @@ function WebHoverCard({
 
 export function HoverCardTrigger({
   children,
+  inline = false,
   focusable = false,
   accessibilityLabel,
 }: {
   children: ReactNode;
+  inline?: boolean;
   focusable?: boolean;
   accessibilityLabel?: string;
 }): ReactNode {
   const ctx = useContext(HoverCardContext);
   if (!ctx) return children;
+  if (isWeb && inline)
+    return (
+      <span
+        ref={ctx.setTriggerRef}
+        onMouseEnter={ctx.openNow}
+        onMouseLeave={ctx.scheduleClose}
+        tabIndex={focusable ? 0 : undefined}
+        aria-label={accessibilityLabel}
+      >
+        {children}
+      </span>
+    );
   return (
     <View
       ref={ctx.setTriggerRef}
@@ -325,7 +339,7 @@ function HoverCardSurface({
   children,
 }: HoverCardContentProps & {
   layer: number;
-  triggerRef: RefObject<View | null>;
+  triggerRef: RefObject<View | HTMLElement | null>;
   contentRef: RefObject<View | null>;
 }): ReactElement {
   const bottomSheetInternal = useBottomSheetModalInternal(true);

@@ -5,6 +5,7 @@ import { isWeb } from "@/constants/platform";
 export function createMarkdownStyles(
   theme: Theme,
   compact = false,
+  variant: "default" | "user" = "default",
 ): { markdownStyle: MarkdownStyle; selectionColor: string } {
   const fontSize = compact ? theme.fontSize.base : theme.fontSize.content;
   const paragraph = {
@@ -65,8 +66,11 @@ export function createMarkdownStyles(
       code: {
         fontFamily: theme.fontFamily.mono === "ui-monospace" && !isWeb ? "" : theme.fontFamily.mono,
         fontSize: theme.fontSize.code,
-        color: theme.colors.foreground,
-        backgroundColor: theme.colors.surface2,
+        color:
+          variant === "user"
+            ? theme.colors.palette.orange[theme.colorScheme === "dark" ? 500 : 600]
+            : theme.colors.foreground,
+        backgroundColor: variant === "user" ? theme.colors.surface4 : theme.colors.surface2,
         borderColor: "transparent",
       },
       codeBlock: {

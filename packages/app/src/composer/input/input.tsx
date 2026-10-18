@@ -430,16 +430,15 @@ function handleDesktopKeyPressImpl(
   const { shiftKey, metaKey, ctrlKey } = event.nativeEvent;
 
   if (event.nativeEvent.key !== "Enter") return;
-  if (!metaKey && !ctrlKey) {
+  if (shiftKey) {
     const continuation = continueNumberedList(ctx.input.text, ctx.input.selection);
     if (continuation) {
       event.preventDefault();
       ctx.replaceText(continuation.text, continuation.selection);
-      return;
     }
+    return;
   }
   if (!ctx.submitOnEnter) return;
-  if (shiftKey) return;
 
   if ((metaKey || ctrlKey) && ctx.isAgentRunning && ctx.onQueue) {
     if (ctx.isSubmitDisabled || ctx.isSubmitLoading || ctx.disabled) return;

@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { expectFileTabOpen } from "../support/helpers/file-explorer";
 import { seedAgentProfiles } from "../support/helpers/agent-profiles";
 import { expectWorkspaceAgentConfiguration } from "../support/helpers/command-center-agent-controls";
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
@@ -752,6 +754,20 @@ test.describe("Composer profile references", () => {
         }),
       ]);
       expect(gate.getClientRequestCount("create_agent_request")).toBe(0);
+      const sent = page.getByTestId("user-message").filter({ hasText: "Please delegate" }).last();
+      const reference = sent.getByRole("link", { name: "@Opus delegate", exact: true });
+      await expect(reference).toBeVisible();
+      await expect(sent).not.toContainText("Agent profile ·");
+      await reference.hover();
+      await expect(page.getByText(/Referenced Paseo agent profile: Opus delegate/)).toBeVisible();
+      await expect(page.getByText(/Profile notes:.*Use a separate worktree/s)).toBeVisible();
+      const detail = page.getByTestId("message-reference-details");
+      await detail.hover();
+      await expect(detail).toBeVisible();
+      await detail.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      expect(await detail.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
     } finally {
       await workspace.cleanup();
       await profiles.restore();
@@ -1041,27 +1057,77 @@ test("decorated composer hides reference targets, formats closed Markdown and co
     await expect(input).toHaveAttribute("data-markdown", "Use ");
     await input.press("ControlOrMeta+z");
     await expect(input.locator(".composer-reference")).toHaveText("thread");
+    await input.fill("**fox*");
+    await expect(input.locator(".composer-italic")).toHaveCount(0);
+    await input.press("End");
+    await input.press("*");
+    await expect(input.locator(".composer-bold")).toHaveCount(0);
+    await input.press("Space");
+    await expect(input.locator(".composer-bold")).toHaveText("fox");
     await input.fill("the `quick");
     await expect(input.locator(".composer-code")).toHaveCount(0);
     await input.press("End");
     await input.press("`");
+    await expect(input.locator(".composer-code")).toHaveCount(0);
+    await input.press("Space");
     await expect(input.locator(".composer-code")).toHaveText("quick");
     await input.press("ControlOrMeta+z");
     await expect(input.locator(".composer-code")).toHaveCount(0);
     await input.fill("1. hello");
     await input.press("End");
-    await input.press("Enter");
+    await input.press("Shift+Enter");
     await expect(input).toHaveAttribute("data-markdown", "1. hello\n2. ");
     await input.pressSequentially("world");
-    await input.press("Enter");
+    await input.press("Shift+Enter");
     await expect(input).toHaveAttribute("data-markdown", "1. hello\n2. world\n3. ");
-    await input.press("Enter");
+    await input.press("Shift+Enter");
     await expect(input).toHaveAttribute("data-markdown", "1. hello\n2. world\n");
     expect(gate.getClientRequests("send_agent_message_request")).toHaveLength(0);
-    await input.fill(markdown);
+    const sentMarkdown = `${markdown}\n\n1. hello`;
+    await input.fill(sentMarkdown);
     await input.press("Enter");
     await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
-    expect(gate.getClientRequests("send_agent_message_request")[0]!.text).toBe(markdown);
+    expect(gate.getClientRequests("send_agent_message_request")[0]!.text).toBe(sentMarkdown);
+    const sent = page.getByTestId("user-message").filter({ hasText: "quick" }).last();
+    await expect(sent.locator("code")).toHaveText("quick");
+    await expect(sent.locator("strong")).toHaveText("fox");
+    await expect(sent.getByRole("link", { name: "thread", exact: true })).toBeVisible();
+    await expect(sent).not.toContainText("thread://");
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("file references use at-sign links and open the workspace file", async ({ page }) => {
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "inline-file-reference-",
+    title: "File reference",
+  });
+  try {
+    await mkdir(`${workspace.cwd}/reference-folder`);
+    await writeFile(`${workspace.cwd}/reference-folder/inside.txt`, "Folder reference contents\n");
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    await input.fill("Open @README");
+    await page.getByTestId("autocomplete-option-file:README.md").click();
+    await expect(input.locator(".composer-reference")).toHaveText("@README.md");
+    await input.press("End");
+    await input.pressSequentially(" and @reference-folder");
+    await page.getByTestId("autocomplete-option-directory:reference-folder").click();
+    await expect(input.locator(".composer-reference")).toHaveText([
+      "@README.md",
+      "@reference-folder/",
+    ]);
+    await input.press("Enter");
+    const message = page.getByTestId("user-message").filter({ hasText: "Open @README.md" }).last();
+    const link = message.getByRole("link", { name: "@README.md", exact: true });
+    await expect(link).toBeVisible();
+    await message.getByRole("link", { name: "@reference-folder/", exact: true }).click();
+    await expect(page.getByTestId("file-explorer-tree-scroll")).toContainText("inside.txt");
+    await link.click();
+    await expect(page.getByTestId("workspace-file-pane").filter({ visible: true })).toBeVisible();
+    await expectFileTabOpen(page, "README.md");
   } finally {
     await workspace.cleanup();
   }

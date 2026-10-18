@@ -22,12 +22,14 @@ const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
 
 const regularStyle = (theme: Theme) => createMarkdownStyles(theme);
+const userStyle = (theme: Theme) => createMarkdownStyles(theme, false, "user");
 const compactStyle = (theme: Theme) => createMarkdownStyles(theme, true);
 const WEB_CONTAINER = { userSelect: "text" as const };
 
 export interface MarkdownRendererProps extends MarkdownImageContext {
   text: string;
   compact?: boolean;
+  variant?: "default" | "user";
   streaming?: boolean;
   onLinkPress?: (url: string) => unknown;
 }
@@ -54,6 +56,7 @@ const MarkdownPart = memo(function MarkdownPart({
   text,
   continues = false,
   compact = false,
+  variant = "default",
   streaming = false,
   onLinkPress,
   ...imageContext
@@ -86,6 +89,8 @@ const MarkdownPart = memo(function MarkdownPart({
       isWeb ? [{ kind: "markdown", id: "0", source: markdown }] : splitMermaidFences(markdown),
     [markdown],
   );
+  let markdownStyle = compact ? compactStyle : regularStyle;
+  if (variant === "user") markdownStyle = userStyle;
   const content = (
     <MermaidStreamingContext.Provider value={streaming}>
       {segments.map((segment) =>
@@ -96,7 +101,7 @@ const MarkdownPart = memo(function MarkdownPart({
             key={`${segment.kind}:${segment.id}`}
             markdown={segment.source}
             containerStyle={isWeb ? WEB_CONTAINER : undefined}
-            uniProps={compact ? compactStyle : regularStyle}
+            uniProps={markdownStyle}
             flavor="github"
             selectable
             allowTrailingMargin={continues && segment === segments[segments.length - 1]}

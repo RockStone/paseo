@@ -33,6 +33,7 @@ export function findActiveFileMention(input: FindActiveFileMentionInput): FileMe
     }
 
     const query = beforeCursor.slice(atIndex + 1);
+    if (beforeCursor[atIndex - 1] === "[" && query.includes("](")) continue;
     if (INVALID_MENTION_QUERY_CHARS.test(query)) {
       continue;
     }
@@ -46,13 +47,22 @@ export function findActiveFileMention(input: FindActiveFileMentionInput): FileMe
   return null;
 }
 
-export function formatQuotedFileMentionPath(relativePath: string): string {
-  const safePath = relativePath.replace(/"/g, '\\"');
-  return `"${safePath}"`;
+export function formatFileMentionPath(relativePath: string): string {
+  const label = `@${relativePath}`.replace(/[\\[\]]/g, "\\$&");
+  const target = relativePath
+    .split("/")
+    .map((part) =>
+      encodeURIComponent(part).replace(
+        /[()]/g,
+        (character) => `%${character.charCodeAt(0).toString(16)}`,
+      ),
+    )
+    .join("/");
+  return `[${label}](${target})`;
 }
 
 export function applyFileMentionReplacement(input: ApplyFileMentionReplacementInput): string {
   const before = input.text.slice(0, input.mention.start);
   const after = input.text.slice(input.mention.end);
-  return `${before}${formatQuotedFileMentionPath(input.relativePath)}${after}`;
+  return `${before}${formatFileMentionPath(input.relativePath)}${after}`;
 }

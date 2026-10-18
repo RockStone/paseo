@@ -1,3 +1,5 @@
+import { usePanelStore } from "@/stores/panel-store";
+import { buildWorkspaceExplorerStateKey } from "@/hooks/use-file-explorer-actions";
 import { ChangedFilesCard } from "./changed-files-card";
 import { collectResponseFileChanges } from "./response-file-changes";
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
@@ -467,10 +469,36 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           return;
         }
 
-        void requestDirectoryListing(normalized.directory, {
-          recordHistory: false,
-          setCurrentPath: false,
+        const directoryPaths = ["."];
+        const isRelativeDirectory =
+          !normalized.directory.startsWith("/") && !normalized.directory.startsWith("..");
+        if (isRelativeDirectory && normalized.directory !== ".") {
+          let path = "";
+          for (const part of normalized.directory.split("/").filter(Boolean)) {
+            path = path ? `${path}/${part}` : part;
+            directoryPaths.push(path);
+          }
+        } else if (normalized.directory !== ".") directoryPaths.push(normalized.directory);
+        const explorerKey = buildWorkspaceExplorerStateKey({
+          workspaceId: context.workspaceId,
+          workspaceRoot,
         });
+        if (explorerKey && isRelativeDirectory) {
+          usePanelStore
+            .getState()
+            .setExpandedPathsForWorkspace(explorerKey, (current) => [
+              ...new Set([...current, ...directoryPaths]),
+            ]);
+        }
+        void (async () => {
+          for (const path of directoryPaths) {
+            const listing = await requestDirectoryListing(path, {
+              recordHistory: false,
+              setCurrentPath: false,
+            });
+            if (!listing) break;
+          }
+        })();
 
         openExplorerSidebarView({
           isCompact: isMobile,
@@ -698,6 +726,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "user_message" }>) => {
         return (
           <UserMessage
+            onOpenWorkspaceFile={handleInlinePathPress}
             serverId={resolvedServerId}
             agentId={agentId}
             messageId={item.messageId}
@@ -719,6 +748,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         );
       },
       [
+        handleInlinePathPress,
         context.capabilities,
         agentId,
         client,

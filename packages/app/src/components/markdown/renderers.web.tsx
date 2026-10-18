@@ -1,5 +1,7 @@
-import { Text } from "react-native";
-import { forwardRef, useMemo, type ComponentProps } from "react";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { MarkdownReferenceContext } from "./reference-context";
+import { ScrollView, Text } from "react-native";
+import { forwardRef, useMemo, useContext, type ComponentProps } from "react";
 import type {
   CodeBlockRendererProps,
   LinkRendererProps,
@@ -28,6 +30,7 @@ function WebCodeBlock({ code, language }: CodeBlockRendererProps) {
 }
 
 function WebLink({ link, anchorProps, children }: LinkRendererProps) {
+  const details = useContext(MarkdownReferenceContext).get(link.url);
   const { tooltipPath, onHoverIn } = useFileLink(markdownLinkSource(link.url, link.sourceType));
   const anchorStyle = useMemo(
     () => ({ ...anchorProps.style, overflowWrap: "anywhere" as const }),
@@ -38,6 +41,19 @@ function WebLink({ link, anchorProps, children }: LinkRendererProps) {
       {children}
     </a>
   );
+  if (details)
+    return (
+      <HoverCard>
+        <HoverCardTrigger inline>{anchor}</HoverCardTrigger>
+        <HoverCardContent placement="top" alignment="start" style={styles.referenceCard}>
+          <ScrollView style={styles.referenceDetails} testID="message-reference-details">
+            <Text selectable style={styles.tooltipPath}>
+              {details.text}
+            </Text>
+          </ScrollView>
+        </HoverCardContent>
+      </HoverCard>
+    );
   return (
     <Tooltip delayDuration={400}>
       <TooltipTrigger asChild onHoverIn={onHoverIn}>
@@ -71,6 +87,8 @@ const InlineLinkTrigger = forwardRef<HTMLSpanElement, ComponentProps<"span">>(
   },
 );
 const styles = StyleSheet.create((theme) => ({
+  referenceCard: { width: 440 },
+  referenceDetails: { maxHeight: 260 },
   tooltipPath: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,
