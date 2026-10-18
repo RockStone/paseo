@@ -63,6 +63,9 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
       nestingSupported,
     ],
   );
+  // A single coordinator is already represented by the workspace row. Keep named
+  // groups only when multiple independent coordinators would otherwise be ambiguous.
+  const visibleTree = roots.length === 1 ? tree.flatMap((node) => node.children) : tree;
   return (
     <>
       {active && providerSupported
@@ -76,7 +79,7 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
         : null}
       {tree.length > 0 ? (
         <View style={styles.tree} testID={`sidebar-agent-tree-${serverId}:${workspaceId}`}>
-          {tree.map((node) => (
+          {visibleTree.map((node) => (
             <ThreadBranch key={node.key} node={node} serverId={serverId} />
           ))}
         </View>

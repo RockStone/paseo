@@ -382,6 +382,8 @@ export const en = {
     },
     attachments: {
       dismissImage: "Dismiss image",
+      previousImage: "Previous image",
+      nextImage: "Next image",
       closeImage: "Close image",
       imageLoadFailed: "Couldn't load image",
       imageUnavailable: "Image unavailable",

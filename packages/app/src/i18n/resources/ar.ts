@@ -382,6 +382,8 @@ export const ar: TranslationResources = {
     },
     attachments: {
       dismissImage: "تجاهل الصورة",
+      previousImage: "الصورة السابقة",
+      nextImage: "الصورة التالية",
       closeImage: "إغلاق الصورة",
       imageLoadFailed: "تعذر تحميل الصورة",
       imageUnavailable: "الصورة غير متاحة",

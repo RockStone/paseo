@@ -2300,6 +2300,16 @@ function ComposerContentImpl({
   const handleLightboxClose = useCallback(() => {
     setLightboxMetadata(null);
   }, []);
+  const lightboxSources = useMemo(
+    () =>
+      selectedAttachments.flatMap((attachment): ImageLightboxSource[] =>
+        attachment.kind === "image" ? [{ type: "attachment", metadata: attachment.metadata }] : [],
+      ),
+    [selectedAttachments],
+  );
+  const handleLightboxNavigate = useCallback((source: ImageLightboxSource) => {
+    if (source.type === "attachment") setLightboxMetadata(source.metadata);
+  }, []);
   const lightboxSource = useMemo<ImageLightboxSource | null>(
     () => (lightboxMetadata ? { type: "attachment", metadata: lightboxMetadata } : null),
     [lightboxMetadata],
@@ -2474,7 +2484,12 @@ function ComposerContentImpl({
           isFullscreen ? animatedStaticStyles.fullscreenContainer : animatedStaticStyles.container
         }
       >
-        <AttachmentLightbox source={lightboxSource} onClose={handleLightboxClose} />
+        <AttachmentLightbox
+          source={lightboxSource}
+          sources={lightboxSources}
+          onNavigate={handleLightboxNavigate}
+          onClose={handleLightboxClose}
+        />
         {/* Input area */}
         <View style={inputAreaContainerStyle}>
           <View style={inputAreaContentStyle}>

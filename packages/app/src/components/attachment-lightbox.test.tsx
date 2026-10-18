@@ -85,6 +85,8 @@ vi.mock("lucide-react-native", () => {
     React.createElement("span", { ...props, "data-icon": name });
   return {
     X: createIcon("X"),
+    ChevronLeft: createIcon("ChevronLeft"),
+    ChevronRight: createIcon("ChevronRight"),
   };
 });
 
@@ -201,6 +203,85 @@ describe("AttachmentLightbox", () => {
     const image = queryByTestId("attachment-lightbox-image");
     expect(image?.getAttribute("data-source")).toBe("blob:assistant-image");
     expect(useAttachmentPreviewUrlMock).toHaveBeenLastCalledWith(null);
+  });
+
+  it("navigates within the supplied gallery with arrows and keyboard, without wrapping", () => {
+    const second: ImageLightboxSource = { type: "uri", uri: "blob:second" };
+    const third: ImageLightboxSource = { type: "uri", uri: "blob:third" };
+    const sources = [assistantImageSource, second, third];
+    const onClose = vi.fn();
+    function Gallery() {
+      const [source, setSource] = React.useState<ImageLightboxSource>(sources[1]);
+      return (
+        <AttachmentLightbox
+          source={source}
+          sources={sources}
+          onNavigate={setSource}
+          onClose={onClose}
+        />
+      );
+    }
+    render(<Gallery />);
+    expect(queryByTestId("attachment-lightbox-position")?.textContent).toBe("2 / 3");
+    click(queryByTestId("attachment-lightbox-next")!);
+    expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
+      "blob:third",
+    );
+    expect(queryByTestId("attachment-lightbox-next")?.getAttribute("aria-disabled")).toBe("true");
+    act(() => {
+      window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight" }));
+    });
+    expect(queryByTestId("attachment-lightbox-position")?.textContent).toBe("3 / 3");
+    act(() => {
+      window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    });
+    expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
+      "blob:second",
+    );
+    click(queryByTestId("attachment-lightbox-previous")!);
+    expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
+      "blob:assistant-image",
+    );
+    expect(queryByTestId("attachment-lightbox-previous")?.getAttribute("aria-disabled")).toBe(
+      "true",
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("can navigate away from a failed attachment preview", () => {
+    useAttachmentPreviewUrlMock.mockReturnValue(null);
+    const sources = [attachmentSource, assistantImageSource];
+    function Gallery() {
+      const [source, setSource] = React.useState<ImageLightboxSource>(sources[0]);
+      return (
+        <AttachmentLightbox
+          source={source}
+          sources={sources}
+          onNavigate={setSource}
+          onClose={vi.fn()}
+        />
+      );
+    }
+    render(<Gallery />);
+    expect(document.body.textContent).toContain("Couldn't load image");
+    click(queryByTestId("attachment-lightbox-next")!);
+    expect(queryByTestId("attachment-lightbox-image")?.getAttribute("data-source")).toBe(
+      "blob:assistant-image",
+    );
+    expect(document.body.textContent).not.toContain("Couldn't load image");
+  });
+
+  it("does not show navigation for a single image", () => {
+    render(
+      <AttachmentLightbox
+        source={attachmentSource}
+        sources={[attachmentSource]}
+        onNavigate={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(queryByTestId("attachment-lightbox-next")).toBeNull();
+    expect(queryByTestId("attachment-lightbox-position")).toBeNull();
   });
 
   it("calls onClose when the backdrop is pressed", () => {

@@ -405,6 +405,13 @@ export const UserMessage = memo(function UserMessage({
   const [isHovered, setIsHovered] = useState(false);
   const [lightboxMetadata, setLightboxMetadata] = useState<UserMessageImageAttachment | null>(null);
   const handleLightboxClose = useCallback(() => setLightboxMetadata(null), []);
+  const lightboxSources = useMemo(
+    () => images.map((metadata): ImageLightboxSource => ({ type: "attachment", metadata })),
+    [images],
+  );
+  const handleLightboxNavigate = useCallback((source: ImageLightboxSource) => {
+    if (source.type === "attachment") setLightboxMetadata(source.metadata);
+  }, []);
   const lightboxSource = useMemo<ImageLightboxSource | null>(
     () => (lightboxMetadata ? { type: "attachment", metadata: lightboxMetadata } : null),
     [lightboxMetadata],
@@ -534,7 +541,12 @@ export const UserMessage = memo(function UserMessage({
           </View>
         ) : null}
       </View>
-      <AttachmentLightbox source={lightboxSource} onClose={handleLightboxClose} />
+      <AttachmentLightbox
+        source={lightboxSource}
+        sources={lightboxSources}
+        onNavigate={handleLightboxNavigate}
+        onClose={handleLightboxClose}
+      />
     </View>
   );
 });

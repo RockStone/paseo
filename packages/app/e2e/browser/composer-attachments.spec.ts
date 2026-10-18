@@ -1,4 +1,5 @@
 import { expect, test } from "../support/fixtures";
+import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { clickNewChat } from "../support/helpers/launcher";
 import { expectComposerVisible } from "../support/helpers/composer";
 import { expectAgentIdle } from "../support/helpers/agent-stream";
@@ -19,6 +20,7 @@ import {
   fillComposerDraft,
   dropFileOnComposer,
   sendDraftToQueue,
+  sendComposerWithButton,
   expectQueuedMessageButton,
   startRunningMockAgent,
   selectGithubOption,
@@ -189,6 +191,16 @@ test.describe("Composer attachments", () => {
     expect(removeBox.y + removeBox.height).toBeLessThan(previewBox.y + previewBox.height / 2);
     await attachImageFromMenu(page, { ...TEST_IMAGE, name: "second.png" });
     await expect(preview).toHaveCount(2);
+    await openImageLightbox(page);
+    await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 2");
+    await expect(page.getByTestId("attachment-lightbox-previous")).toBeDisabled();
+    await page.getByTestId("attachment-lightbox-next").click();
+    await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 2");
+    await expect(page.getByTestId("attachment-lightbox-next")).toBeDisabled();
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 2");
+    await page.screenshot({ path: "/tmp/paseoi-image-gallery.png" });
+    await closeImageLightbox(page);
     await preview.first().hover();
     await remove.first().click();
     await expect(preview).toHaveCount(1);
@@ -203,6 +215,45 @@ test.describe("Composer attachments", () => {
       await dropFileOnComposer(page, TEST_JSON);
       await expectAttachmentPill(page, "composer-file-attachment-pill");
     });
+  });
+
+  test("browses all images in one sent message without including another message", async ({
+    page,
+  }) => {
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "message-gallery-",
+      title: "Image gallery",
+    });
+    try {
+      await openAgentRoute(page, workspace);
+      await expectComposerVisible(page);
+      await attachImageFromMenu(page, TEST_IMAGE);
+      await attachImageFromMenu(page, { ...TEST_IMAGE, name: "second.png" });
+      await fillComposerDraft(page, "First image group");
+      await sendComposerWithButton(page);
+      const first = page.getByTestId("user-message").filter({ hasText: "First image group" });
+      const images = first.getByRole("button", { name: "Open image attachment" });
+      await expect(images).toHaveCount(2);
+      await expectAgentIdle(page);
+      await attachImageFromMenu(page, { ...TEST_IMAGE, name: "other-message.png" });
+      await fillComposerDraft(page, "Separate image group");
+      await sendComposerWithButton(page);
+      await expect(
+        page.getByTestId("user-message").filter({ hasText: "Separate image group" }),
+      ).toBeVisible();
+      await expectAgentIdle(page);
+      await images.nth(1).click();
+      await page.screenshot({ path: "/tmp/paseoi-sent-image-gallery.png" });
+      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 2");
+      await page.getByTestId("attachment-lightbox-previous").click();
+      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 2");
+      await page.keyboard.press("ArrowRight");
+      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 2");
+      await closeImageLightbox(page);
+      await expect(first).toBeVisible();
+    } finally {
+      await workspace.cleanup();
+    }
   });
 
   test("dropped JSON file renders as a file attachment in New Workspace", async ({ page }) => {

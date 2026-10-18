@@ -64,18 +64,16 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     const root = page.getByTestId(`sidebar-agent-tree-row-agent:${pair.parent.id}`);
     const child = page.getByTestId(`sidebar-agent-tree-row-agent:${pair.child.id}`);
     const nested = page.getByTestId(`sidebar-agent-tree-row-agent:${grandchild.id}`);
-    const toggle = page.getByTestId(`sidebar-agent-tree-toggle-agent:${pair.parent.id}`);
-    await expect(root).toBeVisible({ timeout: 30_000 });
-    await expect(child).toBeVisible();
+    const toggle = page.getByTestId(`sidebar-agent-tree-toggle-agent:${pair.child.id}`);
+    await expect(root).toHaveCount(0);
+    await expect(child).toBeVisible({ timeout: 30_000 });
     await expect(nested).toBeVisible();
-    const rootBox = await root.boundingBox();
     const childBox = await child.boundingBox();
     const nestedBox = await nested.boundingBox();
-    if (!rootBox || !childBox || !nestedBox) throw new Error("Thread tree could not be measured");
-    expect(childBox.x).toBeGreaterThan(rootBox.x);
+    if (!childBox || !nestedBox) throw new Error("Thread tree could not be measured");
     expect(nestedBox.x).toBeGreaterThan(childBox.x);
     await toggle.click();
-    await expect(child).toHaveCount(0);
+    await expect(nested).toHaveCount(0);
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await toggle.click();
     await child.click();
@@ -83,16 +81,17 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await nested.click();
     await expectAgentTabActive(page, grandchild.id);
     await page.reload();
-    await expect(root).toBeVisible({ timeout: 30_000 });
+    await expect(root).toHaveCount(0);
     await expect(nested).toBeVisible();
-    await root.click();
+    await openAgentRoute(page, { workspaceId: pair.workspaceId, agentId: pair.parent.id });
     await expectAgentTabActive(page, pair.parent.id);
     await page.screenshot({ path: "/tmp/paseoi-sidebar-agent-tree.png" });
     await openSubagentsTrack(page);
     await detachSubagentFromTrack(page, pair.child.id);
-    await expect(page.getByTestId(`sidebar-agent-tree-toggle-agent:${pair.parent.id}`)).toHaveCount(
-      0,
-    );
+    // The detached coordinator still owns its own child, so it becomes a distinct root group.
+    await expect(root).toHaveCount(0);
+    await expect(child).toBeVisible();
+    await expect(nested).toBeVisible();
   } finally {
     await workspace.cleanup();
   }

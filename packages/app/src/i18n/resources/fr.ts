@@ -387,6 +387,8 @@ export const fr: TranslationResources = {
     },
     attachments: {
       dismissImage: "Ignorer l’image",
+      previousImage: "Image précédente",
+      nextImage: "Image suivante",
       closeImage: "Fermer l’image",
       imageLoadFailed: "Impossible de charger l’image",
       imageUnavailable: "Image indisponible",
