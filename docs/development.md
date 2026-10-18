@@ -63,7 +63,12 @@ open through the workspace Files flow. Existing attachment-style drafts still
 work. Native input continues to edit plain Markdown.
 
 Image previews brighten on hover and reveal a light, top-right delete control.
-Touch layouts keep the control visible.
+Touch layouts keep the control visible. Adding or pasting an image inserts a
+numbered inline reference backed by its local attachment ID. Labels stay stable
+when another image is removed; the sent context maps each ID to the actual image
+order for providers that receive only image bytes. Deleting a thumbnail removes
+its inline reference too. These IDs identify attachments, not file paths or tool
+resources. Inline code uses the active theme's accent, surface, and border colors.
 
 Sidebar thread trees show recorded coordinator/child relationships, including
 nested managed and provider-native children. Click a thread to open it, or its

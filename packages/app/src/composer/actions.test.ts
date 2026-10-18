@@ -1,3 +1,4 @@
+import { addImageReferences } from "./attachments/image-reference";
 import { messageReferenceDetails } from "@/attachments/reference-details";
 import { formatInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
@@ -8,7 +9,10 @@ import {
   sessionReferenceToAgentAttachment,
   type SessionReferenceAttachment,
 } from "@/attachments/session-reference";
-import { UserComposerAttachmentSchema } from "@/stores/draft-store/state";
+import {
+  UserComposerAttachmentSchema,
+  normalizeComposerAttachment,
+} from "@/stores/draft-store/state";
 import { splitComposerAttachmentsForSubmit } from "@/composer/attachments/submit";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentAttachment, ForgeSearchItem } from "@getpaseo/protocol/messages";
@@ -1332,5 +1336,43 @@ describe("sent inline reference details", () => {
     expect(messageReferenceDetails("An older message", [attachment]).visibleAttachments).toEqual([
       attachment,
     ]);
+  });
+});
+
+describe("inline image references", () => {
+  it("preserves attachment identity and stable labels while remapping image positions after deletion", () => {
+    const first = addImageReferences([], [imageWithId("image-a"), imageWithId("image-b")]);
+    expect(first.map((item) => item.inlineMention)).toEqual([
+      "[@Image 1](attachment://image-a)",
+      "[@Image 2](attachment://image-b)",
+    ]);
+    const second = first[1]!;
+    const next = addImageReferences([second], [imageWithId("image-c")]);
+    expect(next[0]!.inlineMention).toBe("[@Image 3](attachment://image-c)");
+    expect(
+      UserComposerAttachmentSchema.parse(
+        JSON.parse(JSON.stringify(normalizeComposerAttachment(second))),
+      ),
+    ).toEqual(second);
+    const wire = splitComposerAttachmentsForSubmit([second, ...next]);
+    expect(wire.images.map((image) => image.id)).toEqual(["image-b", "image-c"]);
+    const detail = messageReferenceDetails(second.inlineMention, wire.attachments);
+    expect(detail.visibleAttachments).toEqual([]);
+    expect(detail.details.get("attachment://image-b")?.imagePosition).toBe(1);
+    expect(detail.details.get("attachment://image-c")?.imagePosition).toBe(2);
+  });
+  it("does not send misleading image identities when image encoding fails", async () => {
+    const client = createFakeSendClient();
+    await expect(
+      dispatchComposerAgentMessage({
+        client,
+        agentId: "agent",
+        text: "Compare image",
+        attachments: addImageReferences([], [imageWithId("missing")]),
+        encodeImages: async () => [],
+        submission: createFakeStream(),
+      }),
+    ).rejects.toThrow("An attached image could not be loaded");
+    expect(client.calls).toEqual([]);
   });
 });

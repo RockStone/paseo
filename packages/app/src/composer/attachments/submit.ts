@@ -1,3 +1,4 @@
+import { imageReferenceContext } from "./image-reference";
 import { sessionReferenceToAgentAttachment } from "@/attachments/session-reference";
 import { profileReferenceToAgentAttachment } from "@/agent-profiles/profile-reference";
 import type { ComposerAttachment } from "@/attachments/types";
@@ -49,6 +50,8 @@ export function splitComposerAttachmentsForSubmit(
   for (const attachment of attachments) {
     if (attachment.kind === "image") {
       images.push(attachment.metadata);
+      if (attachment.inlineMention)
+        agentAttachments.push(imageReferenceContext(attachment, images.length));
       continue;
     }
 

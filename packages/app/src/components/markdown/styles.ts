@@ -66,12 +66,9 @@ export function createMarkdownStyles(
       code: {
         fontFamily: theme.fontFamily.mono === "ui-monospace" && !isWeb ? "" : theme.fontFamily.mono,
         fontSize: theme.fontSize.code,
-        color:
-          variant === "user"
-            ? theme.colors.palette.orange[theme.colorScheme === "dark" ? 500 : 600]
-            : theme.colors.foreground,
-        backgroundColor: variant === "user" ? theme.colors.surface4 : theme.colors.surface2,
-        borderColor: "transparent",
+        color: variant === "user" ? theme.colors.accentBright : theme.colors.foreground,
+        backgroundColor: theme.colors.surface2,
+        borderColor: variant === "user" ? theme.colors.borderAccent : "transparent",
       },
       codeBlock: {
         ...paragraph,

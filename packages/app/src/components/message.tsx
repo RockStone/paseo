@@ -467,7 +467,13 @@ const UserMessageContent = memo(function UserMessageContent({
   const hasAttachments = visibleAttachments.length > 0;
   const handleUserLinkPress = useCallback(
     (url: string) => {
-      if (/^(thread|terminal|workspace|agent-profile):/.test(url)) return;
+      const imagePosition = details.get(url)?.imagePosition;
+      if (imagePosition !== undefined) {
+        const image = images[imagePosition - 1];
+        if (image) setLightboxMetadata(image);
+        return;
+      }
+      if (/^(attachment|thread|terminal|workspace|agent-profile):/.test(url)) return;
       if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
         void openExternalUrl(url);
         return;
@@ -480,7 +486,7 @@ const UserMessageContent = memo(function UserMessageContent({
       }
       onOpenWorkspaceFile?.({ raw: url, path }, "preferred");
     },
-    [onOpenWorkspaceFile],
+    [details, images, onOpenWorkspaceFile],
   );
   const showTrailingRow = !isPending && hasText && (isCompact || isNative || isHovered);
   const formattedTimestamp = useMemo(

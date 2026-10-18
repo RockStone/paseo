@@ -115,7 +115,7 @@ export interface AgentProfileComposerAttachment {
 export type UserComposerAttachment =
   | SessionReferenceAttachment
   | AgentProfileComposerAttachment
-  | { kind: "image"; metadata: AttachmentMetadata }
+  | { kind: "image"; metadata: AttachmentMetadata; inlineMention?: string }
   | { kind: "file"; attachment: UploadedFileAttachment }
   | WorkspaceFileComposerAttachment
   | PluginResourceComposerAttachment

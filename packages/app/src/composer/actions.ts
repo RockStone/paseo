@@ -218,6 +218,14 @@ export async function dispatchComposerAgentMessage(
   input.submission.begin(input.agentId, userMessage);
   try {
     const imagesData = await input.encodeImages(wirePayload.images);
+    const hasImageReferences = input.attachments.some(
+      (attachment) => attachment.kind === "image" && attachment.inlineMention,
+    );
+    if (hasImageReferences && (imagesData?.length ?? 0) !== wirePayload.images.length) {
+      throw new Error(
+        "An attached image could not be loaded. Reattach it before sending image references.",
+      );
+    }
     await input.client.sendAgentMessage(input.agentId, input.text, {
       messageId: clientMessageId,
       ...(input.activeTurnBehavior ? { activeTurnBehavior: input.activeTurnBehavior } : {}),

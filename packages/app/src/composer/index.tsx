@@ -1,3 +1,4 @@
+import { addImageReferences } from "./attachments/image-reference";
 import { getInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
   createSessionContextAttachment,
@@ -1533,14 +1534,27 @@ function ComposerContentImpl({
   >(null);
   const onSubmitMessageRef = useRef(onSubmitMessage);
 
+  const latestImageAttachments = useRef(attachments);
+  latestImageAttachments.current = attachments;
   const addImages = useCallback(
     (images: ImageAttachment[]) => {
-      setSelectedAttachments((prev) => [
-        ...prev,
-        ...images.map((metadata) => ({ kind: "image" as const, metadata })),
-      ]);
+      if (images.length === 0) return;
+      const references = addImageReferences(latestImageAttachments.current, images);
+      latestImageAttachments.current = [...latestImageAttachments.current, ...references];
+      setSelectedAttachments((prev) => [...prev, ...references]);
+      const snapshot = messageInputRef.current?.getInputSnapshot() ?? {
+        text: textSource.getSnapshot(),
+        selection: { start: textSource.getSnapshot().length, end: textSource.getSnapshot().length },
+      };
+      const mentions = references.map((reference) => reference.inlineMention).join(" ");
+      const before = snapshot.text.slice(0, snapshot.selection.start);
+      const after = snapshot.text.slice(snapshot.selection.end);
+      const prefix = before && !/\s$/.test(before) ? " " : "";
+      const insertion = `${prefix}${mentions} `;
+      const caret = before.length + insertion.length;
+      replaceUserInput(before + insertion + after, { start: caret, end: caret });
     },
-    [setSelectedAttachments],
+    [replaceUserInput, setSelectedAttachments, textSource],
   );
 
   const addFiles = useCallback(
@@ -1974,9 +1988,23 @@ function ComposerContentImpl({
       if (didRemoveWorkspaceAttachment) {
         return;
       }
-      const attachmentIndex = attachments.findIndex(
-        (attachment) => attachment === selectedAttachments[index],
-      );
+      const removed = selectedAttachments[index];
+      if (removed?.kind === "image" && removed.inlineMention) {
+        const snapshot = messageInputRef.current?.getInputSnapshot();
+        if (snapshot) {
+          const text = snapshot.text.split(removed.inlineMention).join("");
+          const start = snapshot.text
+            .slice(0, snapshot.selection.start)
+            .split(removed.inlineMention)
+            .join("").length;
+          const end = snapshot.text
+            .slice(0, snapshot.selection.end)
+            .split(removed.inlineMention)
+            .join("").length;
+          replaceUserInput(text, { start, end });
+        }
+      }
+      const attachmentIndex = attachments.findIndex((attachment) => attachment === removed);
       setSelectedAttachments((prev) =>
         removeComposerAttachmentAtIndex({
           attachments: prev,
@@ -1985,7 +2013,7 @@ function ComposerContentImpl({
         }),
       );
     },
-    [attachments, removeAttachment, selectedAttachments, setSelectedAttachments],
+    [attachments, removeAttachment, replaceUserInput, selectedAttachments, setSelectedAttachments],
   );
 
   const handleOpenAttachment = useCallback(

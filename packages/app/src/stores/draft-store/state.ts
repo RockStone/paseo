@@ -103,7 +103,11 @@ export const UserComposerAttachmentSchema: z.ZodType<UserComposerAttachment> = z
       profile: AgentProfileSchema,
       inlineMention: z.string().optional(),
     }),
-    z.strictObject({ kind: z.literal("image"), metadata: AttachmentMetadataSchema }),
+    z.strictObject({
+      kind: z.literal("image"),
+      metadata: AttachmentMetadataSchema,
+      inlineMention: z.string().optional(),
+    }),
     z.strictObject({ kind: z.literal("file"), attachment: UploadedFileSchema }),
     z.strictObject({
       kind: z.literal("workspace_file"),
@@ -178,7 +182,7 @@ export function normalizeComposerAttachment(
 ): UserComposerAttachment {
   if (attachment.kind === "image") {
     return {
-      kind: "image",
+      ...attachment,
       metadata: normalizeAttachmentMetadata(attachment.metadata),
     };
   }

@@ -1,7 +1,13 @@
+import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { expect, test } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { clickNewChat } from "../support/helpers/launcher";
-import { expectComposerVisible } from "../support/helpers/composer";
+import {
+  expectComposerVisible,
+  composerLocator,
+  selectComposerDraftRange,
+  pasteComposerTestImage,
+} from "../support/helpers/composer";
 import { expectAgentIdle } from "../support/helpers/agent-stream";
 import {
   openAttachmentMenu,
@@ -444,4 +450,64 @@ test.describe("Composer attachments", () => {
       await workspace.cleanup();
     }
   });
+});
+
+test("pasted images insert stable inline IDs and remove only their own references", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("@paseo:app-settings", JSON.stringify({ theme: "claude" })),
+  );
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "image-inline-ids-",
+    title: "Image IDs",
+  });
+  const gate = await installDaemonWebSocketGate(page);
+  try {
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    await input.fill("Compare  please");
+    await selectComposerDraftRange(page, 8, 8);
+    expect(await pasteComposerTestImage(page)).toBe(true);
+    await expect(input.locator(".composer-reference")).toHaveText("@Image 1");
+    const firstText = await input.getAttribute("data-markdown");
+    expect(firstText).toContain("Compare [@Image 1](attachment://");
+    expect(firstText).toContain("please");
+    expect(await pasteComposerTestImage(page)).toBe(true);
+    await expect(input.locator(".composer-reference")).toHaveText(["@Image 1", "@Image 2"]);
+    const thumbnails = page.getByTestId("composer-image-attachment-pill");
+    await expect(thumbnails).toHaveCount(2);
+    await thumbnails.first().hover();
+    await page.getByRole("button", { name: "Remove image attachment" }).first().click();
+    await expect(thumbnails).toHaveCount(1);
+    await expect(input.locator(".composer-reference")).toHaveText("@Image 2");
+    await expect(input).not.toHaveAttribute("data-markdown", /Image 1/);
+    await input.press("End");
+    await input.pressSequentially(" `hello` ");
+    const code = input.locator(".composer-code");
+    await expect(code).toHaveCSS("color", "rgb(232, 154, 127)");
+    await expect(code).toHaveCSS("background-color", "rgb(47, 45, 43)");
+    await expect(code).toHaveCSS("border-top-color", "rgb(54, 51, 47)");
+    await page.screenshot({ path: "/tmp/paseoi-r32-claude-composer.png" });
+    await input.press("Enter");
+    await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
+    const request = gate.getClientRequests("send_agent_message_request")[0]!;
+    expect(request.images).toHaveLength(1);
+    expect(request.attachments).toEqual([
+      expect.objectContaining({
+        type: "text",
+        title: "Image 2",
+        text: expect.stringContaining("Image position: 1"),
+      }),
+    ]);
+    const sent = page.getByTestId("user-message").filter({ hasText: "Compare" }).last();
+    await expect(sent.locator("code")).toHaveCSS("color", "rgb(232, 154, 127)");
+    await expect(sent.locator("code")).toHaveCSS("border-top-color", "rgb(54, 51, 47)");
+    await expect(sent).not.toContainText("Referenced Paseo image:");
+    await sent.getByRole("link", { name: "@Image 2", exact: true }).click();
+    await expect(page.getByTestId("attachment-lightbox-close")).toBeVisible();
+  } finally {
+    await workspace.cleanup();
+  }
 });

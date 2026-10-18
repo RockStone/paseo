@@ -387,7 +387,10 @@ test("pasting in the active chat focuses the composer and adds clipboard images 
     await expectComposerFocused(page);
     await expect(page.getByTestId("composer-image-attachment-pill")).toHaveCount(1);
     await expectComposerFocused(page);
-    await expectComposerDraft(page, "Existing draft pasted text");
+    await expect(composer).toHaveAttribute(
+      "data-markdown",
+      /^Existing draft pasted text \[@Image 1\]\(attachment:\/\/[^)]+\) $/,
+    );
     await page.screenshot({ path: testInfo.outputPath("paste-to-focus-image.png") });
 
     const commandCenter = await openCommandCenter(page);
@@ -397,7 +400,10 @@ test("pasting in the active chat focuses the composer and adds clipboard images 
     await page.keyboard.press("ControlOrMeta+v");
     await expect(search).toBeFocused();
     await expect(search).toHaveValue("search paste stays here");
-    await expectComposerDraft(page, "Existing draft pasted text");
+    await expect(composer).toHaveAttribute(
+      "data-markdown",
+      /^Existing draft pasted text \[@Image 1\]\(attachment:\/\/[^)]+\) $/,
+    );
     await expect(page.getByTestId("composer-image-attachment-pill")).toHaveCount(1);
   } finally {
     await agent.cleanup();
