@@ -1,3 +1,6 @@
+import { buildSidebarThreadTree } from "./sidebar-tree";
+import { providerSubagentKey } from "./provider-store";
+import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messages";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { afterEach, describe, expect, it } from "vitest";
 import { selectProviderSubagentsForParent, selectSubagentsForParent } from "./select";
@@ -433,5 +436,97 @@ describe("selectSubagentsForParent", () => {
         EMPTY_PENDING_ARCHIVE_IDS,
       ),
     );
+  });
+});
+
+describe("sidebar coordinator tree", () => {
+  function tree(
+    agents: Agent[],
+    descriptors: ProviderSubagentDescriptorPayload[] = [],
+    hiddenProviderKeys = new Set<string>(),
+    providerSupported = true,
+  ) {
+    return buildSidebarThreadTree({
+      serverId: SERVER_ID,
+      workspaceId: "workspace-a",
+      agents: new Map(agents.map((agent) => [agent.id, agent])),
+      descriptors: new Map(
+        descriptors.map((entry) => [
+          providerSubagentKey(SERVER_ID, entry.parentAgentId, entry.id),
+          entry,
+        ]),
+      ),
+      hiddenProviderKeys,
+      providerSupported,
+      nestingSupported: true,
+    });
+  }
+  it("uses exact parent IDs, preserves nested children and links across workspaces", () => {
+    const agents = [
+      makeAgent({ id: "coordinator", title: "Plan", workspaceId: "workspace-a" }),
+      makeAgent({
+        id: "child",
+        title: "Plan",
+        workspaceId: "workspace-b",
+        parentAgentId: "coordinator",
+      }),
+      makeAgent({ id: "grandchild", workspaceId: "workspace-b", parentAgentId: "child" }),
+      makeAgent({ id: "independent", title: "Plan", workspaceId: "workspace-a" }),
+    ];
+    const roots = tree(agents);
+    expect(roots.map((node) => node.key)).toEqual(["agent:coordinator"]);
+    expect(roots[0]?.children[0]?.key).toBe("agent:child");
+    expect(roots[0]?.children[0]?.children[0]?.target).toEqual({
+      kind: "agent",
+      agentId: "grandchild",
+    });
+  });
+  it("removes archived and detached children without changing any records", () => {
+    const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });
+    const child = makeAgent({ id: "child", workspaceId: "workspace-a", parentAgentId: "parent" });
+    expect(tree([root, child])).toHaveLength(1);
+    expect(tree([root, { ...child, archivedAt: AGENT_TIMESTAMP }])).toEqual([]);
+    expect(tree([root, { ...child, parentAgentId: null }])).toEqual([]);
+    expect(child.parentAgentId).toBe("parent");
+  });
+  it("places Claude-native descendants under their own provider parent and honors capability and hidden state", () => {
+    const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });
+    const base: ProviderSubagentDescriptorPayload = {
+      id: "native",
+      parentAgentId: "parent",
+      parentSubagentId: null,
+      provider: "claude",
+      title: "Explore",
+      description: "Inspect implementation",
+      status: "completed",
+      createdAt: AGENT_TIMESTAMP.toISOString(),
+      updatedAt: AGENT_TIMESTAMP.toISOString(),
+      toolCallId: null,
+    };
+    const nested = {
+      ...base,
+      id: "native-child",
+      parentSubagentId: "native",
+      description: "Check tests",
+    };
+    const result = tree([root], [base, nested]);
+    const native = result[0]?.children[0];
+    expect(native?.title).toBe("Inspect implementation");
+    expect(native?.target).toEqual({
+      kind: "provider_subagent",
+      parentAgentId: "parent",
+      subagentId: "native",
+      workspaceId: "workspace-a",
+    });
+    expect(native?.children[0]?.key).toBe("provider:parent:native-child");
+    expect(tree([root], [base, nested], new Set(), false)).toEqual([]);
+    expect(
+      tree([root], [base, nested], new Set([providerSubagentKey(SERVER_ID, "parent", "native")])),
+    ).toEqual([]);
+  });
+  it("cuts cyclic metadata instead of recursively rendering it forever", () => {
+    const root = makeAgent({ id: "a", workspaceId: "workspace-a", parentAgentId: "b" });
+    const child = makeAgent({ id: "b", workspaceId: "workspace-b", parentAgentId: "a" });
+    expect(tree([root, child])[0]?.children[0]?.children).toEqual([]);
   });
 });

@@ -2,6 +2,11 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const fr: TranslationResources = {
+  agentTree: {
+    expand: "Développer les agents de {{title}}",
+    collapse: "Réduire les agents de {{title}}",
+    open: "Ouvrir la conversation : {{title}}",
+  },
   sessionReference: en.sessionReference,
   commitHistoryPill: {
     commitPush: "Commit et push",

@@ -2,7 +2,7 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Image, Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { X } from "lucide-react-native";
-import { isNative } from "@/constants/platform";
+import { isNative, isWeb } from "@/constants/platform";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
@@ -33,11 +33,10 @@ export function AttachmentPill({
   children,
 }: AttachmentPillProps) {
   const isCompact = useIsCompactFormFactor();
-  const [isBodyHovered, setIsBodyHovered] = useState(false);
-  const [isCloseHovered, setIsCloseHovered] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const isImage = variant === "image";
-  const alwaysShow = isImage || isNative || isCompact;
-  const showRemove = alwaysShow || isBodyHovered || isCloseHovered;
+  const alwaysShow = isNative || isCompact;
+  const showRemove = alwaysShow || isHovered;
   const closeButtonStyle = useMemo(
     () => [
       styles.closeButton,
@@ -46,31 +45,37 @@ export function AttachmentPill({
     ],
     [isImage, showRemove],
   );
-  const closeIconColor = isImage ? iconForegroundMapping : iconForegroundMutedMapping;
+  const closeIconColor = isImage ? imageCloseIconMapping : iconForegroundMutedMapping;
   const closeIconSize = isImage ? 16 : 12;
-  const handleBodyHoverIn = useCallback(() => setIsBodyHovered(true), []);
-  const handleBodyHoverOut = useCallback(() => setIsBodyHovered(false), []);
-  const handleCloseHoverIn = useCallback(() => setIsCloseHovered(true), []);
-  const handleCloseHoverOut = useCallback(() => setIsCloseHovered(false), []);
+  const handleHoverIn = useCallback(() => setIsHovered(true), []);
+  const handleHoverOut = useCallback(() => setIsHovered(false), []);
+  const hoverHandlers = useMemo(
+    () => (isWeb ? { onMouseEnter: handleHoverIn, onMouseLeave: handleHoverOut } : undefined),
+    [handleHoverIn, handleHoverOut],
+  );
+  const showImageHighlight = isImage && isHovered;
   return (
-    <View style={styles.wrapper}>
+    <View style={styles.wrapper} {...hoverHandlers}>
       <Pressable
         testID={testID}
         onPress={onOpen}
         disabled={disabled}
-        onHoverIn={handleBodyHoverIn}
-        onHoverOut={handleBodyHoverOut}
         accessibilityRole="button"
         accessibilityLabel={openAccessibilityLabel}
         style={styles.frame}
       >
         {children}
+        {showImageHighlight ? (
+          <View
+            pointerEvents="none"
+            testID="composer-image-hover-highlight"
+            style={styles.imageHighlight}
+          />
+        ) : null}
       </Pressable>
       <Pressable
         onPress={onRemove}
         disabled={disabled}
-        onHoverIn={handleCloseHoverIn}
-        onHoverOut={handleCloseHoverOut}
         hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel={removeAccessibilityLabel}
@@ -164,7 +169,7 @@ export function AttachmentThumbnail({
 }
 
 const ThemedX = withUnistyles(X);
-const iconForegroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
+const imageCloseIconMapping = (theme: Theme) => ({ color: theme.colors.palette.zinc[900] });
 const iconForegroundMutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
 const styles = StyleSheet.create((theme) => ({
@@ -224,7 +229,17 @@ const styles = StyleSheet.create((theme) => ({
     zIndex: 1,
   },
   labelCloseButton: { top: -8, left: -8 },
-  imageCloseButton: { top: 6, right: 6 },
+  imageCloseButton: {
+    top: 6,
+    right: 6,
+    backgroundColor: theme.colors.palette.zinc[100],
+    borderColor: theme.colors.palette.zinc[300],
+  },
+  imageHighlight: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.palette.white,
+    opacity: 0.12,
+  },
   closeButtonHidden: {
     opacity: 0,
     pointerEvents: "none",

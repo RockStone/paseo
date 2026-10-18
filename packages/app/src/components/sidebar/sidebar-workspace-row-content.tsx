@@ -1,3 +1,4 @@
+import { SidebarAgentTree } from "@/components/sidebar/sidebar-agent-tree";
 import { useSessionDragSource } from "@/attachments/use-session-drag-source";
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
 import { Text, View, type ViewStyle } from "react-native";
@@ -43,10 +44,12 @@ const ThemedCircleAlert = withUnistyles(CircleAlert);
 export function SidebarWorkspaceRowFrame({
   workspace,
   isDragging = false,
+  selected,
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
   isDragging?: boolean;
+  selected: boolean;
   children: (input: {
     isHovered: boolean;
     contextMenuOpen: boolean;
@@ -70,19 +73,26 @@ export function SidebarWorkspaceRowFrame({
   );
 
   return (
-    <WorkspaceHoverCard
-      workspace={workspace}
-      prHint={workspace.prHint}
-      isDragging={isDragging}
-      disabled={contextMenuOpen}
-    >
-      {children({
-        isHovered: isHovered && !contextMenuOpen && !isDragging,
-        contextMenuOpen,
-        onContextMenuOpenChange: handleContextMenuOpenChange,
-        hoverHandlers,
-      })}
-    </WorkspaceHoverCard>
+    <View>
+      <WorkspaceHoverCard
+        workspace={workspace}
+        prHint={workspace.prHint}
+        isDragging={isDragging}
+        disabled={contextMenuOpen}
+      >
+        {children({
+          isHovered: isHovered && !contextMenuOpen && !isDragging,
+          contextMenuOpen,
+          onContextMenuOpenChange: handleContextMenuOpenChange,
+          hoverHandlers,
+        })}
+      </WorkspaceHoverCard>
+      <SidebarAgentTree
+        serverId={workspace.serverId}
+        workspaceId={workspace.workspaceId}
+        active={selected}
+      />
+    </View>
   );
 }
 

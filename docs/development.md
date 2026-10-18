@@ -51,6 +51,15 @@ the existing fork-context API. It works across connected hosts and providers;
 the source host must support `agentForkContext`. It captures up to the existing
 100,000-character context budget at drop time, not a live feed of later messages.
 
+Image previews brighten on hover and reveal a light, top-right delete control.
+Touch layouts keep the control visible.
+
+Sidebar thread trees show recorded coordinator/child relationships, including
+nested managed and provider-native children. Click a thread to open it, or its
+chevron to collapse its descendants. Provider-native children are refreshed when
+the workspace opens; independent sessions are not grouped by title. The tree does
+not change [parentage or archive behavior](agent-lifecycle.md#relationships).
+
 Completed responses show a changed-files card from saved provider edit events and
 [daemon workspace snapshots](data-model.md#custom-build-response-changes). Snapshots
 cover shell writes and give net totals across repeated edits, including changes

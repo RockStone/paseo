@@ -2,6 +2,11 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ar: TranslationResources = {
+  agentTree: {
+    expand: "توسيع وكلاء {{title}}",
+    collapse: "طي وكلاء {{title}}",
+    open: "فتح المحادثة: {{title}}",
+  },
   sessionReference: en.sessionReference,
   commitHistoryPill: {
     commitPush: "التثبيت والدفع",

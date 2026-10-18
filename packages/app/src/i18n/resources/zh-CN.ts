@@ -2,6 +2,11 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const zhCN: TranslationResources = {
+  agentTree: {
+    expand: "展开 {{title}} 的子代理",
+    collapse: "收起 {{title}} 的子代理",
+    open: "打开会话：{{title}}",
+  },
   sessionReference: en.sessionReference,
   commitHistoryPill: {
     commitPush: "提交并推送",

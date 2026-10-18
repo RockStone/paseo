@@ -1,4 +1,9 @@
 export const en = {
+  agentTree: {
+    expand: "Expand children of {{title}}",
+    collapse: "Collapse children of {{title}}",
+    open: "Open thread: {{title}}",
+  },
   sessionReference: {
     failed: "Could not attach this conversation. Try again.",
     unavailable: "Connect to the source host and update it to attach conversation context.",

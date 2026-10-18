@@ -172,7 +172,11 @@ test.describe("Composer attachments", () => {
     const remove = page.getByRole("button", { name: "Remove image attachment" });
     await page.mouse.move(0, 0);
     await expect(remove).toBeVisible();
+    await expect(remove).toHaveCSS("opacity", "0");
+    await expect(page.getByTestId("composer-image-hover-highlight")).toHaveCount(0);
+    await preview.hover();
     await expect(remove).toHaveCSS("opacity", "1");
+    await expect(page.getByTestId("composer-image-hover-highlight")).toBeVisible();
     const previewBox = await preview.boundingBox();
     const removeBox = await remove.boundingBox();
     if (!previewBox || !removeBox)
@@ -185,6 +189,7 @@ test.describe("Composer attachments", () => {
     expect(removeBox.y + removeBox.height).toBeLessThan(previewBox.y + previewBox.height / 2);
     await attachImageFromMenu(page, { ...TEST_IMAGE, name: "second.png" });
     await expect(preview).toHaveCount(2);
+    await preview.first().hover();
     await remove.first().click();
     await expect(preview).toHaveCount(1);
     await page.screenshot({ path: "/tmp/paseoi-large-image-preview.png" });

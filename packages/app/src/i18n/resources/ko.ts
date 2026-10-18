@@ -2,6 +2,11 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ko: TranslationResources = {
+  agentTree: {
+    expand: "{{title}}의 하위 에이전트 펼치기",
+    collapse: "{{title}}의 하위 에이전트 접기",
+    open: "스레드 열기: {{title}}",
+  },
   sessionReference: en.sessionReference,
   commitHistoryPill: {
     commitPush: "커밋 및 푸시",

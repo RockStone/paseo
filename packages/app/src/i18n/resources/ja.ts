@@ -2,6 +2,11 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ja: TranslationResources = {
+  agentTree: {
+    expand: "{{title}} の子を展開",
+    collapse: "{{title}} の子を折りたたむ",
+    open: "スレッドを開く: {{title}}",
+  },
   sessionReference: en.sessionReference,
   commitHistoryPill: {
     commitPush: "コミット＆プッシュ",
