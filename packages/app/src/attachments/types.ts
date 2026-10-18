@@ -4,6 +4,7 @@ import type {
   ForgeSearchItem,
   UploadedFileAttachment,
 } from "@getpaseo/protocol/messages";
+import type { SessionReferenceAttachment } from "./session-reference";
 import type { PluginResourceComposerAttachment } from "@/plugins/attachments";
 
 export type AttachmentStorageType = "web-indexeddb" | "desktop-file" | "native-file";
@@ -111,6 +112,7 @@ export interface AgentProfileComposerAttachment {
 }
 
 export type UserComposerAttachment =
+  | SessionReferenceAttachment
   | AgentProfileComposerAttachment
   | { kind: "image"; metadata: AttachmentMetadata }
   | { kind: "file"; attachment: UploadedFileAttachment }

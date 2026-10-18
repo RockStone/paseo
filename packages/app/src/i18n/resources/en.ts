@@ -5,6 +5,16 @@ export const en = {
     open: "Open thread: {{title}}",
   },
   sessionReference: {
+    loading: "Loading sessions…",
+    empty: "No matching terminals, active threads, or workspaces on this host.",
+    loadFailed: "Could not load sessions. Clear ## and type it again to retry.",
+    disconnected: "Connect to the host to reference its sessions.",
+    terminal: "Terminal",
+    thread: "Thread",
+    workspace: "Workspace",
+    open: "View reference {{title}}",
+    remove: "Remove reference {{title}}",
+
     failed: "Could not attach this conversation. Try again.",
     unavailable: "Connect to the source host and update it to attach conversation context.",
     self: "This conversation is already open here.",

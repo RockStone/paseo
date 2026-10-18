@@ -834,3 +834,153 @@ test("profile references keep @ files intact and support empty results, caret se
     await seed.restore();
   }
 });
+
+test.describe("Composer session references", () => {
+  test("## attaches terminal, thread and workspace identities and preserves them through send", async ({
+    page,
+  }) => {
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "session-reference-",
+      title: "Session reference coordinator",
+    });
+    const other = await seedMockAgentWorkspace({
+      repoPrefix: "session-reference-other-",
+      title: "Flutter debug thread",
+    });
+    const gate = await installDaemonWebSocketGate(page);
+    try {
+      const created = await workspace.client.createTerminal(
+        workspace.cwd,
+        "Flutter dev",
+        undefined,
+        { workspaceId: workspace.workspaceId },
+      );
+      if (!created.terminal || created.error)
+        throw new Error(created.error ?? "Terminal creation failed");
+      const terminalId = created.terminal.id;
+      await openAgentRoute(page, workspace);
+      await expectComposerVisible(page);
+      const input = composerLocator(page);
+      await input.fill("Inspect ##");
+      await expect(
+        page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`),
+      ).toBeVisible();
+      await expect(
+        page.getByTestId(`autocomplete-option-session:thread:${other.agentId}`),
+      ).toBeVisible();
+      await expect(
+        page.getByTestId(`autocomplete-option-session:thread:${workspace.agentId}`),
+      ).toHaveCount(0);
+      await input.fill(`Inspect ##${terminalId.slice(0, 12)}`);
+      await expect(
+        page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`),
+      ).toBeVisible();
+      await input.press("Enter");
+      const pills = page.getByTestId("composer-session-reference-pill");
+      await expect(pills).toHaveCount(1);
+      await expect(pills.first()).toContainText("#Flutter dev");
+      await expect(input).toHaveValue("Inspect ");
+      await expect(input).toBeFocused();
+      await input.fill(`##${terminalId}`);
+      await page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`).click();
+      await expect(pills).toHaveCount(1);
+      await input.fill("##thread:Flutter");
+      await page.getByTestId(`autocomplete-option-session:thread:${other.agentId}`).click();
+      await expect(pills).toHaveCount(2);
+      await input.fill(`##workspace:${workspace.workspaceId}`);
+      await expect(
+        page.getByTestId(`autocomplete-option-session:workspace:${workspace.workspaceId}`),
+      ).toBeVisible();
+      await input.press("Tab");
+      await expect(pills).toHaveCount(3);
+      await input.fill("Check this terminal using the referenced thread and workspace.");
+      await page.reload();
+      await expectComposerVisible(page);
+      await expect(pills).toHaveCount(3);
+      await expect(input).toHaveValue(
+        "Check this terminal using the referenced thread and workspace.",
+      );
+      expect(gate.getClientRequestCount("capture_terminal_request")).toBe(0);
+      await input.press("Enter");
+      await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
+      const request = gate.getClientRequests("send_agent_message_request")[0]!;
+      expect(request.attachments).toEqual([
+        expect.objectContaining({
+          type: "text",
+          title: "terminal · Flutter dev",
+          text: expect.stringContaining(`"id":"${terminalId}"`),
+        }),
+        expect.objectContaining({
+          type: "text",
+          title: "thread · Flutter debug thread",
+          text: expect.stringContaining(`"id":"${other.agentId}"`),
+        }),
+        expect.objectContaining({
+          type: "text",
+          text: expect.stringContaining(`"id":"${workspace.workspaceId}"`),
+        }),
+      ]);
+      expect(gate.getClientRequestCount("create_agent_request")).toBe(0);
+    } finally {
+      await other.cleanup();
+      await workspace.cleanup();
+    }
+  });
+
+  test("## keeps surrounding text, supports removal and empty results, and recovers after disconnect", async ({
+    page,
+  }) => {
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "session-reference-reconnect-",
+      title: "Session reference reconnect",
+    });
+    const gate = await installDaemonWebSocketGate(page);
+    try {
+      await openAgentRoute(page, workspace);
+      await expectComposerVisible(page);
+      const input = composerLocator(page);
+      await input.fill("##no-such-reference-xyz");
+      await expect(
+        page.getByText("No matching terminals, active threads, or workspaces on this host.", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      const text = `Inspect ##${workspace.workspaceId} after reload`;
+      await input.fill(text);
+      await input.evaluate((element, position) => {
+        if (!(element instanceof HTMLTextAreaElement)) throw new Error("Expected textarea");
+        element.setSelectionRange(position, position);
+        element.dispatchEvent(new Event("select", { bubbles: true }));
+        element.dispatchEvent(new Event("keyup", { bubbles: true }));
+      }, text.indexOf(" after"));
+      await page
+        .getByTestId(`autocomplete-option-session:workspace:${workspace.workspaceId}`)
+        .click();
+      await expect(input).toHaveValue("Inspect  after reload");
+      const pill = page.getByTestId("composer-session-reference-pill");
+      await expect(pill).toHaveCount(1);
+      await pill.hover();
+      await page.getByRole("button", { name: /^Remove reference / }).click();
+      await expect(pill).toHaveCount(0);
+      await input.fill("##");
+      await expect(
+        page.getByTestId(`autocomplete-option-session:workspace:${workspace.workspaceId}`),
+      ).toBeVisible();
+      await gate.drop();
+      await expect(
+        page.getByText("Error: Connect to the host to reference its sessions.", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByTestId(`autocomplete-option-session:workspace:${workspace.workspaceId}`),
+      ).toHaveCount(0);
+      gate.restore();
+      await expect(
+        page.getByTestId(`autocomplete-option-session:workspace:${workspace.workspaceId}`),
+      ).toBeVisible({ timeout: 30_000 });
+      await input.fill("");
+    } finally {
+      gate.restore();
+      await workspace.cleanup();
+    }
+  });
+});

@@ -350,7 +350,8 @@ export function openComposerAttachment(input: OpenComposerAttachmentInput): void
   if (
     input.attachment.kind === "file" ||
     input.attachment.kind === "workspace_file" ||
-    input.attachment.kind === "agent_profile"
+    input.attachment.kind === "agent_profile" ||
+    input.attachment.kind === "session_reference"
   ) {
     return;
   }

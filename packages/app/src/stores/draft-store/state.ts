@@ -5,6 +5,7 @@ import {
 } from "@/attachments/types";
 import { PluginResourceComposerAttachmentSchema } from "@/plugins/attachments";
 import { z } from "zod";
+import { SessionReferenceAttachmentSchema } from "@/attachments/session-reference";
 import { AgentProfileSchema } from "@getpaseo/protocol/messages";
 
 export const DRAFT_STORE_VERSION = 5;
@@ -95,6 +96,7 @@ const ChangeRequestItemSchema = z.strictObject({
 export const UserComposerAttachmentSchema: z.ZodType<UserComposerAttachment> = z.discriminatedUnion(
   "kind",
   [
+    SessionReferenceAttachmentSchema,
     z.strictObject({
       kind: z.literal("agent_profile"),
       serverId: z.string(),

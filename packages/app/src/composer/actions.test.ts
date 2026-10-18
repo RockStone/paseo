@@ -1,3 +1,12 @@
+import {
+  appendSessionReference,
+  filterSessionReferences,
+  findActiveSessionMention,
+  sessionReferenceToAgentAttachment,
+  type SessionReferenceAttachment,
+} from "@/attachments/session-reference";
+import { UserComposerAttachmentSchema } from "@/stores/draft-store/state";
+import { splitComposerAttachmentsForSubmit } from "@/composer/attachments/submit";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentAttachment, ForgeSearchItem } from "@getpaseo/protocol/messages";
 import type {
@@ -1122,4 +1131,97 @@ describe("file upload preparation", () => {
       expect(sends).toBe(0);
     },
   );
+});
+
+describe("indexed session references", () => {
+  const terminalReference: SessionReferenceAttachment = {
+    kind: "session_reference",
+    serverId: "host-a",
+    referenceType: "terminal",
+    id: "term-123",
+    title: "Flutter dev",
+    cwd: "/repo/flutter",
+    workspaceId: "workspace-a",
+  };
+
+  it("recognizes ## without interfering with headings, files, or email-like tokens", () => {
+    const text = "Inspect ##terminal:term-123 after reload";
+    const cursorIndex = text.indexOf(" after");
+    expect(findActiveSessionMention({ text, cursorIndex })).toEqual({
+      start: 8,
+      end: cursorIndex,
+      query: "terminal:term-123",
+    });
+    expect(findActiveSessionMention({ text: "##", cursorIndex: 2 })).toEqual({
+      start: 0,
+      end: 2,
+      query: "",
+    });
+    expect(findActiveSessionMention({ text: "## Heading", cursorIndex: 10 })).toBeNull();
+    expect(findActiveSessionMention({ text: "thing##id", cursorIndex: 9 })).toBeNull();
+    expect(findActiveSessionMention({ text: "###", cursorIndex: 3 })).toBeNull();
+    expect(findActiveSessionMention({ text: "@src", cursorIndex: 4 })).toBeNull();
+  });
+
+  it("searches full identity and folder while ranking the current workspace first", () => {
+    const other = {
+      ...terminalReference,
+      id: "term-other",
+      workspaceId: "other",
+      title: "AAA Flutter",
+    };
+    const thread = {
+      ...terminalReference,
+      referenceType: "thread" as const,
+      id: "agent-456",
+      title: "Debug flutter",
+    };
+    expect(
+      filterSessionReferences({
+        entries: [other, terminalReference, thread],
+        query: "flutter",
+        workspaceId: "workspace-a",
+      }),
+    ).toEqual([thread, terminalReference, other]);
+    expect(
+      filterSessionReferences({ entries: [terminalReference, thread], query: "terminal:123" }),
+    ).toEqual([terminalReference]);
+    expect(filterSessionReferences({ entries: [terminalReference, thread], query: "456" })).toEqual(
+      [thread],
+    );
+    expect(filterSessionReferences({ entries: [terminalReference], query: "absent" })).toEqual([]);
+  });
+
+  it("deduplicates by host, type and full ID and keeps the reference through persistence and submit", () => {
+    const updated = { ...terminalReference, title: "Renamed terminal" };
+    expect(appendSessionReference([terminalReference], updated)).toEqual([updated]);
+    const remote = { ...terminalReference, serverId: "host-b" };
+    expect(appendSessionReference([terminalReference], remote)).toEqual([
+      terminalReference,
+      remote,
+    ]);
+    expect(
+      UserComposerAttachmentSchema.parse(JSON.parse(JSON.stringify(terminalReference))),
+    ).toEqual(terminalReference);
+    const wire = splitComposerAttachmentsForSubmit([terminalReference]);
+    expect(wire.images).toEqual([]);
+    expect(wire.attachments).toEqual([
+      {
+        type: "text",
+        mimeType: "text/plain",
+        title: "terminal · Flutter dev",
+        text: expect.stringContaining('"id":"term-123"'),
+      },
+    ]);
+    const context = sessionReferenceToAgentAttachment(terminalReference);
+    expect(context.text).toContain('"hostId":"host-a"');
+    expect(context.text).toContain("capture_terminal");
+    expect(context.text).toContain("did not run a command or capture logs");
+    expect(
+      sessionReferenceToAgentAttachment({ ...terminalReference, referenceType: "thread" }).text,
+    ).toContain("get_agent_activity");
+    expect(
+      sessionReferenceToAgentAttachment({ ...terminalReference, referenceType: "workspace" }).text,
+    ).toContain("workspaceId");
+  });
 });

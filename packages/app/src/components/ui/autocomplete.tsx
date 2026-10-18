@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
-import { Bot, File, Folder } from "lucide-react-native";
+import { Bot, File, Folder, Terminal, MessageSquare, Layers } from "lucide-react-native";
 import type { Theme } from "@/styles/theme";
 import { getScrollOffsetToRevealItem } from "./scroll-reveal";
 
@@ -20,8 +20,17 @@ export interface AutocompleteOption {
   label: string;
   detail?: string;
   description?: string;
-  kind?: "command" | "file" | "directory" | "agent_profile";
+  kind?: "command" | "file" | "directory" | "agent_profile" | "terminal" | "thread" | "workspace";
 }
+
+const LEADING_ICONS = {
+  file: File,
+  directory: Folder,
+  agent_profile: Bot,
+  terminal: Terminal,
+  thread: MessageSquare,
+  workspace: Layers,
+};
 
 interface AutocompleteProps {
   options: readonly AutocompleteOption[];
@@ -63,9 +72,9 @@ function AutocompleteRow({
 }: AutocompleteRowProps) {
   const optionLabel = removeBoltGlyphs(option.label) ?? option.label;
   const optionDescription = removeBoltGlyphs(option.description);
-  const isFileOrDir =
-    option.kind === "directory" || option.kind === "file" || option.kind === "agent_profile";
-  const LeadingIcon = option.kind === "agent_profile" ? Bot : File;
+  const isRichOption = option.kind !== undefined && option.kind !== "command";
+  const iconKind = option.kind ?? "file";
+  const LeadingIcon = iconKind === "command" ? File : LEADING_ICONS[iconKind];
 
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) => onRowLayout(index, event),
@@ -87,14 +96,10 @@ function AutocompleteRow({
       onPress={handlePress}
       style={pressableStyle}
     >
-      {isFileOrDir ? (
+      {isRichOption ? (
         <>
           <View style={styles.itemLeading}>
-            {option.kind === "directory" ? (
-              <Folder size={14} color={mutedColor} />
-            ) : (
-              <LeadingIcon size={14} color={mutedColor} />
-            )}
+            <LeadingIcon size={14} color={mutedColor} />
           </View>
           <View style={styles.itemMain}>
             <View style={styles.itemHeader}>

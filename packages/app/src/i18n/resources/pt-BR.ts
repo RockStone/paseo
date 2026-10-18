@@ -7,7 +7,19 @@ export const ptBR: TranslationResources = {
     collapse: "Recolher agentes de {{title}}",
     open: "Abrir conversa: {{title}}",
   },
-  sessionReference: en.sessionReference,
+  sessionReference: {
+    ...en.sessionReference,
+    loading: "Carregando sessões…",
+    empty: "Nenhum terminal, conversa ativa ou espaço de trabalho correspondente neste host.",
+    loadFailed:
+      "Não foi possível carregar as sessões. Apague ## e digite novamente para tentar de novo.",
+    disconnected: "Conecte-se ao host para referenciar suas sessões.",
+    terminal: "Terminal",
+    thread: "Conversa",
+    workspace: "Espaço de trabalho",
+    open: "Ver referência {{title}}",
+    remove: "Remover referência {{title}}",
+  },
   commitHistoryPill: {
     commitPush: "Commit e push",
     requestSent: "Solicitação enviada",

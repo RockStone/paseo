@@ -1,8 +1,10 @@
 import {
-  useProfileReferenceAutocomplete,
-  type ProfileReferenceOption,
-  type AgentProfile,
-} from "@/agent-profiles";
+  useComposerReferenceAutocomplete,
+  isComposerReferenceOption,
+  type ComposerReferenceOption,
+} from "@/composer/session-references/use-reference-autocomplete";
+import type { AgentProfile } from "@/agent-profiles";
+import type { SessionReferenceAttachment } from "@/attachments/session-reference";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
@@ -41,6 +43,9 @@ interface UseAgentAutocompleteInput {
   serverId: string;
   agentId: string;
   draft?: DraftCommandTarget;
+  workspaceId?: string;
+  sessionReferencesEnabled?: boolean;
+  onSessionReferenceSelected?: (reference: SessionReferenceAttachment) => void;
   onProfileSelected?: (profile: AgentProfile) => void;
   onAutocompleteApplied?: () => void;
   onClientSlashCommand?: (command: ClientSlashCommand) => void;
@@ -60,7 +65,7 @@ interface AgentAutocompleteInputSnapshot {
 }
 
 type AgentAutocompleteOption =
-  | ProfileReferenceOption
+  | ComposerReferenceOption
   | (AutocompleteOption & { type: "client_command"; command: ClientSlashCommand })
   | (AutocompleteOption & {
       type: "plugin_command";
@@ -370,25 +375,25 @@ function resolveAutocompleteEmptyText(args: {
 }
 
 function resolveAutocompleteVisibility(input: {
-  profileVisible: boolean;
+  referenceVisible: boolean;
   canShowAutocomplete: boolean;
   mode: AutocompleteMode;
   isCommandsLoading: boolean;
 }) {
   return (
-    input.profileVisible ||
+    input.referenceVisible ||
     (input.canShowAutocomplete && !(input.mode === "command" && input.isCommandsLoading))
   );
 }
 
 function resolveAutocompletePresentation(
-  profileCompletion: ReturnType<typeof useProfileReferenceAutocomplete>,
+  referenceCompletion: ReturnType<typeof useComposerReferenceAutocomplete>,
   fallback: Pick<
     AgentAutocompleteResult,
     "isLoading" | "errorMessage" | "loadingText" | "emptyText"
   >,
 ) {
-  return profileCompletion.isVisible ? profileCompletion.presentation : fallback;
+  return referenceCompletion.isVisible ? referenceCompletion.presentation : fallback;
 }
 
 export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAutocompleteResult {
@@ -406,7 +411,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
     pluginClientSlashCommands = [],
   } = input;
 
-  const profileCompletion = useProfileReferenceAutocomplete(input);
+  const referenceCompletion = useComposerReferenceAutocomplete(input);
   const activeSlashCommand = useMemo(
     () =>
       findActiveSlashCommand({
@@ -472,7 +477,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
   const isCommandsLoading = canListCommands && commandsQuery.isLoading;
 
   const isVisible = resolveAutocompleteVisibility({
-    profileVisible: profileCompletion.isVisible,
+    referenceVisible: referenceCompletion.isVisible,
     canShowAutocomplete,
     mode,
     isCommandsLoading,
@@ -516,8 +521,8 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
 
   const options = useMemo<AgentAutocompleteOption[]>(
     () =>
-      profileCompletion.isVisible
-        ? profileCompletion.options
+      referenceCompletion.isVisible
+        ? referenceCompletion.options
         : buildCommandAutocompleteOptions({
             activeFileMention,
             commandFilterQuery,
@@ -531,8 +536,8 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
             t,
           }),
     [
-      profileCompletion.isVisible,
-      profileCompletion.options,
+      referenceCompletion.isVisible,
+      referenceCompletion.options,
       activeFileMention,
       activeSlashCommand,
       commandFilterQuery,
@@ -546,12 +551,12 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
     ],
   );
 
-  const selectProfile = profileCompletion.select;
+  const selectReference = referenceCompletion.select;
   const onSelectOption = useCallback(
     (option: AutocompleteOption, snapshot?: AgentAutocompleteInputSnapshot) => {
       const selected = option as AgentAutocompleteOption;
-      if (selected.type === "agent_profile") {
-        selectProfile(selected, snapshot);
+      if (isComposerReferenceOption(selected)) {
+        selectReference(selected, snapshot);
         return;
       }
       const current = resolveAgentAutocompleteSnapshot({
@@ -603,7 +608,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
       onAutocompleteApplied?.();
     },
     [
-      selectProfile,
+      selectReference,
       canExecuteClientSlashCommand,
       onAutocompleteApplied,
       onClientSlashCommand,
@@ -625,7 +630,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
   const { selectedIndex, onKeyPress } = useAutocomplete({
     isVisible,
     options,
-    query: profileCompletion.isVisible ? profileCompletion.query : autocompleteQuery,
+    query: referenceCompletion.isVisible ? referenceCompletion.query : autocompleteQuery,
     onSelectOption: selectOptionFromKeyPress,
     onEscape:
       mode === "command" && activeSlashCommand?.position === "start"
@@ -658,7 +663,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
     isVisible,
     options,
     selectedIndex,
-    ...resolveAutocompletePresentation(profileCompletion, {
+    ...resolveAutocompletePresentation(referenceCompletion, {
       isLoading,
       errorMessage,
       loadingText,

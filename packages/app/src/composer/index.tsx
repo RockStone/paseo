@@ -161,6 +161,11 @@ import { ForgeBrandIcon } from "@/git/forge-icon";
 import { useComposerForgeAutoAttach } from "./forge-auto-attach";
 import { readClipboardImage } from "./clipboard-image";
 import { normalizeNativePastedImages, type NativePastedFile } from "./native-pasted-image";
+import { SessionReferencePill } from "./session-references/session-reference-pill";
+import {
+  appendSessionReference,
+  type SessionReferenceAttachment,
+} from "@/attachments/session-reference";
 import {
   AgentProfileReferencePill,
   appendProfileReference,
@@ -436,6 +441,17 @@ function renderComposerAttachmentPill(args: RenderComposerAttachmentPillArgs): R
         disabled={disabled}
         onRemove={onRemove}
         removeLabel={labels.removeFile}
+      />
+    );
+  }
+  if (attachment.kind === "session_reference") {
+    return (
+      <SessionReferencePill
+        key={`session:${attachment.serverId}:${attachment.referenceType}:${attachment.id}`}
+        attachment={attachment}
+        index={index}
+        disabled={disabled}
+        onRemove={onRemove}
       />
     );
   }
@@ -1029,10 +1045,12 @@ function ComposerAutocompleteBinding({
   show: boolean;
   ref: React.Ref<ComposerAutocompleteHandle>;
 }) {
+  const { isActiveComposer } = useComposerKeyboardScope();
   const userInput = useSyncExternalStore(text.subscribe, text.getSnapshot, text.getSnapshot);
   const cursorIndex = useStore(cursor);
   const autocomplete = useAgentAutocomplete({
     ...configuration,
+    sessionReferencesEnabled: show && isActiveComposer,
     userInput,
     cursorIndex: Math.min(cursorIndex, userInput.length),
     onAutocompleteApplied: () => inputRef.current?.focus(),
@@ -2431,10 +2449,19 @@ function ComposerContentImpl({
     [serverId, setSelectedAttachments],
   );
 
+  const handleSessionReferenceSelected = useCallback(
+    (reference: SessionReferenceAttachment) => {
+      setSelectedAttachments((current) => appendSessionReference(current, reference));
+    },
+    [setSelectedAttachments],
+  );
+
   const autocompleteConfiguration = useMemo(
     () => ({
       setUserInput: replaceUserInput,
       onProfileSelected: handleProfileSelected,
+      onSessionReferenceSelected: handleSessionReferenceSelected,
+      workspaceId: workspaceId ?? undefined,
       serverId,
       agentId,
       draft: commandDraft,
@@ -2445,6 +2472,8 @@ function ComposerContentImpl({
     [
       replaceUserInput,
       handleProfileSelected,
+      handleSessionReferenceSelected,
+      workspaceId,
       serverId,
       agentId,
       commandDraft,

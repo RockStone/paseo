@@ -7,7 +7,20 @@ export const es: TranslationResources = {
     collapse: "Contraer agentes de {{title}}",
     open: "Abrir conversación: {{title}}",
   },
-  sessionReference: en.sessionReference,
+  sessionReference: {
+    ...en.sessionReference,
+    loading: "Cargando sesiones…",
+    empty:
+      "No hay terminales, conversaciones activas ni espacios de trabajo coincidentes en este host.",
+    loadFailed:
+      "No se pudieron cargar las sesiones. Borra ## y vuelve a escribirlo para reintentar.",
+    disconnected: "Conéctate al host para referenciar sus sesiones.",
+    terminal: "Terminal",
+    thread: "Conversación",
+    workspace: "Espacio de trabajo",
+    open: "Ver referencia {{title}}",
+    remove: "Quitar referencia {{title}}",
+  },
   commitHistoryPill: {
     commitPush: "Commit y push",
     requestSent: "Solicitud enviada",
