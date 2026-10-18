@@ -101,25 +101,25 @@ test("blank composer lines remain present and keep their measured height", async
       await page.setViewportSize({ width: 1280, height: 1200 });
       const text = "A sentence that wraps when the editor becomes narrower. ".repeat(8);
       await composer.fill(text);
-      await expect(composer).toHaveValue(text);
+      await expect(composer).toHaveAttribute("data-markdown", text);
       await expect.poll(() => composerHeight(page)).toBeGreaterThan(collapsedHeight);
       const wideHeight = await composerHeight(page);
       await page.setViewportSize({ width: 480, height: 1200 });
       await expect.poll(() => composerHeight(page)).toBeGreaterThan(wideHeight);
-      await expect(composer).toHaveValue(text);
+      await expect(composer).toHaveAttribute("data-markdown", text);
       await page.setViewportSize({ width: 1280, height: 720 });
     });
 
     await test.step("grow the composer with blank lines followed by text", async () => {
       await composer.fill(`${blankLines}x`);
-      await expect(composer).toHaveValue(`${blankLines}x`);
+      await expect(composer).toHaveAttribute("data-markdown", `${blankLines}x`);
       await expect.poll(() => composerHeight(page)).toBeGreaterThan(collapsedHeight);
     });
 
     await test.step("delete only the text without losing the blank lines or height", async () => {
       const expandedHeight = await composerHeight(page);
       await composer.press("Backspace");
-      await expect(composer).toHaveValue(blankLines);
+      await expect(composer).toHaveAttribute("data-markdown", blankLines);
       await expectComposerHeight(page, expandedHeight);
     });
 
@@ -130,7 +130,7 @@ test("blank composer lines remain present and keep their measured height", async
       expect(trailingLineHeight).toBeGreaterThan(filledLineHeight);
 
       const filledTrailingLineHeight = await typeComposerTextAndMeasureNextPaint(page, "x");
-      await expect(composer).toHaveValue("alpha\nbeta\nx");
+      await expect(composer).toHaveAttribute("data-markdown", "alpha\nbeta\nx");
       expect(filledTrailingLineHeight).toBe(trailingLineHeight);
     });
   } finally {
@@ -188,7 +188,7 @@ async function expectFullscreenErrorAboveSend(page: Page): Promise<void> {
 
 async function writeCompactDraft(page: Page, text: string): Promise<void> {
   await composerLocator(page).fill(text);
-  await expect(composerLocator(page)).toHaveValue(text);
+  await expect(composerLocator(page)).toHaveAttribute("data-markdown", text);
 }
 
 test("compact long drafts stop growing before the header", async ({ page }) => {
@@ -246,7 +246,8 @@ test("compact fullscreen editing preserves the live draft and selection and retu
     await test.step("exit restores the inline composer with the fullscreen edits", async () => {
       await exitComposerFullscreen(page);
       await expectWorkspaceHeaderVisible(page);
-      await expect(composerLocator(page)).toHaveValue(
+      await expect(composerLocator(page)).toHaveAttribute(
+        "data-markdown",
         "Edited fullscreen draft\nSecond line\nThird line",
       );
       await expectComposerDraftSelection(page, 3, 12);
@@ -255,11 +256,11 @@ test("compact fullscreen editing preserves the live draft and selection and retu
     });
     await test.step("sending inline after a fullscreen edit clears the visible editor", async () => {
       await sendComposerWithButton(page);
-      await expect(composerLocator(page)).toHaveValue("");
+      await expect(composerLocator(page)).toHaveAttribute("data-markdown", "");
       await expect(page.getByTestId("composer-image-attachment-pill")).toHaveCount(0);
       await writeCompactDraft(page, "Typed after the fullscreen cycle");
       await sendComposerWithButton(page);
-      await expect(composerLocator(page)).toHaveValue("");
+      await expect(composerLocator(page)).toHaveAttribute("data-markdown", "");
     });
     await test.step("sending inside fullscreen returns to chat and clears the editor", async () => {
       await writeCompactDraft(page, "First line\nSecond line\nThird line");
@@ -270,11 +271,11 @@ test("compact fullscreen editing preserves the live draft and selection and retu
       await resizeComposerViewport(page, "landscape");
       await expectComposerFullscreenControls(page);
       await expectComposerDraftSelection(page, 0, 5);
-      await expect(composerLocator(page)).toHaveValue("Short draft");
+      await expect(composerLocator(page)).toHaveAttribute("data-markdown", "Short draft");
       await expect(composerLocator(page)).toBeFocused();
       await resizeComposerViewport(page, "portrait");
       await sendComposerWithButton(page);
-      await expect(composerLocator(page)).toHaveValue("");
+      await expect(composerLocator(page)).toHaveAttribute("data-markdown", "");
       await expectWorkspaceHeaderVisible(page);
       await expect(page.getByTestId("composer-fullscreen")).toHaveCount(0);
     });
@@ -285,13 +286,16 @@ test("compact fullscreen editing preserves the live draft and selection and retu
       await expect(page.getByRole("button", { name: "Send message", exact: true })).toBeEnabled();
       await exitComposerFullscreen(page);
       await expectWorkspaceHeaderVisible(page);
-      await expect(composerLocator(page)).toHaveValue("Typed inside fullscreen");
+      await expect(composerLocator(page)).toHaveAttribute(
+        "data-markdown",
+        "Typed inside fullscreen",
+      );
       await writeCompactDraft(page, "Typed inside fullscreen, finished inline");
       await sendComposerWithButton(page);
-      await expect(composerLocator(page)).toHaveValue("");
+      await expect(composerLocator(page)).toHaveAttribute("data-markdown", "");
       await writeCompactDraft(page, "One more inline message");
       await sendComposerWithButton(page);
-      await expect(composerLocator(page)).toHaveValue("");
+      await expect(composerLocator(page)).toHaveAttribute("data-markdown", "");
     });
   } finally {
     await agent.cleanup();
@@ -316,11 +320,11 @@ test("a caret inside an unpublished edit survives a breakpoint remount", async (
     await composerLocator(page).press("X");
     await resizeComposerViewport(page, "landscape");
     await page.clock.resume();
-    await expect(composerLocator(page)).toHaveValue("ShortX draft");
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", "ShortX draft");
     await expectComposerDraftSelection(page, 6, 6);
     await expect(composerLocator(page)).toBeFocused();
     await composerLocator(page).press("Y");
-    await expect(composerLocator(page)).toHaveValue("ShortXY draft");
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", "ShortXY draft");
   } finally {
     await agent.cleanup();
   }
@@ -346,11 +350,11 @@ test("fullscreen submit rejection retains the editable draft and supports retry"
     await expect(page.getByRole("alert")).toHaveText("Requested mock prompt rejection");
     await enterComposerFullscreen(page);
     await expectFullscreenErrorAboveSend(page);
-    await expect(composerLocator(page)).toHaveValue(draft);
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", draft);
     await expect(composerLocator(page)).toBeEditable();
     await expect(page.getByRole("button", { name: "Send message", exact: true })).toBeEnabled();
     await sendComposerWithButton(page);
-    await expect(composerLocator(page)).toHaveValue("");
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", "");
     await expectWorkspaceHeaderVisible(page);
   } finally {
     await agent.cleanup();
@@ -397,7 +401,7 @@ test("the reserved band beside the inline editor focuses it", async ({ page }) =
         await blurComposer(page);
         await page.mouse.click(point.x, point.y);
         await expect(composerLocator(page)).toBeFocused();
-        await expect(composerLocator(page)).toHaveValue(longDraft);
+        await expect(composerLocator(page)).toHaveAttribute("data-markdown", longDraft);
         await expect(exitButton).toHaveCount(0);
       }
     });
@@ -407,7 +411,7 @@ test("the reserved band beside the inline editor focuses it", async ({ page }) =
       await expectComposerFullscreenControls(page);
       await exitComposerFullscreen(page);
       await expect(exitButton).toHaveCount(0);
-      await expect(composerLocator(page)).toHaveValue(longDraft);
+      await expect(composerLocator(page)).toHaveAttribute("data-markdown", longDraft);
     });
 
     await test.step("with no fullscreen button, the whole band still focuses the editor", async () => {
@@ -418,7 +422,7 @@ test("the reserved band beside the inline editor focuses it", async ({ page }) =
         await blurComposer(page);
         await page.mouse.click(point.x, point.y);
         await expect(composerLocator(page)).toBeFocused();
-        await expect(composerLocator(page)).toHaveValue("Short");
+        await expect(composerLocator(page)).toHaveAttribute("data-markdown", "Short");
         await expect(exitButton).toHaveCount(0);
       }
     });
@@ -442,7 +446,7 @@ test("fullscreen Send keeps the configured queue behavior while an agent runs", 
     await enterComposerFullscreen(page);
     await expectComposerFullscreenControls(page);
     await queueComposerWithButton(page);
-    await expect(composerLocator(page)).toHaveValue("");
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", "");
     await expectWorkspaceHeaderVisible(page);
     await expectQueuedMessageButton(page);
   } finally {
@@ -515,7 +519,7 @@ test("retained agent tabs preserve fullscreen editing and paste when switched aw
     await activateRetainedComposerTab(page, second.title);
     await expectComposerFullscreenControls(page);
     await expectWorkspaceHeaderHidden(page);
-    await expect(composerLocator(page)).toHaveValue(draft);
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", draft);
     await expectComposerFullscreenFitsVisibleViewport(page);
     await expectComposerDraftSelection(page, 4, 17);
     await expect(composerLocator(page)).toBeFocused();
@@ -549,7 +553,7 @@ test("the compact sidebar over a fullscreen editor leaves the exit action alone"
     await closeMobileAgentSidebar(page);
     await expectMobileAgentSidebarHidden(page);
     await expectComposerFullscreenControls(page);
-    await expect(composerLocator(page)).toHaveValue(draft);
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", draft);
     await exitComposerFullscreen(page);
     await expectWorkspaceHeaderVisible(page);
   } finally {
@@ -580,7 +584,7 @@ test("retained inline composers keep usable capacity through hidden tab geometry
     await activateRetainedComposerTab(page, first.title);
     await writeCompactDraft(page, "Other visible draft");
     await activateRetainedComposerTab(page, second.title);
-    await expect(composerLocator(page)).toHaveValue(draft);
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", draft);
     await expect.poll(() => composerHeight(page)).toBeLessThanOrEqual(160);
     await expect(page.getByRole("button", { name: "Send message", exact: true })).toBeVisible();
     await expectNoCollapsedVisibleComposer(page);

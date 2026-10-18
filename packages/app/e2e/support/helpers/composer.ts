@@ -41,7 +41,7 @@ export async function expectComposerDisabled(page: Page): Promise<void> {
 }
 
 export async function expectComposerDraft(page: Page, text: string): Promise<void> {
-  await expect(composerInput(page)).toHaveValue(text, { timeout: 5_000 });
+  await expect(composerInput(page)).toHaveAttribute("data-markdown", text, { timeout: 5_000 });
 }
 
 export async function expectComposerEditable(page: Page): Promise<void> {
@@ -374,28 +374,19 @@ export async function selectComposerDraftRange(
   end: number,
 ): Promise<void> {
   await composerInput(page).focus();
-  await composerInput(page).evaluate(
-    (element, selection) => {
-      const input = element as HTMLTextAreaElement;
-      input.setSelectionRange(selection.start, selection.end);
-      input.dispatchEvent(new Event("select", { bubbles: true }));
-    },
-    { start, end },
-  );
+  await composerInput(page).press("ControlOrMeta+Home");
+  for (let position = 0; position < start; position++)
+    await composerInput(page).press("ArrowRight");
+  for (let position = start; position < end; position++)
+    await composerInput(page).press("Shift+ArrowRight");
 }
 export async function expectComposerDraftSelection(
   page: Page,
   start: number,
   end: number,
 ): Promise<void> {
-  await expect
-    .poll(() =>
-      composerInput(page).evaluate((element) => {
-        const input = element as HTMLTextAreaElement;
-        return [input.selectionStart, input.selectionEnd];
-      }),
-    )
-    .toEqual([start, end]);
+  await expect(composerInput(page)).toHaveAttribute("data-selection-start", String(start));
+  await expect(composerInput(page)).toHaveAttribute("data-selection-end", String(end));
 }
 export async function expectComposerFullscreenControls(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: "Exit fullscreen", exact: true })).toBeVisible();
@@ -478,7 +469,7 @@ export async function recordVisibleComposerGeometry(page: Page): Promise<void> {
       if (!running) return;
       for (const root of document.querySelectorAll('[data-testid="message-input-root"]')) {
         if (root.getClientRects().length === 0) continue;
-        const input = root.querySelector("textarea");
+        const input = root.querySelector("[data-composer-input]");
         if (input)
           frames.push({
             input: input.getBoundingClientRect().height,

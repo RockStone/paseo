@@ -502,7 +502,7 @@ test.describe("Composer autocomplete", () => {
       const beforeDelete = await visiblePopoverBox(page);
 
       await input.press("Backspace");
-      await expect(input).toHaveValue("/h");
+      await expect(input).toHaveAttribute("data-markdown", "/h");
       await expect(popover.getByText("/history", { exact: true }).first()).toBeVisible({
         timeout: 30_000,
       });
@@ -588,26 +588,10 @@ test.describe("Composer autocomplete", () => {
           .first(),
       ).toBeVisible({ timeout: 30_000 });
 
-      await input.evaluate((element) => {
-        if (!(element instanceof HTMLTextAreaElement)) {
-          throw new Error("Composer input is not a textarea");
-        }
-        element.setSelectionRange(0, 0);
-        element.dispatchEvent(new Event("select", { bubbles: true }));
-        element.dispatchEvent(
-          new KeyboardEvent("keydown", {
-            key: "Tab",
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
-      });
-
-      await expect(input).toHaveValue("/tdd");
-      const selectionStart = await input.evaluate(
-        (element) => (element as HTMLTextAreaElement).selectionStart,
-      );
-      expect(selectionStart).toBe(0);
+      await input.press("Home");
+      await input.press("Tab");
+      await expect(input).toHaveAttribute("data-markdown", "/tdd");
+      await expect(input).toHaveAttribute("data-selection-start", "0");
     } finally {
       await agent.cleanup();
     }
@@ -627,29 +611,15 @@ test.describe("Composer autocomplete", () => {
         .first();
       await expect(option).toBeVisible({ timeout: 30_000 });
 
-      await option.evaluate((element) => {
-        const textarea = document.querySelector('textarea[aria-label="Message agent..."]');
-        if (!(textarea instanceof HTMLTextAreaElement)) {
-          throw new Error("Composer input is not a textarea");
-        }
-        const valueSetter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype,
-          "value",
-        )?.set;
-        if (!valueSetter) throw new Error("Textarea value setter is unavailable");
-        valueSetter.call(textarea, "/tdd suffix");
-        textarea.setSelectionRange(4, 4);
-        textarea.dispatchEvent(
-          new InputEvent("input", {
-            bubbles: true,
-            data: "d suffix",
-            inputType: "insertText",
-          }),
-        );
-        (element as HTMLElement).click();
-      });
+      await input.fill("/tdd suffix");
+      await input.press("Home");
+      await input.press("ArrowRight");
+      await input.press("ArrowRight");
+      await input.press("ArrowRight");
+      await input.press("ArrowRight");
+      await option.click();
 
-      await expect(input).toHaveValue("/tdd suffix");
+      await expect(input).toHaveAttribute("data-markdown", "/tdd suffix");
     } finally {
       await agent.cleanup();
     }
@@ -751,7 +721,7 @@ test.describe("Composer profile references", () => {
       const pill = page.getByTestId("composer-agent-profile-pill");
       const mention = `[@Opus delegate](agent-profile://delegate-opus?hostId=${getServerId()})`;
       await expect(pill).toHaveCount(0);
-      await expect(input).toHaveValue(`Delegate ${mention} `);
+      await expect(input).toHaveAttribute("data-markdown", `Delegate ${mention} `);
       await expect(input).toBeFocused();
       await expectWorkspaceAgentConfiguration(workspace, {
         provider: "mock",
@@ -766,7 +736,10 @@ test.describe("Composer profile references", () => {
       await page.reload();
       await expectComposerVisible(page);
       await expect(pill).toHaveCount(0);
-      await expect(input).toHaveValue(`Please delegate ${mention} the review.`);
+      await expect(input).toHaveAttribute(
+        "data-markdown",
+        `Please delegate ${mention} the review.`,
+      );
       await input.press("Enter");
       await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
       const request = gate.getClientRequests("send_agent_message_request")[0]!;
@@ -812,22 +785,26 @@ test("profile references keep @ files intact and support empty results, caret se
     await expect(page.getByTestId("autocomplete-option-profile:delegate-codex")).toHaveCount(0);
     await input.fill("Ask @@Codex to review");
     await input.evaluate((element) => {
-      if (!(element instanceof HTMLTextAreaElement)) throw new Error("Expected textarea");
-      element.setSelectionRange(11, 11);
-      element.dispatchEvent(new Event("select", { bubbles: true }));
-      element.dispatchEvent(new Event("keyup", { bubbles: true }));
+      const text = element.firstChild?.firstChild;
+      if (!text) throw new Error("Missing editor text");
+      const range = document.createRange();
+      range.setStart(text, 11);
+      range.collapse(true);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(range);
+      document.dispatchEvent(new Event("selectionchange"));
     });
     await expect(page.getByTestId("autocomplete-option-profile:delegate-codex")).toBeVisible();
     await input.press("Tab");
     const mention = `[@Codex delegate](agent-profile://delegate-codex?hostId=${getServerId()})`;
-    await expect(input).toHaveValue(`Ask ${mention}  to review`);
+    await expect(input).toHaveAttribute("data-markdown", `Ask ${mention}  to review`);
     await input.press("x");
-    await expect(input).toHaveValue(`Ask ${mention} x to review`);
+    await expect(input).toHaveAttribute("data-markdown", `Ask ${mention} x to review`);
     const pill = page.getByTestId("composer-agent-profile-pill");
     await expect(pill).toHaveCount(0);
     await input.fill("Ask to review");
     await expect(pill).toHaveCount(0);
-    await expect(input).toHaveValue("Ask to review");
+    await expect(input).toHaveAttribute("data-markdown", "Ask to review");
     await input.press("Enter");
     await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
     const request = gate.getClientRequests("send_agent_message_request")[0]!;
@@ -897,7 +874,7 @@ test.describe("Composer session references", () => {
         page.locator('[data-testid^="autocomplete-option-session:workspace:"]'),
       ).toHaveCount(0);
       await page.getByTestId("session-reference-scope-all").click();
-      await expect(input).toHaveValue("Inspect ##");
+      await expect(input).toHaveAttribute("data-markdown", "Inspect ##");
 
       await expect(
         page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`),
@@ -921,7 +898,7 @@ test.describe("Composer session references", () => {
       const terminalMention = `[#Renamed Flutter terminal](terminal://${terminalId}?hostId=${getServerId()})`;
       const threadMention = `[#Flutter debug thread](thread://${other.agentId}?hostId=${getServerId()})`;
       await expect(pills).toHaveCount(0);
-      await expect(input).toHaveValue(`Inspect ${terminalMention} `);
+      await expect(input).toHaveAttribute("data-markdown", `Inspect ${terminalMention} `);
       await expect(input).toBeFocused();
       await input.fill(`##${terminalId}`);
       await page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`).click();
@@ -940,7 +917,7 @@ test.describe("Composer session references", () => {
       await page.reload();
       await expectComposerVisible(page);
       await expect(pills).toHaveCount(0);
-      await expect(input).toHaveValue(message);
+      await expect(input).toHaveAttribute("data-markdown", message);
       expect(gate.getClientRequestCount("capture_terminal_request")).toBe(0);
       await input.press("Enter");
       await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
@@ -996,13 +973,18 @@ test.describe("Composer session references", () => {
       const text = `Inspect ##${terminalId} after reload`;
       await input.fill(text);
       await input.evaluate((element, position) => {
-        if (!(element instanceof HTMLTextAreaElement)) throw new Error("Expected textarea");
-        element.setSelectionRange(position, position);
-        element.dispatchEvent(new Event("select", { bubbles: true }));
-        element.dispatchEvent(new Event("keyup", { bubbles: true }));
+        const textNode = element.firstChild?.firstChild;
+        if (!textNode) throw new Error("Missing editor text");
+        const range = document.createRange();
+        range.setStart(textNode, position);
+        range.collapse(true);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+        document.dispatchEvent(new Event("selectionchange"));
       }, text.indexOf(" after"));
       await page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`).click();
-      await expect(input).toHaveValue(
+      await expect(input).toHaveAttribute(
+        "data-markdown",
         `Inspect [#Reconnect terminal](terminal://${terminalId}?hostId=${getServerId()})  after reload`,
       );
       const pill = page.getByTestId("composer-session-reference-pill");
@@ -1030,4 +1012,57 @@ test.describe("Composer session references", () => {
       await workspace.cleanup();
     }
   });
+});
+
+test("decorated composer hides reference targets, formats closed Markdown and continues numbered lists", async ({
+  page,
+}) => {
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "decorated-composer-",
+    title: "Decorated composer",
+  });
+  const gate = await installDaemonWebSocketGate(page);
+  try {
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    const markdown = "the `quick` **fox** *lazy* [thread](thread://agent-id?hostId=host)";
+    await input.fill(markdown);
+    await expect(input.locator(".composer-code")).toHaveText("quick");
+    await expect(input.locator(".composer-bold")).toHaveText("fox");
+    await expect(input.locator(".composer-italic")).toHaveText("lazy");
+    await expect(input.locator(".composer-reference")).toHaveText("thread");
+    await expect(input).not.toContainText("thread://");
+    await expect(input).not.toContainText("**");
+    await page.screenshot({ path: "/tmp/paseoi-r30-decorated-composer.png" });
+    await input.fill("Use [thread](thread://agent-id?hostId=host)");
+    await input.press("End");
+    await input.press("Backspace");
+    await expect(input).toHaveAttribute("data-markdown", "Use ");
+    await input.press("ControlOrMeta+z");
+    await expect(input.locator(".composer-reference")).toHaveText("thread");
+    await input.fill("the `quick");
+    await expect(input.locator(".composer-code")).toHaveCount(0);
+    await input.press("End");
+    await input.press("`");
+    await expect(input.locator(".composer-code")).toHaveText("quick");
+    await input.press("ControlOrMeta+z");
+    await expect(input.locator(".composer-code")).toHaveCount(0);
+    await input.fill("1. hello");
+    await input.press("End");
+    await input.press("Enter");
+    await expect(input).toHaveAttribute("data-markdown", "1. hello\n2. ");
+    await input.pressSequentially("world");
+    await input.press("Enter");
+    await expect(input).toHaveAttribute("data-markdown", "1. hello\n2. world\n3. ");
+    await input.press("Enter");
+    await expect(input).toHaveAttribute("data-markdown", "1. hello\n2. world\n");
+    expect(gate.getClientRequests("send_agent_message_request")).toHaveLength(0);
+    await input.fill(markdown);
+    await input.press("Enter");
+    await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
+    expect(gate.getClientRequests("send_agent_message_request")[0]!.text).toBe(markdown);
+  } finally {
+    await workspace.cleanup();
+  }
 });

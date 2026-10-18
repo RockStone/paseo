@@ -63,6 +63,15 @@ export function useComposerHeight({
       const sourceWidth = source.clientWidth;
       if (sourceWidth <= 0) return;
 
+      if (source.dataset.decoratedComposer === "true") {
+        const renderedLineHeight = parseFloat(window.getComputedStyle(source).lineHeight);
+        if (renderedLineHeight > 0)
+          paramsRef.current.onRenderedLinesChange?.(
+            Math.round(source.scrollHeight / renderedLineHeight),
+          );
+        setBoundedHeight(source.scrollHeight);
+        return;
+      }
       const computedStyle = window.getComputedStyle(source);
       for (const property of COPIED_STYLES) {
         mirror.style[property] = computedStyle[property];
@@ -118,10 +127,15 @@ export function useComposerHeight({
     const source = textareaRef.current;
     if (!source || typeof ResizeObserver === "undefined") return;
     let previousWidth = source.clientWidth;
+    let previousHeight = source.scrollHeight;
     const observer = new ResizeObserver(() => {
       const nextWidth = source.clientWidth;
-      if (Math.abs(nextWidth - previousWidth) < 1) return;
+      const nextHeight = source.scrollHeight;
+      const decoratedHeightChanged =
+        source.dataset.decoratedComposer === "true" && nextHeight !== previousHeight;
+      if (Math.abs(nextWidth - previousWidth) < 1 && !decoratedHeightChanged) return;
       previousWidth = nextWidth;
+      previousHeight = nextHeight;
       measure(paramsRef.current.getText());
     });
     observer.observe(source);

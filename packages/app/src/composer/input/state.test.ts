@@ -1,3 +1,4 @@
+import { continueNumberedList } from "./list-continuation";
 import { describe, expect, it, vi } from "vitest";
 import {
   applyDictationTranscript,
@@ -360,5 +361,30 @@ describe("fullscreen glyph rail", () => {
     expect(
       resolveGlyphRailOffset({ controlSize: 28, sendIconSize: 20, glyphIconSize: 16 }),
     ).toBeCloseTo(1 / 6);
+  });
+});
+
+describe("numbered composer lists", () => {
+  it("continues list numbers and indentation without sending", () => {
+    expect(continueNumberedList("  9) hello", { start: 10, end: 10 })).toEqual({
+      text: "  9) hello\n  10) ",
+      selection: { start: 17, end: 17 },
+    });
+  });
+  it("ends an empty item and leaves ordinary messages alone", () => {
+    expect(continueNumberedList("1. hello\n2. ", { start: 12, end: 12 })).toEqual({
+      text: "1. hello\n",
+      selection: { start: 9, end: 9 },
+    });
+    expect(continueNumberedList("hello", { start: 5, end: 5 })).toBeNull();
+  });
+});
+
+it("keeps literal code and splits a numbered item at its cursor", () => {
+  const code = "```\n1. literal\n```";
+  expect(continueNumberedList(code, { start: 14, end: 14 })).toBeNull();
+  expect(continueNumberedList("1. word", { start: 3, end: 3 })).toEqual({
+    text: "1. \n2. word",
+    selection: { start: 7, end: 7 },
   });
 });

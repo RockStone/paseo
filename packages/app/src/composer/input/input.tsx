@@ -1,3 +1,4 @@
+import { continueNumberedList } from "./list-continuation";
 import {
   useComposerEditingSession,
   useComposerFullscreen,
@@ -67,10 +68,11 @@ import { ComposerInputPresentation } from "./presentation";
 import { resolveComposerInputMode, type ComposerInputMode } from "@/composer/input-mode";
 import type { NativePastedFile } from "@/composer/native-pasted-image";
 import {
-  EditingTextInput,
   type EditingTextInputHandle as ComposerTextInputHandle,
   type EditingTextInputProps,
 } from "@/components/ui/text-input";
+
+import { EditingTextInput } from "./decorated-input";
 
 const ComposerTextInput = withUnistyles(EditingTextInput, (theme) => ({
   placeholderTextColor: theme.colors.surface4,
@@ -206,15 +208,18 @@ const MIN_INPUT_HEIGHT_DESKTOP = 46;
 const DEFAULT_MAX_INPUT_HEIGHT = 160;
 const MAX_INPUT_VIEWPORT_RATIO = 0.5;
 const MIN_INPUT_HEIGHT = isWeb ? MIN_INPUT_HEIGHT_DESKTOP : MIN_INPUT_HEIGHT_MOBILE;
-type WebTextInputKeyPressEvent = NativeSyntheticEvent<
-  TextInputKeyPressEventData & {
-    metaKey?: boolean;
-    ctrlKey?: boolean;
-    shiftKey?: boolean;
-    // Web-only: present on DOM KeyboardEvent during IME composition (CJK input).
-    isComposing?: boolean;
-    keyCode?: number;
-  }
+type WebTextInputKeyPressEvent = Pick<
+  NativeSyntheticEvent<
+    TextInputKeyPressEventData & {
+      metaKey?: boolean;
+      ctrlKey?: boolean;
+      shiftKey?: boolean;
+      // Web-only: present on DOM KeyboardEvent during IME composition (CJK input).
+      isComposing?: boolean;
+      keyCode?: number;
+    }
+  >,
+  "nativeEvent" | "preventDefault"
 >;
 
 interface TextAreaHandle {
@@ -394,6 +399,7 @@ function SendButtonContent({
 }
 
 interface DesktopKeyPressContext {
+  replaceText: (text: string, selection: { start: number; end: number }) => void;
   onKeyPressCallback: ((event: ComposerKeyPressEvent) => boolean) | undefined;
   input: ComposerKeyPressEvent["input"];
   submitOnEnter: boolean;
@@ -424,6 +430,14 @@ function handleDesktopKeyPressImpl(
   const { shiftKey, metaKey, ctrlKey } = event.nativeEvent;
 
   if (event.nativeEvent.key !== "Enter") return;
+  if (!metaKey && !ctrlKey) {
+    const continuation = continueNumberedList(ctx.input.text, ctx.input.selection);
+    if (continuation) {
+      event.preventDefault();
+      ctx.replaceText(continuation.text, continuation.selection);
+      return;
+    }
+  }
   if (!ctx.submitOnEnter) return;
   if (shiftKey) return;
 
@@ -635,7 +649,9 @@ interface ComposerTextSurfaceProps {
   scrollEnabled: boolean;
   autoFocus: boolean;
   onKeyPress: ((event: WebTextInputKeyPressEvent) => void) | undefined;
-  onSelectionChange: (event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => void;
+  onSelectionChange: (
+    event: Pick<NativeSyntheticEvent<TextInputSelectionChangeEventData>, "nativeEvent">,
+  ) => void;
   onPasteImages: ((files: readonly NativePastedFile[]) => void) | undefined;
   onPasteError: (message: string) => void;
   fullscreen: boolean;
@@ -1044,8 +1060,9 @@ function getComposerInputSnapshot(
 ): ComposerInputSnapshot {
   const textArea = getWebTextAreaImpl(current);
   const text = textArea?.value ?? current?.getText() ?? fallbackText;
-  const start = textArea?.selectionStart ?? fallbackSelection.start;
-  const end = textArea?.selectionEnd ?? fallbackSelection.end;
+  const selection = current?.getSelection?.();
+  const start = selection?.start ?? textArea?.selectionStart ?? fallbackSelection.start;
+  const end = selection?.end ?? textArea?.selectionEnd ?? fallbackSelection.end;
   return { text, selection: { start, end } };
 }
 
@@ -1708,7 +1725,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     });
 
     const handleSelectionChange = useCallback(
-      (event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
+      (event: Pick<NativeSyntheticEvent<TextInputSelectionChangeEventData>, "nativeEvent">) => {
         const start = event.nativeEvent.selection?.start ?? 0;
         const end = event.nativeEvent.selection?.end ?? start;
         selectionRef.current = { start, end };
@@ -1724,6 +1741,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       (event: WebTextInputKeyPressEvent) => {
         if (!shouldHandleWebKeyPress) return;
         handleDesktopKeyPressImpl(event, {
+          replaceText,
           onKeyPressCallback,
           input: getComposerInputSnapshot(
             textInputRef.current,
@@ -1742,6 +1760,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       },
       [
         shouldHandleWebKeyPress,
+        replaceText,
         onKeyPressCallback,
         shouldSubmitOnEnter,
         isAgentRunning,

@@ -1974,15 +1974,18 @@ function ComposerContentImpl({
       if (didRemoveWorkspaceAttachment) {
         return;
       }
+      const attachmentIndex = attachments.findIndex(
+        (attachment) => attachment === selectedAttachments[index],
+      );
       setSelectedAttachments((prev) =>
         removeComposerAttachmentAtIndex({
           attachments: prev,
-          index: prev.findIndex((attachment) => attachment === selectedAttachments[index]),
+          index: attachmentIndex,
           deleteAttachments,
         }),
       );
     },
-    [removeAttachment, selectedAttachments, setSelectedAttachments],
+    [attachments, removeAttachment, selectedAttachments, setSelectedAttachments],
   );
 
   const handleOpenAttachment = useCallback(
