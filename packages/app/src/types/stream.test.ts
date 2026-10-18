@@ -2330,3 +2330,31 @@ it("retains agent-message provenance through live delivery and repeated history"
   expect(replay).toHaveLength(1);
   expect(replay[0]).toMatchObject({ payload: { data: { agentMessage } } });
 });
+
+it("restores saved image sources into a fresh timeline, including image-only messages", () => {
+  const timestamp = new Date("2026-10-17T00:00:00Z");
+  for (const text of ["Saved image message", ""]) {
+    const result = applyStreamEvent({
+      tail: [],
+      head: [],
+      timestamp,
+      source: "canonical",
+      event: {
+        type: "timeline",
+        provider: "codex",
+        item: {
+          type: "user_message",
+          text,
+          messageId: "saved-image",
+          imageSources: ["file:///tmp/saved.png", "file:///tmp/second.png"],
+        },
+      },
+    });
+    expect(result.tail).toHaveLength(1);
+    expect(result.tail[0]).toMatchObject({
+      kind: "user_message",
+      text,
+      imageSources: ["file:///tmp/saved.png", "file:///tmp/second.png"],
+    });
+  }
+});

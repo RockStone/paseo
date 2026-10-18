@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync, readFileSync } from "node:fs";
 import path from "node:path";
 import MarkdownIt from "markdown-it";
 import { projectTimelineRows } from "../timeline-projection.js";
@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   isProviderImageMarkdown,
+  extractUserImageSources,
   materializeProviderImage,
   renderProviderImageOutputAsAssistantMarkdown,
 } from "./provider-image-output.js";
@@ -163,4 +164,21 @@ test("materialized image output retains paragraph boundaries and attachment reco
   });
   if (!item || item.type !== "assistant_message") throw new Error("Expected image output");
   expect(isProviderImageMarkdown(item.text)).toBe(true);
+});
+
+describe("user image replay", () => {
+  test("materializes recorded Codex and Claude base64 images as readable file sources", () => {
+    const data =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const sources = extractUserImageSources([
+      { type: "input_image", image_url: `data:image/png;base64,${data}` },
+      { type: "image", source: { type: "base64", media_type: "image/png", data } },
+      { type: "tool_result", content: [{ type: "image", source: { type: "base64", data } }] },
+    ]);
+    expect(sources).toHaveLength(2);
+    for (const source of sources) {
+      expect(source).toMatch(/^file:\/\//);
+      expect(readFileSync(new URL(source))).toEqual(Buffer.from(data, "base64"));
+    }
+  });
 });

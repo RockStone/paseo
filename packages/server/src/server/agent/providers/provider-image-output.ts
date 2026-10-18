@@ -212,3 +212,36 @@ export function renderProviderImageOutputAsAssistantMarkdown(
     text: `\n\n![${altText}](${escapeMarkdownImageSource(materialized.path)})\n\n`,
   };
 }
+
+// Preserve user image evidence in replay without sending base64 through timeline pages.
+// Only direct input blocks count; tool-result images belong to their tool response.
+export function extractUserImageSources(content: unknown): string[] {
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((block): string[] => {
+    if (!block || typeof block !== "object") return [];
+    const record = block as Record<string, unknown>;
+    if (!["image", "input_image", "localImage", "local_image"].includes(String(record.type)))
+      return [];
+    const source =
+      record.source && typeof record.source === "object"
+        ? (record.source as Record<string, unknown>)
+        : {};
+    const data = [source.data, record.data].find(
+      (value): value is string => typeof value === "string",
+    );
+    const uri = [record.path, record.url, record.image_url, source.url].find(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    );
+    const mime = [source.media_type, record.mimeType, record.mime_type].find(
+      (value): value is string => typeof value === "string",
+    );
+    if (data || (uri && isDataImageSource(uri))) {
+      return [
+        markdownImageSource(
+          materializeProviderImage({ data: data ?? uri!, mimeType: mime ?? null }).path,
+        ),
+      ];
+    }
+    return uri ? [markdownImageSource(uri)] : [];
+  });
+}

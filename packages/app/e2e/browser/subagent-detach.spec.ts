@@ -1,3 +1,5 @@
+import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
+import { getServerId } from "../support/helpers/server-id";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { expect, test } from "../support/fixtures";
 import { expectWorkspaceTabVisible } from "../support/helpers/archive-tab";
@@ -83,7 +85,11 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await page.reload();
     await expect(root).toHaveCount(0);
     await expect(nested).toBeVisible();
-    await openAgentRoute(page, { workspaceId: pair.workspaceId, agentId: pair.parent.id });
+    await switchWorkspaceViaSidebar({
+      page,
+      serverId: getServerId(),
+      workspaceId: pair.workspaceId,
+    });
     await expectAgentTabActive(page, pair.parent.id);
     await page.screenshot({ path: "/tmp/paseoi-sidebar-agent-tree.png" });
     await openSubagentsTrack(page);

@@ -1,3 +1,4 @@
+import { useMarkdownSource } from "@/components/markdown/images";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
 import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
@@ -93,6 +94,9 @@ interface UserMessageProps {
   messageId?: string;
   message: string;
   images?: UserMessageImageAttachment[];
+  imageSources?: string[];
+  workspaceRoot?: string;
+  imageRecoveryStatus?: "loading" | "unavailable";
   attachments?: AgentAttachment[];
   timestamp: number;
   capabilities?: AgentCapabilityFlags;
@@ -385,12 +389,41 @@ function UserMessageImagePill({ image, onOpen, accessibilityLabel }: UserMessage
 
 const MESSAGE_TEXT_DATASET = { messageText: "true" };
 
-export const UserMessage = memo(function UserMessage({
+export const UserMessage = memo(function UserMessage(props: UserMessageProps) {
+  return props.imageSources?.length && !props.images?.length ? (
+    <ReplayedUserMessage {...props} />
+  ) : (
+    <UserMessageContent {...props} />
+  );
+});
+
+function ReplayedUserMessage(props: UserMessageProps) {
+  const replay = useMarkdownSource(
+    (props.imageSources ?? [])
+      .map((source) => `![Image](${source.replace(/\)/g, "%29")})`)
+      .join("\n\n"),
+    { serverId: props.serverId, workspaceRoot: props.workspaceRoot, client: props.client },
+    { preserveImageOccurrences: true },
+  );
+  let imageRecoveryStatus: UserMessageProps["imageRecoveryStatus"];
+  if (replay.hasUnavailableImages) imageRecoveryStatus = "unavailable";
+  else if (replay.hasPendingImages) imageRecoveryStatus = "loading";
+  return (
+    <UserMessageContent
+      {...props}
+      images={replay.attachments}
+      imageRecoveryStatus={imageRecoveryStatus}
+    />
+  );
+}
+
+const UserMessageContent = memo(function UserMessageContent({
   serverId,
   agentId,
   messageId,
   message,
   images = [],
+  imageRecoveryStatus,
   attachments = [],
   timestamp,
   capabilities,
@@ -480,6 +513,15 @@ export const UserMessage = memo(function UserMessage({
         onPointerLeave={handlePointerLeave}
       >
         <View style={userMessageStylesheet.bubble}>
+          {imageRecoveryStatus ? (
+            <Text style={userMessageStylesheet.text}>
+              {t(
+                imageRecoveryStatus === "unavailable"
+                  ? "message.attachments.imageLoadFailed"
+                  : "common.loading",
+              )}
+            </Text>
+          ) : null}
           {hasImages ? (
             <View style={imagePreviewContainerStyle}>
               {images.map((image) => (

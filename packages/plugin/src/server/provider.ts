@@ -515,6 +515,7 @@ export type ProviderTimelineItem =
   | (ProviderTimelineIdentity & {
       type: "user_message";
       text: string;
+      imageSources?: string[];
       messageId?: string;
       clientMessageId?: string;
     })
@@ -1194,6 +1195,7 @@ const timelineItemSchema: z.ZodType<ProviderTimelineItem> = z.union([
       ...timelineIdentityShape,
       type: z.literal("user_message"),
       text: z.string(),
+      imageSources: z.array(z.string()).optional(),
       messageId: z.string().optional(),
       clientMessageId: z.string().optional(),
     })

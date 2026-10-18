@@ -1,3 +1,4 @@
+import { ProviderEventSchema } from "@getpaseo/plugin/server/provider";
 import { relative } from "node:path";
 import type {
   ProviderConnection,
@@ -442,6 +443,46 @@ describe("PluginAgentClientRegistry", () => {
       }
     },
   );
+
+  test("preserves user image sources through plugin validation and history replay", async () => {
+    const imageSources = ["file:///tmp/first.png", "file:///tmp/second.png"];
+    const harness = createProviderHarness({
+      openChildren: (sessionId, emit) =>
+        emit(
+          ProviderEventSchema.parse({
+            type: "timeline.item",
+            sessionId,
+            item: { type: "user_message", id: "saved-images", text: "Compare", imageSources },
+          }),
+        ),
+    });
+    const registry = new PluginAgentClientRegistry(createTestLogger());
+    registry.replace([harness.registration]);
+    const client = registry.clients()[harness.registration.id]!;
+    const session = await client.createSession({
+      provider: harness.registration.id,
+      cwd: "/workspace",
+    });
+    try {
+      const events: AgentStreamEvent[] = [];
+      for await (const event of session.streamHistory()) events.push(event);
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: "timeline",
+          item: {
+            type: "user_message",
+            text: "Compare",
+            messageId: "saved-images",
+            clientMessageId: undefined,
+            imageSources,
+          },
+        }),
+      );
+    } finally {
+      await session.close();
+      registry.replace([]);
+    }
+  });
 
   test("preserves nested provider child ownership during opening", async () => {
     const harness = createProviderHarness({ openChildren: openNestedChildren });

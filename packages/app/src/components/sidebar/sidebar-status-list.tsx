@@ -1,3 +1,5 @@
+import { useSessionStore } from "@/stores/session-store";
+import { sidebarWorkspaceTarget } from "@/subagents/sidebar-tree";
 import {
   memo,
   useCallback,
@@ -539,7 +541,14 @@ const StatusWorkspaceRow = memo(function StatusWorkspaceRow({
   const handlePress = useCallback(() => {
     if (!workspace.serverId) return;
     onWorkspacePress?.();
-    navigateToWorkspace({ serverId: workspace.serverId, workspaceId: workspace.workspaceId });
+    navigateToWorkspace({
+      serverId: workspace.serverId,
+      workspaceId: workspace.workspaceId,
+      target: sidebarWorkspaceTarget(
+        useSessionStore.getState().sessions[workspace.serverId]?.agents ?? new Map(),
+        workspace.workspaceId,
+      ),
+    });
   }, [onWorkspacePress, workspace.serverId, workspace.workspaceId]);
 
   return (

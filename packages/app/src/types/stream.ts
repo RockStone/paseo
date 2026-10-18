@@ -100,6 +100,7 @@ export interface UserMessageItem {
   text: string;
   timestamp: Date;
   images?: UserMessageImageAttachment[];
+  imageSources?: string[];
   attachments?: AgentAttachment[];
 }
 
@@ -112,6 +113,7 @@ export interface UserMessageInput {
   text: string;
   timestamp: Date;
   images?: UserMessageImageAttachment[];
+  imageSources?: string[];
   attachments?: AgentAttachment[];
 }
 
@@ -130,6 +132,7 @@ export function createUserMessage(input: UserMessageInput): UserMessageItem {
     text: input.text,
     timestamp: input.timestamp,
     ...(input.images && input.images.length > 0 ? { images: input.images } : {}),
+    ...(input.imageSources?.length ? { imageSources: input.imageSources } : {}),
     ...(input.attachments && input.attachments.length > 0
       ? { attachments: input.attachments }
       : {}),
@@ -261,6 +264,7 @@ function produceUserMessage(
     clientMessageId: incoming.clientMessageId ?? existing.clientMessageId,
     messageId: incoming.messageId ?? existing.messageId,
     timelineCursor: incoming.timelineCursor ?? existing.timelineCursor,
+    imageSources: incoming.imageSources ?? existing.imageSources,
   });
   if (
     existing.id === merged.id &&
@@ -270,6 +274,7 @@ function produceUserMessage(
     existing.text === merged.text &&
     existing.timestamp === merged.timestamp &&
     existing.images === merged.images &&
+    existing.imageSources === merged.imageSources &&
     existing.attachments === merged.attachments
   ) {
     return { items, index, message: existing, matched: true };
@@ -892,9 +897,10 @@ function appendUserMessage(
   clientMessageId?: string,
   timelineCursor?: TimelinePosition,
   turnId?: string,
+  imageSources?: string[],
 ): StreamItem[] {
   const { chunk, hasContent } = normalizeChunk(text);
-  if (!hasContent) {
+  if (!hasContent && !imageSources?.length) {
     return state;
   }
 
@@ -907,6 +913,7 @@ function appendUserMessage(
     turnId,
     text: chunk,
     timestamp,
+    imageSources,
   });
   return upsertUserMessage(state, nextItem);
 }
@@ -1515,6 +1522,7 @@ function reduceTimelineEvent(
           item.clientMessageId,
           timelineCursor,
           event.turnId,
+          item.imageSources,
         ),
       );
     case "assistant_message":
@@ -1864,6 +1872,10 @@ export interface ApplyStreamEventResult {
   acknowledgedClientMessageIds?: string[];
 }
 
+function hasUserMessageContent(hasText: boolean, imageSources?: string[]): boolean {
+  return hasText || !!imageSources?.length;
+}
+
 function applyCanonicalUserMessageEvent(params: {
   tail: StreamItem[];
   head: StreamItem[];
@@ -1875,6 +1887,7 @@ function applyCanonicalUserMessageEvent(params: {
   const { tail, head, event, timestamp, timelineCursor, unmatchedInsert = "tail" } = params;
   if (event.type !== "timeline" || event.item.type !== "user_message") return null;
   const normalized = normalizeChunk(event.item.text);
+  const hasContent = hasUserMessageContent(normalized.hasContent, event.item.imageSources);
 
   const flushedTail = head.length > 0 ? flushHeadToTail(tail, head) : tail;
   const flushedHead = head.length > 0 ? [] : head;
@@ -1887,6 +1900,7 @@ function applyCanonicalUserMessageEvent(params: {
     turnId: event.turnId,
     timelineCursor,
     text: normalized.chunk,
+    imageSources: event.item.imageSources,
     timestamp,
   });
   if (unmatchedInsert === "head") {
@@ -1894,7 +1908,7 @@ function applyCanonicalUserMessageEvent(params: {
       tail,
       head,
       message: canonical,
-      insert: normalized.hasContent ? "head" : "none",
+      insert: hasContent ? "head" : "none",
       presentation: "existing",
     });
     const reconciledTail = canonical.clientMessageId
@@ -1922,7 +1936,7 @@ function applyCanonicalUserMessageEvent(params: {
           : [],
     };
   }
-  const reconciled = placeCanonicalUserMessageAtTail(flushedTail, canonical, normalized.hasContent);
+  const reconciled = placeCanonicalUserMessageAtTail(flushedTail, canonical, hasContent);
   const reconciledTail = canonical.clientMessageId
     ? reconcileCanonicalUserTurnMembership(
         reconciled.items,

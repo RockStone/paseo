@@ -1,3 +1,4 @@
+import { extractUserImageSources } from "../provider-image-output.js";
 import { validateProviderOptions } from "../../provider-options.js";
 import type { ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -5427,11 +5428,8 @@ class ClaudeAgentSession implements AgentSession {
       });
     }
 
-    if (textMessageType === "user_message" && userTextParts.length > 0) {
-      items.unshift({
-        type: "user_message",
-        text: userTextParts.join("\n\n"),
-      });
+    if (textMessageType === "user_message") {
+      items.unshift(...replayUserMessage(content, userTextParts.join("\n\n")));
     }
 
     return items;
@@ -6413,14 +6411,13 @@ export function convertClaudeHistoryEntry(
   const timeline: AgentTimelineItem[] = [];
 
   if (entry.type === "user") {
-    const text = extractUserMessageText(content);
-    if (text) {
-      timeline.push({
-        type: "user_message",
-        text,
-        ...(userMessageId ? { messageId: userMessageId } : {}),
-      });
-    }
+    timeline.push(
+      ...replayUserMessage(
+        content,
+        extractUserMessageText(content) ?? "",
+        userMessageId ?? undefined,
+      ),
+    );
   }
 
   if (hasToolBlock && normalizedBlocks) {
@@ -6820,4 +6817,21 @@ function readClaudeCommandLifecycle(message: unknown): ClaudeCommandLifecycle | 
     commandUuid: record.command_uuid,
     state: record.state as ClaudeCommandLifecycle["state"],
   };
+}
+
+function replayUserMessage(
+  content: unknown,
+  text: string,
+  messageId?: string,
+): AgentTimelineItem[] {
+  const imageSources = extractUserImageSources(content);
+  if (!text && !imageSources.length) return [];
+  return [
+    {
+      type: "user_message",
+      text,
+      ...(messageId ? { messageId } : {}),
+      ...(imageSources.length ? { imageSources } : {}),
+    },
+  ];
 }

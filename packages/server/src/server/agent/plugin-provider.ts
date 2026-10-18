@@ -1701,6 +1701,7 @@ function mapTimelineItem(
       text: item.text,
       messageId: item.messageId ?? id,
       clientMessageId: item.clientMessageId,
+      imageSources: item.imageSources,
     };
   }
   if (item.type === "plugin") {

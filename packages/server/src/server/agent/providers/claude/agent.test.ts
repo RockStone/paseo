@@ -48,6 +48,41 @@ afterEach(() => {
 });
 
 describe("convertClaudeHistoryEntry", () => {
+  test("replays user image-only and mixed prompts without promoting tool-result images", () => {
+    const image = { type: "image", source: { type: "url", url: "https://example.com/image.png" } };
+    expect(
+      convertClaudeHistoryEntry(
+        { type: "user", uuid: "saved-user", message: { role: "user", content: [image] } },
+        () => [],
+      ),
+    ).toEqual([
+      {
+        type: "user_message",
+        messageId: "saved-user",
+        text: "",
+        imageSources: ["https://example.com/image.png"],
+      },
+    ]);
+    expect(
+      convertClaudeHistoryEntry(
+        {
+          type: "user",
+          message: {
+            role: "user",
+            content: [
+              { type: "text", text: "Compare" },
+              image,
+              { type: "tool_result", tool_use_id: "tool", content: [image] },
+            ],
+          },
+        },
+        () => [],
+      ),
+    ).toEqual([
+      { type: "user_message", text: "Compare", imageSources: ["https://example.com/image.png"] },
+    ]);
+  });
+
   test("maps user tool results to timeline items", () => {
     const toolUseId = "toolu_test";
     const entry = {

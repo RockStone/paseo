@@ -35,14 +35,19 @@ export interface MarkdownImageContext {
   filePath?: string;
 }
 
-export function useMarkdownSource(text: string, context: MarkdownImageContext) {
+export function useMarkdownSource(
+  text: string,
+  context: MarkdownImageContext,
+  options: { preserveImageOccurrences?: boolean } = {},
+) {
   const occurrenceKey = useId();
   const prepared = useMemo(
     () => prepareMarkdownSource(text, context.workspaceRoot, { supportsSvg: isWeb }),
     [text, context.workspaceRoot],
   );
-  const sources = [...new Set(prepared.images.map((image) => image.source))];
-  const acquisitions = sources.map((source) => {
+  const imageSources = prepared.images.map((image) => image.source);
+  const sources = options.preserveImageOccurrences ? imageSources : [...new Set(imageSources)];
+  const acquisitions = sources.map((source, index) => {
     const resolved = resolveMarkdownPreviewImageSource({
       source,
       markdownPath: context.filePath ?? "",
@@ -59,7 +64,7 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
         ? resolveAssistantImageSource({ source: resolved, workspaceRoot: context.workspaceRoot })
         : null,
       serverId: context.serverId,
-      occurrenceKey,
+      occurrenceKey: options.preserveImageOccurrences ? `${occurrenceKey}:${index}` : occurrenceKey,
       unavailableMessage: "Image unavailable",
     });
   });
@@ -126,6 +131,9 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   const pendingImages = new Set(sources.filter((_source, index) => statuses[index] === "pending"));
   return {
     markdown: prepared.render(resolved, unavailableImages, pendingImages),
+    hasUnavailableImages: unavailableImages.size > 0,
+    hasPendingImages: pendingImages.size > 0,
+    attachments: results.flatMap((result) => (result.data ? [result.data.attachment] : [])),
     linkRecognition: prepared.linkRecognition,
     linkSource: prepared.linkSource,
     imageSources: Object.fromEntries([...resolved].map(([source, url]) => [url, source])),

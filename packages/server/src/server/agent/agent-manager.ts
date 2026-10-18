@@ -1,3 +1,4 @@
+import { extractUserImageSources } from "./providers/provider-image-output.js";
 import { projectTimelineRows } from "./timeline-projection.js";
 import { ResponseChangeRecorder } from "./response-change-recorder.js";
 import type { PluginLifecycle } from "../plugins/lifecycle/index.js";
@@ -4869,9 +4870,11 @@ export class AgentManager {
     outcome: "accepted" | "rejected",
     options?: { messageId?: string; providerMessageId?: string; turnId?: string },
   ): void {
+    const imageSources = extractUserImageSources(prompt);
     const item = projectAgentMessage({
       type: "user_message",
       text: submittedPromptText(prompt),
+      ...(imageSources.length ? { imageSources } : {}),
       clientMessageId,
       ...(options?.messageId ? { messageId: options.messageId } : {}),
     });

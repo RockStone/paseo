@@ -125,3 +125,11 @@ function materializeThread(
   }
   return { key, title: node.title, target: node.target, children };
 }
+
+export function sidebarWorkspaceTarget(
+  agents: ReadonlyMap<string, Agent>,
+  workspaceId: string,
+): Extract<WorkspaceTabTarget, { kind: "agent" }> | undefined {
+  const roots = workspaceRootAgentIds(agents, workspaceId);
+  return roots.length === 1 ? { kind: "agent", agentId: roots[0]! } : undefined;
+}

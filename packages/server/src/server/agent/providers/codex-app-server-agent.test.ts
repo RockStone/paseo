@@ -28,6 +28,7 @@ import {
   mapCodexPlanToToolCall,
   normalizeCodexOutputSchema,
   toAgentUsage,
+  threadItemToTimeline,
 } from "./codex-app-server-agent.js";
 
 describe("mapCodexPlanUpdateToTodo", () => {
@@ -7070,6 +7071,27 @@ describe("Codex denied plan approvals", () => {
     expect((row as { item: { detail: unknown; metadata?: unknown } }).item).toMatchObject({
       detail: { type: "plan", text: "Ship the thing" },
       metadata: { approved: false },
+    });
+  });
+});
+
+describe("user image replay", () => {
+  test("preserves image inputs in their recorded order when a Codex thread is reopened", () => {
+    expect(
+      threadItemToTimeline({
+        type: "userMessage",
+        id: "saved-user",
+        content: [
+          { type: "text", text: "Compare these" },
+          { type: "localImage", path: "/tmp/first image.png" },
+          { type: "image", url: "https://example.com/second.png" },
+        ],
+      }),
+    ).toEqual({
+      type: "user_message",
+      messageId: "saved-user",
+      text: "Compare these",
+      imageSources: ["file:///tmp/first%20image.png", "https://example.com/second.png"],
     });
   });
 });

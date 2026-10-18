@@ -250,6 +250,12 @@ test.describe("Composer attachments", () => {
       await page.keyboard.press("ArrowRight");
       await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 2");
       await closeImageLightbox(page);
+      await page.reload();
+      await expect(images).toHaveCount(2, { timeout: 30_000 });
+      await images.first().click();
+      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 2");
+      await expect(page.getByTestId("attachment-lightbox-image")).toBeVisible();
+      await closeImageLightbox(page);
       await expect(first).toBeVisible();
     } finally {
       await workspace.cleanup();

@@ -1,3 +1,4 @@
+import { extractUserImageSources } from "./provider-image-output.js";
 import { validateProviderOptions } from "../provider-options.js";
 import {
   getAgentStreamEventTurnId,
@@ -1762,6 +1763,7 @@ function mapCodexThreadUserMessageItem(
     return null;
   }
   const text = extractUserText(normalizedItem.content) ?? "";
+  const imageSources = extractUserImageSources(normalizedItem.content);
   const messageId = nonEmptyString(normalizedItem.id);
   const clientMessageId = nonEmptyString(
     normalizedItem.clientId ?? normalizedItem.client_id ?? normalizedItem.clientUserMessageId,
@@ -1769,6 +1771,7 @@ function mapCodexThreadUserMessageItem(
   return {
     type: "user_message",
     text,
+    ...(imageSources.length ? { imageSources } : {}),
     ...(messageId ? { messageId } : {}),
     ...(clientMessageId ? { clientMessageId } : {}),
   };
