@@ -1,3 +1,4 @@
+import { formatInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
   appendSessionReference,
   filterSessionReferences,
@@ -1273,5 +1274,35 @@ describe("session reference project scope", () => {
     expect(
       sessionReferencesInCurrentProject({ entries, workspaces, workspaceId: "missing" }),
     ).toEqual([]);
+  });
+});
+
+describe("inline composer references", () => {
+  it("keeps identities and escapes labels while excluding deleted references from send", () => {
+    const inlineMention = formatInlineReference({
+      label: "#Review [API]",
+      type: "thread",
+      id: "agent/123",
+      serverId: "host a",
+    });
+    expect(inlineMention).toBe("[#Review \\[API\\]](thread://agent%2F123?hostId=host%20a)");
+    const reference: SessionReferenceAttachment = {
+      kind: "session_reference",
+      referenceType: "thread",
+      id: "agent/123",
+      serverId: "host a",
+      title: "Review [API]",
+      cwd: "/repo",
+      inlineMention,
+    };
+    const restored = UserComposerAttachmentSchema.parse(JSON.parse(JSON.stringify(reference)));
+    const references = [restored];
+    expect(
+      references.filter((item) => isReferenceInText(item, `Use ${inlineMention} to review`)),
+    ).toEqual(references);
+    expect(references.filter((item) => isReferenceInText(item, "Use to review"))).toEqual([]);
+    expect(isReferenceInText({ ...reference, inlineMention: undefined }, "Legacy draft")).toBe(
+      true,
+    );
   });
 });

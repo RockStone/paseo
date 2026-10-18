@@ -101,6 +101,7 @@ export const UserComposerAttachmentSchema: z.ZodType<UserComposerAttachment> = z
       kind: z.literal("agent_profile"),
       serverId: z.string(),
       profile: AgentProfileSchema,
+      inlineMention: z.string().optional(),
     }),
     z.strictObject({ kind: z.literal("image"), metadata: AttachmentMetadataSchema }),
     z.strictObject({ kind: z.literal("file"), attachment: UploadedFileSchema }),

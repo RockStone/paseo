@@ -39,14 +39,14 @@ import {
 interface UseAgentAutocompleteInput {
   userInput: string;
   cursorIndex: number;
-  setUserInput: (nextValue: string) => void;
+  setUserInput: (nextValue: string, selection?: { start: number; end: number }) => void;
   serverId: string;
   agentId: string;
   draft?: DraftCommandTarget;
   workspaceId?: string;
   sessionReferencesEnabled?: boolean;
   onSessionReferenceSelected?: (reference: SessionReferenceAttachment) => void;
-  onProfileSelected?: (profile: AgentProfile) => void;
+  onProfileSelected?: (profile: AgentProfile, inlineMention?: string) => void;
   onAutocompleteApplied?: () => void;
   onClientSlashCommand?: (command: ClientSlashCommand) => void;
   canExecuteClientSlashCommand?: boolean;

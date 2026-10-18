@@ -11,6 +11,7 @@ export const SessionReferenceAttachmentSchema = z.strictObject({
   title: z.string(),
   cwd: z.string(),
   workspaceId: z.string().optional(),
+  inlineMention: z.string().optional(),
 });
 export type SessionReferenceAttachment = z.infer<typeof SessionReferenceAttachmentSchema>;
 

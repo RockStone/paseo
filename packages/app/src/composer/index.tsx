@@ -1,3 +1,4 @@
+import { getInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
   createSessionContextAttachment,
   type SessionDragPayload,
@@ -353,18 +354,24 @@ function renderAttachmentTray(args: RenderAttachmentTrayArgs): ReactElement | nu
     handleRemoveAttachment,
     labels,
   } = args;
-  if (selectedAttachments.length === 0 && pendingFiles.length === 0) return null;
+  if (
+    selectedAttachments.every((attachment) => getInlineReference(attachment) !== undefined) &&
+    pendingFiles.length === 0
+  )
+    return null;
   return (
     <View style={styles.attachmentTray} testID="composer-attachment-tray">
       {selectedAttachments.map((attachment, index) =>
-        renderComposerAttachmentPill({
-          attachment,
-          index,
-          disabled: isComposerLocked,
-          onOpen: handleOpenAttachment,
-          onRemove: handleRemoveAttachment,
-          labels,
-        }),
+        getInlineReference(attachment) !== undefined
+          ? null
+          : renderComposerAttachmentPill({
+              attachment,
+              index,
+              disabled: isComposerLocked,
+              onOpen: handleOpenAttachment,
+              onRemove: handleRemoveAttachment,
+              labels,
+            }),
       )}
       {pendingFiles.map(({ id, file }) => (
         <AttachmentFrame key={id} testID="composer-pending-file-attachment">
@@ -1343,6 +1350,21 @@ function ComposerContentImpl({
     () => textSource.getSnapshot().trim().length > 0,
   );
   const setUserInput = onChangeText;
+  const referencePresence = useSyncExternalStore(
+    textSource.subscribe,
+    () =>
+      attachments
+        .map((attachment) => (isReferenceInText(attachment, textSource.getSnapshot()) ? "1" : "0"))
+        .join(""),
+    () =>
+      attachments
+        .map((attachment) => (isReferenceInText(attachment, textSource.getSnapshot()) ? "1" : "0"))
+        .join(""),
+  );
+  const activeAttachments = useMemo(
+    () => attachments.filter((_, index) => referencePresence[index] === "1"),
+    [attachments, referencePresence],
+  );
   const workspaceAttachments = useWorkspaceAttachmentsForScopes(attachmentScopeKeys);
   const {
     selectedAttachments,
@@ -1354,7 +1376,7 @@ function ComposerContentImpl({
     completeSubmit,
     resetSuppression,
   } = composerWorkspaceAttachment.useBinding({
-    normalAttachments: attachments,
+    normalAttachments: activeAttachments,
     workspaceAttachments,
     onOpenWorkspaceAttachment,
   });
@@ -1794,7 +1816,9 @@ function ComposerContentImpl({
 
   const handleSubmit = useCallback(
     (payload: MessagePayload) => {
-      const outgoingAttachments = buildOutgoingAttachments(attachments);
+      const outgoingAttachments = buildOutgoingAttachments(
+        attachments.filter((attachment) => isReferenceInText(attachment, payload.text)),
+      );
       const clientSlashCommand = resolveClientSlashCommand({
         text: payload.text,
         hasAttachments: outgoingAttachments.length > 0,
@@ -1951,7 +1975,11 @@ function ComposerContentImpl({
         return;
       }
       setSelectedAttachments((prev) =>
-        removeComposerAttachmentAtIndex({ attachments: prev, index, deleteAttachments }),
+        removeComposerAttachmentAtIndex({
+          attachments: prev,
+          index: prev.findIndex((attachment) => attachment === selectedAttachments[index]),
+          deleteAttachments,
+        }),
       );
     },
     [removeAttachment, selectedAttachments, setSelectedAttachments],
@@ -2047,7 +2075,9 @@ function ComposerContentImpl({
 
   const handleQueue = useCallback(
     (payload: MessagePayload) => {
-      const outgoingAttachments = buildOutgoingAttachments(attachments);
+      const outgoingAttachments = buildOutgoingAttachments(
+        attachments.filter((attachment) => isReferenceInText(attachment, payload.text)),
+      );
       const clientSlashCommand = resolveClientSlashCommand({
         text: payload.text,
         hasAttachments: outgoingAttachments.length > 0,
@@ -2442,9 +2472,14 @@ function ComposerContentImpl({
   );
 
   const handleProfileSelected = useCallback(
-    (profile: AgentProfile) => {
+    (profile: AgentProfile, inlineMention?: string) => {
       setSelectedAttachments((current) =>
-        appendProfileReference(current, { kind: "agent_profile", serverId, profile }),
+        appendProfileReference(current, {
+          kind: "agent_profile",
+          serverId,
+          profile,
+          inlineMention,
+        }),
       );
     },
     [serverId, setSelectedAttachments],
@@ -2466,7 +2501,7 @@ function ComposerContentImpl({
       serverId,
       agentId,
       draft: commandDraft,
-      canExecuteClientSlashCommand: buildOutgoingAttachments(attachments).length === 0,
+      canExecuteClientSlashCommand: buildOutgoingAttachments(activeAttachments).length === 0,
       onClientSlashCommand: runClientSlashCommand,
       pluginClientSlashCommands,
     }),
@@ -2479,7 +2514,7 @@ function ComposerContentImpl({
       agentId,
       commandDraft,
       buildOutgoingAttachments,
-      attachments,
+      activeAttachments,
       runClientSlashCommand,
       pluginClientSlashCommands,
     ],

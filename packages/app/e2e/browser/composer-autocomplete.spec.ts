@@ -749,8 +749,9 @@ test.describe("Composer profile references", () => {
       await expect(page.getByTestId("autocomplete-option-profile:delegate-codex")).toHaveCount(0);
       await input.press("Enter");
       const pill = page.getByTestId("composer-agent-profile-pill");
-      await expect(pill).toContainText("@Opus delegate");
-      await expect(input).toHaveValue("Delegate ");
+      const mention = `[@Opus delegate](agent-profile://delegate-opus?hostId=${getServerId()})`;
+      await expect(pill).toHaveCount(0);
+      await expect(input).toHaveValue(`Delegate ${mention} `);
       await expect(input).toBeFocused();
       await expectWorkspaceAgentConfiguration(workspace, {
         provider: "mock",
@@ -760,19 +761,16 @@ test.describe("Composer profile references", () => {
       await input.fill("@@Opus");
       await expect(option).toBeVisible();
       await option.click();
-      await expect(pill).toHaveCount(1);
-      await input.fill("Please delegate the review.");
+      await expect(pill).toHaveCount(0);
+      await input.fill(`Please delegate ${mention} the review.`);
       await page.reload();
       await expectComposerVisible(page);
-      await expect(pill).toContainText("@Opus delegate");
-      await expect(input).toHaveValue("Please delegate the review.");
-      await pill.click();
-      await expect(page.getByText(/Profile notes:.*Use a separate worktree/s)).toBeVisible();
-      await page.getByRole("button", { name: "Close", exact: true }).last().click();
+      await expect(pill).toHaveCount(0);
+      await expect(input).toHaveValue(`Please delegate ${mention} the review.`);
       await input.press("Enter");
       await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
       const request = gate.getClientRequests("send_agent_message_request")[0]!;
-      expect(request.text).toBe("Please delegate the review.");
+      expect(request.text).toBe(`Please delegate ${mention} the review.`);
       expect(request.attachments).toEqual([
         expect.objectContaining({
           type: "text",
@@ -798,6 +796,7 @@ test("profile references keep @ files intact and support empty results, caret se
     repoPrefix: "profile-reference-caret-",
     title: "Profile reference caret",
   });
+  const gate = await installDaemonWebSocketGate(page);
   try {
     await openAgentRoute(page, workspace);
     await expectComposerVisible(page);
@@ -820,15 +819,20 @@ test("profile references keep @ files intact and support empty results, caret se
     });
     await expect(page.getByTestId("autocomplete-option-profile:delegate-codex")).toBeVisible();
     await input.press("Tab");
-    await expect(input).toHaveValue("Ask  to review");
+    const mention = `[@Codex delegate](agent-profile://delegate-codex?hostId=${getServerId()})`;
+    await expect(input).toHaveValue(`Ask ${mention}  to review`);
+    await input.press("x");
+    await expect(input).toHaveValue(`Ask ${mention} x to review`);
     const pill = page.getByTestId("composer-agent-profile-pill");
-    await expect(pill).toContainText("@Codex delegate");
-    await pill.hover();
-    await page
-      .getByRole("button", { name: "Remove agent profile Codex delegate", exact: true })
-      .click();
     await expect(pill).toHaveCount(0);
-    await expect(input).toHaveValue("Ask  to review");
+    await input.fill("Ask to review");
+    await expect(pill).toHaveCount(0);
+    await expect(input).toHaveValue("Ask to review");
+    await input.press("Enter");
+    await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
+    const request = gate.getClientRequests("send_agent_message_request")[0]!;
+    expect(request.text).toBe("Ask to review");
+    expect(request.attachments ?? []).toEqual([]);
   } finally {
     await workspace.cleanup();
     await seed.restore();
@@ -914,13 +918,14 @@ test.describe("Composer session references", () => {
       ).toBeVisible();
       await input.press("Enter");
       const pills = page.getByTestId("composer-session-reference-pill");
-      await expect(pills).toHaveCount(1);
-      await expect(pills.first()).toContainText("#Renamed Flutter terminal");
-      await expect(input).toHaveValue("Inspect ");
+      const terminalMention = `[#Renamed Flutter terminal](terminal://${terminalId}?hostId=${getServerId()})`;
+      const threadMention = `[#Flutter debug thread](thread://${other.agentId}?hostId=${getServerId()})`;
+      await expect(pills).toHaveCount(0);
+      await expect(input).toHaveValue(`Inspect ${terminalMention} `);
       await expect(input).toBeFocused();
       await input.fill(`##${terminalId}`);
       await page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`).click();
-      await expect(pills).toHaveCount(1);
+      await expect(pills).toHaveCount(0);
       await input.fill("##thread:Flutter");
       await expect(
         page.getByTestId(`autocomplete-option-session:thread:${other.agentId}`),
@@ -929,16 +934,18 @@ test.describe("Composer session references", () => {
       await expect(input).toBeFocused();
 
       await page.getByTestId(`autocomplete-option-session:thread:${other.agentId}`).click();
-      await expect(pills).toHaveCount(2);
-      await input.fill("Check this terminal using the referenced thread.");
+      await expect(pills).toHaveCount(0);
+      const message = `Check ${terminalMention} using ${threadMention}.`;
+      await input.fill(message);
       await page.reload();
       await expectComposerVisible(page);
-      await expect(pills).toHaveCount(2);
-      await expect(input).toHaveValue("Check this terminal using the referenced thread.");
+      await expect(pills).toHaveCount(0);
+      await expect(input).toHaveValue(message);
       expect(gate.getClientRequestCount("capture_terminal_request")).toBe(0);
       await input.press("Enter");
       await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
       const request = gate.getClientRequests("send_agent_message_request")[0]!;
+      expect(request.text).toBe(message);
       expect(request.attachments).toEqual([
         expect.objectContaining({
           type: "text",
@@ -971,11 +978,12 @@ test.describe("Composer session references", () => {
         workspace.cwd,
         "Reconnect terminal",
         undefined,
-        { workspaceId: workspace.workspaceId },
+        { workspaceId: workspace.workspaceId, command: "sh", args: ["-c", "cat"] },
       );
       if (!created.terminal || created.error)
         throw new Error(created.error ?? "Terminal creation failed");
       const terminalId = created.terminal.id;
+      await workspace.client.renameTerminal({ terminalId, title: "Reconnect terminal" });
       await openAgentRoute(page, workspace);
       await expectComposerVisible(page);
       const input = composerLocator(page);
@@ -994,11 +1002,12 @@ test.describe("Composer session references", () => {
         element.dispatchEvent(new Event("keyup", { bubbles: true }));
       }, text.indexOf(" after"));
       await page.getByTestId(`autocomplete-option-session:terminal:${terminalId}`).click();
-      await expect(input).toHaveValue("Inspect  after reload");
+      await expect(input).toHaveValue(
+        `Inspect [#Reconnect terminal](terminal://${terminalId}?hostId=${getServerId()})  after reload`,
+      );
       const pill = page.getByTestId("composer-session-reference-pill");
-      await expect(pill).toHaveCount(1);
-      await pill.hover();
-      await page.getByRole("button", { name: /^Remove reference / }).click();
+      await expect(pill).toHaveCount(0);
+      await input.fill("Inspect after reload");
       await expect(pill).toHaveCount(0);
       await input.fill("##");
       await expect(

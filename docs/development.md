@@ -51,6 +51,11 @@ the existing fork-context API. It works across connected hosts and providers;
 the source host must support `agentForkContext`. It captures up to the existing
 100,000-character context budget at drop time, not a live feed of later messages.
 
+The `##` session picker and `@@` profile picker insert editable Markdown references
+at the caret. Their saved context is sent only while the complete reference
+remains in the draft; removing it also removes that context from the outgoing
+message. Existing attachment-style drafts still work.
+
 Image previews brighten on hover and reveal a light, top-right delete control.
 Touch layouts keep the control visible.
 

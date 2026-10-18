@@ -1,3 +1,4 @@
+import { formatInlineReference } from "@/attachments/inline-reference";
 import { SessionReferenceScopeFilter, type SessionReferenceScope } from "./scope-filter";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,7 +30,7 @@ export interface SessionReferenceAutocompleteInput {
   agentId: string;
   workspaceId?: string;
   sessionReferencesEnabled?: boolean;
-  setUserInput: (text: string) => void;
+  setUserInput: (text: string, selection?: { start: number; end: number }) => void;
   onSessionReferenceSelected?: (reference: SessionReferenceAttachment) => void;
   onAutocompleteApplied?: () => void;
 }
@@ -174,8 +175,19 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
         !onSessionReferenceSelected
       )
         return;
-      onSessionReferenceSelected(option.reference);
-      setUserInput(text.slice(0, active.start) + text.slice(active.end));
+      const inlineMention = formatInlineReference({
+        label: `#${option.reference.title}`,
+        type: option.reference.referenceType,
+        id: option.reference.id,
+        serverId,
+      });
+      onSessionReferenceSelected({ ...option.reference, inlineMention });
+      const insertion = `${inlineMention} `;
+      const caret = active.start + insertion.length;
+      setUserInput(text.slice(0, active.start) + insertion + text.slice(active.end), {
+        start: caret,
+        end: caret,
+      });
       onAutocompleteApplied?.();
     },
     [

@@ -1,3 +1,4 @@
+import { formatInlineReference } from "@/attachments/inline-reference";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { AgentProfile } from "@getpaseo/protocol/messages";
@@ -16,8 +17,8 @@ interface ProfileReferenceAutocompleteInput {
   userInput: string;
   cursorIndex: number;
   serverId: string;
-  setUserInput: (text: string) => void;
-  onProfileSelected?: (profile: AgentProfile) => void;
+  setUserInput: (text: string, selection?: { start: number; end: number }) => void;
+  onProfileSelected?: (profile: AgentProfile, inlineMention?: string) => void;
   onAutocompleteApplied?: () => void;
 }
 
@@ -64,8 +65,19 @@ export function useProfileReferenceAutocomplete(input: ProfileReferenceAutocompl
         cursorIndex: snapshot?.selection.start ?? cursorIndex,
       });
       if (!active || option.serverId !== serverId || !onProfileSelected) return;
-      onProfileSelected(option.profile);
-      setUserInput(text.slice(0, active.start) + text.slice(active.end));
+      const inlineMention = formatInlineReference({
+        label: `@${option.profile.name}`,
+        type: "agent-profile",
+        id: option.profile.id,
+        serverId,
+      });
+      onProfileSelected(option.profile, inlineMention);
+      const insertion = `${inlineMention} `;
+      const caret = active.start + insertion.length;
+      setUserInput(text.slice(0, active.start) + insertion + text.slice(active.end), {
+        start: caret,
+        end: caret,
+      });
       onAutocompleteApplied?.();
     },
     [userInput, cursorIndex, serverId, setUserInput, onProfileSelected, onAutocompleteApplied],

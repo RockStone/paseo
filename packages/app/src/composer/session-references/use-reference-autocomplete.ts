@@ -20,7 +20,7 @@ export function isComposerReferenceOption(
 }
 
 interface ComposerReferenceAutocompleteInput extends SessionReferenceAutocompleteInput {
-  onProfileSelected?: (profile: AgentProfile) => void;
+  onProfileSelected?: (profile: AgentProfile, inlineMention?: string) => void;
 }
 
 export function useComposerReferenceAutocomplete(input: ComposerReferenceAutocompleteInput) {

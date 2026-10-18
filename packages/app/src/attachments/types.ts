@@ -109,6 +109,7 @@ export interface AgentProfileComposerAttachment {
   kind: "agent_profile";
   serverId: string;
   profile: AgentProfile;
+  inlineMention?: string;
 }
 
 export type UserComposerAttachment =
