@@ -9,6 +9,7 @@ import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-
 interface UseDaemonConfigResult {
   config: MutableDaemonConfig | null;
   isLoading: boolean;
+  error: unknown;
   patchConfig: (patch: MutableDaemonConfigPatch) => Promise<MutableDaemonConfig | undefined>;
 }
 
@@ -47,6 +48,7 @@ export function useDaemonConfig(serverId: string | null): UseDaemonConfigResult 
   return {
     config: configQuery.data ?? null,
     isLoading: configQuery.isLoading,
+    error: configQuery.error,
     patchConfig,
   };
 }

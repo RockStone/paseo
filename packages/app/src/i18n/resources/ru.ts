@@ -1664,6 +1664,11 @@ export const ru: TranslationResources = {
     stashRestored: "Изменения из stash восстановлены.",
   },
   agentAutocomplete: {
+    loadingProfiles: "Загрузка профилей агентов…",
+    noProfiles: "Подходящих профилей нет. Управляйте профилями в настройках хоста.",
+    openProfile: "Посмотреть профиль агента {{name}}",
+    removeProfile: "Удалить профиль агента {{name}}",
+
     searchingWorkspace: "Поиск в рабочем пространстве...",
     loadingCommands: "Загрузка команд...",
     noFiles: "Файлы и каталоги не найдены",

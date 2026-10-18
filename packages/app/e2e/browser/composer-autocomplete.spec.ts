@@ -1,3 +1,6 @@
+import { seedAgentProfiles } from "../support/helpers/agent-profiles";
+import { expectWorkspaceAgentConfiguration } from "../support/helpers/command-center-agent-controls";
+import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { expect, test, type Page } from "../support/fixtures";
 import { composerLocator, expectComposerVisible } from "../support/helpers/composer";
 import {
@@ -710,4 +713,124 @@ test.describe("Composer autocomplete", () => {
       }
     });
   });
+});
+
+test.describe("Composer profile references", () => {
+  test("@@ selects a saved profile as persistent delegation context without applying it", async ({
+    page,
+  }) => {
+    const profile = {
+      id: "delegate-opus",
+      name: "Opus delegate",
+      provider: "claude",
+      model: "opus-5.5",
+      modeId: "auto",
+      thinkingOptionId: "medium",
+      notes: "Use a separate worktree from origin/dev.",
+    };
+    const profiles = await seedAgentProfiles([
+      profile,
+      { id: "delegate-codex", name: "Codex delegate", provider: "codex", model: "gpt-6.1-sol" },
+    ]);
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "profile-reference-",
+      title: "Profile reference test",
+      model: "ten-second-stream",
+      modeId: "load-test",
+    });
+    const gate = await installDaemonWebSocketGate(page);
+    try {
+      await openAgentRoute(page, workspace);
+      await expectComposerVisible(page);
+      const input = composerLocator(page);
+      await input.fill("Delegate @@Opus");
+      const option = page.getByTestId("autocomplete-option-profile:delegate-opus");
+      await expect(option).toBeVisible();
+      await expect(page.getByTestId("autocomplete-option-profile:delegate-codex")).toHaveCount(0);
+      await input.press("Enter");
+      const pill = page.getByTestId("composer-agent-profile-pill");
+      await expect(pill).toContainText("@Opus delegate");
+      await expect(input).toHaveValue("Delegate ");
+      await expect(input).toBeFocused();
+      await expectWorkspaceAgentConfiguration(workspace, {
+        provider: "mock",
+        model: "ten-second-stream",
+        modeId: "load-test",
+      });
+      await input.fill("@@Opus");
+      await expect(option).toBeVisible();
+      await option.click();
+      await expect(pill).toHaveCount(1);
+      await input.fill("Please delegate the review.");
+      await page.reload();
+      await expectComposerVisible(page);
+      await expect(pill).toContainText("@Opus delegate");
+      await expect(input).toHaveValue("Please delegate the review.");
+      await pill.click();
+      await expect(page.getByText(/Profile notes:.*Use a separate worktree/s)).toBeVisible();
+      await page.getByRole("button", { name: "Close", exact: true }).last().click();
+      await input.press("Enter");
+      await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
+      const request = gate.getClientRequests("send_agent_message_request")[0]!;
+      expect(request.text).toBe("Please delegate the review.");
+      expect(request.attachments).toEqual([
+        expect.objectContaining({
+          type: "text",
+          title: "Agent profile · Opus delegate",
+          text: expect.stringContaining('"model": "opus-5.5"'),
+        }),
+      ]);
+      expect(gate.getClientRequestCount("create_agent_request")).toBe(0);
+    } finally {
+      await workspace.cleanup();
+      await profiles.restore();
+    }
+  });
+});
+
+test("profile references keep @ files intact and support empty results, caret selection and removal", async ({
+  page,
+}) => {
+  const seed = await seedAgentProfiles([
+    { id: "delegate-codex", name: "Codex delegate", provider: "codex", model: "gpt-6.1-sol" },
+  ]);
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "profile-reference-caret-",
+    title: "Profile reference caret",
+  });
+  try {
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    await input.fill("@@nomatch");
+    await expect(
+      page.getByText("No matching agent profiles. Manage profiles in host settings.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await input.fill("@README");
+    await expect(page.getByTestId("autocomplete-option-file:README.md")).toBeVisible();
+    await expect(page.getByTestId("autocomplete-option-profile:delegate-codex")).toHaveCount(0);
+    await input.fill("Ask @@Codex to review");
+    await input.evaluate((element) => {
+      if (!(element instanceof HTMLTextAreaElement)) throw new Error("Expected textarea");
+      element.setSelectionRange(11, 11);
+      element.dispatchEvent(new Event("select", { bubbles: true }));
+      element.dispatchEvent(new Event("keyup", { bubbles: true }));
+    });
+    await expect(page.getByTestId("autocomplete-option-profile:delegate-codex")).toBeVisible();
+    await input.press("Tab");
+    await expect(input).toHaveValue("Ask  to review");
+    const pill = page.getByTestId("composer-agent-profile-pill");
+    await expect(pill).toContainText("@Codex delegate");
+    await pill.hover();
+    await page
+      .getByRole("button", { name: "Remove agent profile Codex delegate", exact: true })
+      .click();
+    await expect(pill).toHaveCount(0);
+    await expect(input).toHaveValue("Ask  to review");
+  } finally {
+    await workspace.cleanup();
+    await seed.restore();
+  }
 });

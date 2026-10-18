@@ -1,5 +1,6 @@
 import type {
   AgentAttachment,
+  AgentProfile,
   ForgeSearchItem,
   UploadedFileAttachment,
 } from "@getpaseo/protocol/messages";
@@ -103,7 +104,14 @@ export interface WorkspaceFileComposerAttachment {
   selection: WorkspaceFileSelection;
 }
 
+export interface AgentProfileComposerAttachment {
+  kind: "agent_profile";
+  serverId: string;
+  profile: AgentProfile;
+}
+
 export type UserComposerAttachment =
+  | AgentProfileComposerAttachment
   | { kind: "image"; metadata: AttachmentMetadata }
   | { kind: "file"; attachment: UploadedFileAttachment }
   | WorkspaceFileComposerAttachment

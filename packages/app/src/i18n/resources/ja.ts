@@ -1652,6 +1652,11 @@ export const ja: TranslationResources = {
     stashRestored: "スタッシュした変更を復元しました",
   },
   agentAutocomplete: {
+    loadingProfiles: "エージェントプロファイルを読み込み中…",
+    noProfiles: "一致するプロファイルがありません。ホスト設定で管理できます。",
+    openProfile: "エージェントプロファイル {{name}} を表示",
+    removeProfile: "エージェントプロファイル {{name}} を削除",
+
     searchingWorkspace: "ワークスペースを検索中...",
     loadingCommands: "コマンドを読み込み中...",
     noFiles: "ファイルまたはディレクトリが見つかりません",

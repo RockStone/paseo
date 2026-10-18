@@ -26,6 +26,7 @@ export function findActiveFileMention(input: FindActiveFileMentionInput): FileMe
     atIndex >= 0;
     atIndex = atIndex === 0 ? -1 : beforeCursor.lastIndexOf("@", atIndex - 1)
   ) {
+    if (beforeCursor[atIndex - 1] === "@" || beforeCursor[atIndex + 1] === "@") continue;
     // Skip @ that looks like part of an email address (local-part char immediately before @).
     if (atIndex > 0 && /[\w+]/.test(beforeCursor[atIndex - 1]!)) {
       continue;

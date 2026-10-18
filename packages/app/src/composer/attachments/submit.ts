@@ -1,3 +1,4 @@
+import { profileReferenceToAgentAttachment } from "@/agent-profiles/profile-reference";
 import type { ComposerAttachment } from "@/attachments/types";
 import type { ImageAttachment } from "@/composer/types";
 import {
@@ -47,6 +48,11 @@ export function splitComposerAttachmentsForSubmit(
   for (const attachment of attachments) {
     if (attachment.kind === "image") {
       images.push(attachment.metadata);
+      continue;
+    }
+
+    if (attachment.kind === "agent_profile") {
+      agentAttachments.push(profileReferenceToAgentAttachment(attachment));
       continue;
     }
 

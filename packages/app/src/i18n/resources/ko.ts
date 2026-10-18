@@ -1645,6 +1645,11 @@ export const ko: TranslationResources = {
     stashRestored: "스태시된 변경 사항이 복원되었습니다",
   },
   agentAutocomplete: {
+    loadingProfiles: "에이전트 프로필 로딩 중…",
+    noProfiles: "일치하는 프로필이 없습니다. 호스트 설정에서 관리하세요.",
+    openProfile: "에이전트 프로필 {{name}} 보기",
+    removeProfile: "에이전트 프로필 {{name}} 제거",
+
     searchingWorkspace: "워크스페이스 검색 중...",
     loadingCommands: "명령 불러오는 중...",
     noFiles: "파일 또는 디렉터리를 찾을 수 없습니다",

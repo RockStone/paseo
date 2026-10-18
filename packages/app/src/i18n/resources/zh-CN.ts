@@ -1618,6 +1618,11 @@ export const zhCN: TranslationResources = {
     stashRestored: "Stashed 变更已恢复",
   },
   agentAutocomplete: {
+    loadingProfiles: "正在加载智能体配置…",
+    noProfiles: "没有匹配的智能体配置。请在主机设置中管理配置。",
+    openProfile: "查看智能体配置 {{name}}",
+    removeProfile: "移除智能体配置 {{name}}",
+
     searchingWorkspace: "正在搜索 workspace...",
     loadingCommands: "正在加载 commands...",
     noFiles: "没有找到文件或目录",

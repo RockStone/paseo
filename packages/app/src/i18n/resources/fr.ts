@@ -1677,6 +1677,11 @@ export const fr: TranslationResources = {
     stashRestored: "Modifications remisées restaurées",
   },
   agentAutocomplete: {
+    loadingProfiles: "Chargement des profils d’agent…",
+    noProfiles: "Aucun profil correspondant. Gérez les profils dans les paramètres de l’hôte.",
+    openProfile: "Voir le profil d’agent {{name}}",
+    removeProfile: "Retirer le profil d’agent {{name}}",
+
     searchingWorkspace: "Recherche dans l’espace de travail…",
     loadingCommands: "Chargement des commandes…",
     noFiles: "Aucun fichier ou répertoire trouvé",

@@ -161,6 +161,11 @@ import { ForgeBrandIcon } from "@/git/forge-icon";
 import { useComposerForgeAutoAttach } from "./forge-auto-attach";
 import { readClipboardImage } from "./clipboard-image";
 import { normalizeNativePastedImages, type NativePastedFile } from "./native-pasted-image";
+import {
+  AgentProfileReferencePill,
+  appendProfileReference,
+  type AgentProfile,
+} from "@/agent-profiles";
 import { PluginResourceAttachmentPill, usePluginAttachmentPicker } from "@/plugins";
 import { resolveClientSlashCommand, type ClientSlashCommand } from "@/client-slash-commands";
 import {
@@ -431,6 +436,17 @@ function renderComposerAttachmentPill(args: RenderComposerAttachmentPillArgs): R
         disabled={disabled}
         onRemove={onRemove}
         removeLabel={labels.removeFile}
+      />
+    );
+  }
+  if (attachment.kind === "agent_profile") {
+    return (
+      <AgentProfileReferencePill
+        key={`profile:${attachment.serverId}:${attachment.profile.id}`}
+        attachment={attachment}
+        index={index}
+        disabled={disabled}
+        onRemove={onRemove}
       />
     );
   }
@@ -2406,9 +2422,19 @@ function ComposerContentImpl({
     [handleEditQueuedMessage, handleSendQueuedNow, queuedMessages, t],
   );
 
+  const handleProfileSelected = useCallback(
+    (profile: AgentProfile) => {
+      setSelectedAttachments((current) =>
+        appendProfileReference(current, { kind: "agent_profile", serverId, profile }),
+      );
+    },
+    [serverId, setSelectedAttachments],
+  );
+
   const autocompleteConfiguration = useMemo(
     () => ({
       setUserInput: replaceUserInput,
+      onProfileSelected: handleProfileSelected,
       serverId,
       agentId,
       draft: commandDraft,
@@ -2418,6 +2444,7 @@ function ComposerContentImpl({
     }),
     [
       replaceUserInput,
+      handleProfileSelected,
       serverId,
       agentId,
       commandDraft,

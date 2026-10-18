@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
-import { File, Folder } from "lucide-react-native";
+import { Bot, File, Folder } from "lucide-react-native";
 import type { Theme } from "@/styles/theme";
 import { getScrollOffsetToRevealItem } from "./scroll-reveal";
 
@@ -20,7 +20,7 @@ export interface AutocompleteOption {
   label: string;
   detail?: string;
   description?: string;
-  kind?: "command" | "file" | "directory";
+  kind?: "command" | "file" | "directory" | "agent_profile";
 }
 
 interface AutocompleteProps {
@@ -63,7 +63,9 @@ function AutocompleteRow({
 }: AutocompleteRowProps) {
   const optionLabel = removeBoltGlyphs(option.label) ?? option.label;
   const optionDescription = removeBoltGlyphs(option.description);
-  const isFileOrDir = option.kind === "directory" || option.kind === "file";
+  const isFileOrDir =
+    option.kind === "directory" || option.kind === "file" || option.kind === "agent_profile";
+  const LeadingIcon = option.kind === "agent_profile" ? Bot : File;
 
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) => onRowLayout(index, event),
@@ -79,14 +81,19 @@ function AutocompleteRow({
   );
 
   return (
-    <Pressable onLayout={handleLayout} onPress={handlePress} style={pressableStyle}>
+    <Pressable
+      testID={`autocomplete-option-${option.id}`}
+      onLayout={handleLayout}
+      onPress={handlePress}
+      style={pressableStyle}
+    >
       {isFileOrDir ? (
         <>
           <View style={styles.itemLeading}>
             {option.kind === "directory" ? (
               <Folder size={14} color={mutedColor} />
             ) : (
-              <File size={14} color={mutedColor} />
+              <LeadingIcon size={14} color={mutedColor} />
             )}
           </View>
           <View style={styles.itemMain}>

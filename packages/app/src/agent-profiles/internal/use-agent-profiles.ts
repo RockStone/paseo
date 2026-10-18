@@ -9,12 +9,14 @@ export interface UseAgentProfilesResult {
   profiles: AgentProfile[] | null;
   /** False on daemons that predate agent profiles, or while disconnected. */
   isSupported: boolean;
+  isLoading: boolean;
+  error: unknown;
   /** Writes the whole list; there is no per-profile RPC. */
   saveProfiles: (next: AgentProfile[]) => Promise<void>;
 }
 
 export function useAgentProfiles(serverId: string | null): UseAgentProfilesResult {
-  const { config, patchConfig } = useDaemonConfig(serverId);
+  const { config, patchConfig, isLoading, error } = useDaemonConfig(serverId);
   const isSupported = useSessionStore((state) => {
     return supportsAgentProfiles(state.sessions[serverId ?? ""]?.serverInfo?.features);
   });
@@ -29,6 +31,8 @@ export function useAgentProfiles(serverId: string | null): UseAgentProfilesResul
   return {
     profiles: config ? (config.agentProfiles ?? []) : null,
     isSupported,
+    isLoading,
+    error,
     saveProfiles,
   };
 }

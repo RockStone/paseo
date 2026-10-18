@@ -1663,6 +1663,11 @@ export const en = {
     stashRestored: "Stashed changes restored",
   },
   agentAutocomplete: {
+    loadingProfiles: "Loading agent profiles…",
+    noProfiles: "No matching agent profiles. Manage profiles in host settings.",
+    openProfile: "View agent profile {{name}}",
+    removeProfile: "Remove agent profile {{name}}",
+
     searchingWorkspace: "Searching workspace...",
     loadingCommands: "Loading commands...",
     noFiles: "No files or directories found",

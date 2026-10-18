@@ -24,6 +24,7 @@ interface ClientRequest {
   messageId?: unknown;
   text?: unknown;
   activeTurnBehavior?: unknown;
+  attachments?: unknown;
 }
 
 interface ServerMessage {

@@ -1682,6 +1682,11 @@ export const es: TranslationResources = {
     stashRestored: "Se restauraron los cambios ocultos",
   },
   agentAutocomplete: {
+    loadingProfiles: "Cargando perfiles de agentes…",
+    noProfiles: "No hay perfiles coincidentes. Adminístralos en los ajustes del host.",
+    openProfile: "Ver perfil de agente {{name}}",
+    removeProfile: "Quitar perfil de agente {{name}}",
+
     searchingWorkspace: "Buscando espacio de trabajo...",
     loadingCommands: "Cargando comandos...",
     noFiles: "No se encontraron archivos ni directorios",

@@ -1635,6 +1635,11 @@ export const ar: TranslationResources = {
     stashRestored: "تمت استعادة التغييرات المخفية",
   },
   agentAutocomplete: {
+    loadingProfiles: "جارٍ تحميل ملفات تعريف الوكلاء…",
+    noProfiles: "لا توجد ملفات تعريف مطابقة. يمكنك إدارتها في إعدادات المضيف.",
+    openProfile: "عرض ملف تعريف الوكيل {{name}}",
+    removeProfile: "إزالة ملف تعريف الوكيل {{name}}",
+
     searchingWorkspace: "جارٍ البحث في مساحة العمل...",
     loadingCommands: "جارٍ تحميل الأوامر...",
     noFiles: "لم يتم العثور على ملفات أو أدلة",

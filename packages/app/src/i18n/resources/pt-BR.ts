@@ -1667,6 +1667,11 @@ export const ptBR: TranslationResources = {
     stashRestored: "Alterações em stash restauradas",
   },
   agentAutocomplete: {
+    loadingProfiles: "Carregando perfis de agentes…",
+    noProfiles: "Nenhum perfil correspondente. Gerencie os perfis nas configurações do host.",
+    openProfile: "Ver perfil de agente {{name}}",
+    removeProfile: "Remover perfil de agente {{name}}",
+
     searchingWorkspace: "Buscando workspace...",
     loadingCommands: "Carregando comandos...",
     noFiles: "Nenhum arquivo ou diretório encontrado",
