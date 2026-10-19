@@ -210,7 +210,13 @@ function WebHoverCard({
         keyPressed(event);
     };
     const scrolled = (event: Event) => {
-      if (!(contentRef.current as unknown as HTMLElement | null)?.contains(event.target as Node))
+      const target = event.target;
+      // Chat auto-scroll does not move the composer anchor. Only an ancestor scroll does.
+      if (
+        target instanceof Node &&
+        target.contains(trigger) &&
+        !(contentRef.current as unknown as HTMLElement | null)?.contains(target)
+      )
         close();
     };
     document.addEventListener("focusin", focusEntered);

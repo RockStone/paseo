@@ -109,6 +109,30 @@ test.describe("context window meter", () => {
   });
 });
 
+test("keeps the context popup open during live usage updates and unrelated scrolling", async ({
+  page,
+  agent,
+}) => {
+  await openAgent(page, agent);
+  const card = await hoverContextWindowMeter(page);
+  await moveOntoContextWindowDetails(page, card);
+  await agent.client.sendAgentMessage(agent.agentId, "emit 64000 byte file agent stream payload");
+  await agent.client.waitForFinish(agent.agentId, 30_000);
+  await expect(card).toBeVisible();
+  await expect(card.getByText("50% used", { exact: true })).toBeVisible();
+  await expect(card.getByText("64k / 128k tokens", { exact: true })).toBeVisible();
+  await page
+    .getByTestId("agent-chat-scroll")
+    .first()
+    .evaluate((node) => node.dispatchEvent(new Event("scroll")));
+  await page.waitForTimeout(300);
+  await expect(card).toBeVisible();
+  await leaveContextWindowMeter(page);
+  await hoverContextWindowMeter(page, "Context window 50% used");
+  await page.evaluate(() => document.dispatchEvent(new Event("scroll")));
+  await expect(card).toHaveCount(0);
+});
+
 const DESKTOP = { width: 1440, height: 900 };
 const COMPACT = { width: 390, height: 844 };
 const LOGIN_EXPIRED = /^Login expired .*Run claude to refresh it\.$/;

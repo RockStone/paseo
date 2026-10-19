@@ -20,6 +20,8 @@ input focused while its scrollable list lives in a Portal. There is no shared
 "floating panel" primitive yet — when a fifth use case shows up we can revisit;
 until then prefer copying the closest file and trimming.
 
+Chat auto-scroll does not move a composer anchor. Close hover cards when an ancestor of their trigger scrolls; scrolling another pane must not dismiss them.
+
 On web, hover cards opened inside menus use the shared overlay root. An app-local
 portal stays below the menu backdrop regardless of the card's own z-index, which
 prevents the pointer from reaching scrollable content.
