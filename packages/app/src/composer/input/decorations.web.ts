@@ -34,10 +34,25 @@ function labelText(node: Nodes): string {
 function decorate(state: EditorState): DecorationSet {
   const text = state.doc.toString();
   const ranges: Range<Decoration>[] = [];
+  const quotedLines = new Set<number>();
   function visit(node: Nodes) {
     const from = node.position?.start.offset;
     const to = node.position?.end.offset;
     if (from === undefined || to === undefined) return;
+    if (node.type === "blockquote") {
+      const lastLine = state.doc.lineAt(Math.max(from, to - 1)).number;
+      for (let number = state.doc.lineAt(from).number; number <= lastLine; number++) {
+        const line = state.doc.line(number);
+        if (quotedLines.has(line.from)) continue;
+        quotedLines.add(line.from);
+        ranges.push(Decoration.line({ class: "composer-quote" }).range(line.from));
+        const marker = /^ {0,3}(?:> ?)+/.exec(line.text)?.[0];
+        if (marker)
+          ranges.push(
+            Decoration.replace({ atomic: true }).range(line.from, line.from + marker.length),
+          );
+      }
+    }
     if (node.type === "link") {
       const label = labelText(node);
       ranges.push(

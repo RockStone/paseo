@@ -1051,6 +1051,17 @@ test("decorated composer hides reference targets, formats closed Markdown and co
     await expect(input).not.toContainText("thread://");
     await expect(input).not.toContainText("**");
     await page.screenshot({ path: "/tmp/paseoi-r30-decorated-composer.png" });
+    await input.fill("> A quoted **remark** \n> A second line\n\nMy reply");
+    await expect(input.locator(".composer-quote")).toHaveCount(2);
+    await expect(input.locator(".composer-quote").first()).toHaveText("A quoted remark ");
+    await expect(input).toHaveAttribute(
+      "data-markdown",
+      "> A quoted **remark** \n> A second line\n\nMy reply",
+    );
+    await expect(input.locator(".composer-quote").first()).toHaveCSS("border-left-width", "2px");
+    await page.screenshot({ path: "/tmp/paseoi-r45-quoted-draft.png" });
+    await input.fill("```\n> literal code\n```");
+    await expect(input.locator(".composer-quote")).toHaveCount(0);
     await input.fill("Use [thread](thread://agent-id?hostId=host)");
     await input.press("End");
     await input.press("Backspace");
@@ -1083,13 +1094,17 @@ test("decorated composer hides reference targets, formats closed Markdown and co
     await input.press("Shift+Enter");
     await expect(input).toHaveAttribute("data-markdown", "1. hello\n2. world\n");
     expect(gate.getClientRequests("send_agent_message_request")).toHaveLength(0);
-    const sentMarkdown = `${markdown}\n\n1. hello`;
+    const sentMarkdown = `> A quoted remark\n> A second line\n\n${markdown}\n\n1. hello`;
     await input.fill(sentMarkdown);
     await input.press("Enter");
     await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
     expect(gate.getClientRequests("send_agent_message_request")[0]!.text).toBe(sentMarkdown);
     const sent = page.getByTestId("user-message").filter({ hasText: "quick" }).last();
+    await expect(sent.locator("blockquote")).toContainText("A quoted remark");
+    await expect(sent.locator("blockquote")).toHaveCSS("border-left-width", "2px");
+    await expect(sent.locator("blockquote")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(sent.locator("code")).toHaveText("quick");
+    await page.screenshot({ path: "/tmp/paseoi-r45-quoted-message.png" });
     await expect(sent.locator("strong")).toHaveText("fox");
     await expect(sent.getByRole("link", { name: "thread", exact: true })).toBeVisible();
     await expect(sent).not.toContainText("thread://");

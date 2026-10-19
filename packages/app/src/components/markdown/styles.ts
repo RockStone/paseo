@@ -43,11 +43,11 @@ export function createMarkdownStyles(
       },
       blockquote: {
         ...paragraph,
-        color: `${theme.colors.foreground}cc`,
-        backgroundColor: theme.colors.surface1,
-        borderColor: theme.colors.surface2,
-        borderWidth: 3,
-        padding: 12,
+        color: theme.colors.foregroundMuted,
+        backgroundColor: "transparent",
+        borderColor: theme.colors.foregroundExtraMuted,
+        borderWidth: 2,
+        padding: 0,
         gapWidth: 8,
         admonitions: {
           note: { color: theme.colors.accentBright, backgroundColor: theme.colors.surface2 },

@@ -78,6 +78,7 @@ export function MarkdownRendererFrame({
       data-paseo-markdown-image-sources={JSON.stringify(imageSources)}
     >
       <style data-paseo-markdown-ignore="true">{`
+        .paseo-markdown-frame blockquote p { color: inherit !important; }
         .paseo-table-wrapper { position: relative; }
         .paseo-table-tools { position: absolute; top: 4px; right: 4px; z-index: 1; opacity: 0; }
         .paseo-table-wrapper:hover > .paseo-table-tools,
