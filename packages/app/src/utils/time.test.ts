@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   describeCompactTimeAgo,
   describeTimeAgo,
+  describeMessageTimeAgo,
   formatCompactTimeAgo,
   formatCompactTimeAgoAsProse,
   formatDuration,
@@ -151,5 +152,20 @@ describe("formatMessageTimestamp", () => {
     const formatted = formatMessageTimestamp(date, now);
     expect(formatted).toMatch(/Apr|April/);
     expect(formatted).toMatch(/2026/);
+  });
+});
+
+describe("message timestamp ages", () => {
+  const now = new Date("2026-07-16T12:00:00Z");
+  it.each([
+    [0, "just now", "minute"],
+    [25 * 60_000, "25m ago", "minute"],
+    [2 * 3_600_000, "2h ago", "hour"],
+    [8 * 86_400_000, "8d ago", "day"],
+  ])("keeps elapsed ages for %s ms", (elapsed, label, resolution) => {
+    expect(describeMessageTimeAgo(new Date(now.getTime() - Number(elapsed)), now)).toEqual({
+      label,
+      resolution,
+    });
   });
 });

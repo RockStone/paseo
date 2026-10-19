@@ -132,6 +132,9 @@ baseTest("shows agent images in a compact row with viewer navigation", async ({ 
     await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: agent.id });
     const gallery = page.getByTestId("assistant-image-gallery");
     await expect(gallery).toBeVisible();
+    await expect(page.getByTestId("assistant-turn-footer-timestamp").last()).toContainText(
+      / @ .+ \((?:just now|\d+[mhd] ago)\)$/,
+    );
     await expect(page.getByText("Before the screenshots.", { exact: true })).toBeVisible();
     await expect(page.getByText("After the screenshots.", { exact: true })).toBeVisible();
     const first = gallery.getByRole("button", { name: "First screenshot", exact: true });
@@ -147,6 +150,14 @@ baseTest("shows agent images in a compact row with viewer navigation", async ({ 
     await expect(page.getByRole("button", { name: "Previous image", exact: true })).toBeEnabled();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("button", { name: "Close image", exact: true })).toHaveCount(0);
+    await page.clock.install();
+    await page.clock.fastForward(120_000);
+    await expect(page.getByTestId("assistant-turn-footer-timestamp").last()).toContainText(
+      "(2m ago)",
+    );
+    await page.getByTestId("user-message").last().hover();
+    await expect(page.getByTestId("user-message-timestamp").last()).toContainText("(2m ago)");
+    await page.screenshot({ path: "/tmp/paseoi-r41-message-timing.png" });
   } finally {
     await workspace.cleanup();
   }
@@ -446,7 +457,7 @@ async function replaySteeredSleepTurnInBrowser(
     await submitMessage(page, "hello");
 
     await expect(page.getByText("hello", { exact: true })).toHaveCount(1);
-    await expect(page.getByRole("button", { name: /^Worked for/ })).toHaveCount(0);
+    await expect(page.getByTestId("assistant-turn-footer-timestamp")).toHaveCount(0);
     await expectInFlightForkAvailable(page);
 
     await gate.waitForHeldServerMessage();
@@ -454,7 +465,7 @@ async function replaySteeredSleepTurnInBrowser(
     await agent.client.waitForFinish(agent.agentId, 30_000);
 
     await expect(page.getByText("hello", { exact: true })).toHaveCount(1);
-    await expect(page.getByRole("button", { name: /^Worked for/ })).toHaveCount(1);
+    await expect(page.getByTestId("assistant-turn-footer-timestamp")).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Fork chat" }).last()).toBeVisible();
   } finally {
     gate.restore();
@@ -1330,7 +1341,7 @@ test.describe("Agent message submission", () => {
       await submitMessage(page, "hello");
       await gate.waitForHeldServerMessage("send_agent_message_response");
       await expect(page.getByText("hello", { exact: true })).toHaveCount(1);
-      await expect(page.getByText(/^Worked for/)).toHaveCount(0);
+      await expect(page.getByTestId("assistant-turn-footer-timestamp")).toHaveCount(0);
       await expectAgentReadyToInterrupt(page);
       gate.releaseHeldServerMessage("send_agent_message_response");
       await expect(page.getByText("hello", { exact: true })).toHaveCount(1);

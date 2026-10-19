@@ -68,6 +68,13 @@ export function describeTimeAgo(date: Date, now: Date = new Date()): RelativeTim
   return { label: age.value, resolution: age.resolution };
 }
 
+/** Message footers already show a calendar timestamp, so retain an elapsed age for old messages. */
+export function describeMessageTimeAgo(date: Date, now: Date = new Date()): RelativeTimeLabel {
+  const elapsedMs = now.getTime() - date.getTime();
+  if (elapsedMs < ABSOLUTE_AFTER_MS) return describeTimeAgo(date, now);
+  return { label: `${Math.floor(elapsedMs / DAY_MS)}d ago`, resolution: "day" };
+}
+
 export function formatTimeAgo(date: Date, now: Date = new Date()): string {
   return describeTimeAgo(date, now).label;
 }
