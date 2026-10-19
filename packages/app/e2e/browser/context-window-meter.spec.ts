@@ -195,8 +195,21 @@ test("compacts from the context popup with visible failure, retry and idle gatin
     expect(buttonBox.x).toBeGreaterThan(statsBox.x + statsBox.width);
     expect(buttonBox.y).toBeGreaterThanOrEqual(statsBox.y);
     expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(statsBox.y + statsBox.height);
+    await button.hover();
+    await page.waitForTimeout(400);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.screenshot({ path: "/tmp/paseoi-r48-context-compact-ready.png" });
     await button.click();
     await expect(card.getByRole("alert")).toHaveText("Compaction refused for this test");
+    await expect(card.getByRole("alert")).toHaveCSS("text-align", "right");
+    const errorSize = await card
+      .getByRole("alert")
+      .evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+    const detailSize = await card
+      .getByText("32k / 128k tokens", { exact: true })
+      .evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+    expect(errorSize).toBeLessThan(detailSize);
+    await page.screenshot({ path: "/tmp/paseoi-r48-context-compact-error.png" });
     await expect(button).toBeEnabled();
     await agent.client.sendAgentMessage(agent.agentId, "Keep working while I inspect context");
     await expect(button).toBeDisabled();

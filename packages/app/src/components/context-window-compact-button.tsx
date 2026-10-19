@@ -76,9 +76,7 @@ export function ContextWindowCompactButton({
             </Button>
           </View>
         </TooltipTrigger>
-        <TooltipContent>
-          {active ? t("contextWindow.compactIdle") : t("contextWindow.compact")}
-        </TooltipContent>
+        {active ? <TooltipContent>{t("contextWindow.compactIdle")}</TooltipContent> : null}
       </Tooltip>
       {error ? (
         <Text accessibilityRole="alert" style={styles.error}>
@@ -90,5 +88,10 @@ export function ContextWindowCompactButton({
 }
 const styles = StyleSheet.create((theme) => ({
   container: { gap: theme.spacing[1], alignItems: "flex-end" },
-  error: { color: theme.colors.destructive, fontSize: theme.fontSize.sm, maxWidth: 140 },
+  error: {
+    color: theme.colors.destructive,
+    fontSize: theme.fontSize.sm * 0.85,
+    maxWidth: 140,
+    textAlign: "right",
+  },
 }));
