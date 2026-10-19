@@ -4,6 +4,7 @@ import { buildNotificationRoute, resolveNotificationTarget } from "./notificatio
 import { isNative } from "@/constants/platform";
 
 interface OsNotificationPayload {
+  chimeOnly?: boolean;
   title: string;
   body?: string;
   data?: Record<string, unknown>;

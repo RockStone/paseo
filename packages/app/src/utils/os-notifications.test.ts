@@ -263,6 +263,15 @@ describe("sendOsNotification", () => {
     expect(created[0]?.clickListeners).toHaveLength(0);
   });
 
+  it("forwards local-only chime requests through the desktop bridge", async () => {
+    const sendNotification = vi.fn(async () => true);
+    const { sendOsNotification } = await loadModuleForPlatform("web", {
+      desktopHost: { notification: { sendNotification } },
+    });
+    await sendOsNotification({ title: "Agent finished", chimeOnly: true });
+    expect(sendNotification).toHaveBeenCalledWith({ title: "Agent finished", chimeOnly: true });
+  });
+
   it("uses the desktop notification bridge when available", async () => {
     const sendNotification = vi.fn(async () => true);
 

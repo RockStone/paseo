@@ -2193,6 +2193,9 @@ export const ptBR: TranslationResources = {
       vimHint: "Aplica-se a arquivos-fonte na web e no desktop.",
     },
     notifications: {
+      playChime: "Som do aplicativo",
+      playChimeHint:
+        "Toca quando outro agente termina ou precisa de uma resposta, inclusive em segundo plano. Fica silencioso enquanto você visualiza esse agente.",
       title: "Notificações",
       permission: "Permissão de notificações",
       refreshAccessibility: "Atualizar permissão de notificações",

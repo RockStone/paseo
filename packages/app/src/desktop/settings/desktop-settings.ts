@@ -15,6 +15,7 @@ export interface DesktopSettings {
   releaseChannel: ReleaseChannel;
   notifications: {
     playSound: boolean;
+    playChime: boolean;
   };
   daemon: {
     manageBuiltInDaemon: boolean;
@@ -32,6 +33,7 @@ export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   releaseChannel: "stable",
   notifications: {
     playSound: true,
+    playChime: true,
   },
   daemon: {
     manageBuiltInDaemon: true,
@@ -157,6 +159,7 @@ function parseDesktopSettings(raw: unknown): DesktopSettings {
   return {
     releaseChannel: record.releaseChannel === "beta" ? "beta" : "stable",
     notifications: {
+      playChime: typeof notifications.playChime === "boolean" ? notifications.playChime : true,
       playSound:
         typeof notifications.playSound === "boolean"
           ? notifications.playSound

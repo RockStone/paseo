@@ -2227,6 +2227,9 @@ export const en = {
       permission: "Notification permission",
       refreshAccessibility: "Refresh notification permission",
       playSound: "Play sound",
+      playChime: "In-app chime",
+      playChimeHint:
+        "Chime when another agent needs you or finishes, including while the app is in the background. Silent while you are viewing that agent.",
       playSoundHint: "Play a sound when a desktop notification arrives",
       test: "Test notification",
       testHint: "Send a notification using these settings",

@@ -2168,6 +2168,9 @@ export const ko: TranslationResources = {
       vimHint: "웹 및 데스크톱의 소스 파일에 적용됩니다.",
     },
     notifications: {
+      playChime: "앱 내 알림음",
+      playChimeHint:
+        "다른 에이전트가 완료되거나 응답을 요청하면 백그라운드에서도 울립니다. 해당 에이전트를 보고 있을 때는 울리지 않습니다.",
       title: "알림",
       permission: "알림 권한",
       refreshAccessibility: "알림 권한 새로 고침",

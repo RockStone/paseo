@@ -11,7 +11,6 @@ import { useDesktopPermissions } from "@/desktop/permissions/use-desktop-permiss
 import { useDesktopSettings } from "@/desktop/settings/desktop-settings";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { settingsStyles } from "@/styles/settings";
-
 const ThemedRotateCw = withUnistyles(RotateCw, (theme) => ({
   size: theme.iconSize.md,
   color: theme.colors.foregroundMuted,
@@ -47,7 +46,12 @@ export function DesktopNotificationsSection() {
     },
     [updateSettings],
   );
-
+  const handlePlayChimeChange = useCallback(
+    (playChime: boolean) => {
+      void updateSettings({ notifications: { playChime } }).catch(() => {});
+    },
+    [updateSettings],
+  );
   const handleSendTestNotification = useCallback(() => {
     void sendTestNotification();
   }, [sendTestNotification]);
@@ -95,6 +99,19 @@ export function DesktopNotificationsSection() {
           onRequest={handleRequestNotifications}
           labels={permissionLabels}
         />
+        <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>{t("settings.notifications.playChime")}</Text>
+            <Text style={settingsStyles.rowHint}>{t("settings.notifications.playChimeHint")}</Text>
+          </View>
+          <Switch
+            value={settings.notifications.playChime}
+            onValueChange={handlePlayChimeChange}
+            disabled={isSaving}
+            accessibilityLabel={t("settings.notifications.playChime")}
+            testID="desktop-notifications-play-chime-switch"
+          />
+        </View>
         <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
           <View style={settingsStyles.rowContent}>
             <Text style={settingsStyles.rowTitle}>{t("settings.notifications.playSound")}</Text>

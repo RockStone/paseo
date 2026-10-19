@@ -2179,6 +2179,9 @@ export const ja: TranslationResources = {
       vimHint: "Web とデスクトップのソースファイルに適用されます。",
     },
     notifications: {
+      playChime: "アプリ内チャイム",
+      playChimeHint:
+        "別のエージェントが完了または応答を求めたとき、バックグラウンドでも鳴ります。そのエージェントを表示中は鳴りません。",
       title: "通知",
       permission: "通知の権限",
       refreshAccessibility: "通知の権限を更新",

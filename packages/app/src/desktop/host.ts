@@ -56,7 +56,9 @@ export interface DesktopDialogBridge {
 export interface DesktopNotificationBridge {
   isSupported?: () => Promise<boolean>;
   sendNotification?: (
-    payload: string | { title: string; body?: string; data?: Record<string, unknown> },
+    payload:
+      | string
+      | { title: string; body?: string; data?: Record<string, unknown>; chimeOnly?: boolean },
   ) => Promise<boolean>;
 }
 

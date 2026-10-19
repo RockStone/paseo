@@ -1,9 +1,11 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { app, BrowserWindow, Notification, ipcMain, nativeImage } from "electron";
+import { execFile } from "node:child_process";
+import { app, BrowserWindow, Notification, ipcMain, nativeImage, shell } from "electron";
 import { getDesktopSettingsStore } from "../settings/desktop-settings-electron.js";
 
 interface NotificationInput {
+  chimeOnly?: unknown;
   title?: unknown;
   body?: unknown;
   data?: unknown;
@@ -14,6 +16,32 @@ interface NotificationClickPayload {
 }
 
 const activeNotifications = new Set<Notification>();
+const lastChimeAt = new Map<"finished" | "permission", number>();
+
+async function playChime(reason: "finished" | "permission"): Promise<void> {
+  const now = Date.now();
+  if (now - (lastChimeAt.get(reason) ?? 0) < 1_000) return;
+  lastChimeAt.set(reason, now);
+  if (process.platform !== "darwin") {
+    shell.beep();
+    return;
+  }
+  // Bundle the completion clip so moving the original Downloads file cannot break it.
+  const completionPath = app.isPackaged
+    ? path.join(process.resourcesPath, "sounds/complete.mp3")
+    : path.resolve(__dirname, "../../assets/sounds/complete.mp3");
+  const soundPath = reason === "finished" ? completionPath : "/System/Library/Sounds/Funk.aiff";
+  // macOS displays Funk.aiff as “Funky”. Main-process playback also works in the background.
+  await new Promise<void>((resolve) => {
+    execFile("/usr/bin/afplay", [soundPath], (error) => {
+      if (error) {
+        console.error("[Notifications] Chime playback failed", error);
+        shell.beep();
+      }
+      resolve();
+    });
+  });
+}
 
 function toTrimmedString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -84,10 +112,6 @@ export function registerNotificationHandlers(): void {
   });
 
   ipcMain.handle("paseo:notification:send", async (event, rawInput?: NotificationInput) => {
-    if (!Notification.isSupported()) {
-      return false;
-    }
-
     const title = toTrimmedString(rawInput?.title);
     if (!title) {
       return false;
@@ -97,6 +121,10 @@ export function registerNotificationHandlers(): void {
     const data = toRecord(rawInput?.data);
     const icon = getNotificationIcon();
     const settings = await getDesktopSettingsStore().get();
+    if (settings.notifications.playChime)
+      void playChime(data?.reason === "finished" ? "finished" : "permission");
+    if (rawInput?.chimeOnly === true) return true;
+    if (!Notification.isSupported()) return settings.notifications.playChime;
     const notification = new Notification({
       title,
       ...(body ? { body } : {}),

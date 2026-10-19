@@ -81,7 +81,7 @@ describe("desktop-settings", () => {
 
     expect(settings).toEqual({
       releaseChannel: "stable",
-      notifications: { playSound: true },
+      notifications: { playSound: true, playChime: true },
       daemon: {
         manageBuiltInDaemon: true,
         keepRunningAfterQuit: false,
@@ -103,7 +103,7 @@ describe("desktop-settings", () => {
 
     expect(next).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: true },
+      notifications: { playSound: true, playChime: true },
       daemon: {
         manageBuiltInDaemon: true,
         keepRunningAfterQuit: false,
@@ -138,17 +138,18 @@ describe("desktop-settings", () => {
     expect(settings.notifications.playSound).toBe(true);
   });
 
-  it("keeps an explicit notification sound choice across restarts", async () => {
+  it("keeps independent notification sound toggles across restarts", async () => {
     const userDataPath = await createTempUserDataDir();
     directories.add(userDataPath);
 
     await createDesktopSettingsStore({ userDataPath }).patch({
-      notifications: { playSound: false },
+      notifications: { playSound: false, playChime: true },
     });
 
     const settings = await createDesktopSettingsStore({ userDataPath }).get();
 
     expect(settings.notifications.playSound).toBe(false);
+    expect(settings.notifications.playChime).toBe(true);
   });
 
   it("does not let stale legacy renderer settings override an explicit desktop patch", async () => {
@@ -270,7 +271,7 @@ describe("desktop-settings", () => {
 
     expect(migrated).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: true },
+      notifications: { playSound: true, playChime: true },
       daemon: {
         manageBuiltInDaemon: false,
         keepRunningAfterQuit: false,
@@ -301,7 +302,9 @@ describe("desktop-settings", () => {
     );
     const store = createDesktopSettingsStore({ userDataPath });
 
-    const next = await store.patch({ notifications: { playSound: false } });
+    const next = await store.patch({
+      notifications: { playSound: false, playChime: true },
+    });
     const persisted = JSON.parse(await readFile(settingsFilePath(userDataPath), "utf8")) as {
       futureDocumentKey: string;
       settings: { releaseChannel: string; tray: unknown; daemon: Record<string, unknown> };
@@ -315,7 +318,7 @@ describe("desktop-settings", () => {
     expect(persisted.settings.releaseChannel).toBe("beta");
     expect(next).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: false },
+      notifications: { playSound: false, playChime: true },
       daemon: { manageBuiltInDaemon: true, keepRunningAfterQuit: false },
     });
   });
@@ -355,7 +358,9 @@ describe("desktop-settings", () => {
     );
     const store = createDesktopSettingsStore({ userDataPath });
 
-    await store.patch({ notifications: { playSound: false } });
+    await store.patch({
+      notifications: { playSound: false, playChime: true },
+    });
     const persisted = JSON.parse(await readFile(settingsFilePath(userDataPath), "utf8")) as {
       settings: { releaseChannel: string; tray: unknown };
     };

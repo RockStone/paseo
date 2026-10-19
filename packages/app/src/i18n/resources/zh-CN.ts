@@ -2136,6 +2136,9 @@ export const zhCN: TranslationResources = {
       vimHint: "适用于网页和桌面端的源文件。",
     },
     notifications: {
+      playChime: "应用内提示音",
+      playChimeHint:
+        "其他智能体完成任务或需要回复时播放，应用在后台时也会播放。正在查看该智能体时保持静音。",
       title: "通知",
       permission: "通知权限",
       refreshAccessibility: "刷新通知权限",

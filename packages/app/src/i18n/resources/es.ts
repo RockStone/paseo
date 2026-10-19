@@ -2208,6 +2208,9 @@ export const es: TranslationResources = {
       vimHint: "Se aplica a archivos fuente en web y escritorio.",
     },
     notifications: {
+      playChime: "Sonido de la aplicación",
+      playChimeHint:
+        "Suena cuando otro agente termina o necesita una respuesta, incluso en segundo plano. No suena si estás viendo ese agente.",
       title: "Notificaciones",
       permission: "Permiso de notificaciones",
       refreshAccessibility: "Actualizar permiso de notificaciones",

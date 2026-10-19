@@ -38,6 +38,7 @@ import {
 } from "@/stores/session-store";
 import { useWorkspaceSetupStore } from "@/stores/workspace-setup-store";
 import { sendOsNotification } from "@/utils/os-notifications";
+import { getIsElectron } from "@/constants/platform";
 import { getIsAppActivelyVisible, getIsAppVisible } from "@/utils/app-visibility";
 import {
   getInitKey,
@@ -268,15 +269,13 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     (params: {
       agentId: string;
       reason: "finished" | "error" | "permission";
+      chimeOnly?: boolean;
       timestamp: string;
       notification?: AgentAttentionNotificationPayload;
     }) => {
       const appState = appStateRef.current;
       const session = useSessionStore.getState().sessions[serverId];
       const attentionFocusedAgentId = session?.focusedAgentId ?? null;
-      if (params.reason === "error") {
-        return;
-      }
       const isActivelyVisible = getIsAppActivelyVisible(appState);
       const isAwayFromAgent = !isActivelyVisible || attentionFocusedAgentId !== params.agentId;
       if (!isAwayFromAgent) {
@@ -314,6 +313,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         title: notification.title,
         body: notification.body,
         data: notification.data,
+        ...(params.chimeOnly ? { chimeOnly: true } : {}),
       });
     },
     [serverId],
@@ -529,6 +529,8 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       const notification = message.payload;
       if (notification.shouldNotify) {
         notifyAgentAttention(notification);
+      } else if (getIsElectron()) {
+        notifyAgentAttention({ ...notification, chimeOnly: true });
       }
     });
 

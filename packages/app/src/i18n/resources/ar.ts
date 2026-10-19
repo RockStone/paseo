@@ -2158,6 +2158,9 @@ export const ar: TranslationResources = {
       vimHint: "تنطبق على ملفات المصدر في الويب وسطح المكتب.",
     },
     notifications: {
+      playChime: "تنبيه صوتي داخل التطبيق",
+      playChimeHint:
+        "يصدر صوتًا عند انتهاء وكيل آخر أو طلبه ردًا، حتى في الخلفية. يبقى صامتًا أثناء عرض ذلك الوكيل.",
       title: "الإشعارات",
       permission: "إذن الإشعارات",
       refreshAccessibility: "تحديث إذن الإشعارات",
