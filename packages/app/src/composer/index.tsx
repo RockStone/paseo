@@ -176,7 +176,6 @@ import {
 import { PluginResourceAttachmentPill, usePluginAttachmentPicker } from "@/plugins";
 import { resolveClientSlashCommand, type ClientSlashCommand } from "@/client-slash-commands";
 import {
-  appendWorkspaceFileAttachment,
   getWorkspaceFileAttachmentKey,
   getWorkspaceFileAttachmentSubtitle,
 } from "@/attachments/workspace-file";
@@ -184,6 +183,7 @@ import {
   resolveWorkspaceFileDrop,
   type WorkspaceFileDragPayload,
 } from "@/attachments/workspace-file-drag";
+import { formatFileMentionPath } from "@/utils/file-mention-autocomplete";
 
 const composerImageAttachmentPersister: Pick<
   AttachmentPersister,
@@ -1642,10 +1642,24 @@ function ComposerContentImpl({
       if (!attachment) {
         return;
       }
-      setSelectedAttachments((current) => appendWorkspaceFileAttachment(current, attachment));
+      const snapshot = messageInputRef.current?.getInputSnapshot() ?? {
+        text: textSource.getSnapshot(),
+        selection: { start: textSource.getSnapshot().length, end: textSource.getSnapshot().length },
+      };
+      const before = snapshot.text.slice(0, snapshot.selection.start);
+      const after = snapshot.text.slice(snapshot.selection.end);
+      const prefix = before && !/\s$/.test(before) ? " " : "";
+      let mention = formatFileMentionPath(attachment.path);
+      if (attachment.selection.kind === "line_range") {
+        const { startLine, endLine } = attachment.selection;
+        mention = mention.slice(0, -1) + `#L${startLine}-L${endLine})`;
+      }
+      const insertion = `${prefix}${mention} `;
+      const caret = before.length + insertion.length;
+      replaceUserInput(before + insertion + after, { start: caret, end: caret });
       focusInput();
     },
-    [focusInput, serverId, setSelectedAttachments, workspaceId],
+    [focusInput, replaceUserInput, serverId, textSource, workspaceId],
   );
 
   useEffect(() => {
