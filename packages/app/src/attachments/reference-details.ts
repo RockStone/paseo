@@ -12,18 +12,31 @@ const Identity = z.object({
   id: z.string(),
 });
 
+function imageReferenceDetails(
+  attachment: AgentAttachment,
+): { url: string; position: number } | null {
+  if (attachment.type !== "text") return null;
+  const compact = /^Attached image ([1-9]\d*): (attachment:\/\/\S+)$/.exec(attachment.text);
+  if (compact) {
+    const position = Number(compact[1]);
+    return Number.isSafeInteger(position) ? { url: compact[2]!, position } : null;
+  }
+  // Saved history keeps its original multiline reference format.
+  if (!attachment.text.startsWith("Referenced Paseo image:")) return null;
+  const id = /^Attachment ID: (.+)$/m.exec(attachment.text)?.[1];
+  const position = Number(/^Image position: (\d+)$/m.exec(attachment.text)?.[1]);
+  return id && Number.isSafeInteger(position) && position > 0
+    ? { url: `attachment://${encodeURIComponent(id)}`, position }
+    : null;
+}
+
 export function referenceAttachmentUrl(attachment: AgentAttachment): string | null {
   if (attachment.type !== "text") return null;
   let type: string;
   let id: string;
   let host: string;
-  if (attachment.text.startsWith("Referenced Paseo image:")) {
-    const imageId = /^Attachment ID: (.+)$/m.exec(attachment.text)?.[1];
-    const position = Number(/^Image position: (\d+)$/m.exec(attachment.text)?.[1]);
-    return imageId && Number.isSafeInteger(position) && position > 0
-      ? `attachment://${encodeURIComponent(imageId)}`
-      : null;
-  }
+  const image = imageReferenceDetails(attachment);
+  if (image) return image.url;
   if (attachment.text.startsWith("Referenced Paseo agent profile:")) {
     const profileId = /^Profile ID: (.+)$/m.exec(attachment.text)?.[1];
     const hostId = /^Host ID: (.+)$/m.exec(attachment.text)?.[1];
@@ -54,12 +67,9 @@ export function messageReferenceDetails(message: string, attachments: readonly A
   const visibleAttachments: AgentAttachment[] = [];
   for (const attachment of attachments) {
     const url = referenceAttachmentUrl(attachment);
-    const isImageContext =
-      attachment.type === "text" && attachment.text.startsWith("Referenced Paseo image:");
-    if (url && attachment.type === "text" && (message.includes(`](${url})`) || isImageContext)) {
-      const imagePosition = isImageContext
-        ? Number(/^Image position: (\d+)$/m.exec(attachment.text)?.[1])
-        : undefined;
+    const image = imageReferenceDetails(attachment);
+    if (url && attachment.type === "text" && (message.includes(`](${url})`) || image)) {
+      const imagePosition = image?.position;
       details.set(url, { title: attachment.title ?? "", text: attachment.text, imagePosition });
     } else visibleAttachments.push(attachment);
   }

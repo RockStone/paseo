@@ -1361,6 +1361,30 @@ describe("inline image references", () => {
     expect(detail.details.get("attachment://image-b")?.imagePosition).toBe(1);
     expect(detail.details.get("attachment://image-c")?.imagePosition).toBe(2);
   });
+  it("sends only the image mapping and retains clickable details for compact and saved references", () => {
+    const [image] = addImageReferences([], [imageWithId("image-a")]);
+    const wire = splitComposerAttachmentsForSubmit([image!]);
+    expect(wire.attachments).toEqual([
+      {
+        type: "text",
+        mimeType: "text/plain",
+        title: "Image 1",
+        text: "Attached image 1: attachment://image-a",
+      },
+    ]);
+    const compact = messageReferenceDetails(image!.inlineMention, wire.attachments);
+    expect(compact.visibleAttachments).toEqual([]);
+    expect(compact.details.get("attachment://image-a")?.imagePosition).toBe(1);
+    const legacy: AgentAttachment = {
+      type: "text",
+      mimeType: "text/plain",
+      title: "Image 1",
+      text: 'Referenced Paseo image:\nAttachment ID: image-a\nImage position: 1\nFile name: "image.png"\nMIME type: image/png\nLegacy explanatory text.',
+    };
+    const saved = messageReferenceDetails(image!.inlineMention, [legacy]);
+    expect(saved.visibleAttachments).toEqual([]);
+    expect(saved.details.get("attachment://image-a")?.imagePosition).toBe(1);
+  });
   it("does not send misleading image identities when image encoding fails", async () => {
     const client = createFakeSendClient();
     await expect(

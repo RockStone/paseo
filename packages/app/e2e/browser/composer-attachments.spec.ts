@@ -498,13 +498,14 @@ test("pasted images insert stable inline IDs and remove only their own reference
       expect.objectContaining({
         type: "text",
         title: "Image 2",
-        text: expect.stringContaining("Image position: 1"),
+        text: expect.stringMatching(/^Attached image 1: attachment:\/\/\S+$/),
       }),
     ]);
     const sent = page.getByTestId("user-message").filter({ hasText: "Compare" }).last();
     await expect(sent.locator("code")).toHaveCSS("color", "rgb(232, 154, 127)");
     await expect(sent.locator("code")).toHaveCSS("border-top-color", "rgb(54, 51, 47)");
     await expect(sent).not.toContainText("Referenced Paseo image:");
+    await expect(sent).not.toContainText("Attached image 1:");
     await sent.getByRole("link", { name: "@Image 2", exact: true }).click();
     await expect(page.getByTestId("attachment-lightbox-close")).toBeVisible();
   } finally {

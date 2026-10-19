@@ -29,6 +29,6 @@ export function imageReferenceContext(
     type: "text",
     mimeType: "text/plain",
     title: attachment.inlineMention?.split("]")[0].slice(2) ?? "Image",
-    text: `Referenced Paseo image:\nAttachment ID: ${attachment.metadata.id}\nImage position: ${position}\nFile name: ${JSON.stringify(attachment.metadata.fileName ?? null)}\nMIME type: ${attachment.metadata.mimeType}\nThe attachment:// ID in the user's inline reference identifies this image. Image position is one-based within the images attached to this message, in their supplied order. It is not a path or a tool resource.`,
+    text: `Attached image ${position}: attachment://${encodeURIComponent(attachment.metadata.id)}`,
   };
 }
