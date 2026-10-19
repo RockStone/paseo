@@ -5,10 +5,16 @@ import { decodeMarkdownImage, getMarkdownImageStatus } from "./image-decoding";
 import { describe, expect, it } from "vitest";
 import { darkTheme, lightTheme } from "@/styles/theme";
 import { createMarkdownStyles } from "./styles";
-import { prepareMarkdownSource, PENDING_MARKDOWN_IMAGE } from "./source";
+import { prepareMarkdownSource, PENDING_MARKDOWN_IMAGE, splitMarkdownImageBlocks } from "./source";
 import { normalizeMarkdownHtml } from "./html";
 
 describe("shared Markdown source adaptation", () => {
+  it("recognizes image-only output without folding prose or fenced examples into a gallery", () => {
+    expect(prepareMarkdownSource("![First](a.png)\n\n![Second](b.png)").imageOnly).toBe(true);
+    expect(prepareMarkdownSource("![First][one]\n\n[one]: a.png").imageOnly).toBe(true);
+    expect(prepareMarkdownSource("Explanation\n\n![First](a.png)").imageOnly).toBe(false);
+    expect(prepareMarkdownSource("```md\n![First](a.png)\n```").imageOnly).toBe(false);
+  });
   it("keeps paragraphs, fences and quotes together for the library", () => {
     const source = "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst n = 1;\n```\n\n> Quote";
     expect(prepareMarkdownSource(source).render()).toBe(source);
@@ -560,4 +566,43 @@ it("replaces the native placeholder only after the resolved URL decodes", () => 
   ).toBe("ready");
   const prepared = prepareMarkdownSource("![image](shot.png)", undefined, { supportsSvg: false });
   expect(prepared.render(new Map([["shot.png", url]]))).toBe(`![image](<${url}>)`);
+});
+
+describe("mixed reply image groups", () => {
+  it("keeps prose around a compact adjacent image group", () => {
+    const parts = splitMarkdownImageBlocks(
+      "Before.\n\n![First](one.png)\n\n![Second](two.png)\n\nAfter.",
+    );
+    expect(parts.map((part) => part.trim())).toEqual([
+      "Before.",
+      "![First](one.png)\n\n![Second](two.png)",
+      "After.",
+    ]);
+    expect(prepareMarkdownSource(parts[1]!).imageOnly).toBe(true);
+  });
+  it("keeps separate groups in order and leaves inline and fenced images in prose", () => {
+    const text =
+      "Inline ![icon](icon.png) text.\n\n```md\n![Example](example.png)\n```\n\n![First](one.png)\n\nBetween.\n\n![Second](two.png)";
+    const parts = splitMarkdownImageBlocks(text);
+    expect(parts).toHaveLength(4);
+    expect(parts[0]).toContain("Inline ![icon](icon.png) text.");
+    expect(parts[0]).toContain("![Example](example.png)");
+    expect(parts[2]?.trim()).toBe("Between.");
+  });
+  it("preserves reference definitions shared across blocks", () => {
+    const parts = splitMarkdownImageBlocks(
+      "[Open][shot]\n\n![Screenshot][shot]\n\n[shot]: image.png",
+    );
+    expect(parts[0]).toContain("[shot]: image.png");
+    expect(prepareMarkdownSource(parts[1]!).images[0]?.source).toBe("image.png");
+  });
+  it("keeps ordinary Markdown and image-only messages together", () => {
+    for (const text of [
+      "Hello.",
+      "![One](one.png)\n\n![Two](two.png)",
+      "Inline ![icon](icon.png) text.",
+    ]) {
+      expect(splitMarkdownImageBlocks(text)).toEqual([text]);
+    }
+  });
 });

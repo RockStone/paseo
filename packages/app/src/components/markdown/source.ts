@@ -76,6 +76,54 @@ function workspaceHoverTitle(link: Link, markup: string, workspaceRoot?: string)
   return link.url.slice(workspaceRoot.length + 1);
 }
 
+/** Keep standalone image groups at their authored position in mixed chat replies. */
+export function splitMarkdownImageBlocks(text: string): string[] {
+  if (!text.includes("![")) return [text];
+  const source = normalizeMarkdownHtml(text);
+  const tree = fromMarkdown(source, {
+    extensions: [gfmTable()],
+    mdastExtensions: [gfmTableFromMarkdown()],
+  });
+  const ranges: { start: number; end: number }[] = [];
+  const definitions: string[] = [];
+  for (const node of tree.children) {
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (start === undefined || end === undefined) continue;
+    if (node.type === "definition") definitions.push(source.slice(start, end));
+    if (
+      node.type !== "paragraph" ||
+      !node.children.some((child) => child.type === "image" || child.type === "imageReference") ||
+      !node.children.every(
+        (child) =>
+          child.type === "image" ||
+          child.type === "imageReference" ||
+          (child.type === "text" && child.value.trim() === ""),
+      )
+    )
+      continue;
+    const previous = ranges.at(-1);
+    if (previous && source.slice(previous.end, start).trim() === "") previous.end = end;
+    else ranges.push({ start, end });
+  }
+  if (!ranges.length) return [text];
+  const parts: string[] = [];
+  const hasContent = (part: string) =>
+    fromMarkdown(part).children.some((node) => node.type !== "definition");
+  let cursor = 0;
+  for (const range of ranges) {
+    if (hasContent(source.slice(cursor, range.start)))
+      parts.push(source.slice(cursor, range.start));
+    parts.push(source.slice(range.start, range.end));
+    cursor = range.end;
+  }
+  if (hasContent(source.slice(cursor))) parts.push(source.slice(cursor));
+  if (parts.length <= 1) return [text];
+  // Definitions can be shared by images and links across the split blocks.
+  const suffix = definitions.length ? `\n\n${definitions.join("\n")}` : "";
+  return parts.map((part) => part + suffix);
+}
+
 /** Preserve source spelling; adapt workspace images, spoiler delimiters, and entity text. */
 export function prepareMarkdownSource(
   source: string,
@@ -97,7 +145,7 @@ export function prepareMarkdownSource(
     !source.includes("&") &&
     !(workspaceRoot && source.includes("]("))
   ) {
-    return { images, ...linkMetadata(), render: () => source };
+    return { images, imageOnly: false, ...linkMetadata(), render: () => source };
   }
 
   const definitions = new Map<string, { url: string; title?: string | null }>();
@@ -164,8 +212,22 @@ export function prepareMarkdownSource(
     if ("children" in node) node.children.forEach(visit);
   }
   visit(getTree());
+  const imageOnly =
+    images.length > 0 &&
+    getTree().children.every(
+      (node) =>
+        node.type === "definition" ||
+        (node.type === "paragraph" &&
+          node.children.every(
+            (child) =>
+              child.type === "image" ||
+              child.type === "imageReference" ||
+              (child.type === "text" && child.value.trim() === ""),
+          )),
+    );
   return {
     images,
+    imageOnly,
     ...linkMetadata(),
     render(
       urls: ReadonlyMap<string, string> = new Map(),

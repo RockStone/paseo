@@ -107,6 +107,51 @@ baseTest("preserves separate unsent drafts when switching workspaces", async ({ 
   }
 });
 
+baseTest("shows agent images in a compact row with viewer navigation", async ({ page }) => {
+  const workspace = await seedWorkspace({ repoPrefix: "agent-image-gallery-" });
+  try {
+    await createSmallAssistantPng(workspace, {
+      alt: "First screenshot",
+      fileName: "first.png",
+      width: 24,
+      height: 48,
+    });
+    await createSmallAssistantPng(workspace, {
+      alt: "Second screenshot",
+      fileName: "second.png",
+      width: 48,
+      height: 24,
+    });
+    const agent = await createSettledMockAgent(
+      workspace,
+      "Image gallery",
+      "Before the screenshots.\n\n![First screenshot](first.png)\n\n![Second screenshot](second.png)\n\nAfter the screenshots.",
+    );
+    await workspace.client.sendAgentMessage(agent.id, "Show the screenshots");
+    await workspace.client.waitForFinish(agent.id, 30_000);
+    await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: agent.id });
+    const gallery = page.getByTestId("assistant-image-gallery");
+    await expect(gallery).toBeVisible();
+    await expect(page.getByText("Before the screenshots.", { exact: true })).toBeVisible();
+    await expect(page.getByText("After the screenshots.", { exact: true })).toBeVisible();
+    const first = gallery.getByRole("button", { name: "First screenshot", exact: true });
+    const second = gallery.getByRole("button", { name: "Second screenshot", exact: true });
+    await expect(first).toBeEnabled();
+    await expect(second).toBeEnabled();
+    const firstBox = await first.boundingBox();
+    const secondBox = await second.boundingBox();
+    expect(firstBox?.height).toBe(96);
+    expect(secondBox?.y).toBe(firstBox?.y);
+    await first.click();
+    await page.getByRole("button", { name: "Next image", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Previous image", exact: true })).toBeEnabled();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "Close image", exact: true })).toHaveCount(0);
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 interface SubmissionScenario {
   existingPrompt: string;
 }

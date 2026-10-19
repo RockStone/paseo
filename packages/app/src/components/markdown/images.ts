@@ -131,6 +131,13 @@ export function useMarkdownSource(
   const pendingImages = new Set(sources.filter((_source, index) => statuses[index] === "pending"));
   return {
     markdown: prepared.render(resolved, unavailableImages, pendingImages),
+    imageOnly: prepared.imageOnly,
+    imagePreviews: sources.map((source, index) => ({
+      source,
+      alt: prepared.images.find((image) => image.source === source)?.alt ?? "",
+      uri: displayUrls[index],
+      status: statuses[index],
+    })),
     hasUnavailableImages: unavailableImages.size > 0,
     hasPendingImages: pendingImages.size > 0,
     attachments: results.flatMap((result) => (result.data ? [result.data.attachment] : [])),
