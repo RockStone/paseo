@@ -416,6 +416,7 @@ const REWIND_COMMAND: AgentSlashCommand = {
   argumentHint: "[user_message_uuid]",
 };
 const CLAUDE_ROOT_ONLY_COMMANDS = new Set([
+  "autocompact",
   "clear",
   "compact",
   "context",
@@ -2034,6 +2035,7 @@ function readClaudeParentToolUseId(message: SDKMessage): string | null {
 
 class ClaudeContextUsageState {
   private contextWindowMaxTokens: number | undefined;
+  private compactionWindowMaxTokens: number | undefined;
   private streamRequestInputUsage: StreamRequestInputUsage | undefined;
   private streamRequestOutputTokens: number | undefined;
   private compactedContextWindowUsedTokens: number | undefined;
@@ -2051,6 +2053,17 @@ class ClaudeContextUsageState {
 
   setInitialContextWindowMaxTokens(contextWindowMaxTokens: number | undefined): void {
     this.contextWindowMaxTokens = contextWindowMaxTokens;
+    this.compactionWindowMaxTokens = undefined;
+  }
+
+  setCompactionWindow(maxTokens: number): void {
+    if (Number.isFinite(maxTokens) && maxTokens > 0) this.compactionWindowMaxTokens = maxTokens;
+  }
+
+  private get effectiveContextWindowMaxTokens(): number | undefined {
+    return this.compactionWindowMaxTokens === undefined
+      ? this.contextWindowMaxTokens
+      : Math.min(this.compactionWindowMaxTokens, this.contextWindowMaxTokens ?? Infinity);
   }
 
   recordModelUsage(modelUsage: unknown, modelId: string | null | undefined): number | undefined {
@@ -2113,8 +2126,8 @@ class ClaudeContextUsageState {
       };
 
       const modelContextWindowMaxTokens = this.recordModelUsage(message.modelUsage, modelId);
-      if (this.contextWindowMaxTokens !== undefined) {
-        usage.contextWindowMaxTokens = this.contextWindowMaxTokens;
+      if (this.effectiveContextWindowMaxTokens !== undefined) {
+        usage.contextWindowMaxTokens = this.effectiveContextWindowMaxTokens;
       } else if (modelContextWindowMaxTokens !== undefined) {
         usage.contextWindowMaxTokens = modelContextWindowMaxTokens;
       }
@@ -2151,8 +2164,8 @@ class ClaudeContextUsageState {
     const usage: AgentUsage = {
       contextWindowUsedTokens,
     };
-    if (this.contextWindowMaxTokens !== undefined) {
-      usage.contextWindowMaxTokens = this.contextWindowMaxTokens;
+    if (this.effectiveContextWindowMaxTokens !== undefined) {
+      usage.contextWindowMaxTokens = this.effectiveContextWindowMaxTokens;
     }
     return {
       type: "usage_updated",
@@ -2166,8 +2179,8 @@ class ClaudeContextUsageState {
     this.streamRequestOutputTokens = undefined;
     this.compactedContextWindowUsedTokens = postTokens;
     const usage: AgentUsage = {};
-    if (this.contextWindowMaxTokens !== undefined) {
-      usage.contextWindowMaxTokens = this.contextWindowMaxTokens;
+    if (this.effectiveContextWindowMaxTokens !== undefined) {
+      usage.contextWindowMaxTokens = this.effectiveContextWindowMaxTokens;
     }
     if (postTokens !== undefined) {
       usage.contextWindowUsedTokens = postTokens;
@@ -2269,6 +2282,7 @@ class ClaudeAgentSession implements AgentSession {
   private foregroundHasVisibleActivity = false;
   private activeTurnHasAssistantText = false;
   private readonly contextUsage: ClaudeContextUsageState;
+  private refreshCompactionWindow = false;
   private userMessageIds: string[] = [];
   private readonly emittedUserMessageIds = new Set<string>();
   private readonly rewindTurnAnchors: ClaudeRewindTurnAnchor[] = [];
@@ -2410,6 +2424,8 @@ class ClaudeAgentSession implements AgentSession {
     this.foregroundHasVisibleActivity = false;
     this.activeTurnHasAssistantText = false;
     this.contextUsage.beginTurn();
+    this.refreshCompactionWindow =
+      typeof prompt === "string" && /^\/autocompact(?:\s|$)/i.test(prompt.trimStart());
     this.transitionTurnState("foreground", "foreground turn started");
     this.clearRecentStderr();
     if (sdkUserMessageId) this.unstartedMessageUuids.add(sdkUserMessageId);
@@ -4193,6 +4209,22 @@ class ClaudeAgentSession implements AgentSession {
     messageIdHint: string | null,
     turnId: string | null,
   ): Promise<AgentStreamEvent[]> {
+    if (message.type === "result" && this.refreshCompactionWindow) {
+      this.refreshCompactionWindow = false;
+      if (message.subtype === "success" && this.query) {
+        try {
+          // modelUsage.contextWindow is the model capacity, not /autocompact's policy window.
+          const context = await withTimeout(
+            this.query.getContextUsage(),
+            3000,
+            "Claude context usage timed out",
+          );
+          this.contextUsage.setCompactionWindow(context.rawMaxTokens);
+        } catch (error) {
+          this.logger.warn({ err: error }, "Failed to refresh Claude auto-compaction window");
+        }
+      }
+    }
     const messageEvents = this.translateMessageToEvents(message, {
       suppressAssistantText: true,
       suppressReasoning: true,

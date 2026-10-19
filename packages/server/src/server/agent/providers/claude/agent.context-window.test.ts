@@ -10,7 +10,9 @@ function contextQuery({
   runtimeModel,
   reportedLimit,
   modelWindowsByTurn,
+  compactionWindows,
 }: {
+  compactionWindows?: number[];
   runtimeModel: string;
   reportedLimit: number;
   modelWindowsByTurn?: Array<Record<string, number>>;
@@ -18,6 +20,7 @@ function contextQuery({
   return ({ prompt }) => {
     let model = runtimeModel;
     let turn = 0;
+    let contextRequest = 0;
     const messages = (async function* () {
       if (typeof prompt === "string") throw new Error("Expected streaming input");
       for await (const _message of prompt) {
@@ -72,8 +75,18 @@ function contextQuery({
         model = value;
       },
       setPermissionMode: async () => undefined,
+      applyFlagSettings: async () => undefined,
+      getContextUsage: async () => ({
+        rawMaxTokens: compactionWindows?.[contextRequest++] ?? reportedLimit,
+      }),
       supportedModels: async () => [],
-      supportedCommands: async () => [],
+      supportedCommands: async () => [
+        {
+          name: "autocompact",
+          description: "Set auto-compaction window",
+          argumentHint: "[tokens]",
+        },
+      ],
     }) as ReturnType<ClaudeQueryFactory>;
   };
 }
@@ -212,6 +225,49 @@ test.each([
         usage: expect.objectContaining({ contextWindowMaxTokens: expected }),
       }),
     );
+  } finally {
+    await session.close();
+  }
+});
+
+test("autocompact refreshes the effective window and retains it until reset", async () => {
+  const client = new ClaudeAgentClient({
+    logger: createTestLogger(),
+    queryFactory: contextQuery({
+      runtimeModel: "claude-opus-5-5",
+      reportedLimit: 1_000_000,
+      compactionWindows: [400_000, 1_000_000],
+    }),
+    resolveBinary: async () => process.execPath,
+  });
+  const session = await client.createSession({
+    provider: "claude",
+    cwd: process.cwd(),
+    model: "claude-opus-5-5",
+  });
+  try {
+    expect(await session.listCommands()).toContainEqual(
+      expect.objectContaining({ name: "autocompact", kind: "command" }),
+    );
+    for (const [prompt, limit, liveLimit] of [
+      ["/autocompact 400k", 400_000, 1_000_000],
+      ["next turn", 400_000, 400_000],
+      ["/autocompact reset", 1_000_000, 400_000],
+      ["after reset", 1_000_000, 1_000_000],
+    ] as const) {
+      const events = await collectSessionTurnEvents(session, prompt);
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: "turn_completed",
+          usage: expect.objectContaining({ contextWindowMaxTokens: limit }),
+        }),
+      );
+      expect(
+        events
+          .filter((event) => event.type === "usage_updated")
+          .map((event) => event.usage.contextWindowMaxTokens),
+      ).toEqual([liveLimit, liveLimit]);
+    }
   } finally {
     await session.close();
   }
