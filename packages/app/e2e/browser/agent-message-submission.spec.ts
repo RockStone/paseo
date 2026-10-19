@@ -163,6 +163,82 @@ baseTest("shows agent images in a compact row with viewer navigation", async ({ 
   }
 });
 
+baseTest(
+  "copies only the selected table and exposes clipboard failures for retry",
+  async ({ page }) => {
+    await page.addInitScript(() => {
+      const state = { fail: false, plain: "", html: "" };
+      Reflect.set(window, "tableCopyState", state);
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          write: async (items: ClipboardItem[]) => {
+            if (state.fail) throw new Error("Clipboard denied for this test");
+            state.plain = await (await items[0]!.getType("text/plain")).text();
+            state.html = await (await items[0]!.getType("text/html")).text();
+          },
+          writeText: async (text: string) => {
+            if (state.fail) throw new Error("Clipboard denied for this test");
+            state.plain = text;
+          },
+        },
+      });
+    });
+    const workspace = await seedWorkspace({ repoPrefix: "table-copy-" });
+    try {
+      const agent = await createSettledMockAgent(
+        workspace,
+        "Table copy",
+        "Intro.\n\n| Fruit | Taste |\n| --- | --- |\n| **Lime** | Tangy |\n\nBetween.\n\n| Other | Value |\n| --- | --- |\n| Pear | Sweet |\n\nAfter.",
+      );
+      await workspace.client.sendAgentMessage(agent.id, "Show tables");
+      await workspace.client.waitForFinish(agent.id, 30_000);
+      await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: agent.id });
+      const message = page.getByTestId("assistant-message").filter({ hasText: "Intro." });
+      await expect(message.getByRole("table")).toHaveCount(2);
+      await expect(message.getByRole("button", { name: "Copy table", exact: true })).toHaveCount(2);
+      await message.getByRole("table").first().hover();
+      const copy = message.getByTestId("markdown-table-copy").first();
+      const geometry = await message
+        .getByRole("table")
+        .first()
+        .evaluate((table) => {
+          const tools = table.parentElement!.querySelector(".paseo-table-tools")!;
+          return {
+            tableHeight: table.getBoundingClientRect().height,
+            wrapperHeight: table.parentElement!.getBoundingClientRect().height,
+            tableTop: table.getBoundingClientRect().top,
+            toolTop: tools.getBoundingClientRect().top,
+          };
+        });
+      expect(geometry.wrapperHeight).toBe(geometry.tableHeight);
+      expect(geometry.toolTop).toBeGreaterThanOrEqual(geometry.tableTop);
+      await expect(copy).toHaveText("");
+      await copy.click();
+      await expect(copy).toHaveAttribute("aria-label", "Copied");
+      const result = await page.evaluate(() => Reflect.get(window, "tableCopyState"));
+      expect(result.plain).toBe("| Fruit | Taste |\n| --- | --- |\n| **Lime** | Tangy |");
+      expect(result.html).toBe("");
+      await expect(copy).toHaveAttribute("aria-label", "Copy table");
+      await page.evaluate(() => {
+        Reflect.get(window, "tableCopyState").fail = true;
+      });
+      await copy.click();
+      await expect(message.getByRole("alert")).toContainText("Clipboard denied for this test");
+      await page.evaluate(() => {
+        Reflect.get(window, "tableCopyState").fail = false;
+      });
+      await copy.click();
+      await expect(copy).toHaveAttribute("aria-label", "Copied");
+      await expect(message.getByRole("alert")).toHaveCount(0);
+      await message.getByRole("table").first().hover();
+      await page.screenshot({ path: "/tmp/paseoi-r46-table-copy.png" });
+    } finally {
+      await workspace.cleanup();
+    }
+  },
+);
+
 interface SubmissionScenario {
   existingPrompt: string;
 }

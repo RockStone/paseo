@@ -391,6 +391,8 @@ export const es: TranslationResources = {
       viewDiagram: "Ver diagrama",
     },
     actions: {
+      copyTableFailed: "No se pudo copiar la tabla. Inténtalo de nuevo.",
+      copyTable: "Copiar tabla",
       copyCode: "Copiar código",
       copyTurn: "Copiar turno",
       copyMessage: "Copiar mensaje",

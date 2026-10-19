@@ -384,6 +384,8 @@ export const ar: TranslationResources = {
       viewDiagram: "عرض المخطط",
     },
     actions: {
+      copyTableFailed: "تعذّر نسخ الجدول. حاول مرة أخرى.",
+      copyTable: "نسخ الجدول",
       copyCode: "نسخ الرمز",
       copyTurn: "نسخ بدوره",
       copyMessage: "انسخ الرسالة",

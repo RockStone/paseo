@@ -388,6 +388,8 @@ export const ru: TranslationResources = {
       viewDiagram: "Показать диаграмму",
     },
     actions: {
+      copyTableFailed: "Не удалось скопировать таблицу. Повторите попытку.",
+      copyTable: "Копировать таблицу",
       copyCode: "Скопировать код",
       copyTurn: "Скопировать ответ",
       copyMessage: "Копировать сообщение",

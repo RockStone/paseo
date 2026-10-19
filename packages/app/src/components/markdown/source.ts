@@ -7,6 +7,42 @@ import { decodeString } from "micromark-util-decode-string";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Link, Nodes, Root } from "mdast";
 
+/** Preserve authored delimiters, alignment and inline Markdown when copying a table. */
+export function markdownTableSources(source: string): string[] {
+  if (!source.includes("|")) return [];
+  const tree = fromMarkdown(source, {
+    extensions: [gfmTable()],
+    mdastExtensions: [gfmTableFromMarkdown()],
+  });
+  const definitions = new Map<string, string>();
+  const tables: Nodes[] = [];
+  function collect(node: Nodes) {
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (node.type === "definition" && start !== undefined && end !== undefined)
+      definitions.set(node.identifier, source.slice(start, end));
+    if (node.type === "table") tables.push(node);
+    else if ("children" in node) node.children.forEach(collect);
+  }
+  collect(tree);
+  return tables.map((table) => {
+    const references = new Set<string>();
+    function visit(node: Nodes) {
+      if (node.type === "linkReference" || node.type === "imageReference")
+        references.add(node.identifier);
+      if ("children" in node) node.children.forEach(visit);
+    }
+    visit(table);
+    const suffix = [...references].flatMap((id) =>
+      definitions.has(id) ? [definitions.get(id)!] : [],
+    );
+    return (
+      source.slice(table.position!.start.offset, table.position!.end.offset) +
+      (suffix.length ? `\n\n${suffix.join("\n")}` : "")
+    );
+  });
+}
+
 // Keep this regex in the syntax shared by JavaScript, ICU and java.util.regex.
 // The Unicode flag makes Metro expand it to escapes rejected by native engines.
 const PATH_CHARACTER = String.raw`[a-zA-Z0-9\u0080-\uFFFF_@.%+-]`;

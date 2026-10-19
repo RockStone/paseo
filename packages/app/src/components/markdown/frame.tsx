@@ -9,6 +9,8 @@ export function MarkdownRendererFrame({
 }: {
   imageSources: Record<string, string>;
   children: ReactElement;
+  watchTables?: boolean;
+  markdownSource?: string;
 }) {
   return (
     <View dataSet={isWeb ? markdownCopyImageSourcesDataSet(imageSources) : undefined}>

@@ -390,6 +390,8 @@ export const ptBR: TranslationResources = {
       viewDiagram: "Ver diagrama",
     },
     actions: {
+      copyTableFailed: "Não foi possível copiar a tabela. Tente novamente.",
+      copyTable: "Copiar tabela",
       copyCode: "Copiar código",
       copyTurn: "Copiar turno",
       copyMessage: "Copiar mensagem",

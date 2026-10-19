@@ -384,6 +384,8 @@ export const zhCN: TranslationResources = {
       viewDiagram: "查看图表",
     },
     actions: {
+      copyTableFailed: "无法复制表格，请重试。",
+      copyTable: "复制表格",
       copyCode: "复制代码",
       copyTurn: "复制回合",
       copyMessage: "复制消息",

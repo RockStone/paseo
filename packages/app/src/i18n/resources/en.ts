@@ -383,6 +383,8 @@ export const en = {
       viewDiagram: "View diagram",
     },
     actions: {
+      copyTableFailed: "Unable to copy table. Please try again.",
+      copyTable: "Copy table",
       copyCode: "Copy code",
       copyTurn: "Copy turn",
       copyMessage: "Copy message",

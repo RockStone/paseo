@@ -5,7 +5,12 @@ import { decodeMarkdownImage, getMarkdownImageStatus } from "./image-decoding";
 import { describe, expect, it } from "vitest";
 import { darkTheme, lightTheme } from "@/styles/theme";
 import { createMarkdownStyles } from "./styles";
-import { prepareMarkdownSource, PENDING_MARKDOWN_IMAGE, splitMarkdownImageBlocks } from "./source";
+import {
+  prepareMarkdownSource,
+  PENDING_MARKDOWN_IMAGE,
+  splitMarkdownImageBlocks,
+  markdownTableSources,
+} from "./source";
 import { normalizeMarkdownHtml } from "./html";
 
 describe("shared Markdown source adaptation", () => {
@@ -604,5 +609,23 @@ describe("mixed reply image groups", () => {
     ]) {
       expect(splitMarkdownImageBlocks(text)).toEqual([text]);
     }
+  });
+});
+
+describe("table Markdown copying", () => {
+  it("keeps original alignment, spacing, inline syntax and escaped pipes without adjacent prose", () => {
+    const first = "| Name  | Value |\n| :--- | ---: |\n| **Lime** | `a\\|b`<br>next |";
+    const second = "| Other |\n| --- |\n| [Pear](fruit.md) |";
+    expect(markdownTableSources(`Before.\n\n${first}\n\nBetween.\n\n${second}\n\nAfter.`)).toEqual([
+      first,
+      second,
+    ]);
+    expect(markdownTableSources("```md\n" + first + "\n```")).toEqual([]);
+  });
+  it("includes only referenced link definitions required by the copied table", () => {
+    const table = "| Fruit |\n| --- |\n| [Lime][lime] |";
+    expect(
+      markdownTableSources(`${table}\n\n[lime]: fruit.md "Details"\n[other]: other.md`),
+    ).toEqual([`${table}\n\n[lime]: fruit.md "Details"`]);
   });
 });

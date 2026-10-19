@@ -181,7 +181,15 @@ const MarkdownPart = memo(function MarkdownPart({
       {image ? <AttachmentLightbox source={image} onClose={closeImage} /> : null}
     </MermaidStreamingContext.Provider>
   );
-  return <MarkdownRendererFrame imageSources={imageSources}>{content}</MarkdownRendererFrame>;
+  return (
+    <MarkdownRendererFrame
+      imageSources={imageSources}
+      watchTables={markdown.includes("|")}
+      markdownSource={text}
+    >
+      {content}
+    </MarkdownRendererFrame>
+  );
 });
 
 const GalleryThumbnail = memo(function GalleryThumbnail({

@@ -389,6 +389,8 @@ export const ja: TranslationResources = {
       viewDiagram: "図を表示",
     },
     actions: {
+      copyTableFailed: "表をコピーできませんでした。もう一度お試しください。",
+      copyTable: "表をコピー",
       copyCode: "コードをコピー",
       copyTurn: "ターンをコピー",
       copyMessage: "メッセージをコピー",

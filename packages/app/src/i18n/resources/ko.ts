@@ -385,6 +385,8 @@ export const ko: TranslationResources = {
       viewDiagram: "다이어그램 보기",
     },
     actions: {
+      copyTableFailed: "표를 복사할 수 없습니다. 다시 시도해 주세요.",
+      copyTable: "표 복사",
       copyCode: "코드 복사",
       copyTurn: "턴 복사",
       copyMessage: "메시지 복사",

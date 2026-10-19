@@ -389,6 +389,8 @@ export const fr: TranslationResources = {
       viewDiagram: "Afficher le diagramme",
     },
     actions: {
+      copyTableFailed: "Impossible de copier le tableau. Réessayez.",
+      copyTable: "Copier le tableau",
       copyCode: "Copier le code",
       copyTurn: "Copier l’échange",
       copyMessage: "Copier le message",
