@@ -11,9 +11,14 @@ interface UseHoverSafeZoneParams {
   onLeaveSafeZone: () => void;
 }
 
-function readRect(ref: RefObject<View | HTMLElement | null>): RectLike | null {
+function readRect(
+  ref: RefObject<View | HTMLElement | null>,
+  visibleMenuSurface = false,
+): RectLike | null {
   const node = ref.current as unknown as Element | null;
-  return node ? node.getBoundingClientRect() : null;
+  // Scroll content extends outside the panel; only its visible viewport keeps hover open.
+  const surface = visibleMenuSurface ? node?.closest('[data-menu-surface="true"]') : null;
+  return (surface ?? node)?.getBoundingClientRect() ?? null;
 }
 
 export function useHoverSafeZone({
@@ -28,7 +33,7 @@ export function useHoverSafeZone({
 
     const tracker = createHoverSafeZoneTracker({
       getTriggerRect: () => readRect(triggerRef),
-      getContentRect: () => readRect(contentRef),
+      getContentRect: () => readRect(contentRef, true),
       onEnterSafeZone,
       onLeaveSafeZone,
     });

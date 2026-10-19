@@ -1,4 +1,12 @@
-import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import {
@@ -16,6 +24,7 @@ import { getStatusDotColor } from "@/utils/status-dot-color";
 import { STATUS_INDICATOR_FILLED_DOT_SIZE } from "@/utils/status-indicator-geometry";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { COMPOSER_PILL_CLEARANCE, composerPillStyles } from "./pill-styles";
+import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
 
 /**
  * The strip of pills where a pane's ambient trackers and plugin actions live.
@@ -60,6 +69,7 @@ export interface ComposerTrackPillProps {
   accessibilityLabel?: string;
   /** Panel body. Rendered into a popover on wide screens and a sheet on compact ones. */
   children: ReactNode;
+  openOnHover?: boolean;
 }
 
 /**
@@ -78,21 +88,69 @@ const PANEL_MAX_HEIGHT = 440;
  */
 const PANEL_OFFSET = 12;
 
-export function ComposerTrackPill({
+export function ComposerTrackPill(props: ComposerTrackPillProps): ReactElement {
+  return (
+    <MenuRoot compactMode="sheet">
+      <ComposerTrackPillBody {...props} />
+    </MenuRoot>
+  );
+}
+
+function ComposerTrackPillBody({
   segments,
   panelTitle,
   testID,
   accessibilityLabel,
   children,
+  openOnHover = false,
 }: ComposerTrackPillProps): ReactElement {
+  const { open, setOpen, presentation, triggerRef } = useMenuContext("ComposerTrackPillBody");
+  const hoverRef = useRef<View>(null);
+  const contentRef = useRef<View>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverEnabled = isWeb && openOnHover && presentation === "popover";
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current !== null) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  }, []);
+  const scheduleClose = useCallback(() => {
+    if (closeTimer.current !== null) return;
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
+      setOpen(false);
+    }, 200);
+  }, [setOpen]);
+  useEffect(() => {
+    if (!isWeb || !hoverEnabled) return;
+    const element = hoverRef.current as unknown as HTMLElement | null;
+    if (!element) return;
+    const enter = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      cancelClose();
+      setOpen(true);
+    };
+    element.addEventListener("pointerenter", enter);
+    return () => {
+      element.removeEventListener("pointerenter", enter);
+      cancelClose();
+    };
+  }, [cancelClose, hoverEnabled, setOpen]);
+  useHoverSafeZone({
+    enabled: hoverEnabled && open,
+    triggerRef,
+    contentRef,
+    onEnterSafeZone: cancelClose,
+    onLeaveSafeZone: scheduleClose,
+  });
   return (
-    <MenuRoot compactMode="sheet">
+    <View ref={hoverRef} collapsable={false}>
       <ComposerTrackPillTrigger
         segments={segments}
         testID={testID}
         accessibilityLabel={accessibilityLabel ?? segments.map((segment) => segment.text).join(" ")}
       />
       <MenuSurface
+        animate={!hoverEnabled}
         side="top"
         align="start"
         offset={PANEL_OFFSET}
@@ -103,9 +161,11 @@ export function ComposerTrackPill({
         scrollable
         testID={`${testID}-panel`}
       >
-        {children}
+        <View ref={contentRef} collapsable={false}>
+          {children}
+        </View>
       </MenuSurface>
-    </MenuRoot>
+    </View>
   );
 }
 

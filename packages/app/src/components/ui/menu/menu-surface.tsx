@@ -98,6 +98,8 @@ export function useMenuSurface(componentName: string): MenuSurfaceContextValue {
 }
 
 export interface MenuSurfaceProps {
+  /** Hover previews can close before an entrance animation finishes. */
+  animate?: boolean;
   /** Root page content. */
   children: ReactNode;
   /** Sub pages, reachable from a `MenuSubTrigger` on the root page. */
@@ -199,6 +201,7 @@ function useSubAnchors(): {
 }
 
 function MenuPopoverSurface({
+  animate,
   children,
   pages = [],
   side = "bottom",
@@ -253,6 +256,7 @@ function MenuPopoverSurface({
       <MenuOverlay visible={menu.open} onClose={handleClose} restoreFocusRef={menu.triggerRef}>
         <>
           <AnchoredSurface
+            animate={animate}
             open={menu.open}
             onClose={handleClose}
             anchorRect={menu.anchorRect}

@@ -213,6 +213,7 @@ export function useAnchoredPosition({
 }
 
 export interface AnchoredSurfaceProps {
+  animate?: boolean;
   open: boolean;
   onClose: () => void;
   onExited?: () => void;
@@ -247,7 +248,12 @@ export interface AnchoredSurfaceProps {
  * One floating menu surface, positioned against an anchor. The root menu renders one of these
  * against its trigger; every open submenu renders another against the row that opened it.
  */
+function canAnimateSurface(placed: boolean, animate: boolean | undefined): boolean {
+  return placed && animate !== false;
+}
+
 export function AnchoredSurface({
+  animate,
   open,
   onClose,
   onExited,
@@ -387,9 +393,9 @@ export function AnchoredSurface({
         dataSet={surfaceDataSet}
         style={styles.content}
         frameStyle={frameStyle}
-        entering={placed ? contentEntering : undefined}
+        entering={canAnimateSurface(placed, animate) ? contentEntering : undefined}
         exiting={
-          !placed || isWeb || !onExited
+          !canAnimateSurface(placed, animate) || isWeb || !onExited
             ? undefined
             : contentExiting.withCallback((finished) => {
                 "worklet";

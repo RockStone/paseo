@@ -26,7 +26,7 @@ export function CommitPushButton({ serverId, agentId }: { serverId: string; agen
       await dispatchComposerAgentMessage({
         client,
         agentId,
-        text: "Please review the current Git changes, commit the changes for this task with a clear commit message, and push the current branch to its remote. Preserve unrelated work. Report the commit and push result.",
+        text: "Please review the current Git changes, group the changes for this task by function or feature into separate focused commits with clear commit messages, and push the current branch to its remote. Preserve unrelated work. Report the commits and push result.",
         attachments: [],
         encodeImages: async () => undefined,
         submission: createMessageSubmissionWriter(serverId),

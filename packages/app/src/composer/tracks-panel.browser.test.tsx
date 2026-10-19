@@ -1,9 +1,11 @@
 import React, { act, useCallback, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { Pressable, Text } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RetainedPanelActivity } from "@/components/retained-panel";
 import { ComposerTrackPill, ComposerTrackRow, type ComposerTrackPillSegment } from "./tracks";
+
+const LONG_CONTENT_STYLE = { height: 1200 };
 
 const SUBAGENT_SEGMENTS: ComposerTrackPillSegment[] = [{ bucket: null, text: "3 subagents" }];
 
@@ -66,6 +68,81 @@ function isPanelOpen(): boolean {
 }
 
 describe("composer track panel", () => {
+  it("opens opted-in pills on mouse hover and stays open while entering the panel", async () => {
+    const onPress = vi.fn();
+    mount(
+      <ComposerTrackPill
+        testID="pill"
+        segments={SUBAGENT_SEGMENTS}
+        panelTitle="Changes"
+        openOnHover
+      >
+        <ComposerTrackRow accessibilityLabel="Changed file" testID="row" onPress={onPress}>
+          <Text>Changed file</Text>
+        </ComposerTrackRow>
+      </ComposerTrackPill>,
+    );
+    act(() => {
+      pill().parentElement!.dispatchEvent(
+        new PointerEvent("pointerenter", { pointerType: "mouse" }),
+      );
+    });
+    await expect.poll(isPanelOpen).toBe(true);
+    await expect.poll(() => row("row")?.getBoundingClientRect().width ?? 0).toBeGreaterThan(0);
+    const bounds = row("row")!.getBoundingClientRect();
+    act(() => {
+      document.dispatchEvent(
+        new PointerEvent("pointermove", {
+          clientX: bounds.left + bounds.width / 2,
+          clientY: bounds.top + bounds.height / 2,
+        }),
+      );
+    });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(isPanelOpen()).toBe(true);
+    act(() => {
+      document.dispatchEvent(
+        new PointerEvent("pointermove", { clientX: innerWidth - 1, clientY: innerHeight - 1 }),
+      );
+    });
+    await expect.poll(isPanelOpen).toBe(false);
+  });
+
+  it("dismisses when leaving the visible viewport of a long scrolling panel", async () => {
+    mount(
+      <ComposerTrackPill
+        testID="pill"
+        segments={SUBAGENT_SEGMENTS}
+        panelTitle="Changes"
+        openOnHover
+      >
+        <View style={LONG_CONTENT_STYLE}>
+          <Text>Many changed files</Text>
+        </View>
+      </ComposerTrackPill>,
+    );
+    act(() => {
+      pill().parentElement!.dispatchEvent(
+        new PointerEvent("pointerenter", { pointerType: "mouse" }),
+      );
+    });
+    await expect.poll(isPanelOpen).toBe(true);
+    const surface = () => document.querySelector('[data-menu-surface="true"]')!;
+    await expect.poll(() => surface()?.getBoundingClientRect().height ?? 0).toBeGreaterThan(0);
+    await expect.poll(() => surface().getBoundingClientRect().height).toBeLessThan(500);
+    await expect.poll(() => surface().getBoundingClientRect().top).toBeGreaterThanOrEqual(0);
+    const bounds = surface().getBoundingClientRect();
+    act(() => {
+      document.dispatchEvent(
+        new PointerEvent("pointermove", {
+          clientX: bounds.left + bounds.width / 2,
+          clientY: bounds.bottom + 12,
+        }),
+      );
+    });
+    await expect.poll(isPanelOpen).toBe(false);
+  });
+
   it("dismisses itself when a row is chosen", () => {
     const onPress = vi.fn();
     mount(
