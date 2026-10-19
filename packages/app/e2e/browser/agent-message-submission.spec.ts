@@ -70,6 +70,43 @@ const IMAGE = {
   ),
 };
 
+baseTest("preserves separate unsent drafts when switching workspaces", async ({ page }) => {
+  const first = await seedMockAgentWorkspace({
+    repoPrefix: "draft-switch-a-",
+    title: "Draft switch A",
+  });
+  const second = await seedMockAgentWorkspace({
+    repoPrefix: "draft-switch-b-",
+    title: "Draft switch B",
+  });
+  try {
+    await openAgentRoute(page, first);
+    await fillComposerDraft(page, "Unsent first workspace text");
+    await expectComposerDraft(page, "Unsent first workspace text");
+    await switchWorkspaceViaSidebar({
+      page,
+      serverId: getServerId(),
+      workspaceId: second.workspaceId,
+    });
+    await fillComposerDraft(page, "Unsent second workspace text");
+    await switchWorkspaceViaSidebar({
+      page,
+      serverId: getServerId(),
+      workspaceId: first.workspaceId,
+    });
+    await expectComposerDraft(page, "Unsent first workspace text");
+    await switchWorkspaceViaSidebar({
+      page,
+      serverId: getServerId(),
+      workspaceId: second.workspaceId,
+    });
+    await expectComposerDraft(page, "Unsent second workspace text");
+  } finally {
+    await first.cleanup();
+    await second.cleanup();
+  }
+});
+
 interface SubmissionScenario {
   existingPrompt: string;
 }

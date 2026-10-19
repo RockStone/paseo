@@ -1304,6 +1304,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const assignTextInput = useCallback((input: ComposerTextInputHandle | null) => {
       textInputRef.current = input;
       if (!isWeb) return;
+      // The surface can remount while its memoized initialValue still predates
+      // deferred draft publication. Restore the editor from the live owner.
+      input?.replaceText(valueRef.current, selectionRef.current);
       const element = getWebTextAreaImpl(input) as HTMLElement | null;
       webTextareaRef.current = element;
       setWebTextArea(element);
