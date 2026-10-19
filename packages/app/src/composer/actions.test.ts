@@ -1,4 +1,4 @@
-import { addImageReferences } from "./attachments/image-reference";
+import { addImageReferences, renumberImageReferences } from "./attachments/image-reference";
 import { messageReferenceDetails } from "@/attachments/reference-details";
 import { formatInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
@@ -1342,26 +1342,69 @@ describe("sent inline reference details", () => {
 });
 
 describe("inline image references", () => {
-  it("preserves attachment identity and stable labels while remapping image positions after deletion", () => {
-    const first = addImageReferences([], [imageWithId("image-a"), imageWithId("image-b")]);
-    expect(first.map((item) => item.inlineMention)).toEqual([
-      "[@Image 1](attachment://image-a)",
-      "[@Image 2](attachment://image-b)",
-    ]);
-    const second = first[1]!;
-    const next = addImageReferences([second], [imageWithId("image-c")]);
-    expect(next[0]!.inlineMention).toBe("[@Image 3](attachment://image-c)");
+  it("renumbers surviving labels while preserving IDs, selection and submitted image positions", () => {
+    const images = addImageReferences(
+      [],
+      [imageWithId("image-a"), imageWithId("image-b"), imageWithId("image-c")],
+    );
+    const text = `Compare ${images[0]!.inlineMention} with ${images[1]!.inlineMention} middle ${images[2]!.inlineMention} and ${images[2]!.inlineMention}.`;
+    const result = renumberImageReferences({
+      attachments: images.slice(1),
+      removed: images[0]!.metadata,
+      text,
+      selection: { start: text.indexOf("middle"), end: text.indexOf("middle") + 6 },
+    });
     expect(
-      UserComposerAttachmentSchema.parse(
-        JSON.parse(JSON.stringify(normalizeComposerAttachment(second))),
-      ),
-    ).toEqual(second);
-    const wire = splitComposerAttachmentsForSubmit([second, ...next]);
-    expect(wire.images.map((image) => image.id)).toEqual(["image-b", "image-c"]);
-    const detail = messageReferenceDetails(second.inlineMention, wire.attachments);
-    expect(detail.visibleAttachments).toEqual([]);
+      result.attachments.map((item) => (item.kind === "image" ? item.inlineMention : "")),
+    ).toEqual(["[@Image 1](attachment://image-b)", "[@Image 2](attachment://image-c)"]);
+    expect(result.text).toBe(
+      "Compare  with [@Image 1](attachment://image-b) middle [@Image 2](attachment://image-c) and [@Image 2](attachment://image-c).",
+    );
+    expect(result.text.slice(result.selection.start, result.selection.end)).toBe("middle");
+    const next = addImageReferences(result.attachments, [imageWithId("image-d")]);
+    expect(next[0]!.inlineMention).toBe("[@Image 3](attachment://image-d)");
+    const wire = splitComposerAttachmentsForSubmit([...result.attachments, ...next]);
+    expect(wire.images.map((image) => image.id)).toEqual(["image-b", "image-c", "image-d"]);
+    const detail = messageReferenceDetails(result.text, wire.attachments);
     expect(detail.details.get("attachment://image-b")?.imagePosition).toBe(1);
     expect(detail.details.get("attachment://image-c")?.imagePosition).toBe(2);
+    expect(
+      UserComposerAttachmentSchema.parse(
+        JSON.parse(JSON.stringify(normalizeComposerAttachment(result.attachments[0]!))),
+      ),
+    ).toEqual(result.attachments[0]);
+  });
+  it("handles multi-digit labels in one pass without rewriting code or ordinary text", () => {
+    const images = addImageReferences(
+      [],
+      Array.from({ length: 12 }, (_, index) => imageWithId(`id-${index + 1}`)),
+    );
+    const code = "`" + images[9]!.inlineMention + "`";
+    const text = `${images.map((image) => image.inlineMention).join(" ")} Image 10 ${code}`;
+    const result = renumberImageReferences({
+      attachments: images.filter((_, index) => index !== 1),
+      removed: images[1]!.metadata,
+      text,
+      selection: { start: text.length, end: text.length },
+    });
+    expect(result.text).toContain("[@Image 9](attachment://id-10)");
+    expect(result.text).toContain("[@Image 10](attachment://id-11)");
+    expect(result.text).not.toContain("attachment://id-2)");
+    expect(result.text).toContain(`Image 10 ${code}`);
+    expect(result.selection).toEqual({ start: result.text.length, end: result.text.length });
+  });
+  it("removes the last image's references and keeps unrelated links", () => {
+    const [image] = addImageReferences([], [imageWithId("only")]);
+    const text = `[docs](file://docs) ${image!.inlineMention}`;
+    const result = renumberImageReferences({
+      attachments: [],
+      removed: image!.metadata,
+      text,
+      selection: { start: text.length, end: text.length },
+    });
+    expect(result.text).toBe("[docs](file://docs) ");
+    expect(result.selection.start).toBe(result.text.length);
+    expect(addImageReferences([], [imageWithId("new")])[0]!.inlineMention).toContain("@Image 1");
   });
   it("sends only the image mapping and retains clickable details for compact and saved references", () => {
     const [image] = addImageReferences([], [imageWithId("image-a")]);

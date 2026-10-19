@@ -452,7 +452,7 @@ test.describe("Composer attachments", () => {
   });
 });
 
-test("pasted images insert stable inline IDs and remove only their own references", async ({
+test("pasted images renumber remaining references without changing attachment IDs", async ({
   page,
 }) => {
   await page.addInitScript(() =>
@@ -476,29 +476,50 @@ test("pasted images insert stable inline IDs and remove only their own reference
     expect(firstText).toContain("please");
     expect(await pasteComposerTestImage(page)).toBe(true);
     await expect(input.locator(".composer-reference")).toHaveText(["@Image 1", "@Image 2"]);
+    expect(await pasteComposerTestImage(page)).toBe(true);
+    await expect(input.locator(".composer-reference")).toHaveText([
+      "@Image 1",
+      "@Image 2",
+      "@Image 3",
+    ]);
+    const original = (await input.getAttribute("data-markdown")) ?? "";
+    const originalIds = [...original.matchAll(/attachment:\/\/([^)]*)\)/g)].map(
+      (match) => match[1],
+    );
     const thumbnails = page.getByTestId("composer-image-attachment-pill");
-    await expect(thumbnails).toHaveCount(2);
+    await expect(thumbnails).toHaveCount(3);
     await thumbnails.first().hover();
     await page.getByRole("button", { name: "Remove image attachment" }).first().click();
-    await expect(thumbnails).toHaveCount(1);
-    await expect(input.locator(".composer-reference")).toHaveText("@Image 2");
-    await expect(input).not.toHaveAttribute("data-markdown", /Image 1/);
+    await expect(thumbnails).toHaveCount(2);
+    await expect(input.locator(".composer-reference")).toHaveText(["@Image 1", "@Image 2"]);
+    const remaining = (await input.getAttribute("data-markdown")) ?? "";
+    expect([...remaining.matchAll(/attachment:\/\/([^)]*)\)/g)].map((match) => match[1])).toEqual(
+      originalIds.slice(1),
+    );
+    await page.reload();
+    await expectComposerVisible(page);
+    await expect(input.locator(".composer-reference")).toHaveText(["@Image 1", "@Image 2"]);
     await input.press("End");
     await input.pressSequentially(" `hello` ");
     const code = input.locator(".composer-code");
     await expect(code).toHaveCSS("color", "rgb(232, 154, 127)");
     await expect(code).toHaveCSS("background-color", "rgb(47, 45, 43)");
     await expect(code).toHaveCSS("border-top-color", "rgb(54, 51, 47)");
-    await page.screenshot({ path: "/tmp/paseoi-r32-claude-composer.png" });
+    await page.screenshot({ path: "/tmp/paseoi-r42-renumbered-images.png" });
     await input.press("Enter");
     await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
     const request = gate.getClientRequests("send_agent_message_request")[0]!;
-    expect(request.images).toHaveLength(1);
+    expect(request.images).toHaveLength(2);
     expect(request.attachments).toEqual([
       expect.objectContaining({
         type: "text",
+        title: "Image 1",
+        text: `Attached image 1: attachment://${originalIds[1]}`,
+      }),
+      expect.objectContaining({
+        type: "text",
         title: "Image 2",
-        text: expect.stringMatching(/^Attached image 1: attachment:\/\/\S+$/),
+        text: `Attached image 2: attachment://${originalIds[2]}`,
       }),
     ]);
     const sent = page.getByTestId("user-message").filter({ hasText: "Compare" }).last();

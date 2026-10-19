@@ -1,4 +1,4 @@
-import { addImageReferences } from "./attachments/image-reference";
+import { addImageReferences, renumberImageReferences } from "./attachments/image-reference";
 import { getInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
   createSessionContextAttachment,
@@ -2045,22 +2045,29 @@ function ComposerContentImpl({
         return;
       }
       const removed = selectedAttachments[index];
-      if (removed?.kind === "image" && removed.inlineMention) {
-        const snapshot = messageInputRef.current?.getInputSnapshot();
-        if (snapshot) {
-          const text = snapshot.text.split(removed.inlineMention).join("");
-          const start = snapshot.text
-            .slice(0, snapshot.selection.start)
-            .split(removed.inlineMention)
-            .join("").length;
-          const end = snapshot.text
-            .slice(0, snapshot.selection.end)
-            .split(removed.inlineMention)
-            .join("").length;
-          replaceUserInput(text, { start, end });
-        }
-      }
       const attachmentIndex = attachments.findIndex((attachment) => attachment === removed);
+      if (removed?.kind === "image") {
+        const snapshot = messageInputRef.current?.getInputSnapshot() ?? {
+          text: textSource.getSnapshot(),
+          selection: {
+            start: textSource.getSnapshot().length,
+            end: textSource.getSnapshot().length,
+          },
+        };
+        const result = renumberImageReferences({
+          ...snapshot,
+          attachments: removeComposerAttachmentAtIndex({
+            attachments,
+            index: attachmentIndex,
+            deleteAttachments,
+          }),
+          removed: removed.metadata,
+        });
+        latestImageAttachments.current = result.attachments;
+        setSelectedAttachments(result.attachments);
+        replaceUserInput(result.text, result.selection);
+        return;
+      }
       setSelectedAttachments((prev) =>
         removeComposerAttachmentAtIndex({
           attachments: prev,
@@ -2069,7 +2076,14 @@ function ComposerContentImpl({
         }),
       );
     },
-    [attachments, removeAttachment, replaceUserInput, selectedAttachments, setSelectedAttachments],
+    [
+      attachments,
+      removeAttachment,
+      replaceUserInput,
+      selectedAttachments,
+      setSelectedAttachments,
+      textSource,
+    ],
   );
 
   const handleOpenAttachment = useCallback(
