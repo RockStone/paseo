@@ -9,6 +9,7 @@ export const zhCN: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    subagent: "子代理",
     currentProject: "当前项目",
     allProjects: "所有项目",
     emptyCurrent: "此项目中没有匹配的终端或活跃对话。",

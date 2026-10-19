@@ -3,6 +3,8 @@ import { messageReferenceDetails } from "@/attachments/reference-details";
 import { formatInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
   appendSessionReference,
+  createProviderSubagentReference,
+  providerSubagentReferences,
   filterSessionReferences,
   sessionReferencesInCurrentProject,
   findActiveSessionMention,
@@ -1398,5 +1400,73 @@ describe("inline image references", () => {
       }),
     ).rejects.toThrow("An attached image could not be loaded");
     expect(client.calls).toEqual([]);
+  });
+});
+
+describe("provider subagent references", () => {
+  const reference = createProviderSubagentReference({
+    serverId: "host",
+    parentAgentId: "parent",
+    subagentId: "child",
+    title: "Fix stuck slice",
+    cwd: "/repo",
+    workspaceId: "work",
+  });
+  it("preserves both identities through draft storage, submission and inline hover details", () => {
+    const inlineMention = formatInlineReference({
+      label: "#Fix stuck slice",
+      type: reference.referenceType,
+      id: reference.id,
+      serverId: reference.serverId,
+    });
+    const selected = { ...reference, inlineMention };
+    expect(UserComposerAttachmentSchema.parse(JSON.parse(JSON.stringify(selected)))).toEqual(
+      selected,
+    );
+    const submitted = splitComposerAttachmentsForSubmit([selected]).attachments;
+    expect(submitted[0]).toMatchObject({
+      text: expect.stringContaining('"parentAgentId":"parent","subagentId":"child"'),
+    });
+    const details = messageReferenceDetails(inlineMention, submitted);
+    expect(details.visibleAttachments).toEqual([]);
+    expect([...details.details.values()][0]?.text).toContain("not a standalone Paseo agent");
+    expect(filterSessionReferences({ entries: [selected], query: "subagent:child" })).toEqual([
+      selected,
+    ]);
+    expect(appendSessionReference([selected], { ...selected, title: "Updated" })).toHaveLength(1);
+    expect(
+      createProviderSubagentReference({ ...reference, parentAgentId: "other", subagentId: "child" })
+        .id,
+    ).not.toBe(reference.id);
+  });
+  it("indexes nested provider children but excludes another host, hidden work and archived parents", () => {
+    const descriptor = {
+      parentAgentId: "parent",
+      provider: "claude" as const,
+      id: "child",
+      parentSubagentId: "nested-parent",
+      title: "Explore",
+      description: "Fix stuck slice",
+      status: "completed" as const,
+      createdAt: "2026-10-18T00:00:00Z",
+      updatedAt: "2026-10-18T00:00:00Z",
+      toolCallId: null,
+    };
+    const input = {
+      serverId: "host",
+      agents: new Map([
+        ["parent", { id: "parent", cwd: "/repo", workspaceId: "work", archivedAt: null }],
+      ]),
+      descriptors: new Map([
+        ["host\0parent\0child", descriptor],
+        ["remote\0parent\0child", { ...descriptor, id: "remote" }],
+      ]),
+      hidden: new Set<string>(),
+    };
+    expect(providerSubagentReferences(input)).toEqual([reference]);
+    expect(
+      providerSubagentReferences({ ...input, hidden: new Set(["host\0parent\0child"]) }),
+    ).toEqual([]);
+    expect(providerSubagentReferences({ ...input, agents: new Map() })).toEqual([]);
   });
 });

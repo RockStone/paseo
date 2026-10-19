@@ -10,9 +10,11 @@ import {
   useHostRuntimeSnapshot,
   isHostRuntimeDirectoryLoading,
 } from "@/runtime/host-runtime";
+import { useProviderSubagentStore, refreshProviderSubagents } from "@/subagents/provider-store";
 import { useSessionStore } from "@/stores/session-store";
 import {
   findActiveSessionMention,
+  providerSubagentReferences,
   filterSessionReferences,
   sessionReferencesInCurrentProject,
   type SessionReferenceAttachment,
@@ -73,6 +75,46 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
   }, [isVisible, runtime, input.serverId]);
   const agents = useSessionStore((state) => state.sessions[input.serverId]?.agents);
   const workspaces = useSessionStore((state) => state.sessions[input.serverId]?.workspaces);
+  const providerSupported = useSessionStore(
+    (state) => state.sessions[input.serverId]?.serverInfo?.features?.providerSubagents === true,
+  );
+  const descriptors = useProviderSubagentStore((state) => state.descriptors);
+  const hidden = useProviderSubagentStore((state) => state.hiddenFromTrack);
+  useEffect(() => {
+    if (!isVisible || !isConnected || !client || !providerSupported) return;
+    const projectId = workspaces?.get(input.workspaceId ?? "")?.projectId;
+    const parents = [...(agents?.values() ?? [])].filter(
+      (agent) =>
+        !agent.archivedAt &&
+        (scope === "all" ||
+          (projectId !== undefined &&
+            workspaces?.get(agent.workspaceId ?? "")?.projectId === projectId)),
+    );
+    let cancelled = false;
+    let next = 0;
+    const refresh = async () => {
+      while (next < parents.length) {
+        if (cancelled) return;
+        const parent = parents[next++];
+        if (parent)
+          await refreshProviderSubagents(client, input.serverId, parent.id).catch(() => undefined);
+      }
+    };
+    void Promise.allSettled(Array.from({ length: Math.min(3, parents.length) }, refresh));
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isVisible,
+    isConnected,
+    client,
+    providerSupported,
+    agents,
+    workspaces,
+    scope,
+    input.serverId,
+    input.workspaceId,
+  ]);
   const terminals = useFetchQuery({
     queryKey: ["composer-session-terminals", input.serverId],
     enabled: isVisible && isConnected && Boolean(client),
@@ -117,6 +159,10 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
         workspaceId: agent.workspaceId,
       });
     }
+    if (providerSupported && agents)
+      entries.push(
+        ...providerSubagentReferences({ serverId: input.serverId, agents, descriptors, hidden }),
+      );
     const scopedEntries =
       scope === "current"
         ? sessionReferencesInCurrentProject({
@@ -134,7 +180,7 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
       type: "session_reference",
       id: `session:${reference.referenceType}:${reference.id}`,
       label: `${t(`sessionReference.${reference.referenceType}`)} · ${reference.title}`,
-      detail: reference.id.slice(0, 8),
+      detail: (reference.subagentId ?? reference.id).slice(0, 8),
       description: reference.cwd,
       kind: reference.referenceType,
       reference,
@@ -145,6 +191,9 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
     errorMessage,
     terminals.data,
     agents,
+    providerSupported,
+    descriptors,
+    hidden,
     workspaces,
     scope,
     input.serverId,

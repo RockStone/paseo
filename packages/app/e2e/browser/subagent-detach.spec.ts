@@ -1,3 +1,4 @@
+import { composerLocator, expectComposerVisible } from "../support/helpers/composer";
 import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
 import { getServerId } from "../support/helpers/server-id";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
@@ -70,6 +71,12 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await expect(root).toHaveCount(0);
     await expect(child).toBeVisible({ timeout: 30_000 });
     await expect(nested).toBeVisible();
+    const running = page.getByTestId(`sidebar-agent-tree-running-agent:${pair.child.id}`);
+    await expect(running).toHaveCount(0);
+    await workspace.client.sendAgentMessage(pair.child.id, "Show the sidebar running indicator.");
+    await expect(running).toBeVisible();
+    await workspace.client.waitForFinish(pair.child.id, 30_000);
+    await expect(running).toHaveCount(0);
     const childBox = await child.boundingBox();
     const nestedBox = await nested.boundingBox();
     if (!childBox || !nestedBox) throw new Error("Thread tree could not be measured");
@@ -114,6 +121,7 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
       modeId: "load-test",
       model: "ten-second-stream",
     });
+    let childRunning = true;
     await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
       const server = ws.connectToServer();
       server.onMessage((message) => ws.send(message));
@@ -144,7 +152,7 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
             parentAgentId: parent.id,
             provider: "claude",
             title: "Explore",
-            status: "completed",
+            status: childRunning ? "running" : "completed",
             createdAt: timestamp,
             updatedAt: timestamp,
             toolCallId: null,
@@ -168,6 +176,7 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
                     {
                       ...descriptor,
                       id: "native-grandchild",
+                      status: "completed",
                       parentSubagentId: "native-child",
                       description: "Native verification",
                     },
@@ -228,6 +237,40 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
     );
     await expect(child).toBeVisible({ timeout: 30_000 });
     await expect(nested).toBeVisible();
+    const running = page.getByTestId(
+      `sidebar-agent-tree-running-provider:${parent.id}:native-child`,
+    );
+    await expect(running).toBeVisible();
+    const toggle = page.getByTestId(`sidebar-agent-tree-toggle-provider:${parent.id}:native-child`);
+    await toggle.click();
+    await expect(nested).toHaveCount(0);
+    await toggle.click();
+    await expect(nested).toBeVisible();
+    childRunning = false;
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    await input.fill("Check ##native-child");
+    const option = page.getByTestId(
+      `autocomplete-option-session:subagent:${parent.id}/native-child`,
+    );
+    await expect(option).toBeVisible();
+    await expect(running).toHaveCount(0);
+    await option.click();
+    const mention = `[#Native implementation](subagent://${encodeURIComponent(`${parent.id}/native-child`)}?hostId=${getServerId()})`;
+    await expect(input).toHaveAttribute("data-markdown", `Check ${mention} `);
+    await page.reload();
+    await expectComposerVisible(page);
+    await expect(input).toHaveAttribute("data-markdown", `Check ${mention} `);
+    await input.fill("Review ");
+    const title = nested.getByText("Native verification", { exact: true });
+    await expect(title).toHaveAttribute("draggable", "true");
+    await title.dragTo(input);
+    await expect(input).toHaveAttribute(
+      "data-markdown",
+      new RegExp(`subagent://${encodeURIComponent(`${parent.id}/native-grandchild`)}`),
+    );
+    await expect(page.getByTestId("composer-session-reference-pill")).toHaveCount(0);
+    await page.screenshot({ path: "/tmp/paseoi-r40-subagent-reference.png" });
     await nested.click();
     await expect(page.getByTestId("provider-subagent-panel")).toBeVisible();
     await expect(

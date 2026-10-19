@@ -3,14 +3,24 @@ import { Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
-import { useSessionStore, type Agent } from "@/stores/session-store";
-import { useProviderSubagentStore } from "@/subagents/provider-store";
+import { StatusRing } from "@/components/status-ring";
+import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
+import { useSessionStore, selectAgentTurnPresentation, type Agent } from "@/stores/session-store";
+import { useSessionDragSource } from "@/attachments/use-session-drag-source";
+import { useProviderSubagentStore, providerSubagentKey } from "@/subagents/provider-store";
 import { useSubagentsForParent } from "@/subagents";
 import {
   buildSidebarThreadTree,
   workspaceRootAgentIds,
   type SidebarThreadNode,
 } from "@/subagents/sidebar-tree";
+import {
+  useWorkspaceLayoutStore,
+  findPaneById,
+  collectAllTabs,
+} from "@/stores/workspace-layout-store";
+import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
+import { workspaceTabTargetsEqual } from "@/workspace-tabs/identity";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
 import { density } from "@/styles/density";
@@ -80,7 +90,13 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
       {tree.length > 0 ? (
         <View style={styles.tree} testID={`sidebar-agent-tree-${serverId}:${workspaceId}`}>
           {visibleTree.map((node) => (
-            <ThreadBranch key={node.key} node={node} serverId={serverId} />
+            <ThreadBranch
+              key={node.key}
+              node={node}
+              serverId={serverId}
+              workspaceId={workspaceId}
+              active={active}
+            />
           ))}
         </View>
       ) : null}
@@ -99,7 +115,60 @@ function DiscoverProviderChildren({
   return null;
 }
 
-function ThreadBranch({ node, serverId }: { node: SidebarThreadNode; serverId: string }) {
+function ThreadBranch({
+  node,
+  serverId,
+  workspaceId,
+  active,
+}: {
+  node: SidebarThreadNode;
+  serverId: string;
+  workspaceId: string;
+  active: boolean;
+}) {
+  const managedRunning = useSessionStore((state) => {
+    if (node.target.kind !== "agent") return false;
+    const session = state.sessions[serverId];
+    const agent =
+      session?.agents.get(node.target.agentId) ?? session?.agentDetails.get(node.target.agentId);
+    if (!agent) return false;
+    const turn = selectAgentTurnPresentation(session, agent.id);
+    return (
+      deriveSidebarStateBucket({
+        status: turn.isActive ? "running" : agent.status,
+        pendingPermissionCount: agent.pendingPermissions.length,
+        requiresAttention: agent.requiresAttention,
+        attentionReason: agent.attentionReason,
+      }) === "running"
+    );
+  });
+  const providerRunning = useProviderSubagentStore(
+    (state) =>
+      node.target.kind === "provider_subagent" &&
+      state.descriptors.get(
+        providerSubagentKey(serverId, node.target.parentAgentId, node.target.subagentId),
+      )?.status === "running",
+  );
+  const running = managedRunning || providerRunning;
+  const dragRef = useSessionDragSource({
+    serverId,
+    workspaceId,
+    target: node.target,
+    title: node.title || undefined,
+  });
+  const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId })!;
+  const selected = useWorkspaceLayoutStore((state) => {
+    if (!active) return false;
+    const sheet = state.sheetsByWorkspace[workspaceKey]?.at(-1);
+    const layout = state.layoutByWorkspace[workspaceKey];
+    const pane = layout ? findPaneById(layout.root, layout.focusedPaneId) : null;
+    const target =
+      sheet?.tab.target ??
+      (layout && pane
+        ? collectAllTabs(layout.root).find((tab) => tab.tabId === pane.focusedTabId)?.target
+        : undefined);
+    return target ? workspaceTabTargetsEqual(target, node.target) : false;
+  });
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
   const [hovered, setHovered] = useState(false);
@@ -112,14 +181,17 @@ function ThreadBranch({ node, serverId }: { node: SidebarThreadNode; serverId: s
     () => (isWeb ? { onMouseEnter: handleHoverIn, onMouseLeave: handleHoverOut } : undefined),
     [handleHoverIn, handleHoverOut],
   );
-  const rowStyle = useMemo(() => [styles.row, hovered && styles.rowHovered], [hovered]);
+  const rowStyle = useMemo(
+    () => [styles.row, hovered && styles.rowHovered, selected && styles.rowSelected],
+    [hovered, selected],
+  );
   const accessibilityState = useMemo(() => ({ expanded }), [expanded]);
   const open = useCallback(() => {
     if (node.target.kind === "agent") {
       navigateToAgent({ serverId, agentId: node.target.agentId });
     } else {
-      const { workspaceId, ...target } = node.target;
-      navigateToWorkspace({ serverId, workspaceId, target });
+      const { workspaceId: targetWorkspaceId, ...target } = node.target;
+      navigateToWorkspace({ serverId, workspaceId: targetWorkspaceId, target });
     }
   }, [node.target, serverId]);
   const ToggleIcon = expanded ? ThemedChevronDown : ThemedChevronRight;
@@ -139,11 +211,23 @@ function ThreadBranch({ node, serverId }: { node: SidebarThreadNode; serverId: s
             style={styles.toggle}
             testID={`sidebar-agent-tree-toggle-${node.key}`}
           >
-            <ToggleIcon size={12} uniProps={iconColor} />
+            {running ? (
+              <View testID={`sidebar-agent-tree-running-${node.key}`}>
+                <StatusRing />
+              </View>
+            ) : (
+              <ToggleIcon size={12} uniProps={iconColor} />
+            )}
           </Pressable>
         ) : (
           <View style={styles.toggle}>
-            <ThemedMessage size={10} uniProps={iconColor} />
+            {running ? (
+              <View testID={`sidebar-agent-tree-running-${node.key}`}>
+                <StatusRing />
+              </View>
+            ) : (
+              <ThemedMessage size={10} uniProps={iconColor} />
+            )}
           </View>
         )}
         <Pressable
@@ -151,9 +235,10 @@ function ThreadBranch({ node, serverId }: { node: SidebarThreadNode; serverId: s
           accessibilityRole="button"
           accessibilityLabel={t("agentTree.open", { title })}
           style={styles.thread}
+          aria-selected={selected}
           testID={`sidebar-agent-tree-row-${node.key}`}
         >
-          <Text style={styles.title} numberOfLines={1}>
+          <Text ref={dragRef} style={styles.title} numberOfLines={1}>
             {title}
           </Text>
         </Pressable>
@@ -161,7 +246,13 @@ function ThreadBranch({ node, serverId }: { node: SidebarThreadNode; serverId: s
       {hasChildren && expanded ? (
         <View style={styles.children}>
           {node.children.map((child) => (
-            <ThreadBranch key={child.key} node={child} serverId={serverId} />
+            <ThreadBranch
+              key={child.key}
+              node={child}
+              serverId={serverId}
+              workspaceId={workspaceId}
+              active={active}
+            />
           ))}
         </View>
       ) : null}
@@ -177,6 +268,7 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.md,
     minHeight: density.tightRowHeight,
   },
+  rowSelected: { backgroundColor: theme.colors.surfaceSidebarSelected },
   rowHovered: { backgroundColor: theme.colors.surfaceSidebarHover },
   toggle: {
     width: { xs: 32, md: 24 },

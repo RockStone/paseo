@@ -5,6 +5,7 @@ export const en = {
     open: "Open thread: {{title}}",
   },
   sessionReference: {
+    subagent: "Subagent",
     currentProject: "Current project",
     allProjects: "All projects",
     emptyCurrent: "No matching terminals or active threads in this project.",

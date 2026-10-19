@@ -1,4 +1,8 @@
-import { createSessionContextAttachment, parseSessionDragPayload } from "./session-drag";
+import {
+  createSessionContextAttachment,
+  parseSessionDragPayload,
+  createSessionDragPayload,
+} from "./session-drag";
 import { describe, expect, it } from "vitest";
 import { createWorkspaceFileAttachment } from "./workspace-file";
 import {
@@ -105,4 +109,29 @@ describe("conversation drag context", () => {
     );
     expect(attachment.source.serverId).toBe("remote-host");
   });
+});
+
+it("drags the exact sidebar subagent rather than its workspace's focused tab", () => {
+  const source = createSessionDragPayload({
+    serverId: "host",
+    workspaceId: "work",
+    agent: { id: "parent", title: "Coordinator", cwd: "/repo" },
+    target: { kind: "provider_subagent", parentAgentId: "parent", subagentId: "child" },
+    title: "Fix stuck slice",
+  });
+  expect(parseSessionDragPayload(JSON.stringify(source))?.reference).toMatchObject({
+    referenceType: "subagent",
+    id: "parent/child",
+    parentAgentId: "parent",
+    subagentId: "child",
+    title: "Fix stuck slice",
+  });
+  expect(
+    createSessionDragPayload({
+      serverId: "host",
+      workspaceId: "work",
+      agent: { id: "managed", title: "Child", cwd: "/repo" },
+      target: { kind: "agent", agentId: "managed" },
+    }).reference,
+  ).toMatchObject({ referenceType: "thread", id: "managed" });
 });

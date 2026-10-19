@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type RefCallback } from "react";
 import type { Text } from "react-native";
 import {
   SESSION_DRAG_MIME,
-  type SessionDragPayload,
+  createSessionDragPayload,
   type SessionDragSourceInput,
 } from "./session-drag";
 import { useSessionStore } from "@/stores/session-store";
@@ -16,6 +16,8 @@ import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 export function useSessionDragSource({
   serverId,
   workspaceId,
+  target: explicitTarget,
+  title,
 }: SessionDragSourceInput): RefCallback<Text> {
   const [element, setElement] = useState<HTMLElement | null>(null);
   const ref = useCallback((node: Text | null) => {
@@ -39,10 +41,10 @@ export function useSessionDragSource({
       const tab = layout
         ? collectAllTabs(layout.root).find((entry) => entry.tabId === pane?.focusedTabId)
         : null;
-      const agentId =
-        tab?.target.kind === "agent"
-          ? tab.target.agentId
-          : session?.workspaceAgentActivity.get(workspaceId)?.agentId;
+      const selectedTarget = explicitTarget ?? tab?.target;
+      let agentId = session?.workspaceAgentActivity.get(workspaceId)?.agentId;
+      if (selectedTarget?.kind === "provider_subagent") agentId = selectedTarget.parentAgentId;
+      else if (selectedTarget?.kind === "agent") agentId = selectedTarget.agentId;
       const agent = agentId
         ? (session?.agents.get(agentId) ?? session?.agentDetails.get(agentId))
         : null;
@@ -50,12 +52,13 @@ export function useSessionDragSource({
         event.preventDefault();
         return;
       }
-      const payload: SessionDragPayload = {
-        version: 1,
+      const payload = createSessionDragPayload({
         serverId,
-        agentId: agent.id,
-        title: agent.title?.slice(0, 1000) || "Conversation",
-      };
+        workspaceId,
+        agent,
+        target: explicitTarget,
+        title,
+      });
       event.dataTransfer.effectAllowed = "copy";
       event.dataTransfer.setData(SESSION_DRAG_MIME, JSON.stringify(payload));
       event.stopPropagation();
@@ -69,6 +72,6 @@ export function useSessionDragSource({
       target.removeEventListener("mousedown", handlePointerDown);
       target.removeEventListener("dragstart", handleDragStart);
     };
-  }, [element, serverId, workspaceId]);
+  }, [element, serverId, workspaceId, explicitTarget, title]);
   return ref;
 }

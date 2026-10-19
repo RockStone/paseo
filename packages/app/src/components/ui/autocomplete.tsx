@@ -20,7 +20,15 @@ export interface AutocompleteOption {
   label: string;
   detail?: string;
   description?: string;
-  kind?: "command" | "file" | "directory" | "agent_profile" | "terminal" | "thread" | "workspace";
+  kind?:
+    | "command"
+    | "file"
+    | "directory"
+    | "agent_profile"
+    | "terminal"
+    | "thread"
+    | "workspace"
+    | "subagent";
 }
 
 const LEADING_ICONS = {
@@ -29,6 +37,7 @@ const LEADING_ICONS = {
   agent_profile: Bot,
   terminal: Terminal,
   thread: MessageSquare,
+  subagent: MessageSquare,
   workspace: Layers,
 };
 

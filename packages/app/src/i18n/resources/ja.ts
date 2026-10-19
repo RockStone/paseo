@@ -9,6 +9,7 @@ export const ja: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    subagent: "サブエージェント",
     currentProject: "現在のプロジェクト",
     allProjects: "すべてのプロジェクト",
     emptyCurrent: "このプロジェクトに一致するターミナルやアクティブなスレッドはありません。",

@@ -9,6 +9,7 @@ export const es: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    subagent: "Subagente",
     currentProject: "Proyecto actual",
     allProjects: "Todos los proyectos",
     emptyCurrent: "No hay terminales ni conversaciones activas coincidentes en este proyecto.",

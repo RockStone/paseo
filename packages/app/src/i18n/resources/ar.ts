@@ -9,6 +9,7 @@ export const ar: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    subagent: "وكيل فرعي",
     currentProject: "المشروع الحالي",
     allProjects: "كل المشاريع",
     emptyCurrent: "لا توجد جلسات طرفية أو محادثات نشطة مطابقة في هذا المشروع.",

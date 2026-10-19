@@ -183,6 +183,7 @@ import {
   resolveWorkspaceFileDrop,
   type WorkspaceFileDragPayload,
 } from "@/attachments/workspace-file-drag";
+import { formatInlineReference } from "@/attachments/inline-reference";
 import { formatFileMentionPath } from "@/utils/file-mention-autocomplete";
 
 const composerImageAttachmentPersister: Pick<
@@ -1577,9 +1578,50 @@ function ComposerContentImpl({
 
   const [isAddingSession, setIsAddingSession] = useState(false);
   const addingSessionRef = useRef(false);
+  const insertDroppedSessionReference = useCallback(
+    (reference: SessionReferenceAttachment) => {
+      if (
+        reference.referenceType === "thread" &&
+        reference.serverId === serverId &&
+        reference.id === agentId
+      ) {
+        toastErrorRef.current(t("sessionReference.self"));
+        return;
+      }
+      const inlineMention = formatInlineReference({
+        label: `#${reference.title}`,
+        type: reference.referenceType,
+        id: reference.id,
+        serverId: reference.serverId,
+      });
+      setSelectedAttachments((current) =>
+        appendSessionReference(current, { ...reference, inlineMention }),
+      );
+      const snapshot = messageInputRef.current?.getInputSnapshot() ?? {
+        text: textSource.getSnapshot(),
+        selection: {
+          start: textSource.getSnapshot().length,
+          end: textSource.getSnapshot().length,
+        },
+      };
+      const before = snapshot.text.slice(0, snapshot.selection.start);
+      const insertion = `${before && !/\s$/.test(before) ? " " : ""}${inlineMention} `;
+      const caret = before.length + insertion.length;
+      replaceUserInput(before + insertion + snapshot.text.slice(snapshot.selection.end), {
+        start: caret,
+        end: caret,
+      });
+      focusInput();
+    },
+    [serverId, agentId, setSelectedAttachments, textSource, replaceUserInput, focusInput, t],
+  );
   const handleSessionDropped = useCallback(
     (source: SessionDragPayload) => {
       if (addingSessionRef.current) return;
+      if (source.reference) {
+        insertDroppedSessionReference(source.reference);
+        return;
+      }
       if (source.serverId === serverId && source.agentId === agentId) {
         toastErrorRef.current(t("sessionReference.self"));
         return;
@@ -1630,7 +1672,7 @@ function ComposerContentImpl({
           setIsAddingSession(false);
         });
     },
-    [agentId, attachmentScopeKeys, focusInput, serverId, t],
+    [agentId, attachmentScopeKeys, focusInput, serverId, t, insertDroppedSessionReference],
   );
 
   const handleWorkspaceFileDropped = useCallback(

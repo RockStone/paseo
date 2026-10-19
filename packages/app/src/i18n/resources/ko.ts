@@ -9,6 +9,7 @@ export const ko: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    subagent: "하위 에이전트",
     currentProject: "현재 프로젝트",
     allProjects: "모든 프로젝트",
     emptyCurrent: "이 프로젝트에 일치하는 터미널 또는 활성 스레드가 없습니다.",

@@ -8,7 +8,7 @@ export interface ReferenceDetail {
 }
 const Identity = z.object({
   hostId: z.string(),
-  type: z.enum(["thread", "terminal", "workspace"]),
+  type: z.enum(["thread", "terminal", "workspace", "subagent"]),
   id: z.string(),
 });
 

@@ -9,6 +9,7 @@ export const ptBR: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    subagent: "Subagente",
     currentProject: "Projeto atual",
     allProjects: "Todos os projetos",
     emptyCurrent: "Nenhum terminal ou conversa ativa correspondente neste projeto.",

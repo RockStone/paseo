@@ -9,6 +9,7 @@ export const ru: TranslationResources = {
   },
   sessionReference: {
     ...en.sessionReference,
+    subagent: "Субагент",
     currentProject: "Текущий проект",
     allProjects: "Все проекты",
     emptyCurrent: "В этом проекте нет подходящих терминалов или активных диалогов.",
