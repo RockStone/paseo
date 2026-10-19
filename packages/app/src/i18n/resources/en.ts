@@ -2113,6 +2113,8 @@ export const en = {
     dismiss: "Dismiss",
   },
   contextWindow: {
+    compact: "Compact",
+    compactIdle: "Available when the agent is idle",
     noData: "No context data",
     accessibilityNoData: "Context window: No context data",
     title: "Context window",

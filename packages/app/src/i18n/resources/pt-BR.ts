@@ -2121,6 +2121,8 @@ export const ptBR: TranslationResources = {
     dismiss: "Dispensar",
   },
   contextWindow: {
+    compact: "Compactar",
+    compactIdle: "Disponível quando o agente está ocioso",
     noData: "Sem dados de contexto",
     accessibilityNoData: "Janela de contexto: sem dados de contexto",
     title: "Janela de contexto",

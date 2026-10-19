@@ -44,9 +44,14 @@ interface HoverCardContextValue {
   contentRef: RefObject<View | null>;
   openNow: () => void;
   scheduleClose: () => void;
+  dismiss: () => void;
 }
 
 const HoverCardContext = createContext<HoverCardContextValue | null>(null);
+
+export function useHoverCardDismiss(): (() => void) | undefined {
+  return useContext(HoverCardContext)?.dismiss;
+}
 
 /**
  * A card that opens while the pointer is on its trigger and stays open while the pointer crosses
@@ -93,6 +98,11 @@ function WebHoverCard({
       graceTimerRef.current = null;
     }
   }, []);
+
+  const dismiss = useCallback(() => {
+    clearGraceTimer();
+    setOpen(false);
+  }, [clearGraceTimer]);
 
   const focusInside = useCallback(() => {
     if (!isWeb) return false;
@@ -254,8 +264,8 @@ function WebHoverCard({
   useEffect(() => clearGraceTimer, [clearGraceTimer]);
 
   const value = useMemo<HoverCardContextValue>(
-    () => ({ open, layer, setTriggerRef, triggerRef, contentRef, openNow, scheduleClose }),
-    [open, layer, setTriggerRef, openNow, scheduleClose],
+    () => ({ open, layer, setTriggerRef, triggerRef, contentRef, openNow, scheduleClose, dismiss }),
+    [open, layer, setTriggerRef, openNow, scheduleClose, dismiss],
   );
 
   return (

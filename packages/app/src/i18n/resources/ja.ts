@@ -2106,6 +2106,8 @@ export const ja: TranslationResources = {
     dismiss: "閉じる",
   },
   contextWindow: {
+    compact: "圧縮",
+    compactIdle: "エージェントの待機中に利用できます",
     noData: "コンテキストデータがありません",
     accessibilityNoData: "コンテキストウィンドウ：コンテキストデータがありません",
     title: "コンテキストウィンドウ",

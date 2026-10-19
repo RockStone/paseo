@@ -2086,6 +2086,8 @@ export const ar: TranslationResources = {
     dismiss: "رفض",
   },
   contextWindow: {
+    compact: "ضغط",
+    compactIdle: "متاح عندما يكون الوكيل خاملاً",
     noData: "لا توجد بيانات للسياق",
     accessibilityNoData: "نافذة السياق: لا توجد بيانات للسياق",
     title: "نافذة السياق",

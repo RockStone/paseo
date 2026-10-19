@@ -1,6 +1,8 @@
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
+import { useHoverCardDismiss } from "@/components/ui/hover-card";
+import { ContextWindowCompactButton } from "./context-window-compact-button";
 import { AgentUsage } from "@/usage";
 import { formatTokenCount } from "./context-window-meter.utils";
 
@@ -17,6 +19,7 @@ interface ContextWindowDetailsProps {
   showTitle: boolean;
   /** Whether the usage cards have a Refresh button; without one they show their freshness. */
   refreshable: boolean;
+  onCompactAccepted?: () => void;
 }
 
 /**
@@ -30,27 +33,40 @@ export function ContextWindowDetails({
   sessionCost,
   showTitle,
   refreshable,
+  onCompactAccepted,
 }: ContextWindowDetailsProps) {
   const { t } = useTranslation();
+  const dismissHoverCard = useHoverCardDismiss();
   return (
     <>
       <View style={styles.summary}>
         {showTitle ? <Text style={styles.title}>{t("contextWindow.title")}</Text> : null}
-        {context ? (
-          <>
-            <Text style={styles.text}>
-              {t("contextWindow.used", { percentage: context.percentage })}
-            </Text>
-            <Text style={styles.detail}>
-              {t("contextWindow.tokens", {
-                used: formatTokenCount(context.usedTokens),
-                max: formatTokenCount(context.maxTokens),
-              })}
-            </Text>
-          </>
-        ) : (
-          <Text style={styles.detail}>{t("contextWindow.noData")}</Text>
-        )}
+        <View style={styles.usageRow}>
+          <View style={styles.stats} testID="context-window-stats">
+            {context ? (
+              <>
+                <Text style={styles.text}>
+                  {t("contextWindow.used", { percentage: context.percentage })}
+                </Text>
+                <Text style={styles.detail}>
+                  {t("contextWindow.tokens", {
+                    used: formatTokenCount(context.usedTokens),
+                    max: formatTokenCount(context.maxTokens),
+                  })}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.detail}>{t("contextWindow.noData")}</Text>
+            )}
+          </View>
+          {refreshable ? (
+            <ContextWindowCompactButton
+              serverId={serverId}
+              agentId={agentId}
+              onAccepted={onCompactAccepted ?? dismissHoverCard}
+            />
+          ) : null}
+        </View>
         {sessionCost ? (
           <Text style={styles.detail}>{t("contextWindow.sessionCost", { cost: sessionCost })}</Text>
         ) : null}
@@ -65,6 +81,8 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[1.5],
     minWidth: 200,
   },
+  usageRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing[2] },
+  stats: { flex: 1, gap: theme.spacing[1.5] },
   title: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,

@@ -2064,6 +2064,8 @@ export const zhCN: TranslationResources = {
     dismiss: "关闭",
   },
   contextWindow: {
+    compact: "压缩",
+    compactIdle: "代理空闲时可用",
     noData: "暂无上下文数据",
     accessibilityNoData: "上下文窗口：暂无上下文数据",
     title: "上下文窗口",

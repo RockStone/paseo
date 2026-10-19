@@ -1,3 +1,4 @@
+import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import type { Locator, Page } from "@playwright/test";
 import { expect, test as base } from "../support/fixtures";
 import {
@@ -131,6 +132,89 @@ test("keeps the context popup open during live usage updates and unrelated scrol
   await hoverContextWindowMeter(page, "Context window 50% used");
   await page.evaluate(() => document.dispatchEvent(new Event("scroll")));
   await expect(card).toHaveCount(0);
+});
+
+test("compacts from the context popup with visible failure, retry and idle gating", async ({
+  page,
+}) => {
+  const requests: Array<{ text: string; attachments?: unknown[] }> = [];
+  let rejectCompact = true;
+  await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((raw) => {
+      const envelope = JSON.parse(raw.toString());
+      const request = envelope.message;
+      if (request?.type === "send_agent_message_request" && request.text === "/compact") {
+        requests.push(request);
+        if (rejectCompact) {
+          ws.send(
+            JSON.stringify({
+              type: "session",
+              message: {
+                type: "send_agent_message_response",
+                payload: {
+                  agentId: request.agentId,
+                  requestId: request.requestId,
+                  accepted: false,
+                  error: "Compaction refused for this test",
+                },
+              },
+            }),
+          );
+          return;
+        }
+      }
+      server.send(raw);
+    });
+    server.onMessage((raw) => {
+      const envelope = JSON.parse(raw.toString());
+      if (envelope.message?.type === "list_commands_response") {
+        envelope.message.payload.commands = [
+          { name: "compact", description: "Compact context", argumentHint: "", kind: "command" },
+        ];
+        envelope.message.payload.error = null;
+        ws.send(JSON.stringify(envelope));
+      } else ws.send(raw);
+    });
+  });
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "context-compact-",
+    title: "Context compaction",
+    model: "ten-second-stream",
+    initialPrompt: "emit 32000 byte file agent stream payload",
+  });
+  try {
+    await openAgent(page, agent);
+    const card = await hoverContextWindowMeter(page);
+    await moveOntoContextWindowDetails(page, card);
+    const button = card.getByRole("button", { name: "Compact", exact: true });
+    await expect(button).toBeEnabled();
+    const buttonBox = await button.boundingBox();
+    const statsBox = await card.getByTestId("context-window-stats").boundingBox();
+    if (!buttonBox || !statsBox) throw new Error("Context stats and Compact must be measurable");
+    expect(buttonBox.x).toBeGreaterThan(statsBox.x + statsBox.width);
+    expect(buttonBox.y).toBeGreaterThanOrEqual(statsBox.y);
+    expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(statsBox.y + statsBox.height);
+    await button.click();
+    await expect(card.getByRole("alert")).toHaveText("Compaction refused for this test");
+    await expect(button).toBeEnabled();
+    await agent.client.sendAgentMessage(agent.agentId, "Keep working while I inspect context");
+    await expect(button).toBeDisabled();
+    await button.locator("..").hover();
+    await expect(page.getByRole("tooltip")).toContainText("Available when the agent is idle");
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await expect(button).toBeEnabled();
+    await page.screenshot({ path: "/tmp/paseoi-r48-context-compact.png" });
+    rejectCompact = false;
+    await button.click();
+    await expect(card).toHaveCount(0);
+    await expect(page.getByText("Compact requested", { exact: true })).toHaveCount(0);
+    expect(requests.map((request) => request.text)).toEqual(["/compact", "/compact"]);
+    expect(requests[1]?.attachments).toEqual([]);
+    await leaveContextWindowMeter(page);
+  } finally {
+    await agent.cleanup();
+  }
 });
 
 const DESKTOP = { width: 1440, height: 900 };

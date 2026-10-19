@@ -2119,6 +2119,8 @@ export const ru: TranslationResources = {
     dismiss: "Закрыть",
   },
   contextWindow: {
+    compact: "Сжать",
+    compactIdle: "Доступно, когда агент не занят",
     noData: "Нет данных о контексте",
     accessibilityNoData: "Контекстное окно: нет данных о контексте",
     title: "Контекстное окно",

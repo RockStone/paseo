@@ -2136,6 +2136,8 @@ export const es: TranslationResources = {
     dismiss: "Despedir",
   },
   contextWindow: {
+    compact: "Compactar",
+    compactIdle: "Disponible cuando el agente está inactivo",
     noData: "No hay datos de contexto",
     accessibilityNoData: "Ventana de contexto: No hay datos de contexto",
     title: "ventana contextual",

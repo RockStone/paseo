@@ -218,6 +218,7 @@ export function ContextWindowMeter({
             context={context}
             sessionCost={formattedSessionCost}
             showTitle={false}
+            onCompactAccepted={closeSheet}
             refreshable
           />
         </ContextWindowSheet>

@@ -2132,6 +2132,8 @@ export const fr: TranslationResources = {
     dismiss: "Ignorer",
   },
   contextWindow: {
+    compact: "Compacter",
+    compactIdle: "Disponible quand l’agent est inactif",
     noData: "Aucune donnée de contexte",
     accessibilityNoData: "Fenêtre de contexte : aucune donnée de contexte",
     title: "Fenêtre de contexte",
