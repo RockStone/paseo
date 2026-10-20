@@ -1,9 +1,24 @@
-import { SidebarAgentTree } from "@/components/sidebar/sidebar-agent-tree";
+import { SidebarAgentTree, useSidebarAgentTree } from "@/components/sidebar/sidebar-agent-tree";
 import { useSessionDragSource } from "@/attachments/use-session-drag-source";
-import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
-import { Text, View, type ViewStyle } from "react-native";
+import {
+  memo,
+  useMemo,
+  useCallback,
+  useState,
+  createContext,
+  useContext,
+  type ReactNode,
+} from "react";
+import { Pressable, Text, View, type ViewStyle, type GestureResponderEvent } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { CircleAlert, Folder, FolderGit2, Monitor } from "lucide-react-native";
+import {
+  ChevronUp,
+  ChevronDown,
+  CircleAlert,
+  Folder,
+  FolderGit2,
+  Monitor,
+} from "lucide-react-native";
 import { ProjectStatusIndicator } from "@/components/sidebar/project-leading-visual";
 import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import {
@@ -32,6 +47,9 @@ import { StatusRing } from "@/components/status-ring";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
+import { useTranslation } from "react-i18next";
+import { isNative } from "@/constants/platform";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { useWorkspaceLabelDefinitions } from "@/workspace-labels";
 
 const needsInputColorMapping = (theme: Theme) => ({
@@ -40,6 +58,12 @@ const needsInputColorMapping = (theme: Theme) => ({
 });
 
 const ThemedCircleAlert = withUnistyles(CircleAlert);
+
+const AgentTreeDisclosure = createContext<{
+  collapsed: boolean;
+  hasChildren: boolean;
+  toggle: () => void;
+} | null>(null);
 
 export function SidebarWorkspaceRowFrame({
   workspace,
@@ -57,6 +81,13 @@ export function SidebarWorkspaceRowFrame({
     hoverHandlers: { onPointerEnter: () => void; onPointerLeave: () => void };
   }) => ReactNode;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const model = useSidebarAgentTree(workspace);
+  const toggle = useCallback(() => setCollapsed((value) => !value), []);
+  const disclosure = useMemo(
+    () => ({ collapsed, hasChildren: model.visibleTree.length > 0, toggle }),
+    [collapsed, model.visibleTree.length, toggle],
+  );
   const [isHovered, setIsHovered] = useState(false);
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const handlePointerEnter = useCallback(() => {
@@ -73,26 +104,30 @@ export function SidebarWorkspaceRowFrame({
   );
 
   return (
-    <View>
-      <WorkspaceHoverCard
-        workspace={workspace}
-        prHint={workspace.prHint}
-        isDragging={isDragging}
-        disabled={contextMenuOpen}
-      >
-        {children({
-          isHovered: isHovered && !contextMenuOpen && !isDragging,
-          contextMenuOpen,
-          onContextMenuOpenChange: handleContextMenuOpenChange,
-          hoverHandlers,
-        })}
-      </WorkspaceHoverCard>
-      <SidebarAgentTree
-        serverId={workspace.serverId}
-        workspaceId={workspace.workspaceId}
-        active={selected}
-      />
-    </View>
+    <AgentTreeDisclosure.Provider value={disclosure}>
+      <View>
+        <WorkspaceHoverCard
+          workspace={workspace}
+          prHint={workspace.prHint}
+          isDragging={isDragging}
+          disabled={contextMenuOpen}
+        >
+          {children({
+            isHovered: isHovered && !contextMenuOpen && !isDragging,
+            contextMenuOpen,
+            onContextMenuOpenChange: handleContextMenuOpenChange,
+            hoverHandlers,
+          })}
+        </WorkspaceHoverCard>
+        <SidebarAgentTree
+          serverId={workspace.serverId}
+          workspaceId={workspace.workspaceId}
+          active={selected}
+          collapsed={collapsed}
+          model={model}
+        />
+      </View>
+    </AgentTreeDisclosure.Provider>
   );
 }
 
@@ -148,27 +183,35 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
     [isHovered, isCreating],
   );
 
+  const leadingVisual = leadingProjectName ? (
+    <ProjectStatusIndicator
+      iconDataUri={leadingProjectIconDataUri}
+      displayName={leadingProjectName}
+      projectViewKey={workspace.projectViewKey}
+      statusBucket={workspace.statusBucket}
+      backdrop={backdrop}
+      loading={isLoading}
+      testID={`sidebar-row-project-icon-${workspace.workspaceKey}`}
+    />
+  ) : (
+    <WorkspaceStatusIndicator
+      bucket={workspace.statusBucket}
+      workspaceKind={workspace.workspaceKind}
+      loading={isLoading}
+      reserveIdleSpace={reserveIdleStatusIndicatorSpace}
+    />
+  );
+
   return (
     <View style={styles.workspaceRowContent}>
       <View style={styles.workspaceRowMain}>
-        {leadingProjectName ? (
-          <ProjectStatusIndicator
-            iconDataUri={leadingProjectIconDataUri}
-            displayName={leadingProjectName}
-            projectViewKey={workspace.projectViewKey}
-            statusBucket={workspace.statusBucket}
-            backdrop={backdrop}
-            loading={isLoading}
-            testID={`sidebar-row-project-icon-${workspace.workspaceKey}`}
-          />
-        ) : (
-          <WorkspaceStatusIndicator
-            bucket={workspace.statusBucket}
-            workspaceKind={workspace.workspaceKind}
-            loading={isLoading}
-            reserveIdleSpace={reserveIdleStatusIndicatorSpace}
-          />
-        )}
+        <WorkspaceAgentDisclosure
+          isHovered={isHovered}
+          title={workspaceLabel}
+          workspaceKey={workspace.workspaceKey}
+        >
+          {leadingVisual}
+        </WorkspaceAgentDisclosure>
         <View style={styles.workspaceContentColumn}>
           <View style={styles.workspaceTitleRow}>
             <Text
@@ -199,6 +242,55 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
     </View>
   );
 });
+
+function WorkspaceAgentDisclosure({
+  isHovered,
+  title,
+  workspaceKey,
+  children,
+}: {
+  isHovered: boolean;
+  title: string;
+  workspaceKey: string;
+  children: ReactNode;
+}) {
+  const disclosure = useContext(AgentTreeDisclosure);
+  const isCompact = useIsCompactFormFactor();
+  const { t } = useTranslation();
+  const showDisclosure = disclosure?.hasChildren && (isHovered || isNative || isCompact);
+  const ToggleIcon = disclosure?.collapsed ? ChevronDown : ChevronUp;
+  const handlePress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      disclosure?.toggle();
+    },
+    [disclosure],
+  );
+  const accessibilityState = useMemo(
+    () => ({ expanded: !disclosure?.collapsed }),
+    [disclosure?.collapsed],
+  );
+  if (!disclosure?.hasChildren) return children;
+  return (
+    <Pressable
+      style={styles.workspaceStatusDot}
+      accessibilityRole="button"
+      accessibilityLabel={t(disclosure.collapsed ? "agentTree.expand" : "agentTree.collapse", {
+        title,
+      })}
+      accessibilityState={accessibilityState}
+      aria-expanded={!disclosure.collapsed}
+      testID={`sidebar-workspace-agents-toggle-${workspaceKey}`}
+      onPress={handlePress}
+    >
+      {showDisclosure ? (
+        <DensityIcon icon={ToggleIcon} size="sm" color="foregroundMuted" />
+      ) : (
+        children
+      )}
+    </Pressable>
+  );
+}
 
 function WorkspaceStatusIndicator({
   bucket,

@@ -33,14 +33,12 @@ const ThemedChevronRight = withUnistyles(ChevronRight);
 const ThemedMessage = withUnistyles(MessageSquare);
 const iconColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
-export const SidebarAgentTree = memo(function SidebarAgentTree({
+export function useSidebarAgentTree({
   serverId,
   workspaceId,
-  active,
 }: {
   serverId: string;
   workspaceId: string;
-  active: boolean;
 }) {
   const agents = useSessionStore((state) => state.sessions[serverId]?.agents ?? EMPTY_AGENTS);
   const providerSupported = useSessionStore(
@@ -76,6 +74,23 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
   // A single coordinator is already represented by the workspace row. Keep named
   // groups only when multiple independent coordinators would otherwise be ambiguous.
   const visibleTree = roots.length === 1 ? tree.flatMap((node) => node.children) : tree;
+  return { roots, visibleTree, providerSupported };
+}
+
+export const SidebarAgentTree = memo(function SidebarAgentTree({
+  serverId,
+  workspaceId,
+  active,
+  collapsed,
+  model,
+}: {
+  serverId: string;
+  workspaceId: string;
+  active: boolean;
+  collapsed: boolean;
+  model: ReturnType<typeof useSidebarAgentTree>;
+}) {
+  const { roots, visibleTree, providerSupported } = model;
   return (
     <>
       {active && providerSupported
@@ -87,7 +102,7 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
             />
           ))
         : null}
-      {tree.length > 0 ? (
+      {!collapsed && visibleTree.length > 0 ? (
         <View style={styles.tree} testID={`sidebar-agent-tree-${serverId}:${workspaceId}`}>
           {visibleTree.map((node) => (
             <ThreadBranch

@@ -71,6 +71,27 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await expect(root).toHaveCount(0);
     await expect(child).toBeVisible({ timeout: 30_000 });
     await expect(nested).toBeVisible();
+    const serverId = getServerId();
+    const workspaceRow = page.getByTestId(`sidebar-workspace-row-${serverId}:${pair.workspaceId}`);
+    const workspaceToggle = page.getByTestId(
+      `sidebar-workspace-agents-toggle-${serverId}:${pair.workspaceId}`,
+    );
+    await workspaceRow.hover();
+    await expect(workspaceToggle).toHaveAttribute("aria-expanded", "true");
+    await expect(workspaceToggle.getByTestId("workspace-status-indicator-done")).toHaveCount(0);
+    await page.screenshot({ path: "/tmp/paseoi-r50-workspace-agents-expanded.png" });
+    await workspaceToggle.click();
+    await expect(child).toHaveCount(0);
+    await expect(nested).toHaveCount(0);
+    await page.mouse.move(1300, 800);
+    await expect(workspaceToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(workspaceToggle.getByTestId("workspace-status-indicator-done")).toBeVisible();
+    await workspaceRow.hover();
+    await expect(workspaceToggle.getByTestId("workspace-status-indicator-done")).toHaveCount(0);
+    await page.screenshot({ path: "/tmp/paseoi-r50-workspace-agents-collapsed.png" });
+    await workspaceToggle.click();
+    await expect(child).toBeVisible();
+    await expect(nested).toBeVisible();
     const running = page.getByTestId(`sidebar-agent-tree-running-agent:${pair.child.id}`);
     await expect(running).toHaveCount(0);
     await workspace.client.sendAgentMessage(pair.child.id, "Show the sidebar running indicator.");
