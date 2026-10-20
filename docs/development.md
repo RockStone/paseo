@@ -29,9 +29,9 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 `npm run dev` is only a shorthand for `npm run dev:server`. Keep `127.0.0.1:6767` for the packaged app and production-style `~/.paseo` state.
 
-## RockStone custom desktop build
+## Paseoi custom desktop build
 
-The `custom/reply-selection` branch adds desktop/browser selection replies. Select
+Paseoi branches are named `paseoi/<name>`; `paseoi/v0.12.0` is the current base. The build adds desktop/browser selection replies. Select
 chat text, including Thinking, commands, tool output, or assistant messages, and
 choose **Reply** to append an editable Markdown quote to the current draft, then
 type your comment. Selections can span sections; code indentation and existing
@@ -130,8 +130,11 @@ storage is a one-time offline operation: preserve the latest host identity and
 saved connections, back up both directories, and move them while the app and
 daemon are stopped. Startup never copies or merges older state over live data.
 
-Versions end in `-rockstone.N`. Official update checks and installation are
-disabled for those versions, so updating cannot discard the local patch. Set
+Versions end in `-paseoi.N`. The desktop reads that suffix at runtime to select
+Paseoi storage, the `127.0.0.1:6770` listener, and the manual update policy
+(`packages/desktop/src/custom-build-version.ts`). Official update checks and
+installation are disabled for those versions, so updating cannot discard the
+local patch. Set
 `PASEO_CUSTOM_REVISION` to a higher number for each build from the same upstream
 version.
 The local build uses an ad-hoc signature and is not notarized.
@@ -143,9 +146,10 @@ bundle name prevents the app from launching. Verify both paths with the packaged
 smoke after packaging changes.
 
 Keep `upstream` pointed at `getpaseo/paseo` and `origin` at `RockStone/paseo`.
-For a new official release, fetch its tag, create a branch from that tag, and
-cherry-pick the custom commits in order. Resolve conflicts, run typecheck, lint,
-and the focused selection-reply and updater tests, then rebuild. Drop a build
+For a new official release, fetch its tag and merge it into a new
+`paseoi/vX.Y.Z` branch cut from the current Paseoi branch. Resolve conflicts, run
+typecheck, lint, and the focused tests for every file both sides changed, then
+rebuild. Drop a build
 compatibility commit if upstream has already fixed it. Keep each updated custom
 branch on the fork so you can recover the source for an installed build.
 

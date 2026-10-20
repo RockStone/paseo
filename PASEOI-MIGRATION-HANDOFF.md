@@ -4,7 +4,7 @@
 
 The user confirmed that the migration is complete. A read-only check found installed version `0.12.0-beta.1-rockstone.5`, the host directory `~/.paseo`, and desktop settings at `~/Library/Application Support/Paseoi`. The old `~/Library/Application Support/Paseo Custom` directory no longer exists.
 
-Use [the custom-build documentation](docs/development.md#rockstone-custom-desktop-build) for the current setup. This file preserves the original migration plan and its pre-migration paths for historical reference. Any sizes, versions, or pending actions below describe that earlier state.
+Use [the custom-build documentation](docs/development.md#paseoi-custom-desktop-build) for the current setup. This file preserves the original migration plan and its pre-migration paths for historical reference. Any sizes, versions, or pending actions below describe that earlier state.
 
 Typing-to-focus is a separate change; this archived migration plan does not establish whether that feature is included in an installed build.
 

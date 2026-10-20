@@ -1,4 +1,5 @@
 import { ensureCustomDaemonConfig } from "./custom-build.js";
+import { isCustomBuildVersion, stripCustomBuildVersion } from "../custom-build-version.js";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
@@ -261,7 +262,7 @@ export async function resolveDesktopDaemonStatus(): Promise<DesktopDaemonStatus>
 function normalizeVersion(version: string | null): string | null {
   const trimmed = version?.trim();
   if (!trimmed) return null;
-  return trimmed.replace(/^v/i, "").replace(/-rockstone\.\d+$/, "");
+  return stripCustomBuildVersion(trimmed.replace(/^v/i, ""));
 }
 
 function shouldRestartForVersion(current: DesktopDaemonStatus): boolean {
@@ -302,7 +303,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
   }
 
   const home = getPaseoHome();
-  if (app.isPackaged && app.getVersion().includes("-rockstone.")) {
+  if (app.isPackaged && isCustomBuildVersion(app.getVersion())) {
     ensureCustomDaemonConfig(home);
   }
   const invocation = createNodeEntrypointInvocation({

@@ -843,10 +843,10 @@ describe("app update service", () => {
   });
 });
 
-describe("RockStone custom builds", () => {
+describe("Paseoi custom builds", () => {
   it("does not check, download, or install official releases", async () => {
     const { runtime, service } = createService();
-    const currentVersion = "0.12.0-beta.1-rockstone.1";
+    const currentVersion = "0.12.0-paseoi.1";
     const result = await service.checkForAppUpdate({
       currentVersion,
       releaseChannel: "stable",
@@ -854,14 +854,14 @@ describe("RockStone custom builds", () => {
     });
     expect(result.hasUpdate).toBe(false);
     expect(result.errorMessage).toBe(
-      "RockStone custom build: install updates from your fork to preserve custom features.",
+      "Paseoi custom build: install updates from your fork to preserve custom features.",
     );
     expect(
       await service.downloadAndInstallUpdate({ currentVersion, releaseChannel: "stable" }),
     ).toEqual({
       installed: false,
       version: currentVersion,
-      message: "RockStone custom builds are updated manually from your fork.",
+      message: "Paseoi custom builds are updated manually from your fork.",
     });
     expect(
       await service.installUpdateOnQuit({

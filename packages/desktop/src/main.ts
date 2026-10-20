@@ -111,12 +111,13 @@ import {
   type AgentDeepLinkTarget,
 } from "@getpaseo/protocol/agent-deep-link";
 import { AgentNavigationInbox, parseAgentDeepLinkFromArgv } from "./agent-navigation.js";
+import { isCustomBuildVersion } from "./custom-build-version.js";
 
 const DEV_SERVER_URL = process.env.EXPO_DEV_URL ?? "http://localhost:8081";
 const APP_SCHEME = "paseo";
 const PASEO_DEBUG = process.env.PASEO_DEBUG === "1";
 const DISABLE_SINGLE_INSTANCE_LOCK = process.env.PASEO_DISABLE_SINGLE_INSTANCE_LOCK === "1";
-const customBuild = app.isPackaged && app.getVersion().includes("-rockstone.");
+const customBuild = app.isPackaged && isCustomBuildVersion(app.getVersion());
 const defaultAppName = customBuild ? "Paseoi" : "Paseo";
 const APP_NAME = process.env.PASEO_TEST_APP_NAME?.trim() || defaultAppName;
 const DESKTOP_WINDOW_CHROME_MODE = resolveDesktopWindowChromeMode({

@@ -1,3 +1,4 @@
+import { isCustomBuildVersion } from "../custom-build-version.js";
 import {
   rolloutManifestSchema,
   shouldAdmitAppUpdate,
@@ -246,13 +247,13 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
     releaseChannel: AppReleaseChannel;
     intent: AppUpdateCheckIntent;
   }): Promise<AppUpdateCheckResult> {
-    if (currentVersion.includes("-rockstone.")) {
+    if (isCustomBuildVersion(currentVersion)) {
       return buildCheckResult({
         currentVersion,
         hasUpdate: false,
         readyToInstall: false,
         errorMessage:
-          "RockStone custom build: install updates from your fork to preserve custom features.",
+          "Paseoi custom build: install updates from your fork to preserve custom features.",
       });
     }
     if (!deps.isPackaged()) {
@@ -342,11 +343,11 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
     },
     onBeforeQuit?: () => Promise<void>,
   ): Promise<AppUpdateInstallResult> {
-    if (currentVersion.includes("-rockstone.")) {
+    if (isCustomBuildVersion(currentVersion)) {
       return {
         installed: false,
         version: currentVersion,
-        message: "RockStone custom builds are updated manually from your fork.",
+        message: "Paseoi custom builds are updated manually from your fork.",
       };
     }
     if (!deps.isPackaged()) {
@@ -489,7 +490,7 @@ export function createAppUpdateService(deps: AppUpdateServiceDeps): AppUpdateSer
     releaseChannel: AppReleaseChannel;
     signal: AbortSignal;
   }): Promise<boolean> {
-    if (currentVersion.includes("-rockstone.") || !deps.isPackaged() || !downloadedUpdateVersion) {
+    if (isCustomBuildVersion(currentVersion) || !deps.isPackaged() || !downloadedUpdateVersion) {
       return false;
     }
 
