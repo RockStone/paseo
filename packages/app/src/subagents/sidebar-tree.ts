@@ -32,6 +32,7 @@ interface SidebarThreadTreeInput {
   activity?: ReadonlyMap<string, Date>;
   // Order-only subscriptions can reuse timestamps while streaming continues in the same row.
   activityOrder?: readonly string[];
+  nestedWorkspaceIds?: ReadonlySet<string>;
 }
 
 export function workspaceRootAgentIds(
@@ -73,11 +74,7 @@ export function buildSidebarThreadTree(input: SidebarThreadTreeInput): SidebarTh
       childKeys: [],
     });
   }
-  for (const agent of input.agents.values()) {
-    if (!agent.parentAgentId || agent.archivedAt) continue;
-    const parent = graph.get(`agent:${agent.parentAgentId}`);
-    parent?.childKeys.push(`agent:${agent.id}`);
-  }
+  addManagedChildLinks(input, graph);
   if (input.providerSupported) addProviderNodes(input, graph);
   const activityRank = new Map(input.activityOrder?.map((key, index) => [key, index]));
   const compareActivity = (left: string, right: string) => {
@@ -93,6 +90,22 @@ export function buildSidebarThreadTree(input: SidebarThreadTreeInput): SidebarTh
     if (node && node.children.length > 0) roots.push(node);
   }
   return roots.sort((left, right) => compareActivity(left.key, right.key));
+}
+
+function addManagedChildLinks(
+  input: SidebarThreadTreeInput,
+  graph: Map<string, ThreadGraphNode>,
+): void {
+  for (const agent of input.agents.values()) {
+    if (!agent.parentAgentId || agent.archivedAt) continue;
+    // Independent workspaces keep their own row; delegated workspaces join the parent's tree.
+    if (
+      isWorkspaceRootAgent(agent, input.agents.get(agent.parentAgentId)) &&
+      !input.nestedWorkspaceIds?.has(agent.workspaceId ?? "")
+    )
+      continue;
+    graph.get(`agent:${agent.parentAgentId}`)?.childKeys.push(`agent:${agent.id}`);
+  }
 }
 
 function addProviderNodes(
@@ -155,6 +168,10 @@ function materializeThread(
   }
   if (!node.recent && children.length === 0) return null;
   return { key, title: node.title, target: node.target, children };
+}
+
+export function sidebarThreadKeys(nodes: readonly SidebarThreadNode[]): string[] {
+  return nodes.flatMap((node) => [node.key, ...sidebarThreadKeys(node.children)]);
 }
 
 export function sidebarWorkspaceTarget(

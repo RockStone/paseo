@@ -1,3 +1,13 @@
+import {
+  useActiveWorkspaceSelection,
+  type ActiveWorkspaceSelection,
+} from "@/stores/navigation-active-workspace-store";
+import { useSessionStore } from "@/stores/session-store";
+import { useShallow } from "zustand/react/shallow";
+import {
+  nestedSidebarWorkspaceParents,
+  groupSidebarProjects,
+} from "@/subagents/sidebar-workspace-grouping";
 import { useTranslation } from "react-i18next";
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import {
@@ -34,6 +44,8 @@ interface SidebarModel extends SidebarWorkspacesListResult {
    * narrowing the filter deletes the rows that would undo it.
    */
   allProjects: SidebarProjectEntry[];
+  nestedWorkspaceParents: ReadonlyMap<string, string>;
+  activeWorkspaceSelection: ActiveWorkspaceSelection | null;
   /** The project filter as it is actually being applied — see `resolveActiveProjectFilters`. */
   resolvedProjectFilters: readonly string[];
   hasProjectsBeforeFilter: boolean;
@@ -57,6 +69,7 @@ export function SidebarModelProvider({
 }) {
   const { t } = useTranslation();
   const list = useSidebarWorkspacesList({ enabled: active });
+  const activeWorkspaceSelection = useActiveWorkspaceSelection();
   const showBackground = useSidebarViewStore((state) => state.showBackground);
   const groupMode = useSidebarViewStore((state) => state.groupMode);
   const labelFilter = useSidebarViewStore((state) => state.labelFilter);
@@ -122,7 +135,7 @@ export function SidebarModelProvider({
   // project itself, so a project you filtered TO survives even with no workspaces — it still owns
   // a header row you can create your first workspace under. The label filter can only ask about
   // workspaces, so a project it empties has nothing left to show.
-  const filteredProjects = useMemo(() => {
+  const matchingProjects = useMemo(() => {
     let projects = list.projects;
     if (hasActiveProjectFilter) {
       const included = new Set(resolvedProjectFilters);
@@ -147,13 +160,27 @@ export function SidebarModelProvider({
     list.projects,
     visibleWorkspaceKeys,
   ]);
+  const nestedWorkspaceParents = useSessionStore(
+    useShallow((state) => nestedSidebarWorkspaceParents(matchingProjects, state.sessions)),
+  );
+  const filteredProjects = useMemo(
+    () => groupSidebarProjects(matchingProjects, nestedWorkspaceParents),
+    [matchingProjects, nestedWorkspaceParents],
+  );
+  const groupedWorkspaceEntriesByKey = useMemo(
+    () =>
+      new Map(
+        [...filteredWorkspaceEntriesByKey].filter(([key]) => !nestedWorkspaceParents.has(key)),
+      ),
+    [filteredWorkspaceEntriesByKey, nestedWorkspaceParents],
+  );
   const pinnedKeys = usePinnedSidebarKeys(filteredProjects);
   const projectionInput = useMemo(
     () => ({
       projects: filteredProjects,
       pinnedKeys,
       pinnedWorkspaceOrder,
-      workspaceEntriesByKey: filteredWorkspaceEntriesByKey,
+      workspaceEntriesByKey: groupedWorkspaceEntriesByKey,
       projectNamesByViewKey: list.projectNamesByViewKey,
       groupMode,
       pinnedCollapsed,
@@ -170,7 +197,7 @@ export function SidebarModelProvider({
       pinnedCollapsed,
       pinnedKeys,
       pinnedWorkspaceOrder,
-      filteredWorkspaceEntriesByKey,
+      groupedWorkspaceEntriesByKey,
       t,
     ],
   );
@@ -180,9 +207,11 @@ export function SidebarModelProvider({
       ...list,
       projects: filteredProjects,
       allProjects: list.projects,
+      nestedWorkspaceParents,
+      activeWorkspaceSelection,
       resolvedProjectFilters,
       hasProjectsBeforeFilter: list.projects.length > 0,
-      workspaceEntriesByKey: filteredWorkspaceEntriesByKey,
+      workspaceEntriesByKey: groupedWorkspaceEntriesByKey,
       groupMode,
       workspaceGroups: projection.workspaceGroups,
       projectIconTargets: projection.projectIconTargets,
@@ -199,7 +228,9 @@ export function SidebarModelProvider({
       filteredProjects,
       projection,
       toggleProjectCollapsed,
-      filteredWorkspaceEntriesByKey,
+      groupedWorkspaceEntriesByKey,
+      nestedWorkspaceParents,
+      activeWorkspaceSelection,
     ],
   );
 

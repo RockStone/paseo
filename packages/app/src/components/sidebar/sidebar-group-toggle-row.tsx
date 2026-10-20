@@ -1,10 +1,9 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
 import { ChevronDown, ChevronUp } from "lucide-react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { isWeb } from "@/constants/platform";
-import { sidebarWorkspaceRowStyles } from "@/components/sidebar/sidebar-workspace-row-content";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { density, densityIconBox } from "@/styles/density";
 
@@ -15,18 +14,19 @@ import { density, densityIconBox } from "@/styles/density";
  * rather than as a distinction.
  *
  * `indented` because the two groupings disagree: status rows sit on their header's label rail and
- * project rows sit flush, so the caller says which list this row is ending. The indent itself is
- * the workspace row's, imported rather than re-derived.
+ * project rows sit flush, so the caller says which list this row is ending.
  */
 export function SidebarGroupToggleRow({
   expanded,
   onPress,
   indented = false,
+  compact = false,
   testID,
 }: {
   expanded: boolean;
   onPress: () => void;
   indented?: boolean;
+  compact?: boolean;
   testID: string;
 }) {
   const { t } = useTranslation();
@@ -36,11 +36,19 @@ export function SidebarGroupToggleRow({
   const rowStyle = useCallback(
     ({ hovered = false, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
       styles.row,
-      indented && sidebarWorkspaceRowStyles.rowIndented,
+      indented && styles.rowIndented,
+      compact && styles.compactRow,
       hovered && !pressed && styles.rowHovered,
       pressed && styles.rowPressed,
     ],
-    [indented],
+    [indented, compact],
+  );
+
+  const iconStyle = useMemo(() => [styles.iconSlot, compact && styles.compactIconSlot], [compact]);
+  const textStyle = useMemo(() => [styles.text, compact && styles.compactText], [compact]);
+  const hoveredTextStyle = useMemo(
+    () => [styles.textHovered, compact && styles.compactText],
+    [compact],
   );
 
   return (
@@ -53,14 +61,14 @@ export function SidebarGroupToggleRow({
     >
       {({ hovered, pressed }) => (
         <>
-          <View style={styles.iconSlot}>
+          <View style={iconStyle}>
             <DensityIcon
               icon={expanded ? ChevronUp : ChevronDown}
               size="sm"
               color={hovered || pressed ? "foreground" : "foregroundMuted"}
             />
           </View>
-          <Text style={hovered || pressed ? styles.textHovered : styles.text} numberOfLines={1}>
+          <Text style={hovered || pressed ? hoveredTextStyle : textStyle} numberOfLines={1}>
             {label}
           </Text>
         </>
@@ -83,6 +91,10 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
     userSelect: "none",
   },
+  compactRow: { minHeight: density.tightRowHeight, paddingVertical: 0, paddingLeft: 0, gap: 0 },
+  compactIconSlot: { width: { xs: 32, md: 24 } },
+  compactText: { fontSize: theme.fontSize.sm },
+  rowIndented: { paddingLeft: theme.spacing[4] },
   rowHovered: {
     backgroundColor: theme.colors.surfaceSidebarHover,
   },

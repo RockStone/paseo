@@ -1,3 +1,5 @@
+import { nestedSidebarWorkspaceParents, groupSidebarProjects } from "./sidebar-workspace-grouping";
+import type { SidebarProjectEntry } from "@/hooks/sidebar-workspaces-view-model";
 import { buildSidebarThreadTree } from "./sidebar-tree";
 import { providerSubagentKey } from "./provider-store";
 import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messages";
@@ -447,6 +449,7 @@ describe("sidebar coordinator tree", () => {
     providerSupported = true,
     activityCutoff?: number,
     activity?: ReadonlyMap<string, Date>,
+    nestedWorkspaceIds?: ReadonlySet<string>,
   ) {
     return buildSidebarThreadTree({
       serverId: SERVER_ID,
@@ -463,9 +466,10 @@ describe("sidebar coordinator tree", () => {
       nestingSupported: true,
       activityCutoff,
       activity,
+      nestedWorkspaceIds,
     });
   }
-  it("uses exact parent IDs, preserves nested children and links across workspaces", () => {
+  it("nests delegated workspaces with their descendants without changing ownership", () => {
     const agents = [
       makeAgent({ id: "coordinator", title: "Plan", workspaceId: "workspace-a" }),
       makeAgent({
@@ -477,13 +481,31 @@ describe("sidebar coordinator tree", () => {
       makeAgent({ id: "grandchild", workspaceId: "workspace-b", parentAgentId: "child" }),
       makeAgent({ id: "independent", title: "Plan", workspaceId: "workspace-a" }),
     ];
-    const roots = tree(agents);
-    expect(roots.map((node) => node.key)).toEqual(["agent:coordinator"]);
-    expect(roots[0]?.children[0]?.key).toBe("agent:child");
-    expect(roots[0]?.children[0]?.children[0]?.target).toEqual({
-      kind: "agent",
-      agentId: "grandchild",
+    const grouped = tree(
+      agents,
+      [],
+      new Set(),
+      true,
+      undefined,
+      undefined,
+      new Set(["workspace-b"]),
+    );
+    expect(grouped.map((node) => node.key)).toEqual(["agent:coordinator"]);
+    expect(grouped[0]?.children[0]?.key).toBe("agent:child");
+    expect(grouped[0]?.children[0]?.children[0]?.key).toBe("agent:grandchild");
+    expect(tree(agents)).toEqual([]);
+    const childWorkspaceTree = buildSidebarThreadTree({
+      serverId: SERVER_ID,
+      workspaceId: "workspace-b",
+      agents: new Map(agents.map((agent) => [agent.id, agent])),
+      descriptors: new Map(),
+      hiddenProviderKeys: new Set(),
+      providerSupported: true,
+      nestingSupported: true,
     });
+    expect(childWorkspaceTree.map((node) => node.key)).toEqual(["agent:child"]);
+    expect(childWorkspaceTree[0]?.children.map((node) => node.key)).toEqual(["agent:grandchild"]);
+    expect(agents[1]?.parentAgentId).toBe("coordinator");
   });
   it("removes archived and detached children without changing any records", () => {
     const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });
@@ -648,6 +670,62 @@ describe("sidebar coordinator tree", () => {
   it("cuts cyclic metadata instead of recursively rendering it forever", () => {
     const root = makeAgent({ id: "a", workspaceId: "workspace-a", parentAgentId: "b" });
     const child = makeAgent({ id: "b", workspaceId: "workspace-b", parentAgentId: "a" });
-    expect(tree([root, child])[0]?.children[0]?.children).toEqual([]);
+    expect(tree([root, child])).toEqual([]);
+  });
+});
+
+describe("sidebar delegated workspace grouping", () => {
+  function project(ids: string[]): SidebarProjectEntry {
+    return {
+      viewKey: "project",
+      projectName: "Project",
+      projectKind: "git",
+      iconWorkingDir: "/repo",
+      hosts: [],
+      workspaces: ids.map((id) => ({
+        workspaceId: id,
+        workspaceKey: `${SERVER_ID}:${id}`,
+        serverId: SERVER_ID,
+        projectViewKey: "project",
+        projectName: "Project",
+        projectKind: "git",
+        workspaceKind: "worktree",
+        name: id,
+      })),
+    };
+  }
+  const parent = makeAgent({ id: "parent", workspaceId: "parent-ws" });
+  const child = makeAgent({ id: "child", workspaceId: "child-ws", parentAgentId: "parent" });
+  function groups(projects: SidebarProjectEntry[], agents: Agent[]) {
+    return nestedSidebarWorkspaceParents(projects, {
+      [SERVER_ID]: { agents: new Map(agents.map((agent) => [agent.id, agent])) },
+    });
+  }
+  it("folds child workspaces under a visible parent and carries their activity rank", () => {
+    const projects = [project(["child-ws", "other-ws", "parent-ws"])];
+    const parents = groups(projects, [parent, child]);
+    expect([...parents]).toEqual([[`${SERVER_ID}:child-ws`, `${SERVER_ID}:parent-ws`]]);
+    expect(
+      groupSidebarProjects(projects, parents)[0]?.workspaces.map(
+        (workspace) => workspace.workspaceId,
+      ),
+    ).toEqual(["parent-ws", "other-ws"]);
+    expect(projects[0]?.workspaces).toHaveLength(3);
+  });
+  it("retains independent, detached, archived-parent and filtered-parent workspaces", () => {
+    const projects = [project(["parent-ws", "child-ws"])];
+    expect(
+      groups(projects, [parent, child, makeAgent({ id: "independent", workspaceId: "child-ws" })])
+        .size,
+    ).toBe(0);
+    expect(groups(projects, [parent, { ...child, parentAgentId: null }]).size).toBe(0);
+    expect(groups(projects, [{ ...parent, archivedAt: AGENT_TIMESTAMP }, child]).size).toBe(0);
+    expect(groups([project(["child-ws"])], [parent, child]).size).toBe(0);
+  });
+  it("retains cyclic workspaces instead of hiding both", () => {
+    expect(
+      groups([project(["parent-ws", "child-ws"])], [{ ...parent, parentAgentId: "child" }, child])
+        .size,
+    ).toBe(0);
   });
 });

@@ -13,6 +13,7 @@ import {
   expectSubagentRowVisible,
   openSubagentsTrack,
   seedParentWithSubagent,
+  seedParentWithCrossWorkspaceSubagent,
   seedSubagent,
 } from "../support/helpers/subagents";
 
@@ -139,6 +140,131 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await expect(siblingRow).toBeVisible();
     await expect(child).toBeVisible();
     await expect(nested).toBeVisible();
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("sidebar nests cross-workspace subagents under the parent without parallel workspace rows", async ({
+  page,
+}) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-cross-workspace-dedup-" });
+  try {
+    const pair = await seedParentWithCrossWorkspaceSubagent(workspace, {
+      parentTitle: "Audit coordinator",
+      childTitle: "Isolated implementation",
+    });
+    const nested = await seedSubagent(
+      {
+        ...workspace,
+        workspaceId: pair.child.workspaceId,
+      },
+      { parentId: pair.child.id, title: "Implementation critic" },
+    );
+    const local = await seedSubagent(workspace, { parentId: pair.parent.id, title: "Local audit" });
+    await page.setViewportSize({ width: 1400, height: 1000 });
+    await openAgentRoute(page, { workspaceId: pair.parent.workspaceId, agentId: pair.parent.id });
+    const serverId = getServerId();
+    const parentTree = page.getByTestId(
+      `sidebar-agent-tree-${serverId}:${pair.parent.workspaceId}`,
+    );
+    const childWorkspaceRow = page.getByTestId(
+      `sidebar-workspace-row-${serverId}:${pair.child.workspaceId}`,
+    );
+    const critic = page.getByTestId(`sidebar-agent-tree-row-agent:${nested.id}`);
+    await expect(parentTree.getByTestId(`sidebar-agent-tree-row-agent:${local.id}`)).toBeVisible();
+    await expect(
+      parentTree.getByTestId(`sidebar-agent-tree-row-agent:${pair.child.id}`),
+    ).toBeVisible();
+    await expect(parentTree.getByTestId(`sidebar-agent-tree-row-agent:${nested.id}`)).toBeVisible();
+    await expect(childWorkspaceRow).toHaveCount(0);
+    await expect(critic).toHaveCount(1);
+    await expect(critic).toBeVisible();
+    const childRow = parentTree.getByTestId(`sidebar-agent-tree-row-agent:${pair.child.id}`);
+    await childRow.click();
+    await expectAgentTabActive(page, pair.child.id);
+    await expect(childRow).toHaveAttribute("aria-selected", "true");
+    await critic.click();
+    await expectAgentTabActive(page, nested.id);
+    await page.reload();
+    await expect(critic).toHaveCount(1);
+    await expect(childWorkspaceRow).toHaveCount(0);
+    await expect(childRow).toHaveCount(1);
+    await expect(critic).toHaveAttribute("aria-selected", "true");
+    await page.screenshot({ path: "/tmp/paseoi-r57-sidebar-parent-grouping.png" });
+    const child = await workspace.client.fetchAgent({ agentId: pair.child.id });
+    expect(child).toMatchObject({
+      agent: { id: pair.child.id, labels: { "paseo.parent-agent-id": pair.parent.id } },
+    });
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("workspace subagent lists show ten rows including nested children and toggle more or less", async ({
+  page,
+}) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-ten-subagents-" });
+  try {
+    const parent = await workspace.client.createAgent({
+      provider: "mock",
+      cwd: workspace.repoPath,
+      workspaceId: workspace.workspaceId,
+      title: "Coordinator",
+      modeId: "load-test",
+      model: "ten-second-stream",
+    });
+    const children = [];
+    for (let index = 0; index < 11; index++) {
+      const created = await workspace.client.createWorkspace({
+        source: { kind: "directory", path: workspace.repoPath, projectId: workspace.projectId },
+        title: `Child workspace ${index + 1}`,
+      });
+      if (!created.workspace) throw new Error(created.error ?? "Missing child workspace");
+      const childWorkspaceId = created.workspace.id;
+      const child = await seedSubagent(
+        { ...workspace, workspaceId: childWorkspaceId },
+        { parentId: parent.id, title: `Child ${index + 1}` },
+      );
+      children.push({ ...child, workspaceId: childWorkspaceId });
+    }
+    const nested = await seedSubagent(
+      { ...workspace, workspaceId: children[10]!.workspaceId },
+      {
+        parentId: children[10]!.id,
+        title: "Nested critic",
+      },
+    );
+    await page.setViewportSize({ width: 1400, height: 1100 });
+    await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: parent.id });
+    const serverId = getServerId();
+    const tree = page.getByTestId(`sidebar-agent-tree-${serverId}:${workspace.workspaceId}`);
+    const rows = tree.locator('[data-testid^="sidebar-agent-tree-row-"]');
+    const more = page.getByTestId(
+      `sidebar-agent-tree-show-more-${serverId}:${workspace.workspaceId}`,
+    );
+    await expect(rows).toHaveCount(10);
+    await expect(page.getByTestId(`sidebar-agent-tree-row-agent:${nested.id}`)).toBeVisible();
+    await expect(page.getByTestId(`sidebar-agent-tree-row-agent:${children[0]!.id}`)).toHaveCount(
+      0,
+    );
+    await expect(more).toHaveText("Show more");
+    await more.click();
+    await expect(rows).toHaveCount(12);
+    await expect(more).toHaveText("Show less");
+    await page.getByTestId(`sidebar-agent-tree-row-agent:${children[0]!.id}`).click();
+    await expectAgentTabActive(page, children[0]!.id);
+    await expect(
+      page.getByTestId(`sidebar-agent-tree-row-agent:${children[0]!.id}`),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.getByTestId(`sidebar-workspace-row-${serverId}:${children[0]!.workspaceId}`),
+    ).toHaveCount(0);
+    await expect(rows).toHaveCount(12);
+    await more.click();
+    await expect(rows).toHaveCount(10);
+    await expect(more).toHaveText("Show more");
+    await page.screenshot({ path: "/tmp/paseoi-r57-subagent-show-more.png" });
   } finally {
     await workspace.cleanup();
   }

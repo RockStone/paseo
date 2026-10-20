@@ -4,6 +4,8 @@ import { Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
+import { SidebarGroupToggleRow } from "@/components/sidebar/sidebar-group-toggle-row";
+import { useLimitedSidebarGroup } from "@/components/sidebar/use-limited-sidebar-group";
 import { StatusRing } from "@/components/status-ring";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { useSessionStore, selectAgentTurnPresentation, type Agent } from "@/stores/session-store";
@@ -12,6 +14,7 @@ import { useProviderSubagentStore, providerSubagentKey } from "@/subagents/provi
 import { useSubagentsForParent } from "@/subagents";
 import {
   buildSidebarThreadTree,
+  sidebarThreadKeys,
   workspaceRootAgentIds,
   type SidebarThreadNode,
 } from "@/subagents/sidebar-tree";
@@ -24,6 +27,7 @@ import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { workspaceTabTargetsEqual } from "@/workspace-tabs/identity";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
+import { useSidebarModel } from "./sidebar-model";
 import { density } from "@/styles/density";
 import { isWeb } from "@/constants/platform";
 import type { Theme } from "@/styles/theme";
@@ -41,6 +45,16 @@ export function useSidebarAgentTree({
   serverId: string;
   workspaceId: string;
 }) {
+  const { nestedWorkspaceParents } = useSidebarModel();
+  const nestedWorkspaceIds = useMemo(
+    () =>
+      new Set(
+        [...nestedWorkspaceParents.keys()]
+          .filter((key) => key.startsWith(`${serverId}:`))
+          .map((key) => key.slice(serverId.length + 1)),
+      ),
+    [nestedWorkspaceParents, serverId],
+  );
   const agents = useSessionStore((state) => state.sessions[serverId]?.agents ?? EMPTY_AGENTS);
   const providerSupported = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.providerSubagents === true,
@@ -83,6 +97,7 @@ export function useSidebarAgentTree({
       buildSidebarThreadTree({
         serverId,
         workspaceId,
+        nestedWorkspaceIds,
         agents,
         descriptors,
         hiddenProviderKeys,
@@ -95,6 +110,7 @@ export function useSidebarAgentTree({
     [
       serverId,
       workspaceId,
+      nestedWorkspaceIds,
       agents,
       descriptors,
       hiddenProviderKeys,
@@ -124,6 +140,9 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
   model: ReturnType<typeof useSidebarAgentTree>;
 }) {
   const { roots, visibleTree, providerSupported } = model;
+  const keys = useMemo(() => sidebarThreadKeys(visibleTree), [visibleTree]);
+  const { visibleItems, expanded, canToggle, toggleExpanded } = useLimitedSidebarGroup(keys, 10);
+  const visibleKeys = useMemo(() => new Set(visibleItems), [visibleItems]);
   return (
     <>
       {active && providerSupported
@@ -137,15 +156,25 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
         : null}
       {!collapsed && visibleTree.length > 0 ? (
         <View style={styles.tree} testID={`sidebar-agent-tree-${serverId}:${workspaceId}`}>
-          {visibleTree.map((node) => (
-            <ThreadBranch
-              key={node.key}
-              node={node}
-              serverId={serverId}
-              workspaceId={workspaceId}
-              active={active}
+          {visibleTree
+            .filter((node) => visibleKeys.has(node.key))
+            .map((node) => (
+              <ThreadBranch
+                key={node.key}
+                node={node}
+                serverId={serverId}
+                workspaceId={workspaceId}
+                visibleKeys={visibleKeys}
+              />
+            ))}
+          {canToggle ? (
+            <SidebarGroupToggleRow
+              compact
+              expanded={expanded}
+              onPress={toggleExpanded}
+              testID={`sidebar-agent-tree-show-more-${serverId}:${workspaceId}`}
             />
-          ))}
+          ) : null}
         </View>
       ) : null}
     </>
@@ -167,12 +196,12 @@ function ThreadBranch({
   node,
   serverId,
   workspaceId,
-  active,
+  visibleKeys,
 }: {
   node: SidebarThreadNode;
   serverId: string;
   workspaceId: string;
-  active: boolean;
+  visibleKeys: ReadonlySet<string>;
 }) {
   const managedRunning = useSessionStore((state) => {
     if (node.target.kind !== "agent") return false;
@@ -198,15 +227,22 @@ function ThreadBranch({
       )?.status === "running",
   );
   const running = managedRunning || providerRunning;
+  const nodeWorkspaceId = useSessionStore((state) =>
+    node.target.kind === "agent"
+      ? (state.sessions[serverId]?.agents.get(node.target.agentId)?.workspaceId ?? workspaceId)
+      : node.target.workspaceId,
+  );
+  const { activeWorkspaceSelection: selection } = useSidebarModel();
+  const nodeActive = selection?.serverId === serverId && selection.workspaceId === nodeWorkspaceId;
   const dragRef = useSessionDragSource({
     serverId,
-    workspaceId,
+    workspaceId: nodeWorkspaceId,
     target: node.target,
     title: node.title || undefined,
   });
-  const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId })!;
+  const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId: nodeWorkspaceId })!;
   const selected = useWorkspaceLayoutStore((state) => {
-    if (!active) return false;
+    if (!nodeActive) return false;
     const sheet = state.sheetsByWorkspace[workspaceKey]?.at(-1);
     const layout = state.layoutByWorkspace[workspaceKey];
     const pane = layout ? findPaneById(layout.root, layout.focusedPaneId) : null;
@@ -293,15 +329,17 @@ function ThreadBranch({
       </View>
       {hasChildren && expanded ? (
         <View style={styles.children}>
-          {node.children.map((child) => (
-            <ThreadBranch
-              key={child.key}
-              node={child}
-              serverId={serverId}
-              workspaceId={workspaceId}
-              active={active}
-            />
-          ))}
+          {node.children
+            .filter((child) => visibleKeys.has(child.key))
+            .map((child) => (
+              <ThreadBranch
+                key={child.key}
+                node={child}
+                serverId={serverId}
+                workspaceId={workspaceId}
+                visibleKeys={visibleKeys}
+              />
+            ))}
         </View>
       ) : null}
     </View>
