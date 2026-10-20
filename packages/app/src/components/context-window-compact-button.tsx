@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { useAgentCommandsQuery } from "@/hooks/use-agent-commands-query";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
@@ -23,6 +22,7 @@ export function ContextWindowCompactButton({
   const client = useHostRuntimeClient(serverId);
   const connected = useHostRuntimeIsConnected(serverId);
   const { commands } = useAgentCommandsQuery({ serverId, agentId });
+  const supportsCompact = commands.some((command) => command.name === "compact");
   const active = useSessionStore(
     (state) => selectAgentTurnPresentation(state.sessions[serverId], agentId).isActive,
   );
@@ -33,6 +33,7 @@ export function ContextWindowCompactButton({
     if (
       !client ||
       !connected ||
+      !supportsCompact ||
       busy.current ||
       selectAgentTurnPresentation(useSessionStore.getState().sessions[serverId], agentId).isActive
     )
@@ -57,27 +58,19 @@ export function ContextWindowCompactButton({
       busy.current = false;
       setPending(false);
     }
-  }, [agentId, client, connected, onAccepted, serverId]);
-  if (!commands.some((command) => command.name === "compact")) return null;
+  }, [agentId, client, connected, onAccepted, serverId, supportsCompact]);
   return (
     <View style={styles.container}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <View collapsable={false}>
-            <Button
-              size="xs"
-              variant="secondary"
-              onPress={compact}
-              loading={pending}
-              disabled={!connected || active || pending}
-              testID="context-window-compact"
-            >
-              {t("contextWindow.compact")}
-            </Button>
-          </View>
-        </TooltipTrigger>
-        {active ? <TooltipContent>{t("contextWindow.compactIdle")}</TooltipContent> : null}
-      </Tooltip>
+      <Button
+        size="xs"
+        variant="secondary"
+        onPress={compact}
+        loading={pending}
+        disabled={!client || !connected || !supportsCompact || active || pending}
+        testID="context-window-compact"
+      >
+        {t("contextWindow.compact")}
+      </Button>
       {error ? (
         <Text accessibilityRole="alert" style={styles.error}>
           {error}

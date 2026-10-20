@@ -139,6 +139,7 @@ test("compacts from the context popup with visible failure, retry and idle gatin
 }) => {
   const requests: Array<{ text: string; attachments?: unknown[] }> = [];
   let rejectCompact = true;
+  let compactSupported = true;
   await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
     const server = ws.connectToServer();
     ws.onMessage((raw) => {
@@ -169,9 +170,9 @@ test("compacts from the context popup with visible failure, retry and idle gatin
     server.onMessage((raw) => {
       const envelope = JSON.parse(raw.toString());
       if (envelope.message?.type === "list_commands_response") {
-        envelope.message.payload.commands = [
-          { name: "compact", description: "Compact context", argumentHint: "", kind: "command" },
-        ];
+        envelope.message.payload.commands = compactSupported
+          ? [{ name: "compact", description: "Compact context", argumentHint: "", kind: "command" }]
+          : [];
         envelope.message.payload.error = null;
         ws.send(JSON.stringify(envelope));
       } else ws.send(raw);
@@ -189,6 +190,7 @@ test("compacts from the context popup with visible failure, retry and idle gatin
     await moveOntoContextWindowDetails(page, card);
     const button = card.getByRole("button", { name: "Compact", exact: true });
     await expect(button).toBeEnabled();
+    await expect(button).toHaveCSS("opacity", "1");
     const buttonBox = await button.boundingBox();
     const statsBox = await card.getByTestId("context-window-stats").boundingBox();
     if (!buttonBox || !statsBox) throw new Error("Context stats and Compact must be measurable");
@@ -213,8 +215,11 @@ test("compacts from the context popup with visible failure, retry and idle gatin
     await expect(button).toBeEnabled();
     await agent.client.sendAgentMessage(agent.agentId, "Keep working while I inspect context");
     await expect(button).toBeDisabled();
-    await button.locator("..").hover();
-    await expect(page.getByRole("tooltip")).toContainText("Available when the agent is idle");
+    await expect(button).toHaveCSS("opacity", "0.5");
+    await button.hover({ force: true });
+    await page.waitForTimeout(400);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.screenshot({ path: "/tmp/paseoi-r59-compact-disabled.png" });
     await agent.client.waitForFinish(agent.agentId, 30_000);
     await expect(button).toBeEnabled();
     await page.screenshot({ path: "/tmp/paseoi-r48-context-compact.png" });
@@ -225,6 +230,18 @@ test("compacts from the context popup with visible failure, retry and idle gatin
     expect(requests.map((request) => request.text)).toEqual(["/compact", "/compact"]);
     expect(requests[1]?.attachments).toEqual([]);
     await leaveContextWindowMeter(page);
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    compactSupported = false;
+    await page.reload();
+    await page.getByRole("img", { name: /^Context window/ }).hover();
+    const unsupportedCard = contextWindowDetails(page);
+    const unavailable = unsupportedCard.getByRole("button", { name: "Compact", exact: true });
+    await expect(unavailable).toBeVisible();
+    await expect(unavailable).toBeDisabled();
+    await expect(unavailable).toHaveCSS("opacity", "0.5");
+    await unavailable.hover({ force: true });
+    await page.waitForTimeout(400);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
   } finally {
     await agent.cleanup();
   }
