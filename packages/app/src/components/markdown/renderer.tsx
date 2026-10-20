@@ -12,6 +12,10 @@ import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attac
 import type { Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
 import { density, resolveDensity } from "@/styles/density";
+import {
+  markdownCopyDataSet,
+  markdownCopyImageSourcesDataSet,
+} from "@/assistant-selection-copy/markup";
 import { MarkdownBlockStack } from "./block-stack";
 import { MarkdownRendererFrame } from "./frame";
 import { WEB_RENDERERS } from "./renderers";
@@ -134,8 +138,13 @@ const MarkdownPart = memo(function MarkdownPart({
   if (variant === "user") uniStyle = userStyle;
   if (imageLayout === "gallery" && imageOnly) {
     return (
-      <View style={galleryStyles.container} testID="assistant-image-gallery">
-        <Text style={galleryStyles.label}>
+      <View
+        style={galleryStyles.container}
+        testID="assistant-image-gallery"
+        dataSet={isWeb ? markdownCopyImageSourcesDataSet(imageSources) : undefined}
+      >
+        {/* Copying across the gallery yields each image's Markdown, not this count. */}
+        <Text style={galleryStyles.label} dataSet={markdownCopyDataSet.ignore}>
           {imagePreviews.length} {imagePreviews.length === 1 ? "image" : "images"}
         </Text>
         <ScrollView horizontal contentContainerStyle={galleryStyles.row}>
@@ -144,6 +153,7 @@ const MarkdownPart = memo(function MarkdownPart({
               key={source}
               uri={uri}
               status={status}
+              alt={alt}
               label={alt || `Open image ${index + 1}`}
               onOpen={openGalleryImage}
             />
@@ -197,11 +207,13 @@ const MarkdownPart = memo(function MarkdownPart({
 const GalleryThumbnail = memo(function GalleryThumbnail({
   uri,
   status,
+  alt,
   label,
   onOpen,
 }: {
   uri: string | undefined;
   status: "ready" | "pending" | "unavailable";
+  alt: string;
   label: string;
   onOpen: (uri: string) => void;
 }) {
@@ -218,7 +230,13 @@ const GalleryThumbnail = memo(function GalleryThumbnail({
       onPress={open}
     >
       {uri && status === "ready" ? (
-        <Image source={source} style={galleryStyles.image} resizeMode="cover" />
+        // On web the label becomes the <img> alt, which selection copy writes into the Markdown.
+        <Image
+          source={source}
+          style={galleryStyles.image}
+          resizeMode="cover"
+          accessibilityLabel={alt || undefined}
+        />
       ) : null}
       {status === "unavailable" ? <Text style={galleryStyles.label}>Unavailable</Text> : null}
     </Pressable>

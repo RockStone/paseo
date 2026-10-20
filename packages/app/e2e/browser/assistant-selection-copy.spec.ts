@@ -979,7 +979,7 @@ test("Reply quotes Thinking, shell output, and selections spanning both", async 
         .split("\n")
         .map((line) => `> ${line}`)
         .join("\n");
-      await expect(composer).toHaveValue(`Existing comment\n\n${quote}\n\n`);
+      await expect(composer).toHaveAttribute("data-markdown", `Existing comment\n\n${quote}\n\n`);
       await expect(composer).toBeFocused();
     }
     await page.screenshot({ path: testInfo.outputPath("thinking-and-output-reply.png") });
