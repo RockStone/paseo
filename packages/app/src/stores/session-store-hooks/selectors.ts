@@ -6,7 +6,7 @@ import {
 } from "@/projects/workspace-structure";
 import type { DesktopBadgeWorkspaceStatus } from "@/utils/desktop-badge-state";
 import { resolveWorkspaceMapKeyByIdentity } from "@/utils/workspace-identity";
-import type { ProjectDescriptor, WorkspaceDescriptor } from "../session-store";
+import type { Agent, ProjectDescriptor, WorkspaceDescriptor } from "../session-store";
 
 export type { DesktopBadgeWorkspaceStatus } from "@/utils/desktop-badge-state";
 export type { WorkspaceStructure, WorkspaceStructureProject } from "@/projects/workspace-structure";
@@ -18,6 +18,7 @@ export interface SessionsSnapshot {
       hasHydratedWorkspaces?: boolean;
       hasWorkspaceDirectorySnapshot?: boolean;
       workspaces: Map<string, WorkspaceDescriptor>;
+      agents?: ReadonlyMap<string, Pick<Agent, "workspaceId" | "parentAgentId" | "archivedAt">>;
       projects?: Map<string, ProjectDescriptor>;
     }
   >;
@@ -312,8 +313,21 @@ export function selectWorkspaceStatusesForBadges(
 ): DesktopBadgeWorkspaceStatus[] {
   const statuses: DesktopBadgeWorkspaceStatus[] = [];
   for (const session of Object.values(state.sessions)) {
+    const delegatedWorkspaceIds = new Set<string>();
+    const independentWorkspaceIds = new Set<string>();
+    for (const agent of session.agents?.values() ?? []) {
+      if (agent.archivedAt || !agent.workspaceId) continue;
+      const workspaceIds = agent.parentAgentId ? delegatedWorkspaceIds : independentWorkspaceIds;
+      workspaceIds.add(agent.workspaceId);
+    }
     for (const workspace of session.workspaces.values()) {
-      statuses.push(workspace.status);
+      // Child completions remain readable in the parent's tree without becoming dock alerts.
+      // Preserve actual errors and permission requests, including in delegated workspaces.
+      const delegatedCompletion =
+        workspace.status === "attention" &&
+        delegatedWorkspaceIds.has(workspace.id) &&
+        !independentWorkspaceIds.has(workspace.id);
+      if (!delegatedCompletion) statuses.push(workspace.status);
     }
   }
   return statuses;
