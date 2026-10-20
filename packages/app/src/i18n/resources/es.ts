@@ -529,6 +529,8 @@ export const es: TranslationResources = {
       },
     },
     hoverCard: {
+      agentId: "Agente {{id}}",
+      workspaceId: "Espacio de trabajo {{id}}",
       scriptsAccessibility: "GuionesWorkspace",
       copyPath: "Copiar ruta",
       copyBranchName: "Copiar nombre de rama",

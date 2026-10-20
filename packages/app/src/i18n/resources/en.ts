@@ -520,6 +520,8 @@ export const en = {
       },
     },
     hoverCard: {
+      agentId: "Agent {{id}}",
+      workspaceId: "Workspace {{id}}",
       scriptsAccessibility: "Workspace scripts",
       copyPath: "Copy path",
       copyBranchName: "Copy branch name",

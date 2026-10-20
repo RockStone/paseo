@@ -521,6 +521,8 @@ export const zhCN: TranslationResources = {
       },
     },
     hoverCard: {
+      agentId: "代理 {{id}}",
+      workspaceId: "工作区 {{id}}",
       scriptsAccessibility: "Workspace scripts",
       copyPath: "复制路径",
       copyBranchName: "复制分支名称",

@@ -527,6 +527,8 @@ export const ja: TranslationResources = {
       },
     },
     hoverCard: {
+      agentId: "エージェント {{id}}",
+      workspaceId: "ワークスペース {{id}}",
       scriptsAccessibility: "ワークスペーススクリプト",
       copyPath: "パスをコピー",
       copyBranchName: "ブランチ名をコピー",

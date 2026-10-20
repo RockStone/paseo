@@ -404,6 +404,37 @@ test.describe("Sidebar workspace list", () => {
 
       const hoverCard = await openWorkspaceHoverCard(page, workspace.workspaceId);
       await expect(page.getByTestId("hover-card-workspace-host")).toHaveText("localhost");
+      await expect(page.getByTestId("hover-card-workspace-id")).toHaveText(
+        `w:${workspace.workspaceId.slice(0, 8)}`,
+      );
+      await expect(page.getByTestId("hover-card-agent-id")).toHaveCount(0);
+      const agent = await workspace.client.createAgent({
+        provider: "mock",
+        cwd: workspace.repoPath,
+        workspaceId: workspace.workspaceId,
+        title: "Hover identity",
+        modeId: "load-test",
+        model: "ten-second-stream",
+      });
+      await expect(page.getByTestId("hover-card-agent-id")).toHaveText(`a:${agent.id.slice(0, 8)}`);
+      await expect(hoverCard).toBeVisible();
+      const agentIdBox = await page.getByTestId("hover-card-agent-id").boundingBox();
+      const workspaceIdBox = await page.getByTestId("hover-card-workspace-id").boundingBox();
+      expect(agentIdBox!.y).toBe(workspaceIdBox!.y);
+      const identity = await page.getByTestId("hover-card-workspace-identity").boundingBox();
+      const cwd = await page.getByTestId("hover-card-workspace-cwd").boundingBox();
+      expect(identity!.y).toBeGreaterThan(cwd!.y);
+      await page.screenshot({ path: "/tmp/paseoi-r54-workspace-identifiers.png" });
+      await workspace.client.createAgent({
+        provider: "mock",
+        cwd: workspace.repoPath,
+        workspaceId: workspace.workspaceId,
+        title: "Second coordinator",
+        modeId: "load-test",
+        model: "ten-second-stream",
+      });
+      await expect(page.getByTestId("hover-card-agent-id")).toHaveCount(0);
+      await expect(page.getByTestId("hover-card-workspace-id")).toBeVisible();
       await expect(hoverCard).not.toContainText(/\b(Online|Connecting|Offline|Error|Idle)\b/);
     } finally {
       await workspace.cleanup();

@@ -1,3 +1,5 @@
+import { useSessionStore } from "@/stores/session-store";
+import { sidebarWorkspaceTarget } from "@/subagents/sidebar-tree";
 import {
   useCallback,
   useState,
@@ -15,6 +17,7 @@ import {
   FileDiff,
   Folder,
   GitBranch,
+  Hash,
   Server,
 } from "lucide-react-native";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
@@ -129,10 +132,12 @@ function WorkspaceHoverCardContent({
           <ChecksSummaryPressable checks={prHint.checks} url={prHint.url} forge={prHint.forge} />
         </>
       ) : null}
+      <WorkspaceIdentityRow workspace={workspace} />
     </>
   );
 }
 
+const ThemedHash = withUnistyles(Hash);
 const ThemedGitBranch = withUnistyles(GitBranch);
 const ThemedFolder = withUnistyles(Folder);
 const ThemedServer = withUnistyles(Server);
@@ -146,6 +151,43 @@ function HostRow({ serverId }: { serverId: string }): ReactElement | null {
   const label = host?.label?.trim() || serverId;
 
   return <InfoRow icon={ThemedServer} value={label} testID="hover-card-workspace-host" />;
+}
+
+function WorkspaceIdentityRow({ workspace }: { workspace: SidebarWorkspaceEntry }): ReactElement {
+  const { t } = useTranslation();
+  const agentId = useSessionStore((state) => {
+    const agents = state.sessions[workspace.serverId]?.agents;
+    return agents ? sidebarWorkspaceTarget(agents, workspace.workspaceId)?.agentId : undefined;
+  });
+  return (
+    <View style={styles.cardInfoRow} testID="hover-card-workspace-identity">
+      <ThemedHash size={12} uniProps={foregroundMutedColorMapping} />
+      <View style={styles.identityValues}>
+        {agentId ? (
+          <Text
+            selectable
+            numberOfLines={1}
+            accessibilityLabel={t("workspace.hoverCard.agentId", { id: agentId.slice(0, 8) })}
+            style={styles.identityText}
+            testID="hover-card-agent-id"
+          >
+            a:{agentId.slice(0, 8)}
+          </Text>
+        ) : null}
+        <Text
+          selectable
+          numberOfLines={1}
+          accessibilityLabel={t("workspace.hoverCard.workspaceId", {
+            id: workspace.workspaceId.slice(0, 8),
+          })}
+          style={styles.identityText}
+          testID="hover-card-workspace-id"
+        >
+          w:{workspace.workspaceId.slice(0, 8)}
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 const ThemedExternalLink = withUnistyles(ExternalLink);
@@ -384,6 +426,13 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[3],
     paddingBottom: theme.spacing[2],
   },
+  identityValues: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    columnGap: theme.spacing[2],
+  },
+  identityText: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm },
   cardInfoText: {
     flex: 1,
     minWidth: 0,

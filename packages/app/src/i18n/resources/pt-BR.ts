@@ -528,6 +528,8 @@ export const ptBR: TranslationResources = {
       },
     },
     hoverCard: {
+      agentId: "Agente {{id}}",
+      workspaceId: "Espaço de trabalho {{id}}",
       scriptsAccessibility: "Scripts do workspace",
       copyPath: "Copiar caminho",
       copyBranchName: "Copiar nome da branch",

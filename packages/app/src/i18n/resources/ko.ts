@@ -522,6 +522,8 @@ export const ko: TranslationResources = {
       },
     },
     hoverCard: {
+      agentId: "에이전트 {{id}}",
+      workspaceId: "작업 공간 {{id}}",
       scriptsAccessibility: "워크스페이스 스크립트",
       copyPath: "경로 복사",
       copyBranchName: "브랜치 이름 복사",

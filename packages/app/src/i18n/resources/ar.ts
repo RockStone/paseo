@@ -521,6 +521,8 @@ export const ar: TranslationResources = {
       },
     },
     hoverCard: {
+      agentId: "الوكيل {{id}}",
+      workspaceId: "مساحة العمل {{id}}",
       scriptsAccessibility: "البرامج النصية Workspace",
       copyPath: "نسخ المسار",
       copyBranchName: "نسخ اسم الفرع",

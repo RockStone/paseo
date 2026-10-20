@@ -526,6 +526,8 @@ export const fr: TranslationResources = {
       },
     },
     hoverCard: {
+      agentId: "Agent {{id}}",
+      workspaceId: "Espace de travail {{id}}",
       scriptsAccessibility: "Scripts de l’espace de travail",
       copyPath: "Copier le chemin",
       copyBranchName: "Copier le nom de la branche",
