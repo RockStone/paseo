@@ -77,7 +77,10 @@ function contextQuery({
       setPermissionMode: async () => undefined,
       applyFlagSettings: async () => undefined,
       getContextUsage: async () => ({
-        rawMaxTokens: compactionWindows?.[contextRequest++] ?? reportedLimit,
+        rawMaxTokens:
+          compactionWindows?.[contextRequest++] ??
+          modelWindowsByTurn?.[turn - 1]?.[model] ??
+          reportedLimit,
       }),
       supportedModels: async () => [],
       supportedCommands: async () => [
@@ -92,12 +95,12 @@ function contextQuery({
 }
 
 test.each([
-  { selected: "glm-5.2[1m]", runtime: "glm-5.2[1m]", expected: 1_000_000 },
-  { selected: "sonnet", runtime: "glm-5.2[1m]", expected: 1_000_000 },
-  { selected: "glm-5.2", runtime: "glm-5.2", expected: undefined },
+  { selected: "glm-5.2[1m]", runtime: "glm-5.2[1m]" },
+  { selected: "sonnet", runtime: "glm-5.2[1m]" },
+  { selected: "glm-5.2", runtime: "glm-5.2" },
 ])(
   "streams the context limit for $selected resolved as $runtime",
-  async ({ selected, runtime, expected }) => {
+  async ({ selected, runtime }) => {
     const client = new ClaudeAgentClient({
       logger: createTestLogger(),
       queryFactory: contextQuery({ runtimeModel: runtime, reportedLimit: 800_000 }),
@@ -111,7 +114,7 @@ test.each([
     try {
       const first = await collectSessionTurnEvents(session, "first turn");
       const live = first.filter((event) => event.type === "usage_updated");
-      expect(live.map((event) => event.usage.contextWindowMaxTokens)).toEqual([expected, expected]);
+      expect(live.map((event) => event.usage.contextWindowMaxTokens)).toEqual([800_000, 800_000]);
       expect(live.map((event) => event.usage.contextWindowUsedTokens)).toEqual([249_950, 250_000]);
       expect(first).toContainEqual(
         expect.objectContaining({
@@ -133,7 +136,7 @@ test.each([
         switched
           .filter((event) => event.type === "usage_updated")
           .map((event) => event.usage.contextWindowMaxTokens),
-      ).toEqual([undefined, undefined]);
+      ).toEqual([800_000, 800_000]);
     } finally {
       await session.close();
     }
@@ -270,5 +273,42 @@ test("autocompact refreshes the effective window and retains it until reset", as
     }
   } finally {
     await session.close();
+  }
+});
+
+test("resumed sessions recover the CLI compaction cap without another autocompact command", async () => {
+  const client = new ClaudeAgentClient({
+    logger: createTestLogger(),
+    queryFactory: contextQuery({
+      runtimeModel: "claude-opus-5-5",
+      reportedLimit: 1_000_000,
+      compactionWindows: [400_000],
+    }),
+    resolveBinary: async () => process.execPath,
+  });
+  for (let restart = 0; restart < 2; restart++) {
+    const session = await client.resumeSession({
+      provider: "claude",
+      sessionId: "context-session",
+      metadata: { cwd: process.cwd(), model: "claude-opus-5-5" },
+    });
+    try {
+      for (const prompt of ["Continue after resume", "Another turn"]) {
+        const events = await collectSessionTurnEvents(session, prompt);
+        expect(events).toContainEqual(
+          expect.objectContaining({
+            type: "turn_completed",
+            usage: expect.objectContaining({ contextWindowMaxTokens: 400_000 }),
+          }),
+        );
+        expect(
+          events
+            .filter((event) => event.type === "usage_updated")
+            .map((event) => event.usage.contextWindowMaxTokens),
+        ).toEqual([400_000, 400_000]);
+      }
+    } finally {
+      await session.close();
+    }
   }
 });

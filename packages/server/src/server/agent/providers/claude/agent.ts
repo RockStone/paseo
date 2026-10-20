@@ -2051,9 +2051,12 @@ class ClaudeContextUsageState {
     this.compactedContextWindowUsedTokens = undefined;
   }
 
-  setInitialContextWindowMaxTokens(contextWindowMaxTokens: number | undefined): void {
+  setInitialContextWindowMaxTokens(
+    contextWindowMaxTokens: number | undefined,
+    resetCompactionWindow = false,
+  ): void {
     this.contextWindowMaxTokens = contextWindowMaxTokens;
-    this.compactionWindowMaxTokens = undefined;
+    if (resetCompactionWindow) this.compactionWindowMaxTokens = undefined;
   }
 
   setCompactionWindow(maxTokens: number): void {
@@ -2283,6 +2286,7 @@ class ClaudeAgentSession implements AgentSession {
   private activeTurnHasAssistantText = false;
   private readonly contextUsage: ClaudeContextUsageState;
   private refreshCompactionWindow = false;
+  private activeCompactionCommand = false;
   private userMessageIds: string[] = [];
   private readonly emittedUserMessageIds = new Set<string>();
   private readonly rewindTurnAnchors: ClaudeRewindTurnAnchor[] = [];
@@ -2424,8 +2428,9 @@ class ClaudeAgentSession implements AgentSession {
     this.foregroundHasVisibleActivity = false;
     this.activeTurnHasAssistantText = false;
     this.contextUsage.beginTurn();
-    this.refreshCompactionWindow =
+    this.activeCompactionCommand =
       typeof prompt === "string" && /^\/autocompact(?:\s|$)/i.test(prompt.trimStart());
+    this.refreshCompactionWindow ||= this.activeCompactionCommand;
     this.transitionTurnState("foreground", "foreground turn started");
     this.clearRecentStderr();
     if (sdkUserMessageId) this.unstartedMessageUuids.add(sdkUserMessageId);
@@ -2640,7 +2645,9 @@ class ClaudeAgentSession implements AgentSession {
     }
     this.contextUsage.setInitialContextWindowMaxTokens(
       getClaudeContextWindowMaxTokens(this.config.model),
+      true,
     );
+    this.refreshCompactionWindow = true;
     this.lastOptionsModel = normalizedModelId ?? this.lastOptionsModel;
     this.lastRuntimeModel = null;
     this.cachedRuntimeInfo = null;
@@ -3372,6 +3379,8 @@ class ClaudeAgentSession implements AgentSession {
         },
       },
     );
+    // A resumed CLI retains its auto-compaction policy even though this adapter is new.
+    this.refreshCompactionWindow = true;
     const fastMode = this.resolveFastModeSetting();
     if (fastMode !== null) {
       await this.query.applyFlagSettings({ fastMode });
@@ -4204,31 +4213,37 @@ class ClaudeAgentSession implements AgentSession {
     this.dispatchEvents(events);
   }
 
+  private async refreshEffectiveCompactionWindow(): Promise<void> {
+    if (!this.refreshCompactionWindow || !this.query) return;
+    try {
+      // modelUsage.contextWindow reports model capacity rather than the compaction policy.
+      const context = await withTimeout(
+        this.query.getContextUsage(),
+        3000,
+        "Claude context usage timed out",
+      );
+      this.contextUsage.setCompactionWindow(context.rawMaxTokens);
+      this.refreshCompactionWindow = false;
+    } catch (error) {
+      this.logger.warn({ err: error }, "Failed to refresh Claude auto-compaction window");
+    }
+  }
+
   private async buildPumpedMessageEvents(
     message: SDKMessage,
     messageIdHint: string | null,
     turnId: string | null,
   ): Promise<AgentStreamEvent[]> {
-    if (message.type === "result" && this.refreshCompactionWindow) {
-      this.refreshCompactionWindow = false;
-      if (message.subtype === "success" && this.query) {
-        try {
-          // modelUsage.contextWindow is the model capacity, not /autocompact's policy window.
-          const context = await withTimeout(
-            this.query.getContextUsage(),
-            3000,
-            "Claude context usage timed out",
-          );
-          this.contextUsage.setCompactionWindow(context.rawMaxTokens);
-        } catch (error) {
-          this.logger.warn({ err: error }, "Failed to refresh Claude auto-compaction window");
-        }
-      }
+    if (message.type === "result" && message.subtype === "success") {
+      await this.refreshEffectiveCompactionWindow();
     }
     const messageEvents = this.translateMessageToEvents(message, {
       suppressAssistantText: true,
       suppressReasoning: true,
     });
+    if (message.type === "system" && message.subtype === "init" && !this.activeCompactionCommand) {
+      await this.refreshEffectiveCompactionWindow();
+    }
     const assistantTimelineEvents = readClaudeParentToolUseId(message)
       ? []
       : this.timelineAssembler
