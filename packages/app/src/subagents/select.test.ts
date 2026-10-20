@@ -1,6 +1,10 @@
-import { nestedSidebarWorkspaceParents, groupSidebarProjects } from "./sidebar-workspace-grouping";
+import {
+  createNestedSidebarWorkspaceParentsSelector,
+  nestedSidebarWorkspaceParents,
+  groupSidebarProjects,
+} from "./sidebar-workspace-grouping";
 import type { SidebarProjectEntry } from "@/hooks/sidebar-workspaces-view-model";
-import { buildSidebarThreadTree } from "./sidebar-tree";
+import { buildSidebarThreadTree, createSidebarActivityOrderSelector } from "./sidebar-tree";
 import { providerSubagentKey } from "./provider-store";
 import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messages";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -66,6 +70,12 @@ function setAgents(agents: Agent[]): void {
   useSessionStore
     .getState()
     .setAgents(SERVER_ID, new Map(agents.map((agent) => [agent.id, agent])));
+}
+
+function tickAgentStream(agentId: string, text: string): void {
+  useSessionStore.getState().setAgentStreamState(SERVER_ID, agentId, {
+    head: [{ kind: "assistant_message", id: "message", text, timestamp: AGENT_TIMESTAMP }],
+  });
 }
 
 afterEach(() => {
@@ -732,6 +742,48 @@ describe("sidebar delegated workspace grouping", () => {
       groups([project(["parent-ws", "child-ws"])], [{ ...parent, parentAgentId: "child" }, child])
         .size,
     ).toBe(0);
+  });
+  it("reuses the grouping across stream ticks until the agent map changes", () => {
+    setAgents([parent, child]);
+    const select = createNestedSidebarWorkspaceParentsSelector([
+      project(["parent-ws", "child-ws"]),
+    ]);
+    const before = select(useSessionStore.getState());
+    for (let tick = 0; tick < 20; tick += 1) {
+      tickAgentStream("parent", `token ${tick}`);
+      expect(select(useSessionStore.getState())).toBe(before);
+    }
+    expect(before.size).toBe(1);
+
+    setAgents([parent, { ...child, parentAgentId: null }]);
+    expect(select(useSessionStore.getState()).size).toBe(0);
+  });
+});
+
+describe("createSidebarActivityOrderSelector", () => {
+  it("reuses the order across stream ticks until activity timestamps change", () => {
+    const agents = [
+      makeAgent({ id: "older", lastActivityAt: new Date("2026-03-08T09:00:00.000Z") }),
+      makeAgent({ id: "newer", lastActivityAt: new Date("2026-03-08T09:30:00.000Z") }),
+    ];
+    setAgents(agents);
+    const select = createSidebarActivityOrderSelector({
+      serverId: SERVER_ID,
+      agents: new Map(agents.map((agent) => [agent.id, agent])),
+      descriptors: new Map(),
+      activityCutoff: 0,
+    });
+    const before = select(useSessionStore.getState());
+    for (let tick = 0; tick < 20; tick += 1) {
+      tickAgentStream("older", `token ${tick}`);
+      expect(select(useSessionStore.getState())).toBe(before);
+    }
+    expect(before).toEqual(["agent:newer", "agent:older"]);
+
+    useSessionStore
+      .getState()
+      .setAgentLastActivityBatch(new Map([["older", new Date("2026-03-08T10:00:00.000Z")]]));
+    expect(select(useSessionStore.getState())).toEqual(["agent:older", "agent:newer"]);
   });
 });
 

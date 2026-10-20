@@ -52,6 +52,38 @@ export function workspaceRootAgentIds(
   return ids;
 }
 
+// Session-store selectors run on every stream tick. Activity timestamps are coalesced
+// into a new map, so reuse the last order until that map is replaced.
+export function createSidebarActivityOrderSelector(input: {
+  serverId: string;
+  agents: ReadonlyMap<string, Agent>;
+  descriptors: ReadonlyMap<string, ProviderSubagentDescriptorPayload>;
+  activityCutoff: number;
+}): (state: { agentLastActivity: ReadonlyMap<string, Date> }) => string[] {
+  let previousActivity: ReadonlyMap<string, Date> | undefined;
+  let previousOrder: string[] = [];
+  return ({ agentLastActivity }) => {
+    if (agentLastActivity === previousActivity) return previousOrder;
+    previousActivity = agentLastActivity;
+    const timestamps = Array.from(input.agents.values()).map((agent) => ({
+      key: `agent:${agent.id}`,
+      timestamp: (agentLastActivity.get(agent.id) ?? agent.lastActivityAt).getTime(),
+    }));
+    for (const [key, descriptor] of input.descriptors) {
+      if (key.startsWith(`${input.serverId}\0`))
+        timestamps.push({
+          key: `provider:${descriptor.parentAgentId}:${descriptor.id}`,
+          timestamp: Date.parse(descriptor.updatedAt),
+        });
+    }
+    previousOrder = timestamps
+      .filter((entry) => entry.timestamp >= input.activityCutoff)
+      .sort((left, right) => right.timestamp - left.timestamp)
+      .map((entry) => entry.key);
+    return previousOrder;
+  };
+}
+
 export function buildSidebarThreadTree(input: SidebarThreadTreeInput): SidebarThreadNode[] {
   const graph = new Map<string, ThreadGraphNode>();
   for (const agent of input.agents.values()) {

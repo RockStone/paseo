@@ -5,10 +5,12 @@ import type {
 } from "@/hooks/sidebar-workspaces-view-model";
 import { workspaceRootAgentIds } from "./sidebar-tree";
 
+type SidebarSessions = Readonly<Record<string, { agents: ReadonlyMap<string, Agent> } | undefined>>;
+
 /** Only fold workspaces whose roots all belong to the same visible parent workspace. */
 export function nestedSidebarWorkspaceParents(
   projects: readonly SidebarProjectEntry[],
-  sessions: Readonly<Record<string, { agents: ReadonlyMap<string, Agent> } | undefined>>,
+  sessions: SidebarSessions,
 ): Map<string, string> {
   const parents = new Map<string, string>();
   for (const project of projects) {
@@ -36,6 +38,27 @@ export function nestedSidebarWorkspaceParents(
     }
   }
   return parents;
+}
+
+// Session-store selectors run on every stream tick, which leaves each agent map untouched.
+// Reuse the previous grouping until one of the listed hosts replaces its agent map.
+export function createNestedSidebarWorkspaceParentsSelector(
+  projects: readonly SidebarProjectEntry[],
+): (state: { sessions: SidebarSessions }) => Map<string, string> {
+  const serverIds = [
+    ...new Set(
+      projects.flatMap((project) => project.workspaces.map((workspace) => workspace.serverId)),
+    ),
+  ];
+  let previousAgents: (ReadonlyMap<string, Agent> | undefined)[] | null = null;
+  let previousParents = new Map<string, string>();
+  return ({ sessions }) => {
+    const agents = serverIds.map((serverId) => sessions[serverId]?.agents);
+    if (previousAgents?.every((map, index) => map === agents[index])) return previousParents;
+    previousAgents = agents;
+    previousParents = nestedSidebarWorkspaceParents(projects, sessions);
+    return previousParents;
+  };
 }
 
 function workspaceParent(

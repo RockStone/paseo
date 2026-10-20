@@ -5,7 +5,7 @@ import {
 import { useSessionStore } from "@/stores/session-store";
 import { useShallow } from "zustand/react/shallow";
 import {
-  nestedSidebarWorkspaceParents,
+  createNestedSidebarWorkspaceParentsSelector,
   groupSidebarProjects,
 } from "@/subagents/sidebar-workspace-grouping";
 import { useTranslation } from "react-i18next";
@@ -160,9 +160,11 @@ export function SidebarModelProvider({
     list.projects,
     visibleWorkspaceKeys,
   ]);
-  const nestedWorkspaceParents = useSessionStore(
-    useShallow((state) => nestedSidebarWorkspaceParents(matchingProjects, state.sessions)),
+  const selectNestedWorkspaceParents = useMemo(
+    () => createNestedSidebarWorkspaceParentsSelector(matchingProjects),
+    [matchingProjects],
   );
+  const nestedWorkspaceParents = useSessionStore(useShallow(selectNestedWorkspaceParents));
   const filteredProjects = useMemo(
     () => groupSidebarProjects(matchingProjects, nestedWorkspaceParents),
     [matchingProjects, nestedWorkspaceParents],

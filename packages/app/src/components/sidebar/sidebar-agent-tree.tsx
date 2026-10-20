@@ -14,6 +14,7 @@ import { useProviderSubagentStore, providerSubagentKey } from "@/subagents/provi
 import { useSubagentsForParent } from "@/subagents";
 import {
   buildSidebarThreadTree,
+  createSidebarActivityOrderSelector,
   sidebarThreadKeys,
   workspaceRootAgentIds,
   type SidebarThreadNode,
@@ -72,25 +73,11 @@ export function useSidebarAgentTree({
   const activityCutoff = now - 24 * 60 * 60 * 1000;
   // Subscribe to order and cutoff membership, so output chunks only redraw the
   // tree when they move a row or bring it back into the recent list.
-  const activityOrder = useSessionStore(
-    useShallow((state) => {
-      const timestamps = Array.from(agents.values()).map((agent) => ({
-        key: `agent:${agent.id}`,
-        timestamp: (state.agentLastActivity.get(agent.id) ?? agent.lastActivityAt).getTime(),
-      }));
-      for (const [key, descriptor] of descriptors) {
-        if (key.startsWith(`${serverId}\0`))
-          timestamps.push({
-            key: `provider:${descriptor.parentAgentId}:${descriptor.id}`,
-            timestamp: Date.parse(descriptor.updatedAt),
-          });
-      }
-      return timestamps
-        .filter((entry) => entry.timestamp >= activityCutoff)
-        .sort((left, right) => right.timestamp - left.timestamp)
-        .map((entry) => entry.key);
-    }),
+  const selectActivityOrder = useMemo(
+    () => createSidebarActivityOrderSelector({ serverId, agents, descriptors, activityCutoff }),
+    [serverId, agents, descriptors, activityCutoff],
   );
+  const activityOrder = useSessionStore(useShallow(selectActivityOrder));
   const roots = useMemo(() => workspaceRootAgentIds(agents, workspaceId), [agents, workspaceId]);
   const tree = useMemo(
     () =>
