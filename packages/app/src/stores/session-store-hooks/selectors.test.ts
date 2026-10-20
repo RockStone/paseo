@@ -22,11 +22,13 @@ import {
 } from "./selectors";
 import {
   useSessionStore,
+  type Agent,
   type ProjectDescriptor,
   type WorkspaceDescriptor,
 } from "../session-store";
 
 const SERVER_ID = "test-server";
+type BadgeAgent = Pick<Agent, "workspaceId" | "parentAgentId" | "archivedAt">;
 
 function equivalenceViewKey(projectKey: string): string {
   return createProjectViewKey({ kind: "equivalence", projectKey });
@@ -591,6 +593,71 @@ describe("selectHasWorkspaces", () => {
 });
 
 describe("selectWorkspaceStatusesForBadges", () => {
+  it("ignores completed subagent-only workspaces while retaining parent alerts, errors and permissions", () => {
+    const workspaces = [
+      createWorkspace({ id: "parent", status: "attention" }),
+      createWorkspace({ id: "child", status: "attention" }),
+      createWorkspace({ id: "permission", status: "needs_input" }),
+      createWorkspace({ id: "error", status: "failed" }),
+    ];
+    const agents = new Map<string, BadgeAgent>([
+      ["parent-agent", { workspaceId: "parent", parentAgentId: null }],
+      ["child-agent", { workspaceId: "child", parentAgentId: "parent-agent" }],
+      ["permission-agent", { workspaceId: "permission", parentAgentId: "parent-agent" }],
+      ["error-agent", { workspaceId: "error", parentAgentId: "parent-agent" }],
+    ]);
+    const state = {
+      sessions: { [SERVER_ID]: { workspaces: new Map(workspaces.map((w) => [w.id, w])), agents } },
+    };
+    expect(selectWorkspaceStatusesForBadges(state)).toEqual(["attention", "needs_input", "failed"]);
+    // Detaching makes the former child's completion independent and actionable again.
+    agents.set("child-agent", { workspaceId: "child", parentAgentId: null });
+    expect(selectWorkspaceStatusesForBadges(state)).toEqual([
+      "attention",
+      "attention",
+      "needs_input",
+      "failed",
+    ]);
+  });
+
+  it("retains mixed and unknown workspaces and isolates matching IDs on different hosts", () => {
+    const workspace = createWorkspace({ id: "shared", status: "attention" });
+    const child = { workspaceId: "shared", parentAgentId: "parent-agent" };
+    const state = {
+      sessions: {
+        local: {
+          workspaces: new Map([[workspace.id, workspace]]),
+          agents: new Map([["child", child]]),
+        },
+        remote: { workspaces: new Map([[workspace.id, workspace]]) },
+      },
+    };
+    expect(selectWorkspaceStatusesForBadges(state)).toEqual(["attention"]);
+    const mixedAgents = new Map<string, BadgeAgent>([
+      ["child", child],
+      ["independent", { workspaceId: "shared", parentAgentId: null }],
+    ]);
+    expect(
+      selectWorkspaceStatusesForBadges({
+        sessions: { local: { ...state.sessions.local, agents: mixedAgents } },
+      }),
+    ).toEqual(["attention"]);
+    const archivedRoot = { workspaceId: "shared", parentAgentId: null, archivedAt: new Date() };
+    expect(
+      selectWorkspaceStatusesForBadges({
+        sessions: {
+          local: {
+            ...state.sessions.local,
+            agents: new Map<string, BadgeAgent>([
+              ["child", child],
+              ["archived", archivedRoot],
+            ]),
+          },
+        },
+      }),
+    ).toEqual([]);
+  });
+
   it("tracks status changes without changing for no-ops or unrelated descriptor updates", () => {
     const workspaceA = createWorkspace({ id: "workspace-a", status: "done" });
     const workspaceB = createWorkspace({ id: "workspace-b", status: "attention" });

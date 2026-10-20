@@ -16,8 +16,9 @@ describe("desktop-badge-state", () => {
     expect(isWorkspaceActionableForDesktopBadge("done")).toBe(false);
   });
 
-  it("returns undefined when no visible workspaces need attention", () => {
-    expect(deriveMacDockBadgeCountFromWorkspaceStatuses(["done", "running"])).toBeUndefined();
+  it("returns an explicit zero to clear retained badges at startup or after attention is read", () => {
+    expect(deriveMacDockBadgeCountFromWorkspaceStatuses([])).toBe(0);
+    expect(deriveMacDockBadgeCountFromWorkspaceStatuses(["done", "running"])).toBe(0);
   });
 
   it("counts only actionable visible workspaces", () => {
