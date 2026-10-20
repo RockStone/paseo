@@ -1,4 +1,5 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react-native";
@@ -49,6 +50,33 @@ export function useSidebarAgentTree({
   );
   const descriptors = useProviderSubagentStore((state) => state.descriptors);
   const hiddenProviderKeys = useProviderSubagentStore((state) => state.hiddenFromTrack);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const activityCutoff = now - 24 * 60 * 60 * 1000;
+  // Subscribe to order and cutoff membership, so output chunks only redraw the
+  // tree when they move a row or bring it back into the recent list.
+  const activityOrder = useSessionStore(
+    useShallow((state) => {
+      const timestamps = Array.from(agents.values()).map((agent) => ({
+        key: `agent:${agent.id}`,
+        timestamp: (state.agentLastActivity.get(agent.id) ?? agent.lastActivityAt).getTime(),
+      }));
+      for (const [key, descriptor] of descriptors) {
+        if (key.startsWith(`${serverId}\0`))
+          timestamps.push({
+            key: `provider:${descriptor.parentAgentId}:${descriptor.id}`,
+            timestamp: Date.parse(descriptor.updatedAt),
+          });
+      }
+      return timestamps
+        .filter((entry) => entry.timestamp >= activityCutoff)
+        .sort((left, right) => right.timestamp - left.timestamp)
+        .map((entry) => entry.key);
+    }),
+  );
   const roots = useMemo(() => workspaceRootAgentIds(agents, workspaceId), [agents, workspaceId]);
   const tree = useMemo(
     () =>
@@ -60,6 +88,9 @@ export function useSidebarAgentTree({
         hiddenProviderKeys,
         providerSupported,
         nestingSupported,
+        activityCutoff,
+        activity: useSessionStore.getState().agentLastActivity,
+        activityOrder,
       }),
     [
       serverId,
@@ -69,6 +100,8 @@ export function useSidebarAgentTree({
       hiddenProviderKeys,
       providerSupported,
       nestingSupported,
+      activityCutoff,
+      activityOrder,
     ],
   );
   // A single coordinator is already represented by the workspace row. Keep named

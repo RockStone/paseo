@@ -445,6 +445,8 @@ describe("sidebar coordinator tree", () => {
     descriptors: ProviderSubagentDescriptorPayload[] = [],
     hiddenProviderKeys = new Set<string>(),
     providerSupported = true,
+    activityCutoff?: number,
+    activity?: ReadonlyMap<string, Date>,
   ) {
     return buildSidebarThreadTree({
       serverId: SERVER_ID,
@@ -459,6 +461,8 @@ describe("sidebar coordinator tree", () => {
       hiddenProviderKeys,
       providerSupported,
       nestingSupported: true,
+      activityCutoff,
+      activity,
     });
   }
   it("uses exact parent IDs, preserves nested children and links across workspaces", () => {
@@ -523,6 +527,123 @@ describe("sidebar coordinator tree", () => {
     expect(
       tree([root], [base, nested], new Set([providerSubagentKey(SERVER_ID, "parent", "native")])),
     ).toEqual([]);
+  });
+  it("hides inactive children at 24 hours while retaining live work and recent descendants", () => {
+    const cutoff = AGENT_TIMESTAMP.getTime() + 1;
+    const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });
+    const child = (id: string, extra: Partial<Agent> = {}) =>
+      makeAgent({
+        id,
+        parentAgentId: "parent",
+        ...extra,
+      });
+    const agents = [
+      root,
+      child("old"),
+      child("boundary", { lastActivityAt: new Date(cutoff) }),
+      child("running", { status: "running" }),
+      child("permission", { attentionReason: "permission" }),
+      child("ancestor"),
+      child("recent-descendant", { parentAgentId: "ancestor", lastActivityAt: new Date(cutoff) }),
+      child("live-activity"),
+    ];
+    const result = tree(
+      agents,
+      [],
+      new Set(),
+      true,
+      cutoff,
+      new Map([["live-activity", new Date(cutoff)]]),
+    );
+    expect(result[0]?.children.map((node) => node.key)).toEqual([
+      "agent:boundary",
+      "agent:live-activity",
+      "agent:running",
+      "agent:permission",
+      "agent:ancestor",
+    ]);
+    expect(
+      result[0]?.children.find((node) => node.key === "agent:ancestor")?.children[0]?.key,
+    ).toBe("agent:recent-descendant");
+    expect(agents.find((agent) => agent.id === "old")?.archivedAt).toBeNull();
+  });
+  it("uses native subagent update times and retains running native subagents", () => {
+    const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });
+    const base: ProviderSubagentDescriptorPayload = {
+      id: "old",
+      parentAgentId: "parent",
+      parentSubagentId: null,
+      provider: "claude",
+      title: "Explore",
+      description: null,
+      status: "completed",
+      createdAt: AGENT_TIMESTAMP.toISOString(),
+      updatedAt: AGENT_TIMESTAMP.toISOString(),
+      toolCallId: null,
+    };
+    const cutoff = AGENT_TIMESTAMP.getTime() + 1;
+    const result = tree(
+      [root],
+      [
+        base,
+        { ...base, id: "recent", updatedAt: new Date(cutoff).toISOString() },
+        { ...base, id: "running", status: "running" },
+      ],
+      new Set(),
+      true,
+      cutoff,
+    );
+    expect(result[0]?.children.map((node) => node.key)).toEqual([
+      "provider:parent:recent",
+      "provider:parent:running",
+    ]);
+  });
+  it("orders sibling threads by last activity descending, including native children and live updates", () => {
+    const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });
+    const child = (id: string, delta: number, parentAgentId = "parent") =>
+      makeAgent({
+        id,
+        parentAgentId,
+        lastActivityAt: new Date(AGENT_TIMESTAMP.getTime() + delta),
+      });
+    const native: ProviderSubagentDescriptorPayload = {
+      id: "native",
+      parentAgentId: "parent",
+      parentSubagentId: null,
+      provider: "claude",
+      title: "Explore",
+      description: null,
+      status: "completed",
+      createdAt: AGENT_TIMESTAMP.toISOString(),
+      updatedAt: new Date(AGENT_TIMESTAMP.getTime() + 2000).toISOString(),
+      toolCallId: null,
+    };
+    const agents = [
+      root,
+      child("old", 0),
+      child("new", 3000),
+      child("nested-old", 0, "old"),
+      child("nested-new", 1000, "old"),
+    ];
+    const result = tree(agents, [native]);
+    expect(result[0]?.children.map((node) => node.key)).toEqual([
+      "agent:new",
+      "provider:parent:native",
+      "agent:old",
+    ]);
+    expect(result[0]?.children[2]?.children.map((node) => node.key)).toEqual([
+      "agent:nested-new",
+      "agent:nested-old",
+    ]);
+    const updated = tree(
+      agents,
+      [native],
+      new Set(),
+      true,
+      undefined,
+      new Map([["old", new Date(AGENT_TIMESTAMP.getTime() + 4000)]]),
+    );
+    expect(updated[0]?.children[0]?.key).toBe("agent:old");
   });
   it("cuts cyclic metadata instead of recursively rendering it forever", () => {
     const root = makeAgent({ id: "a", workspaceId: "workspace-a", parentAgentId: "b" });

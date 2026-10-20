@@ -61,6 +61,10 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
       parentId: pair.child.id,
       title: "Verification child",
     });
+    const sibling = await seedSubagent(workspace, {
+      parentId: pair.parent.id,
+      title: "More recent sibling",
+    });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.emulateMedia({ colorScheme: "dark" });
     await openAgentRoute(page, { workspaceId: pair.workspaceId, agentId: pair.parent.id });
@@ -71,6 +75,10 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await expect(root).toHaveCount(0);
     await expect(child).toBeVisible({ timeout: 30_000 });
     await expect(nested).toBeVisible();
+    const siblingRow = page.getByTestId(`sidebar-agent-tree-row-agent:${sibling.id}`);
+    await expect(siblingRow).toBeVisible();
+    expect((await siblingRow.boundingBox())!.y).toBeLessThan((await child.boundingBox())!.y);
+
     const serverId = getServerId();
     const workspaceRow = page.getByTestId(`sidebar-workspace-row-${serverId}:${pair.workspaceId}`);
     const workspaceToggle = page.getByTestId(
@@ -96,6 +104,10 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await expect(running).toHaveCount(0);
     await workspace.client.sendAgentMessage(pair.child.id, "Show the sidebar running indicator.");
     await expect(running).toBeVisible();
+    await expect
+      .poll(async () => (await child.boundingBox())!.y < (await siblingRow.boundingBox())!.y)
+      .toBe(true);
+
     await workspace.client.waitForFinish(pair.child.id, 30_000);
     await expect(running).toHaveCount(0);
     const childBox = await child.boundingBox();
@@ -122,8 +134,9 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await page.screenshot({ path: "/tmp/paseoi-sidebar-agent-tree.png" });
     await openSubagentsTrack(page);
     await detachSubagentFromTrack(page, pair.child.id);
-    // The detached coordinator still owns its own child, so it becomes a distinct root group.
-    await expect(root).toHaveCount(0);
+    // Both coordinators still own children, so each now has a distinct root group.
+    await expect(root).toBeVisible();
+    await expect(siblingRow).toBeVisible();
     await expect(child).toBeVisible();
     await expect(nested).toBeVisible();
   } finally {
@@ -166,7 +179,7 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
           server.send(message);
           return;
         }
-        const timestamp = "2026-10-17T00:00:00.000Z";
+        const timestamp = new Date().toISOString();
         if (eventType === "agent.provider_subagents.list.request") {
           // Protocol fixtures exercise native-child presentation without launching a paid provider.
           const descriptor = {
@@ -188,6 +201,14 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
                   parentAgentId: parent.id,
                   error: null,
                   subagents: [
+                    {
+                      ...descriptor,
+                      id: "old-native-child",
+                      status: "completed",
+                      parentSubagentId: null,
+                      description: "Inactive native child",
+                      updatedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+                    },
                     {
                       ...descriptor,
                       id: "native-child",
@@ -253,6 +274,11 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
     await page.setViewportSize({ width: 1400, height: 900 });
     await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: parent.id });
     const child = page.getByTestId(`sidebar-agent-tree-row-provider:${parent.id}:native-child`);
+    await expect(child).toBeVisible();
+    await expect(
+      page.getByTestId(`sidebar-agent-tree-row-provider:${parent.id}:old-native-child`),
+    ).toHaveCount(0);
+
     const nested = page.getByTestId(
       `sidebar-agent-tree-row-provider:${parent.id}:native-grandchild`,
     );
