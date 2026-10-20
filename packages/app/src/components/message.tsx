@@ -338,6 +338,9 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
       : {}),
   },
   imagePreviewContainer: {
+    width: 640,
+    maxWidth: "100%",
+    justifyContent: "flex-end",
     flexDirection: "row",
     gap: theme.spacing[2],
     flexWrap: "wrap",
@@ -377,24 +380,37 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
   },
 }));
 
-interface UserMessageImagePillProps {
+interface UserMessageImagePreviewProps {
   image: UserMessageImageAttachment;
   onOpen: (image: UserMessageImageAttachment) => void;
   accessibilityLabel: string;
 }
 
-function UserMessageImagePill({ image, onOpen, accessibilityLabel }: UserMessageImagePillProps) {
+function UserMessageImagePreview({
+  image,
+  onOpen,
+  accessibilityLabel,
+}: UserMessageImagePreviewProps) {
   const handlePress = useCallback(() => {
     onOpen(image);
   }, [onOpen, image]);
   return (
     <AttachmentFrame onPress={handlePress} accessibilityLabel={accessibilityLabel}>
-      <AttachmentThumbnail metadata={image} />
+      <AttachmentThumbnail metadata={image} size="message" />
     </AttachmentFrame>
   );
 }
 
 const MESSAGE_TEXT_DATASET = { messageText: "true" };
+
+function showUserMessageActions(
+  pending: boolean,
+  hasText: boolean,
+  compact: boolean,
+  hovered: boolean,
+) {
+  return !pending && hasText && (compact || isNative || hovered);
+}
 
 export const UserMessage = memo(function UserMessage(props: UserMessageProps) {
   return props.imageSources?.length && !props.images?.length ? (
@@ -489,7 +505,7 @@ const UserMessageContent = memo(function UserMessageContent({
     },
     [details, images, onOpenWorkspaceFile],
   );
-  const showTrailingRow = !isPending && hasText && (isCompact || isNative || isHovered);
+  const showTrailingRow = showUserMessageActions(isPending, hasText, isCompact, isHovered);
   const timestampDate = useMemo(() => new Date(timestamp), [timestamp]);
   const rewindMutation = useRewindAgentMutation({ serverId, agentId, client, messageId });
 
@@ -545,68 +561,70 @@ const UserMessageContent = memo(function UserMessageContent({
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
-        <View style={userMessageStylesheet.bubble}>
-          {imageRecoveryStatus ? (
-            <Text style={userMessageStylesheet.text}>
-              {t(
-                imageRecoveryStatus === "unavailable"
-                  ? "message.attachments.imageLoadFailed"
-                  : "common.loading",
-              )}
-            </Text>
-          ) : null}
-          {hasImages ? (
-            <View style={imagePreviewContainerStyle}>
-              {images.map((image) => (
-                <UserMessageImagePill
-                  key={image.id}
-                  image={image}
-                  onOpen={setLightboxMetadata}
-                  accessibilityLabel={t("composer.attachments.openImage")}
-                />
-              ))}
-            </View>
-          ) : null}
-          {hasAttachments ? (
-            <View style={attachmentPreviewContainerStyle}>
-              {visibleAttachments.map((attachment, index) => {
-                const content = getAgentAttachmentPillContent(attachment, t);
-                return (
-                  <AttachmentFrame
-                    key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
-                  >
-                    <AttachmentLabel
-                      icon={content.icon}
-                      title={content.title}
-                      subtitle={content.subtitle}
+        {hasImages ? (
+          <View style={imagePreviewContainerStyle} testID="user-message-image-gallery">
+            {images.map((image) => (
+              <UserMessageImagePreview
+                key={image.id}
+                image={image}
+                onOpen={setLightboxMetadata}
+                accessibilityLabel={t("composer.attachments.openImage")}
+              />
+            ))}
+          </View>
+        ) : null}
+        {hasText || hasAttachments || imageRecoveryStatus ? (
+          <View style={userMessageStylesheet.bubble} testID="user-message-bubble">
+            {imageRecoveryStatus ? (
+              <Text style={userMessageStylesheet.text}>
+                {t(
+                  imageRecoveryStatus === "unavailable"
+                    ? "message.attachments.imageLoadFailed"
+                    : "common.loading",
+                )}
+              </Text>
+            ) : null}
+            {hasAttachments ? (
+              <View style={attachmentPreviewContainerStyle}>
+                {visibleAttachments.map((attachment, index) => {
+                  const content = getAgentAttachmentPillContent(attachment, t);
+                  return (
+                    <AttachmentFrame
+                      key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
+                    >
+                      <AttachmentLabel
+                        icon={content.icon}
+                        title={content.title}
+                        subtitle={content.subtitle}
+                      />
+                    </AttachmentFrame>
+                  );
+                })}
+              </View>
+            ) : null}
+            {hasText ? (
+              <AssistantFileLinkResolverProvider
+                client={client}
+                serverId={serverId}
+                workspaceRoot={workspaceRoot}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+              >
+                <MarkdownReferenceContext.Provider value={details}>
+                  <View dataSet={MESSAGE_TEXT_DATASET}>
+                    <MarkdownRenderer
+                      text={message}
+                      variant="user"
+                      onLinkPress={handleUserLinkPress}
+                      client={client ?? undefined}
+                      workspaceRoot={workspaceRoot}
+                      serverId={serverId}
                     />
-                  </AttachmentFrame>
-                );
-              })}
-            </View>
-          ) : null}
-          {hasText ? (
-            <AssistantFileLinkResolverProvider
-              client={client}
-              serverId={serverId}
-              workspaceRoot={workspaceRoot}
-              onOpenWorkspaceFile={onOpenWorkspaceFile}
-            >
-              <MarkdownReferenceContext.Provider value={details}>
-                <View dataSet={MESSAGE_TEXT_DATASET}>
-                  <MarkdownRenderer
-                    text={message}
-                    variant="user"
-                    onLinkPress={handleUserLinkPress}
-                    client={client ?? undefined}
-                    workspaceRoot={workspaceRoot}
-                    serverId={serverId}
-                  />
-                </View>
-              </MarkdownReferenceContext.Provider>
-            </AssistantFileLinkResolverProvider>
-          ) : null}
-        </View>
+                  </View>
+                </MarkdownReferenceContext.Provider>
+              </AssistantFileLinkResolverProvider>
+            ) : null}
+          </View>
+        ) : null}
         {hasText ? (
           <View
             style={trailingRowStyle}

@@ -10,6 +10,7 @@ import type { Theme } from "@/styles/theme";
 
 const ATTACHMENT_CONTENT_HEIGHT = 48;
 const IMAGE_PREVIEW_SIZE = 120;
+const MESSAGE_IMAGE_PREVIEW_SIZE = 200;
 
 interface AttachmentPillProps {
   onOpen: () => void;
@@ -150,12 +151,16 @@ export function AttachmentThumbnail({
   size = "small",
 }: {
   metadata: AttachmentMetadata;
-  size?: "small" | "large";
+  size?: "small" | "large" | "message";
 }) {
   const uri = useAttachmentPreviewUrl(metadata);
   const source = useMemo(() => ({ uri: uri ?? "" }), [uri]);
   const thumbnailStyle = useMemo(
-    () => [styles.thumbnail, size === "large" && styles.largeThumbnail],
+    () => [
+      styles.thumbnail,
+      size === "large" && styles.largeThumbnail,
+      size === "message" && styles.messageThumbnail,
+    ],
     [size],
   );
   const placeholderStyle = useMemo(
@@ -213,6 +218,7 @@ const styles = StyleSheet.create((theme) => ({
     height: ATTACHMENT_CONTENT_HEIGHT,
   },
   largeThumbnail: { width: IMAGE_PREVIEW_SIZE, height: IMAGE_PREVIEW_SIZE },
+  messageThumbnail: { width: MESSAGE_IMAGE_PREVIEW_SIZE, height: MESSAGE_IMAGE_PREVIEW_SIZE },
   thumbnailPlaceholder: {
     backgroundColor: theme.colors.surface1,
   },

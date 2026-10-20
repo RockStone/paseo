@@ -235,12 +235,51 @@ test.describe("Composer attachments", () => {
       await expectComposerVisible(page);
       await attachImageFromMenu(page, TEST_IMAGE);
       await attachImageFromMenu(page, { ...TEST_IMAGE, name: "second.png" });
+      await attachImageFromMenu(page, { ...TEST_IMAGE, name: "third.png" });
+      await attachImageFromMenu(page, { ...TEST_IMAGE, name: "fourth.png" });
       await fillComposerDraft(page, "First image group");
       await sendComposerWithButton(page);
       const first = page.getByTestId("user-message").filter({ hasText: "First image group" });
       const images = first.getByRole("button", { name: "Open image attachment" });
-      await expect(images).toHaveCount(2);
+      await expect(images).toHaveCount(4);
       await expectAgentIdle(page);
+      const gallery = first.getByTestId("user-message-image-gallery");
+      const bubble = first.getByTestId("user-message-bubble");
+      await expect(bubble.getByRole("button", { name: "Open image attachment" })).toHaveCount(0);
+      const desktopGeometry = await gallery.evaluate((element) => {
+        const rects = [];
+        for (const image of element.querySelectorAll('[role="button"]')) {
+          rects.push(image.getBoundingClientRect().toJSON());
+        }
+        return { gallery: element.getBoundingClientRect().toJSON(), images: rects };
+      });
+      const textGeometry = await bubble.boundingBox();
+      if (!textGeometry) throw new Error("Missing sent text bubble");
+      expect(desktopGeometry.gallery.width).toBeLessThanOrEqual(640);
+      expect(desktopGeometry.gallery.bottom).toBeLessThanOrEqual(textGeometry.y - 8);
+      for (const rect of desktopGeometry.images) {
+        expect(rect.width).toBeGreaterThanOrEqual(200);
+        expect(rect.height).toBeGreaterThanOrEqual(200);
+      }
+      expect(desktopGeometry.images[0].y).toBe(desktopGeometry.images[1].y);
+      expect(desktopGeometry.images[3].y).toBeGreaterThan(desktopGeometry.images[0].y);
+      expect(desktopGeometry.gallery.right).toBe(textGeometry.x + textGeometry.width);
+      await first.screenshot({ path: "/tmp/paseoi-r56-sent-images.png" });
+      const viewport = page.viewportSize();
+      if (!viewport) throw new Error("Missing browser viewport");
+      await page.setViewportSize({ width: 390, height: 844 });
+      const compactGeometry = await gallery.evaluate((element) => {
+        const rects = [];
+        for (const image of element.querySelectorAll('[role="button"]')) {
+          rects.push(image.getBoundingClientRect().toJSON());
+        }
+        return { gallery: element.getBoundingClientRect().toJSON(), images: rects };
+      });
+      expect(compactGeometry.gallery.width).toBeLessThanOrEqual(390);
+      expect(compactGeometry.images[1].y).toBeGreaterThan(compactGeometry.images[0].y);
+      expect(compactGeometry.images[0].right).toBeLessThanOrEqual(compactGeometry.gallery.right);
+      expect(compactGeometry.images[0].left).toBeGreaterThanOrEqual(compactGeometry.gallery.left);
+      await page.setViewportSize(viewport);
       await attachImageFromMenu(page, { ...TEST_IMAGE, name: "other-message.png" });
       await fillComposerDraft(page, "Separate image group");
       await sendComposerWithButton(page);
@@ -250,7 +289,7 @@ test.describe("Composer attachments", () => {
       await expectAgentIdle(page);
       await images.nth(1).click();
       await page.screenshot({ path: "/tmp/paseoi-sent-image-gallery.png" });
-      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 2");
+      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 4");
       // Sample actual painted-frame geometry while changing images, not just the final state.
       await page.evaluate(() => {
         interface Frame {
@@ -280,7 +319,7 @@ test.describe("Composer attachments", () => {
         requestAnimationFrame(sample);
       });
       await page.getByTestId("attachment-lightbox-previous").click();
-      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 2");
+      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 4");
       await page.waitForFunction(
         () =>
           ((window as Window & { __paseoiGalleryFrames?: unknown[] }).__paseoiGalleryFrames
@@ -307,12 +346,12 @@ test.describe("Composer attachments", () => {
         expect(frame.images[0].height).toBeLessThanOrEqual(641);
       }
       await page.keyboard.press("ArrowRight");
-      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 2");
+      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("2 / 4");
       await closeImageLightbox(page);
       await page.reload();
-      await expect(images).toHaveCount(2, { timeout: 30_000 });
+      await expect(images).toHaveCount(4, { timeout: 30_000 });
       await images.first().click();
-      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 2");
+      await expect(page.getByTestId("attachment-lightbox-position")).toHaveText("1 / 4");
       await expect(page.getByTestId("attachment-lightbox-image")).toBeVisible();
       await closeImageLightbox(page);
       await expect(first).toBeVisible();
