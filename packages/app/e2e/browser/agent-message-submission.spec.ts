@@ -199,6 +199,9 @@ baseTest(
       await expect(message.getByRole("button", { name: "Copy table", exact: true })).toHaveCount(2);
       await message.getByRole("table").first().hover();
       const copy = message.getByTestId("markdown-table-copy").first();
+      await copy.hover();
+      await page.waitForTimeout(400);
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
       const geometry = await message
         .getByRole("table")
         .first()

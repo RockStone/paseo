@@ -4,7 +4,6 @@ import { View, Text } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { Copy, Check } from "lucide-react-native";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { markdownTableSources } from "./source";
 import { Button } from "@/components/ui/button";
 import { markdownCopyDataSet } from "@/assistant-selection-copy/markup";
@@ -126,27 +125,16 @@ function TableCopy({ markdownSource, index }: { markdownSource: string; index: n
   }, [t, markdownSource, index]);
   return (
     <View dataSet={markdownCopyDataSet.ignore} style={styles.tools}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <View collapsable={false}>
-            <Button
-              size="xs"
-              variant="ghost"
-              onPress={copy}
-              loading={pending}
-              disabled={pending}
-              leftIcon={copied ? Check : Copy}
-              accessibilityLabel={
-                copied ? t("message.actions.copied") : t("message.actions.copyTable")
-              }
-              testID="markdown-table-copy"
-            />
-          </View>
-        </TooltipTrigger>
-        <TooltipContent>
-          {copied ? t("message.actions.copied") : t("message.actions.copyTable")}
-        </TooltipContent>
-      </Tooltip>
+      <Button
+        size="xs"
+        variant="ghost"
+        onPress={copy}
+        loading={pending}
+        disabled={pending}
+        leftIcon={copied ? Check : Copy}
+        accessibilityLabel={copied ? t("message.actions.copied") : t("message.actions.copyTable")}
+        testID="markdown-table-copy"
+      />
       {error ? (
         <Text accessibilityRole="alert" style={styles.error}>
           {error}
