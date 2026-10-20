@@ -217,3 +217,59 @@ test("measures an overview heading that becomes loading after its idle mount", a
     await agent.cleanup();
   }
 });
+
+test("thinking stays muted and trims trailing blank lines without removing paragraph breaks", async ({
+  page,
+}) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "thinking-spacing-",
+    title: "Thinking spacing",
+    model: "ten-second-stream",
+  });
+  await agent.client.sendAgentMessage(agent.agentId, "Check thinking presentation.");
+  await agent.client.waitForFinish(agent.agentId, 30_000);
+  await page.addInitScript(() => {
+    localStorage.setItem("@paseo:app-settings", JSON.stringify({ autoExpandReasoning: true }));
+  });
+  await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      const raw = typeof message === "string" ? message : message.toString("utf8");
+      const envelope = JSON.parse(raw);
+      const payload = envelope.message?.payload;
+      if (payload?.agentId === agent.agentId && payload.entries) {
+        for (const entry of payload.entries) {
+          if (entry.item?.type === "reasoning") {
+            entry.item.text = "First thought.\n\nFinal thought.\n\n";
+          }
+        }
+        ws.send(JSON.stringify(envelope));
+      } else ws.send(message);
+    });
+  });
+  try {
+    await openAgentRoute(page, agent);
+    await expectComposerVisible(page);
+    const badge = page.getByTestId("tool-call-badge").filter({ hasText: "Thinking" }).first();
+    await expect(badge).toBeVisible();
+    const body = badge.getByText("First thought.\n\nFinal thought.", { exact: true });
+    if (!(await body.isVisible())) await badge.getByRole("button").first().click();
+    await expect(body).toBeVisible();
+    expect(await body.textContent()).toBe("First thought.\n\nFinal thought.");
+    const command = page.getByTestId("tool-call-badge").getByText("Read", { exact: true }).first();
+    await expect(command).toBeVisible();
+    const color = await command.evaluate((element) => getComputedStyle(element).color);
+    await expect(body).toHaveCSS("color", color);
+    await expect(badge.getByText("Thinking", { exact: true })).toHaveCSS("color", color);
+    const bottomGap = await body.evaluate((element) => {
+      const thinkingBadge = element.closest('[data-testid="tool-call-badge"]');
+      if (!thinkingBadge) throw new Error("Missing thinking badge");
+      return thinkingBadge.getBoundingClientRect().bottom - element.getBoundingClientRect().bottom;
+    });
+    expect(bottomGap).toBeLessThanOrEqual(14);
+    await badge.screenshot({ path: "/tmp/paseoi-r55-thinking.png" });
+  } finally {
+    await agent.cleanup();
+  }
+});

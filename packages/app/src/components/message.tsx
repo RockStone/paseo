@@ -1576,6 +1576,7 @@ interface ExpandableBadgeProps {
   isLastInSequence?: boolean;
   disableOuterSpacing?: boolean;
   borderlessWhenExpanded?: boolean;
+  muted?: boolean;
   testID?: string;
 }
 
@@ -1939,6 +1940,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   isLastInSequence = false,
   disableOuterSpacing,
   borderlessWhenExpanded = false,
+  muted = false,
   testID,
 }: ExpandableBadgeProps) {
   const resolvedDisableOuterSpacing = useDisableOuterSpacing(disableOuterSpacing);
@@ -1995,7 +1997,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   } = computeShimmerMetrics({
     label,
     secondaryLabel,
-    isLoading,
+    isLoading: isLoading && !muted,
     labelRowWidth,
     labelRowHeight,
     labelOffsetX,
@@ -2132,10 +2134,10 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   const labelStyle = useMemo(
     () => [
       expandableBadgeStylesheet.label,
-      isActive && expandableBadgeStylesheet.labelActive,
-      isLoading && expandableBadgeStylesheet.labelLoading,
+      isActive && !muted && expandableBadgeStylesheet.labelActive,
+      isLoading && !muted && expandableBadgeStylesheet.labelLoading,
     ],
-    [isActive, isLoading],
+    [isActive, isLoading, muted],
   );
 
   const secondaryLabelStyle = useMemo(
@@ -2149,11 +2151,11 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   const shimmerLabelTextStyle = useMemo(
     () => [
       expandableBadgeStylesheet.label,
-      isLoading && expandableBadgeStylesheet.labelLoading,
+      isLoading && !muted && expandableBadgeStylesheet.labelLoading,
       expandableBadgeStylesheet.shimmerText,
       shimmerLabelStyle,
     ],
-    [isLoading, shimmerLabelStyle],
+    [isLoading, muted, shimmerLabelStyle],
   );
 
   const shimmerSecondaryTextStyle = useMemo(
@@ -2260,6 +2262,7 @@ function areExpandableBadgePropsEqual(previous: ExpandableBadgeProps, next: Expa
   if (previous.isLastInSequence !== next.isLastInSequence) return false;
   if (previous.disableOuterSpacing !== next.disableOuterSpacing) return false;
   if (previous.borderlessWhenExpanded !== next.borderlessWhenExpanded) return false;
+  if (previous.muted !== next.muted) return false;
   if (previous.testID !== next.testID) return false;
   if (previous.onToggle !== next.onToggle) return false;
   if (previous.onOpenFile !== next.onOpenFile) return false;
@@ -2438,6 +2441,7 @@ export const ToolCall = memo(function ToolCall({
     <ExpandableBadge
       testID="tool-call-badge"
       label={presentation.displayName}
+      muted={toolName === "thinking"}
       secondaryLabel={presentation.summary}
       icon={presentation.icon}
       isExpanded={shouldRenderInline && isExpanded}

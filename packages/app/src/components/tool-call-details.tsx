@@ -494,7 +494,15 @@ function FetchDetailSection({ url, result, ds }: FetchDetailProps) {
   );
 }
 
-function ScrollablePlainTextSection({ text, ds }: { text: string; ds: DetailStyles }) {
+function ScrollablePlainTextSection({
+  text,
+  ds,
+  muted = false,
+}: {
+  text: string;
+  ds: DetailStyles;
+  muted?: boolean;
+}) {
   return (
     <View style={styles.section}>
       <ScrollView
@@ -503,7 +511,7 @@ function ScrollablePlainTextSection({ text, ds }: { text: string; ds: DetailStyl
         nestedScrollEnabled
         showsVerticalScrollIndicator
       >
-        <Text selectable style={styles.plainText}>
+        <Text selectable style={muted ? styles.thinkingText : styles.plainText}>
           {text}
         </Text>
       </ScrollView>
@@ -793,6 +801,18 @@ export function ToolCallDetailsContent({
   const ds = useDetailStyles(detail, resolvedMaxHeight, fillAvailableHeight);
   const diffLines = useDiffLines(detail);
 
+  // Provider reasoning often ends in blank lines; keep paragraph spacing within the text only.
+  let thinkingText: string | null = null;
+  if (toolName === "thinking") {
+    if (detail?.type === "plain_text") thinkingText = detail.text ?? null;
+    else if (detail?.type === "unknown" && typeof detail.input === "string") {
+      thinkingText = detail.input;
+    }
+  }
+  if (thinkingText !== null) {
+    return <ScrollablePlainTextSection text={thinkingText.trimEnd()} ds={ds} muted />;
+  }
+
   const sections: ReactNode[] = buildDetailSections(toolName, detail, diffLines, ds, t);
 
   if (errorText) {
@@ -888,6 +908,13 @@ const styles = StyleSheet.create((theme) => {
       fontFamily: theme.fontFamily.ui,
       fontSize: theme.fontSize.base,
       color: theme.colors.foreground,
+      lineHeight: 22,
+      overflowWrap: "anywhere",
+    },
+    thinkingText: {
+      fontFamily: theme.fontFamily.ui,
+      fontSize: theme.fontSize.base,
+      color: theme.colors.foregroundMuted,
       lineHeight: 22,
       overflowWrap: "anywhere",
     },
