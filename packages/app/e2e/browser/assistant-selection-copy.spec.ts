@@ -751,11 +751,24 @@ test("replying to selected assistant text preserves the draft and focuses the co
     const reply = page.getByTestId("reply-to-selection");
     await expect(reply).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("selection-reply-action.png") });
+    await agent.client.sendAgentMessage(agent.agentId, "Add another streamed reply.");
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    // Markdown replacement can collapse the DOM selection; the captured excerpt survives.
+    await page.evaluate(() => {
+      window.getSelection()?.removeAllRanges();
+      document.dispatchEvent(new Event("selectionchange"));
+      window.dispatchEvent(new Event("scroll"));
+    });
+    await expect(reply).toBeVisible();
     await reply.click();
-    await expect(composer).toHaveValue("My existing draft\n\n> PostgreSQL databases\n\n");
+    await expect(composer).toHaveAttribute(
+      "data-markdown",
+      "My existing draft\n\n> PostgreSQL databases\n\n",
+    );
     await expect(composer).toBeFocused();
     await composer.pressSequentially("Please clarify this.");
-    await expect(composer).toHaveValue(
+    await expect(composer).toHaveAttribute(
+      "data-markdown",
       "My existing draft\n\n> PostgreSQL databases\n\nPlease clarify this.",
     );
     await page.screenshot({ path: testInfo.outputPath("selection-reply-composer.png") });
@@ -763,7 +776,8 @@ test("replying to selected assistant text preserves the draft and focuses the co
     await expect(reply).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(reply).toHaveCount(0);
-    await expect(composer).toHaveValue(
+    await expect(composer).toHaveAttribute(
+      "data-markdown",
       "My existing draft\n\n> PostgreSQL databases\n\nPlease clarify this.",
     );
   } finally {

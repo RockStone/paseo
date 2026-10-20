@@ -51,15 +51,11 @@ export function AssistantSelectionCopySurface({
       const selection = window.getSelection();
       const surface = surfaceRef.current;
       if (!selection || !surface || selection.rangeCount !== 1 || selection.isCollapsed) {
-        setReply(null);
         return;
       }
       const text = createSelectionReplyText(selection, surface);
       const anchor = selectionReplyAnchor(selection);
-      if (!text || !anchor) {
-        setReply(null);
-        return;
-      }
+      if (!text || !anchor) return;
       setReply({ text, anchor });
     }
     function dismiss() {
@@ -72,13 +68,18 @@ export function AssistantSelectionCopySurface({
     document.addEventListener("selectionchange", readSelection);
     document.addEventListener("pointerup", readSelection);
     document.addEventListener("pointerdown", onPointerDown, true);
-    window.addEventListener("scroll", dismiss, true);
+    // Layout-driven scrolling and DOM replacement must not erase a captured excerpt.
+    window.addEventListener("scroll", readSelection, true);
+    window.addEventListener("wheel", dismiss, { capture: true, passive: true });
+    window.addEventListener("touchmove", dismiss, { capture: true, passive: true });
     window.addEventListener("resize", dismiss);
     return () => {
       document.removeEventListener("selectionchange", readSelection);
       document.removeEventListener("pointerup", readSelection);
       document.removeEventListener("pointerdown", onPointerDown, true);
-      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("scroll", readSelection, true);
+      window.removeEventListener("wheel", dismiss, true);
+      window.removeEventListener("touchmove", dismiss, true);
       window.removeEventListener("resize", dismiss);
     };
   }, [onReply, active]);
