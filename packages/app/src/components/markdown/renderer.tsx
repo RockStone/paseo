@@ -11,6 +11,8 @@ import { useStableEvent } from "@/hooks/use-stable-event";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import type { Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
+import { density, resolveDensity } from "@/styles/density";
+import { MarkdownBlockStack } from "./block-stack";
 import { MarkdownRendererFrame } from "./frame";
 import { WEB_RENDERERS } from "./renderers";
 import { createMarkdownStyles } from "./styles";
@@ -23,10 +25,18 @@ import { MermaidFence, MermaidStreamingContext, splitMermaidFences } from "./fen
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
 
-const regularStyle = (theme: Theme) => createMarkdownStyles(theme);
-const userStyle = (theme: Theme) => createMarkdownStyles(theme, false, "user");
-const compactStyle = (theme: Theme) => createMarkdownStyles(theme, true);
-const WEB_CONTAINER = { userSelect: "text" as const };
+// Reading the breakpoint here makes Unistyles restyle the text when the layout crosses it.
+const markdownStyle =
+  (compact: boolean, variant: "default" | "user" = "default") =>
+  (theme: Theme, rt: { breakpoint?: string }) =>
+    createMarkdownStyles(theme, {
+      compact,
+      blockGap: resolveDensity(rt, density.blockGap),
+      variant,
+    });
+const regularStyle = markdownStyle(false);
+const userStyle = markdownStyle(false, "user");
+const compactStyle = markdownStyle(true);
 
 export interface MarkdownRendererProps extends MarkdownImageContext {
   text: string;
@@ -67,23 +77,22 @@ export const MarkdownRenderer = memo(function MarkdownRenderer(props: MarkdownRe
   }
   if (!streaming || boundary === 0) return <MarkdownPart {...props} />;
   return (
-    <>
-      <MarkdownPart {...props} text={props.text.slice(0, boundary)} continues />
+    <MarkdownBlockStack>
+      <MarkdownPart {...props} text={props.text.slice(0, boundary)} />
       <MarkdownPart {...props} text={props.text.slice(boundary)} />
-    </>
+    </MarkdownBlockStack>
   );
 });
 
 const MarkdownPart = memo(function MarkdownPart({
   text,
-  continues = false,
   compact = false,
   variant = "default",
   streaming = false,
   onLinkPress,
   imageLayout,
   ...imageContext
-}: MarkdownRendererProps & { continues?: boolean }) {
+}: MarkdownRendererProps) {
   const environment = useAssistantFileLinkEnvironment();
   const actions = useAssistantFileLinkActions();
   const client =
@@ -121,8 +130,8 @@ const MarkdownPart = memo(function MarkdownPart({
       isWeb ? [{ kind: "markdown", id: "0", source: markdown }] : splitMermaidFences(markdown),
     [markdown],
   );
-  let markdownStyle = compact ? compactStyle : regularStyle;
-  if (variant === "user") markdownStyle = userStyle;
+  let uniStyle = compact ? compactStyle : regularStyle;
+  if (variant === "user") uniStyle = userStyle;
   if (imageLayout === "gallery" && imageOnly) {
     return (
       <View style={galleryStyles.container} testID="assistant-image-gallery">
@@ -151,43 +160,36 @@ const MarkdownPart = memo(function MarkdownPart({
       </View>
     );
   }
-  const content = (
-    <MermaidStreamingContext.Provider value={streaming}>
-      {segments.map((segment) =>
-        segment.kind === "mermaid" ? (
-          <MermaidFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
-        ) : (
-          <ThemedMarkdown
-            key={`${segment.kind}:${segment.id}`}
-            markdown={segment.source}
-            containerStyle={isWeb ? WEB_CONTAINER : undefined}
-            uniProps={markdownStyle}
-            flavor="github"
-            selectable
-            allowTrailingMargin={continues && segment === segments[segments.length - 1]}
-            md4cFlags={MD4C_FLAGS}
-            linkRecognition={linkRecognition}
-            enableTaskListItemToggle={false}
-            enableLinkPreview={false}
-            enableBlockContextMenu={false}
-            // JS reveal owns pacing; native fade animation is a separate experiment.
-            streamingAnimation={false}
-            onLinkPress={pressLink}
-            onImagePress={pressImage}
-            renderers={isWeb ? WEB_RENDERERS : undefined}
-          />
-        ),
-      )}
-      {image ? <AttachmentLightbox source={image} onClose={closeImage} /> : null}
-    </MermaidStreamingContext.Provider>
-  );
   return (
-    <MarkdownRendererFrame
-      imageSources={imageSources}
-      watchTables={markdown.includes("|")}
-      markdownSource={text}
-    >
-      {content}
+    <MarkdownRendererFrame watchTables={markdown.includes("|")} markdownSource={text}>
+      <MermaidStreamingContext.Provider value={streaming}>
+        <MarkdownBlockStack imageSources={imageSources}>
+          {segments.map((segment) =>
+            segment.kind === "mermaid" ? (
+              <MermaidFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
+            ) : (
+              <ThemedMarkdown
+                key={`${segment.kind}:${segment.id}`}
+                markdown={segment.source}
+                uniProps={uniStyle}
+                flavor="github"
+                selectable
+                md4cFlags={MD4C_FLAGS}
+                linkRecognition={linkRecognition}
+                enableTaskListItemToggle={false}
+                enableLinkPreview={false}
+                enableBlockContextMenu={false}
+                // JS reveal owns pacing; native fade animation is a separate experiment.
+                streamingAnimation={false}
+                onLinkPress={pressLink}
+                onImagePress={pressImage}
+                renderers={isWeb ? WEB_RENDERERS : undefined}
+              />
+            ),
+          )}
+        </MarkdownBlockStack>
+        {image ? <AttachmentLightbox source={image} onClose={closeImage} /> : null}
+      </MermaidStreamingContext.Provider>
     </MarkdownRendererFrame>
   );
 });

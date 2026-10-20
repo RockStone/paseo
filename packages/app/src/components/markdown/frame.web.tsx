@@ -15,12 +15,10 @@ interface TableControl {
 }
 
 export function MarkdownRendererFrame({
-  imageSources,
   children,
   watchTables,
   markdownSource = "",
 }: {
-  imageSources: Record<string, string>;
   children: ReactElement;
   watchTables?: boolean;
   markdownSource?: string;
@@ -71,11 +69,7 @@ export function MarkdownRendererFrame({
     };
   }, [watchTables]);
   return (
-    <div
-      ref={frame}
-      className="paseo-markdown-frame"
-      data-paseo-markdown-image-sources={JSON.stringify(imageSources)}
-    >
+    <div ref={frame} className="paseo-markdown-frame">
       <style data-paseo-markdown-ignore="true">{`
         .paseo-markdown-frame blockquote p { color: inherit !important; }
         .paseo-table-wrapper { position: relative; }
