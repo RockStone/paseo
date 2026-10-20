@@ -75,6 +75,7 @@ export function ZoomableImage({
       accessibilityLabel={accessibilityLabel}
       actions={actions}
       contentSize={resolvedSize}
+      clickToZoom
       fit={fit}
       maxScale={maxScale}
       minScale={minScale}

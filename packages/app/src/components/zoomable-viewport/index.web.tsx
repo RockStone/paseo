@@ -52,6 +52,7 @@ export function ZoomableViewport({
   maxScale = DEFAULT_MAX_SCALE,
   minScale = DEFAULT_MIN_SCALE,
   onPressOutsideContent,
+  clickToZoom = false,
   onReady,
   style,
   testID,
@@ -251,17 +252,22 @@ export function ZoomableViewport({
         suppressClickRef.current = false;
         return;
       }
-      if (!fittedContent || !viewport || !onPressOutsideContent) return;
+      if (!fittedContent || !viewport) return;
       const bounds = event.currentTarget.getBoundingClientRect();
+      const point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
       const isInside = isPointInsideTransformedContent({
-        point: { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
+        point,
         transform: transformRef.current,
         fittedContent,
         viewport,
       });
-      if (!isInside) onPressOutsideContent();
+      if (!isInside) onPressOutsideContent?.();
+      else if (clickToZoom) {
+        if (transformRef.current.scale > 1) reset();
+        else zoomAt(2, point);
+      }
     },
-    [fittedContent, onPressOutsideContent, viewport],
+    [clickToZoom, fittedContent, onPressOutsideContent, reset, viewport, zoomAt],
   );
 
   const renderedCanvasStyle = useMemo<React.CSSProperties>(() => {
@@ -269,15 +275,18 @@ export function ZoomableViewport({
     if (transform.scale > 1) cursor = isDragging ? "grabbing" : "grab";
     return { ...canvasDomStyle, cursor };
   }, [isDragging, transform.scale]);
-  const renderedContentStyle = useMemo<React.CSSProperties>(
-    () => ({
+  const renderedContentStyle = useMemo<React.CSSProperties>(() => {
+    let cursor: React.CSSProperties["cursor"];
+    if (clickToZoom) cursor = transform.scale > 1 ? "zoom-out" : "zoom-in";
+    if (isDragging) cursor = "grabbing";
+    return {
       ...contentDomStyle,
+      cursor,
       width: fittedContent?.width ?? 0,
       height: fittedContent?.height ?? 0,
       transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
-    }),
-    [fittedContent, transform],
-  );
+    };
+  }, [clickToZoom, fittedContent, isDragging, transform]);
   const controlsVisible = isHovered || isFocusWithin || hasTouchInput;
   const handleFocus = useCallback(() => setIsFocusWithin(true), []);
   const handleBlur = useCallback(() => setIsFocusWithin(false), []);

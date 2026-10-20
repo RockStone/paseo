@@ -110,7 +110,10 @@ test("opens a timeline image in a zoomable lightbox", async ({
   await openAssistantImageTimeline(page, imageAgent);
   await expectAssistantImageRendered(page, image);
 
-  await page.getByRole("button", { name: image.alt }).click();
+  await page
+    .getByTestId("assistant-image-gallery")
+    .getByRole("button", { name: image.alt })
+    .click();
   const lightboxImage = page.getByTestId("attachment-lightbox-image");
   const canvas = page.getByTestId("attachment-lightbox-canvas");
   await expect(lightboxImage).toBeVisible();
@@ -121,6 +124,19 @@ test("opens a timeline image in a zoomable lightbox", async ({
   expect(initialBox).not.toBeNull();
   expect(canvasBox).not.toBeNull();
   expect(initialBox!.width).toBeLessThan(canvasBox!.width);
+  await expect(transformedContent).toHaveCSS("cursor", "zoom-in");
+  await expect(lightboxImage).toHaveCSS("cursor", "zoom-in");
+  await lightboxImage.click();
+  await expect(transformedContent).toHaveCSS("cursor", "zoom-out");
+  await expect(lightboxImage).toHaveCSS("cursor", "zoom-out");
+  await expect
+    .poll(async () => Math.round((await transformedContent.boundingBox())?.width ?? 0))
+    .toBe(Math.round(initialBox!.width * 2));
+  await lightboxImage.click();
+  await expect(transformedContent).toHaveCSS("cursor", "zoom-in");
+  await expect
+    .poll(async () => Math.round((await transformedContent.boundingBox())?.width ?? 0))
+    .toBe(Math.round(initialBox!.width));
   const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
   await zoomIn.click();
   await zoomIn.click();
@@ -130,6 +146,17 @@ test("opens a timeline image in a zoomable lightbox", async ({
     .poll(async () => (await transformedContent.boundingBox())?.width ?? 0)
     .toBeGreaterThan(canvasBox!.width);
 
+  const zoomedWidth = (await transformedContent.boundingBox())!.width;
+  await page.mouse.move(canvasBox!.x + canvasBox!.width / 2, canvasBox!.y + canvasBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    canvasBox!.x + canvasBox!.width / 2 + 40,
+    canvasBox!.y + canvasBox!.height / 2,
+    { steps: 4 },
+  );
+  await page.mouse.up();
+  await expect(transformedContent).toHaveCSS("cursor", "zoom-out");
+  expect(Math.round((await transformedContent.boundingBox())!.width)).toBe(Math.round(zoomedWidth));
   await canvas.dblclick({ position: { x: canvasBox!.width / 2, y: canvasBox!.height / 2 } });
   await expect
     .poll(async () => Math.round((await transformedContent.boundingBox())?.width ?? 0))

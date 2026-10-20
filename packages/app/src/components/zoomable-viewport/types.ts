@@ -18,6 +18,7 @@ export interface ZoomableViewportProps {
   maxScale?: number;
   minScale?: number;
   onPressOutsideContent?: () => void;
+  clickToZoom?: boolean;
   onReady?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
