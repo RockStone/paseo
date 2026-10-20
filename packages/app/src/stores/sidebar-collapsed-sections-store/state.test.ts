@@ -5,6 +5,8 @@ import {
   serializeCollapsedProjects,
   setProjectCollapsed,
   togglePinnedCollapsed,
+  setProjectsCollapsed,
+  setWorkspaceGroupsCollapsed,
   toggleProjectCollapsed,
   toggleWorkspaceGroupCollapsed,
 } from "@/stores/sidebar-collapsed-sections-store/state";
@@ -50,6 +52,46 @@ describe("sidebar collapsed projects transitions", () => {
 
     const restored = mergePersistedCollapsedProjects({ collapsedPinned: true }, emptyState());
     expect(restored.collapsedPinned).toBe(true);
+  });
+
+  it("collapses and expands visible projects together while preserving other preferences", () => {
+    const current = toggleWorkspaceGroupCollapsed(
+      togglePinnedCollapsed(setProjectCollapsed(emptyState(), "filtered-project", true)),
+      "running",
+    );
+    const collapsed = setProjectsCollapsed(current, ["project-a", "project-b"], true);
+    expect([...collapsed.collapsedProjectKeys]).toEqual([
+      "filtered-project",
+      "project-a",
+      "project-b",
+    ]);
+    const restored = mergePersistedCollapsedProjects(
+      serializeCollapsedProjects(collapsed),
+      emptyState(),
+    );
+    expect(restored).toEqual(collapsed);
+    expect(setProjectsCollapsed(restored, ["project-a", "project-b"], false)).toEqual(current);
+  });
+
+  it("collapses status groups without changing project or pinned preferences", () => {
+    const current = togglePinnedCollapsed(setProjectCollapsed(emptyState(), "project-a", true));
+    const collapsed = setWorkspaceGroupsCollapsed(current, ["running", "done"], true);
+    expect([...collapsed.collapsedWorkspaceGroupKeys]).toEqual(["running", "done"]);
+    expect(setWorkspaceGroupsCollapsed(collapsed, ["running", "done"], false)).toEqual(current);
+  });
+
+  it("accepts the old section flag without discarding individual collapse preferences", () => {
+    const restored = mergePersistedCollapsedProjects(
+      {
+        collapsedWorkspaces: true,
+        collapsedProjectKeys: ["project-a"],
+        collapsedPinned: true,
+      },
+      emptyState(),
+    );
+    expect([...restored.collapsedProjectKeys]).toEqual(["project-a"]);
+    expect(restored.collapsedPinned).toBe(true);
+    expect(serializeCollapsedProjects(restored)).not.toHaveProperty("collapsedWorkspaces");
   });
 
   it("rejects the complete value when a persisted project key is invalid", () => {

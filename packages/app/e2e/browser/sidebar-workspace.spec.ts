@@ -564,6 +564,127 @@ test.describe("Mobile sidebar panelState transition", () => {
 test.describe("Half-screen desktop layout", () => {
   test.use({ viewport: { width: 751, height: 982 } });
 
+  for (const groupMode of ["project", "status"] as const) {
+    test(`keeps the Workspaces header sticky and collapses groups in ${groupMode} grouping`, async ({
+      page,
+    }) => {
+      const workspace = await seedWorkspace({ repoPrefix: "sidebar-sticky-section-" });
+      const secondProject = await seedWorkspace({ repoPrefix: "sidebar-collapse-second-" });
+      try {
+        const pair = await seedParentWithSubagent(workspace, {
+          parentTitle: "Sticky parent",
+          childTitle: "Sticky child",
+        });
+        const pinnedId = await createPinnedSiblingWorkspace(workspace);
+        for (let index = 0; index < 22; index += 1) {
+          await workspace.client.createWorkspace({
+            source: { kind: "directory", path: workspace.repoPath, projectId: workspace.projectId },
+            title: `Sticky workspace ${index + 1}`,
+          });
+        }
+        await page.setViewportSize({ width: 1100, height: 700 });
+        await page.emulateMedia({ colorScheme: "dark" });
+        await gotoAppShell(page);
+        await waitForSidebarProject(page, path.basename(workspace.repoPath));
+        const firstProjectRow = page.getByTestId(
+          `sidebar-project-row-${projectEquivalenceViewKey(workspace.projectKey)}`,
+        );
+        const secondProjectRow = page.getByTestId(
+          `sidebar-project-row-${projectEquivalenceViewKey(secondProject.projectKey)}`,
+        );
+        const secondWorkspaceRow = page.getByTestId(
+          getWorkspaceRowTestId(secondProject.workspaceId),
+        );
+        await expect(secondProjectRow).toBeVisible();
+        if (groupMode === "project") await secondProjectRow.click();
+        if (groupMode === "status") {
+          await page.getByTestId("sidebar-display-preferences-menu").click();
+          await page.getByTestId("sidebar-display-grouping").click();
+          await page.getByTestId("sidebar-grouping-status").click();
+          await page.keyboard.press("Escape");
+        }
+        await page
+          .getByTestId(
+            groupMode === "project"
+              ? `sidebar-project-show-more-${projectEquivalenceViewKey(workspace.projectKey)}`
+              : "sidebar-status-group-show-more-done",
+          )
+          .click();
+        const header = page.getByTestId("sidebar-workspaces-section-header");
+        const scroll = page.getByTestId(
+          groupMode === "project"
+            ? "sidebar-project-workspace-list-scroll"
+            : "sidebar-status-list-scroll",
+        );
+        const parent = page.getByTestId(getWorkspaceRowTestId(pair.workspaceId));
+        const pinned = page.getByTestId(getWorkspaceRowTestId(pinnedId));
+        const child = page.getByTestId(`sidebar-agent-tree-row-agent:${pair.child.id}`);
+        await expect(header).toHaveAttribute("aria-expanded", "true");
+        await expect(parent).toBeVisible();
+        await expect(pinned).toBeVisible();
+        await expect(child).toBeVisible();
+        await scroll.evaluate((element) => {
+          element.scrollTop = 160;
+        });
+        await expect(scroll).toHaveJSProperty("scrollTop", 160);
+        await expect
+          .poll(async () => {
+            const headerBox = await header.boundingBox();
+            const scrollBox = await scroll.boundingBox();
+            return Math.abs(headerBox!.y - scrollBox!.y);
+          })
+          .toBeLessThanOrEqual(3);
+        await page.screenshot({ path: `/tmp/paseoi-r61-sticky-${groupMode}.png` });
+        const routeBefore = page.url();
+        await header.click();
+        await expect(header).toHaveAttribute("aria-expanded", "false");
+        await page.screenshot({ path: `/tmp/paseoi-r61-collapsed-${groupMode}.png` });
+        await expect(parent).not.toBeVisible();
+        await expect(child).not.toBeVisible();
+        if (groupMode === "project") {
+          await expect(firstProjectRow).toBeVisible();
+          await expect(secondProjectRow).toBeVisible();
+        } else {
+          await expect(page.getByTestId("sidebar-status-group-done")).toBeVisible();
+        }
+        await expect(pinned).toBeVisible();
+        await expect(page.getByTestId("sidebar-display-preferences-menu")).toBeVisible();
+        expect(page.url()).toBe(routeBefore);
+        await header.click();
+        await expect(parent).toBeVisible();
+        await expect(secondWorkspaceRow).toBeVisible();
+        await expect(child).toBeVisible();
+        if (groupMode === "project") {
+          // A manual project toggle updates the aggregate control too.
+          await secondProjectRow.click();
+          await expect(header).toHaveAttribute("aria-expanded", "true");
+        }
+        await header.click();
+        await page.reload();
+        await expect(header).toHaveAttribute("aria-expanded", "false");
+        await expect(parent).not.toBeVisible();
+        await expect(child).not.toBeVisible();
+        if (groupMode === "project") {
+          await expect(firstProjectRow).toBeVisible();
+          await expect(secondProjectRow).toBeVisible();
+        } else {
+          await expect(page.getByTestId("sidebar-status-group-done")).toBeVisible();
+        }
+        await expect(pinned).toBeVisible();
+        await header.click();
+        // Reload resets the existing Show more limit, independently of section collapse.
+        if (groupMode === "status") {
+          await page.getByTestId("sidebar-status-group-show-more-done").click();
+        }
+        await expect(parent).toBeVisible();
+        await expect(secondWorkspaceRow).toBeVisible();
+      } finally {
+        await secondProject.cleanup();
+        await workspace.cleanup();
+      }
+    });
+  }
+
   test("keeps the sidebar scroll position across close and reopen", async ({ page }) => {
     const workspace = await seedWorkspace({ repoPrefix: "sidebar-retained-scroll-" });
 

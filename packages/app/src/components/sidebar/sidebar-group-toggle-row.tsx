@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
-import { ChevronDown, ChevronUp } from "lucide-react-native";
+import { ChevronRight, ChevronUp } from "lucide-react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { isWeb } from "@/constants/platform";
 import { DensityIcon } from "@/components/ui/density-icon";
@@ -63,7 +63,7 @@ export function SidebarGroupToggleRow({
         <>
           <View style={iconStyle}>
             <DensityIcon
-              icon={expanded ? ChevronUp : ChevronDown}
+              icon={expanded ? ChevronUp : ChevronRight}
               size="sm"
               color={hovered || pressed ? "foreground" : "foregroundMuted"}
             />

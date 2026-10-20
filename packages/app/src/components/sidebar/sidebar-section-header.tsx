@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react-native";
+import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { DensityIcon } from "@/components/ui/density-icon";
@@ -14,12 +14,14 @@ export function SidebarSectionHeader({
   collapsed,
   onToggle,
   testID,
+  leadingChevron = false,
   children,
 }: {
   title: string;
   collapsed?: boolean;
   onToggle?: () => void;
   testID?: string;
+  leadingChevron?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -30,6 +32,7 @@ export function SidebarSectionHeader({
           collapsed={collapsed ?? false}
           onToggle={onToggle}
           testID={testID}
+          leadingChevron={leadingChevron}
         />
       ) : (
         <Text style={styles.title} testID={testID}>
@@ -46,11 +49,13 @@ function CollapsibleTitle({
   collapsed,
   onToggle,
   testID,
+  leadingChevron,
 }: {
   title: string;
   collapsed: boolean;
   onToggle: () => void;
   testID?: string;
+  leadingChevron: boolean;
 }) {
   const isCompact = useIsCompactFormFactor();
   const accessibilityState = useMemo(() => ({ expanded: !collapsed }), [collapsed]);
@@ -59,14 +64,22 @@ function CollapsibleTitle({
     <Pressable
       accessibilityRole="button"
       accessibilityState={accessibilityState}
+      aria-expanded={!collapsed}
       onPress={onToggle}
       style={styles.toggle}
       testID={testID}
     >
       {({ hovered }) => (
         <>
+          {leadingChevron ? (
+            <DensityIcon
+              icon={collapsed ? ChevronRight : ChevronUp}
+              size="xs"
+              color="foregroundMuted"
+            />
+          ) : null}
           <Text style={styles.title}>{title}</Text>
-          {hovered || isNative || isCompact ? (
+          {!leadingChevron && (hovered || isNative || isCompact) ? (
             <DensityIcon
               icon={collapsed ? ChevronRight : ChevronDown}
               size="xs"

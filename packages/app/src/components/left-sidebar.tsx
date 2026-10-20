@@ -36,6 +36,7 @@ import { SidebarFooterIconHighlight } from "@/components/sidebar/sidebar-footer-
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { DensityIcon } from "@/components/ui/density-icon";
+import { useSidebarCollapsedSectionsStore } from "@/stores/sidebar-collapsed-sections-store";
 import { SidebarSectionHeader } from "@/components/sidebar/sidebar-section-header";
 import { Shortcut } from "@/components/ui/shortcut";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -809,8 +810,33 @@ function DesktopSidebar({
 }
 
 function WorkspacesSectionHeader() {
+  const { groupMode, pinnedGroups, workspaceGroups } = useSidebarModel();
+  const groupKeys = useMemo(
+    () =>
+      groupMode === "project"
+        ? pinnedGroups.unpinnedProjects.map((project) => project.viewKey)
+        : workspaceGroups.map((group) => group.key),
+    [groupMode, pinnedGroups.unpinnedProjects, workspaceGroups],
+  );
+  const collapsedKeys = useSidebarCollapsedSectionsStore((state) =>
+    groupMode === "project" ? state.collapsedProjectKeys : state.collapsedWorkspaceGroupKeys,
+  );
+  const setCollapsed = useSidebarCollapsedSectionsStore((state) =>
+    groupMode === "project" ? state.setProjectsCollapsed : state.setWorkspaceGroupsCollapsed,
+  );
+  const collapsed = groupKeys.length > 0 && groupKeys.every((key) => collapsedKeys.has(key));
+  const onToggle = useCallback(
+    () => setCollapsed(groupKeys, !collapsed),
+    [setCollapsed, groupKeys, collapsed],
+  );
   return (
-    <SidebarSectionHeader title="Workspaces">
+    <SidebarSectionHeader
+      title="Workspaces"
+      collapsed={collapsed}
+      onToggle={onToggle}
+      leadingChevron
+      testID="sidebar-workspaces-section-header"
+    >
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           <View>

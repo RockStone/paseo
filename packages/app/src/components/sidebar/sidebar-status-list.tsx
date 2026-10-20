@@ -201,42 +201,46 @@ export function SidebarStatusWorkspaceList({
       supportsPinningByServerId,
     ],
   );
-  const content = (
-    <>
-      {pinnedWorkspaces.length > 0 ? (
-        <View style={styles.pinnedSection} testID="sidebar-pinned-section">
-          <SidebarSectionHeader
-            title={t("sidebar.pinned.title")}
-            collapsed={pinnedCollapsed}
-            onToggle={togglePinnedCollapsed}
-            testID="sidebar-pinned-section-header"
-          />
-          {pinnedCollapsed ? null : (
-            <>
-              <DraggableList
-                testID="sidebar-pinned-list"
-                data={visiblePinnedWorkspaces}
-                keyExtractor={statusWorkspaceKeyExtractor}
-                renderItem={renderPinnedWorkspace}
-                onDragEnd={onPinnedWorkspaceReorder}
-                scrollEnabled={false}
-                useDragHandle
-                nestable={platformIsNative}
-                simultaneousGestureRef={parentGestureRef}
-                gestureHostPresented={dragGestureHostActive}
+  const content = [
+    pinnedWorkspaces.length > 0 ? (
+      <View key="pinned" style={styles.pinnedSection} testID="sidebar-pinned-section">
+        <SidebarSectionHeader
+          title={t("sidebar.pinned.title")}
+          collapsed={pinnedCollapsed}
+          onToggle={togglePinnedCollapsed}
+          testID="sidebar-pinned-section-header"
+        />
+        {pinnedCollapsed ? null : (
+          <>
+            <DraggableList
+              testID="sidebar-pinned-list"
+              data={visiblePinnedWorkspaces}
+              keyExtractor={statusWorkspaceKeyExtractor}
+              renderItem={renderPinnedWorkspace}
+              onDragEnd={onPinnedWorkspaceReorder}
+              scrollEnabled={false}
+              useDragHandle
+              nestable={platformIsNative}
+              simultaneousGestureRef={parentGestureRef}
+              gestureHostPresented={dragGestureHostActive}
+            />
+            {canTogglePinnedWorkspaces ? (
+              <SidebarGroupToggleRow
+                expanded={pinnedWorkspacesExpanded}
+                onPress={togglePinnedWorkspacesExpanded}
+                testID="sidebar-pinned-show-more"
               />
-              {canTogglePinnedWorkspaces ? (
-                <SidebarGroupToggleRow
-                  expanded={pinnedWorkspacesExpanded}
-                  onPress={togglePinnedWorkspacesExpanded}
-                  testID="sidebar-pinned-show-more"
-                />
-              ) : null}
-            </>
-          )}
-        </View>
-      ) : null}
-      {listHeaderComponent}
+            ) : null}
+          </>
+        )}
+      </View>
+    ) : null,
+    listHeaderComponent ? (
+      <View key="header" style={styles.stickyHeader}>
+        {listHeaderComponent}
+      </View>
+    ) : null,
+    <View key="workspaces">
       {sidebarFilterEmpty ? (
         <SidebarFilterEmptyState />
       ) : (
@@ -252,8 +256,9 @@ export function SidebarStatusWorkspaceList({
           onToggleWorkspacePin={onToggleWorkspacePin}
         />
       )}
-    </>
-  );
+    </View>,
+  ].filter((child) => child !== null);
+  const stickyHeaderIndices = listHeaderComponent ? [pinnedWorkspaces.length > 0 ? 1 : 0] : [];
 
   return (
     <View style={styles.container}>
@@ -261,6 +266,7 @@ export function SidebarStatusWorkspaceList({
         <NestableScrollContainer
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          stickyHeaderIndices={stickyHeaderIndices}
           showsVerticalScrollIndicator={false}
           testID="sidebar-status-list-scroll"
         >
@@ -270,6 +276,7 @@ export function SidebarStatusWorkspaceList({
         <ScrollView
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          stickyHeaderIndices={stickyHeaderIndices}
           showsVerticalScrollIndicator={false}
           testID="sidebar-status-list-scroll"
         >
@@ -1064,6 +1071,7 @@ const styles = StyleSheet.create((theme) => ({
     paddingTop: 2,
     paddingBottom: theme.spacing[4],
   },
+  stickyHeader: { backgroundColor: theme.colors.surfaceSidebar },
   pinnedSection: {
     marginBottom: theme.spacing[1],
   },

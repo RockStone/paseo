@@ -13,7 +13,7 @@ import { Pressable, Text, View, type ViewStyle, type GestureResponderEvent } fro
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
   ChevronUp,
-  ChevronDown,
+  ChevronRight,
   CircleAlert,
   Folder,
   FolderGit2,
@@ -258,7 +258,7 @@ function WorkspaceAgentDisclosure({
   const isCompact = useIsCompactFormFactor();
   const { t } = useTranslation();
   const showDisclosure = disclosure?.hasChildren && (isHovered || isNative || isCompact);
-  const ToggleIcon = disclosure?.collapsed ? ChevronDown : ChevronUp;
+  const ToggleIcon = disclosure?.collapsed ? ChevronRight : ChevronUp;
   const handlePress = useCallback(
     (event: GestureResponderEvent) => {
       event.stopPropagation();

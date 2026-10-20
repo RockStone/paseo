@@ -11,6 +11,7 @@ export interface PersistedCollapsedProjects {
   collapsedWorkspaceGroupKeys?: string[];
   collapsedStatusGroupKeys?: string[];
   collapsedPinned?: boolean;
+  collapsedWorkspaces?: boolean;
 }
 
 export const PersistedCollapsedProjectsSchema: z.ZodType<PersistedCollapsedProjects> =
@@ -20,7 +21,48 @@ export const PersistedCollapsedProjectsSchema: z.ZodType<PersistedCollapsedProje
     // COMPAT(sidebarWorkspaceGroupCollapse): added in v0.4.0, remove after 2027-02-14.
     collapsedStatusGroupKeys: z.array(z.string()).optional(),
     collapsedPinned: z.boolean().optional(),
+    // COMPAT(sidebarSectionCollapse): accept the unused custom r60 flag; remove after 2027-02-14.
+    collapsedWorkspaces: z.boolean().optional(),
   });
+
+export function setProjectsCollapsed(
+  state: CollapsedProjectsState,
+  projectKeys: readonly string[],
+  collapsed: boolean,
+): CollapsedProjectsState {
+  return {
+    ...state,
+    collapsedProjectKeys: setCollapsedKeys(state.collapsedProjectKeys, projectKeys, collapsed),
+  };
+}
+
+export function setWorkspaceGroupsCollapsed(
+  state: CollapsedProjectsState,
+  groupKeys: readonly string[],
+  collapsed: boolean,
+): CollapsedProjectsState {
+  return {
+    ...state,
+    collapsedWorkspaceGroupKeys: setCollapsedKeys(
+      state.collapsedWorkspaceGroupKeys,
+      groupKeys,
+      collapsed,
+    ),
+  };
+}
+
+function setCollapsedKeys(
+  current: ReadonlySet<string>,
+  keys: readonly string[],
+  collapsed: boolean,
+): Set<string> {
+  const next = new Set(current);
+  for (const key of keys) {
+    if (collapsed) next.add(key);
+    else next.delete(key);
+  }
+  return next;
+}
 
 export function togglePinnedCollapsed(state: CollapsedProjectsState): CollapsedProjectsState {
   return { ...state, collapsedPinned: !state.collapsedPinned };

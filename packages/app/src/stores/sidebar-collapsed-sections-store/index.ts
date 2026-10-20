@@ -10,6 +10,8 @@ import {
   serializeCollapsedProjects,
   setProjectCollapsed,
   togglePinnedCollapsed,
+  setProjectsCollapsed,
+  setWorkspaceGroupsCollapsed,
   toggleProjectCollapsed,
   toggleWorkspaceGroupCollapsed,
 } from "./state";
@@ -19,6 +21,8 @@ interface SidebarCollapsedSectionsState extends CollapsedProjectsState {
   setProjectCollapsed: (projectKey: string, collapsed: boolean) => void;
   toggleWorkspaceGroupCollapsed: (workspaceGroupKey: string) => void;
   togglePinnedCollapsed: () => void;
+  setProjectsCollapsed: (projectKeys: readonly string[], collapsed: boolean) => void;
+  setWorkspaceGroupsCollapsed: (groupKeys: readonly string[], collapsed: boolean) => void;
 }
 
 export const useSidebarCollapsedSectionsStore = create<SidebarCollapsedSectionsState>()(
@@ -34,6 +38,10 @@ export const useSidebarCollapsedSectionsStore = create<SidebarCollapsedSectionsS
       toggleWorkspaceGroupCollapsed: (workspaceGroupKey) =>
         set((state) => toggleWorkspaceGroupCollapsed(state, workspaceGroupKey)),
       togglePinnedCollapsed: () => set((state) => togglePinnedCollapsed(state)),
+      setProjectsCollapsed: (keys, collapsed) =>
+        set((state) => setProjectsCollapsed(state, keys, collapsed)),
+      setWorkspaceGroupsCollapsed: (keys, collapsed) =>
+        set((state) => setWorkspaceGroupsCollapsed(state, keys, collapsed)),
     }),
     {
       name: "sidebar-collapsed-sections",

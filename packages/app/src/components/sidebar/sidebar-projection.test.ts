@@ -166,6 +166,22 @@ describe("buildSidebarProjection", () => {
     ]);
   });
 
+  for (const groupMode of ["project", "status"] as const) {
+    it(`excludes hidden Workspaces from ${groupMode} shortcuts while keeping pinned targets`, () => {
+      const input = {
+        ...projectionInput({ groupMode }),
+        collapsedProjectKeys: new Set(["project"]),
+        collapsedWorkspaceGroupKeys: new Set(["needs_input"]),
+      };
+      expect(buildSidebarProjection(input).shortcutModel.shortcutTargets).toEqual([
+        { serverId: "srv", workspaceId: "pinned" },
+      ]);
+      expect(
+        buildSidebarProjection({ ...input, pinnedCollapsed: true }).shortcutModel.shortcutTargets,
+      ).toEqual([]);
+    });
+  }
+
   it("does not number pinned chats while the pinned section is collapsed", () => {
     const projection = buildSidebarProjection(
       projectionInput({ groupMode: "status", pinnedCollapsed: true }),
