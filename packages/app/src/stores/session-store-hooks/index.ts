@@ -16,7 +16,7 @@ import {
   selectWorkspaceFields,
   selectWorkspaceKeys,
   selectWorkspaceOrderByScope,
-  selectWorkspaceStatusesForBadges,
+  createWorkspaceStatusesForBadgesSelector,
   workspaceEqualityFns,
   type WorkspaceStructure,
 } from "./selectors";
@@ -156,9 +156,6 @@ export function useHasWorkspaces(serverId: string | null): boolean {
 }
 
 export function useWorkspaceStatusesForBadges(): DesktopBadgeWorkspaceStatus[] {
-  return useStoreWithEqualityFn(
-    useSessionStore,
-    (state) => selectWorkspaceStatusesForBadges(state),
-    workspaceEqualityFns.deep,
-  );
+  const selectStatuses = useMemo(() => createWorkspaceStatusesForBadgesSelector(), []);
+  return useStoreWithEqualityFn(useSessionStore, selectStatuses, workspaceEqualityFns.deep);
 }

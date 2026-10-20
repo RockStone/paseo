@@ -2925,6 +2925,7 @@ class ClaudeAgentSession implements AgentSession {
     this.turnState = "idle";
     this.sidechainTracker.clear();
     this.settledSubagentToolCalls.clear();
+    this.settledToolUseIds.clear();
     this.taskProtocolSource.reset();
     this.input?.end();
     this.query?.close?.();

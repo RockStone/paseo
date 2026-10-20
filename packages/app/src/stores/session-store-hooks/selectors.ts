@@ -332,3 +332,26 @@ export function selectWorkspaceStatusesForBadges(
   }
   return statuses;
 }
+
+// Store selectors run on every stream tick, which replaces neither map. Reuse the previous
+// statuses until some host replaces its agents or workspaces.
+export function createWorkspaceStatusesForBadgesSelector(): (
+  state: SessionsSnapshot,
+) => DesktopBadgeWorkspaceStatus[] {
+  let previousInputs: unknown[] | null = null;
+  let previousStatuses: DesktopBadgeWorkspaceStatus[] = [];
+  return (state) => {
+    const inputs = Object.values(state.sessions).flatMap((session) => [
+      session.agents,
+      session.workspaces,
+    ]);
+    if (
+      previousInputs?.length === inputs.length &&
+      inputs.every((input, index) => input === previousInputs![index])
+    )
+      return previousStatuses;
+    previousInputs = inputs;
+    previousStatuses = selectWorkspaceStatusesForBadges(state);
+    return previousStatuses;
+  };
+}

@@ -16,6 +16,7 @@ import {
   selectWorkspaceKeys,
   selectWorkspaceOrderByScope,
   selectWorkspaceStatusesForBadges,
+  createWorkspaceStatusesForBadgesSelector,
   selectWorkspaceStructureProjects,
   workspaceEqualityFns,
   type SidebarOrderSnapshot,
@@ -617,6 +618,25 @@ describe("selectWorkspaceStatusesForBadges", () => {
       "attention",
       "needs_input",
       "failed",
+    ]);
+  });
+
+  it("reuses badge statuses until a host replaces its agents or workspaces", () => {
+    const workspaces = new Map([["child", createWorkspace({ id: "child", status: "attention" })]]);
+    const agents = new Map<string, BadgeAgent>([
+      ["child-agent", { workspaceId: "child", parentAgentId: "parent-agent" }],
+    ]);
+    const select = createWorkspaceStatusesForBadgesSelector();
+    const before = select({ sessions: { [SERVER_ID]: { workspaces, agents } } });
+    expect(before).toEqual([]);
+    // A stream tick produces a new snapshot around the same maps.
+    expect(select({ sessions: { [SERVER_ID]: { workspaces, agents } } })).toBe(before);
+
+    const detached = new Map<string, BadgeAgent>([
+      ["child-agent", { workspaceId: "child", parentAgentId: null }],
+    ]);
+    expect(select({ sessions: { [SERVER_ID]: { workspaces, agents: detached } } })).toEqual([
+      "attention",
     ]);
   });
 

@@ -4,7 +4,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 BASE_VERSION="$(node -p 'require("./package.json").version')"
-CUSTOM_VERSION="${BASE_VERSION}-paseoi.${PASEO_CUSTOM_REVISION:-63}"
+CUSTOM_REVISION="${PASEO_CUSTOM_REVISION:-63}"
+# The desktop app recognizes Paseoi builds by -paseoi.<digits>. Any other suffix ships an
+# official-looking build on the main daemon's port with official updates turned on.
+if [[ ! "$CUSTOM_REVISION" =~ ^[0-9]+$ ]]; then
+  echo "PASEO_CUSTOM_REVISION must be a whole number, got: $CUSTOM_REVISION" >&2
+  exit 1
+fi
+CUSTOM_VERSION="${BASE_VERSION}-paseoi.${CUSTOM_REVISION}"
 
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:desktop -- \
   --publish never --mac --dir \
