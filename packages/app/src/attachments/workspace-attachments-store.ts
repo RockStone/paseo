@@ -178,8 +178,14 @@ export function useWorkspaceAttachmentScopeKey(input: WorkspaceAttachmentScope):
   }, [cwd, draftId, isDraftScope, serverId, workspaceId]);
 }
 
-export function useDraftWorkspaceAttachmentScopeKey(draftId: string | null | undefined): string {
-  const normalizedDraftId = useMemo(() => draftId?.trim() ?? "", [draftId]);
+export function useDraftWorkspaceAttachmentScopeKey(
+  draftId: string | null | undefined,
+  fallbackDraftId = "",
+): string {
+  const normalizedDraftId = useMemo(
+    () => draftId?.trim() || fallbackDraftId.trim(),
+    [draftId, fallbackDraftId],
+  );
   return useMemo(
     () => (normalizedDraftId ? buildDraftWorkspaceAttachmentScopeKey(normalizedDraftId) : ""),
     [normalizedDraftId],

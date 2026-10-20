@@ -24,7 +24,12 @@ import {
 } from "../support/helpers/mock-agent";
 import { getServerId } from "../support/helpers/server-id";
 import { seedSavedSettingsHosts } from "../support/helpers/settings";
-import { submitNewWorkspaceEmpty } from "../support/helpers/new-workspace";
+import {
+  openGlobalNewWorkspaceComposer,
+  submitNewWorkspaceEmpty,
+  submitNewWorkspacePrompt,
+} from "../support/helpers/new-workspace";
+import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 
 const test = base.extend<{
   seedForkWorkspace: (options: MockAgentOptions) => Promise<MockAgentWorkspace>;
@@ -254,7 +259,7 @@ test("dragging another workspace title attaches its conversation and sends it wi
   await dragTitle.dragTo(input);
   const pill = page.getByTestId("composer-chat-history-attachment-pill");
   await expect(pill).toContainText("Review owner TODO items");
-  await expect(input).toHaveValue("Use this context please");
+  await expect(input).toHaveAttribute("data-markdown", "Use this context please");
   await expect(input).toBeFocused();
   await dragTitle.dragTo(input);
   await expect(pill).toHaveCount(1);
@@ -287,4 +292,61 @@ test("dragging another workspace title attaches its conversation and sends it wi
     "aria-selected",
     "true",
   );
+});
+
+test("dragging a workspace into a fresh New workspace preserves and submits its conversation context", async ({
+  page,
+  seedForkWorkspace,
+}) => {
+  const source = await seedForkWorkspace({
+    repoPrefix: "conversation-drop-new-",
+    title: "Source conversation for new workspace",
+    initialPrompt:
+      "emit 1 coalesced agent stream updates about the source conversation secret detail.",
+  });
+  await source.client.waitForFinish(source.agentId, 45_000);
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const gate = await installDaemonWebSocketGate(page);
+  await openAgentRoute(page, source);
+  await expectComposerVisible(page);
+  await openGlobalNewWorkspaceComposer(page);
+  const input = page.getByRole("textbox", { name: "Message agent..." }).first();
+  await expect(input).toHaveAttribute("data-markdown", "");
+  const title = page.getByTestId(`sidebar-session-drag-${getServerId()}:${source.workspaceId}`);
+  await expect(title).toHaveAttribute("draggable", "true");
+  await title.dragTo(input);
+  const pill = page.getByTestId("composer-chat-history-attachment-pill");
+  await expect(pill).toContainText("Source conversation for new workspace");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAttribute("data-markdown", "");
+  await title.dragTo(input);
+  await expect(pill).toHaveCount(1);
+  await fillComposerDraft(page, "Use this context in a new workspace");
+  await page.getByTestId(`sidebar-workspace-row-${getServerId()}:${source.workspaceId}`).click();
+  await openGlobalNewWorkspaceComposer(page);
+  await expect(pill).toContainText("Source conversation for new workspace");
+  await expect(input).toHaveAttribute("data-markdown", "Use this context in a new workspace");
+  await page.screenshot({ path: "/tmp/paseoi-r58-new-workspace-drop.png" });
+  await submitNewWorkspacePrompt(page, "Use this context in a new workspace");
+  await expect.poll(() => gate.getClientRequests("workspace.create.request").length).toBe(1);
+  expect(gate.getClientRequests("workspace.create.request")[0]).toMatchObject({
+    agent: {
+      initialPrompt: "Use this context in a new workspace",
+      attachments: [
+        expect.objectContaining({
+          type: "text",
+          contextKind: "chat_history",
+          title: "Source conversation for new workspace",
+          text: expect.stringContaining(source.agentId),
+        }),
+      ],
+    },
+  });
+  expect(JSON.stringify(gate.getClientRequests("workspace.create.request"))).toContain(
+    "source conversation secret detail",
+  );
+  await expect(page).not.toHaveURL(/\/new(?:\?.*)?$/);
+  await openGlobalNewWorkspaceComposer(page);
+  await expect(pill).toHaveCount(0);
+  await expect(input).toHaveAttribute("data-markdown", "");
 });

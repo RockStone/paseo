@@ -1765,7 +1765,7 @@ export function NewWorkspaceScreen({
   });
   const draftKey = buildNewWorkspaceDraftKey(draftId);
   const forkDraftSetup = usePendingWorkspaceDraftSetup(draftId);
-  const draftContextScopeKey = useDraftWorkspaceAttachmentScopeKey(draftId);
+  const draftContextScopeKey = useDraftWorkspaceAttachmentScopeKey(draftId, draftKey);
   const visibleDraftContextScopeKeys = useMemo(
     () => resolveVisibleDraftContextScopeKeys({ isDraftHandoffActive, draftContextScopeKey }),
     [draftContextScopeKey, isDraftHandoffActive],
