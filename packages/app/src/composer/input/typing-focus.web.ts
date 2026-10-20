@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { resolveKeyboardFocusScope } from "@/keyboard/focus-scope";
-import { hasActiveWebOverlay, hasOpenDomPopover } from "@/lib/overlay-root";
+import { hasFocusManagingWebOverlay, hasOpenDomPopover } from "@/lib/overlay-root";
 import type { TypingFocusInput } from "./typing-focus";
 
 export function useTypingFocus({ enabled, inputRef }: TypingFocusInput): void {
@@ -14,11 +14,12 @@ export function useTypingFocus({ enabled, inputRef }: TypingFocusInput): void {
         !event.altKey &&
         !event.shiftKey;
       if ((!isTyping && !isPaste) || event.defaultPrevented || event.isComposing) return;
-      if (hasActiveWebOverlay() || hasOpenDomPopover()) return;
+      if (hasFocusManagingWebOverlay() || hasOpenDomPopover()) return;
       const scope = resolveKeyboardFocusScope({ target: event.target, commandCenterOpen: false });
       if (scope !== "other") return;
       if (
         event.target instanceof Element &&
+        !isComposerPillTyping(event.target, event.key) &&
         event.target.closest(
           "button, a[href], [role='button'], [role='textbox'], [role='menuitem']",
         )
@@ -33,4 +34,10 @@ export function useTypingFocus({ enabled, inputRef }: TypingFocusInput): void {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [enabled, inputRef]);
+}
+
+// A pill above the composer keeps focus after its panel closes, but a letter typed there
+// belongs to the draft. Space still activates the pill.
+function isComposerPillTyping(target: Element, key: string): boolean {
+  return key !== " " && target.closest("[data-composer-pills]") !== null;
 }

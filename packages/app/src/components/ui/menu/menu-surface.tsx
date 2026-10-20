@@ -121,6 +121,11 @@ export interface MenuSurfaceProps {
   testID?: string;
   /** Limits ordinary app shortcuts to the time this menu owns keyboard focus. */
   keyboardFocusScope?: KeyboardFocusScope;
+  /**
+   * False for a surface the pointer opened by resting on its trigger: it neither takes focus nor
+   * hands it to the trigger on close, so the user's caret stays where it was.
+   */
+  manageFocus?: boolean;
 }
 
 /**
@@ -216,6 +221,7 @@ function MenuPopoverSurface({
   scrollable = false,
   testID,
   keyboardFocusScope,
+  manageFocus = true,
 }: MenuSurfaceProps): ReactElement | null {
   const menu = useMenuContext("MenuSurface");
   const { value: surfaceValue, getAnchor } = useSubAnchors();
@@ -253,7 +259,12 @@ function MenuPopoverSurface({
 
   return (
     <MenuSurfaceContext.Provider value={hoverValue}>
-      <MenuOverlay visible={menu.open} onClose={handleClose} restoreFocusRef={menu.triggerRef}>
+      <MenuOverlay
+        visible={menu.open}
+        onClose={handleClose}
+        restoreFocusRef={menu.triggerRef}
+        manageFocus={manageFocus}
+      >
         <>
           <AnchoredSurface
             animate={animate}
@@ -273,6 +284,7 @@ function MenuPopoverSurface({
             scrollable={scrollable}
             testID={testID}
             keyboardFocusScope={keyboardFocusScope}
+            manageFocus={manageFocus}
           >
             <MenuPage depth={0}>{children}</MenuPage>
           </AnchoredSurface>

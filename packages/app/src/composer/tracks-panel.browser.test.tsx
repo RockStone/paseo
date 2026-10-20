@@ -67,6 +67,12 @@ function isPanelOpen(): boolean {
   return pill().getAttribute("aria-expanded") === "true";
 }
 
+async function nextFrames(count: number): Promise<void> {
+  for (let frame = 0; frame < count; frame += 1) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+}
+
 describe("composer track panel", () => {
   it("opens opted-in pills on mouse hover and stays open while entering the panel", async () => {
     const onPress = vi.fn();
@@ -106,6 +112,66 @@ describe("composer track panel", () => {
       );
     });
     await expect.poll(isPanelOpen).toBe(false);
+  });
+
+  it("leaves the caret alone when a hover opens and closes the panel", async () => {
+    mount(
+      <>
+        <input data-testid="draft" />
+        <ComposerTrackPill
+          testID="pill"
+          segments={SUBAGENT_SEGMENTS}
+          panelTitle="Changes"
+          openOnHover
+        >
+          <ComposerTrackRow accessibilityLabel="Changed file" testID="row" onPress={vi.fn()}>
+            <Text>Changed file</Text>
+          </ComposerTrackRow>
+        </ComposerTrackPill>
+      </>,
+    );
+    const draft = document.querySelector<HTMLInputElement>('[data-testid="draft"]')!;
+    act(() => draft.focus());
+    act(() => {
+      pill().parentElement!.dispatchEvent(
+        new PointerEvent("pointerenter", { pointerType: "mouse" }),
+      );
+    });
+    await expect.poll(isPanelOpen).toBe(true);
+    await expect.poll(() => row("row")?.getBoundingClientRect().width ?? 0).toBeGreaterThan(0);
+    await nextFrames(3);
+    expect(document.activeElement).toBe(draft);
+    act(() => {
+      document.dispatchEvent(
+        new PointerEvent("pointermove", { clientX: innerWidth - 1, clientY: innerHeight - 1 }),
+      );
+    });
+    await expect.poll(isPanelOpen).toBe(false);
+    expect(document.activeElement).toBe(draft);
+  });
+
+  it("still moves focus into a clicked panel and back to its pill", async () => {
+    mount(
+      <ComposerTrackPill
+        testID="pill"
+        segments={SUBAGENT_SEGMENTS}
+        panelTitle="Changes"
+        openOnHover
+      >
+        <ComposerTrackRow accessibilityLabel="Changed file" testID="row" onPress={vi.fn()}>
+          <Text>Changed file</Text>
+        </ComposerTrackRow>
+      </ComposerTrackPill>,
+    );
+    openPanel();
+    await expect.poll(isPanelOpen).toBe(true);
+    // The menu layer takes focus: its backdrop or a row, never the page behind it.
+    await expect
+      .poll(() => document.activeElement?.closest('[data-testid^="pill-panel"]') != null)
+      .toBe(true);
+    click(pill());
+    await expect.poll(isPanelOpen).toBe(false);
+    expect(document.activeElement).toBe(pill());
   });
 
   it("dismisses when leaving the visible viewport of a long scrolling panel", async () => {

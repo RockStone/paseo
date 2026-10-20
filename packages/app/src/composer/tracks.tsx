@@ -41,7 +41,7 @@ import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
  */
 export function ComposerTrackBar({ children }: { children: ReactNode }): ReactElement {
   return (
-    <View style={styles.bar} pointerEvents="box-none">
+    <View style={styles.bar} pointerEvents="box-none" dataSet={COMPOSER_PILLS_DATASET}>
       <View style={styles.track} pointerEvents="box-none">
         {children}
       </View>
@@ -88,6 +88,8 @@ const PANEL_MAX_HEIGHT = 440;
  * separate from the pill that opened it.
  */
 const PANEL_OFFSET = 12;
+/** Typing on a focused pill belongs to the composer; see `useTypingFocus`. */
+const COMPOSER_PILLS_DATASET = { composerPills: "true" };
 
 export function ComposerTrackPill(props: ComposerTrackPillProps): ReactElement {
   return (
@@ -109,7 +111,15 @@ function ComposerTrackPillBody({
   const hoverRef = useRef<View>(null);
   const contentRef = useRef<View>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A hover preview must not take the caret from the composer, nor park it on the pill when the
+  // pointer leaves. A click still opens a focus-managed panel for keyboard use.
+  const [hoverOpened, setHoverOpened] = useState(false);
+  const openRef = useRef(open);
+  openRef.current = open;
   const hoverEnabled = isWeb && openOnHover && presentation === "popover";
+  useEffect(() => {
+    if (!open) setHoverOpened(false);
+  }, [open]);
   const cancelClose = useCallback(() => {
     if (closeTimer.current !== null) clearTimeout(closeTimer.current);
     closeTimer.current = null;
@@ -128,6 +138,7 @@ function ComposerTrackPillBody({
     const enter = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
       cancelClose();
+      if (!openRef.current) setHoverOpened(true);
       setOpen(true);
     };
     element.addEventListener("pointerenter", enter);
@@ -161,6 +172,7 @@ function ComposerTrackPillBody({
         maxHeight={PANEL_MAX_HEIGHT}
         scrollable
         testID={`${testID}-panel`}
+        manageFocus={!hoverOpened}
       >
         <View ref={contentRef} collapsable={false}>
           {children}

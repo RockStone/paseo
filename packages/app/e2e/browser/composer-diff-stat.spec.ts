@@ -8,6 +8,7 @@ import { gateNextAgentMessage } from "../support/helpers/agent-message-gate";
 import {
   fillComposerDraft,
   expectComposerDraft,
+  expectComposerFocused,
   attachFileFromMenu,
 } from "../support/helpers/composer";
 import { ensureExplorerSidebar, openFilesPanel } from "../support/helpers/workspace-tabs";
@@ -882,13 +883,12 @@ test("uncommitted status pill opens all files in a capped list and clears on com
     expect(right!.x).toBeGreaterThanOrEqual(left!.x + left!.width);
     await pill.hover();
     const preview = page.getByTestId("composer-git-status-pill-panel");
-    await expect(preview).toHaveCount(0);
-    await pill.click();
     await expect(preview).toBeVisible();
     await expect(preview).toContainText("1 tracked · 12 untracked");
     await expect(preview.getByTestId("composer-git-status-file")).toHaveCount(13);
     await expect(preview).not.toContainText("committed-only.ts");
-    expect((await preview.boundingBox())!.height).toBeLessThanOrEqual(440);
+    // The 440px list cap plus the surface's 1px border on each edge.
+    expect((await preview.boundingBox())!.height).toBeLessThanOrEqual(442);
     await page.screenshot({ path: testInfo.outputPath("git-status-pill-list.png") });
     await page.keyboard.press("Escape");
     git("add", ".");
@@ -924,7 +924,8 @@ test("status file undo confirms discard, preserves other files and recovers from
     git("mv", "before-rename.txt", "after-rename.txt");
     await agent.client.checkoutRefresh(agent.cwd);
     await openAgentRoute(page, agent);
-    await page.getByTestId("composer-git-status-pill").click();
+    // The status pill opens on hover; a click would race the backdrop the hover puts over it.
+    await page.getByTestId("composer-git-status-pill").hover();
     const panel = page.getByTestId("composer-git-status-pill-panel");
     const discardTracked = panel.getByRole("button", {
       name: "Discard changes to tracked.txt",
@@ -1017,6 +1018,47 @@ test("composer branch pill identifies the checkout and switches branches on a cl
     git("checkout", "--detach");
     await agent.client.checkoutRefresh(agent.cwd);
     await expect(pill).toHaveText("HEAD");
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("pills above the composer hand typing back to the composer", async ({ page }) => {
+  const agent = await seedChangedAgent("composer-pill-typing-");
+  try {
+    await openAgentRoute(page, agent);
+    const statusPill = page.getByTestId("composer-git-status-pill");
+    const statusPanel = page.getByTestId("composer-git-status-pill-panel");
+    const feed = page.getByTestId("agent-chat-scroll").filter({ visible: true });
+    await expect(statusPill).toBeVisible();
+    await expectComposerFocused(page);
+
+    // A hover preview leaves the caret in the draft and closes without parking focus on the pill.
+    await statusPill.hover();
+    await expect(statusPanel).toBeVisible();
+    await expectComposerFocused(page);
+    // The open panel's backdrop covers the feed, so move the pointer rather than hover a locator.
+    const feedBox = (await feed.boundingBox())!;
+    await page.mouse.move(feedBox.x + feedBox.width / 2, feedBox.y + feedBox.height / 3);
+    await expect(statusPanel).toHaveCount(0);
+    await page.keyboard.type("a");
+    await expectComposerDraft(page, "a");
+
+    // Clicking away from a clicked-open picker returns focus to its pill; letters still type.
+    const branchPill = page.getByTestId("composer-branch-pill");
+    await branchPill.click();
+    const picker = page.getByTestId("combobox-desktop-container");
+    await expect(picker).toBeVisible();
+    await page.mouse.click(feedBox.x + feedBox.width / 2, feedBox.y + feedBox.height / 3);
+    await expect(picker).toHaveCount(0);
+    await page.keyboard.type("b");
+    await expectComposerDraft(page, "ab");
+    await expectComposerFocused(page);
+
+    await statusPill.focus();
+    await page.keyboard.type("c");
+    await expectComposerDraft(page, "abc");
+    await expectComposerFocused(page);
   } finally {
     await agent.cleanup();
   }
@@ -1156,13 +1198,13 @@ test("Commit & Push asks only the current agent and preserves the composer draft
     await page.setViewportSize({ width: 1400, height: 900 });
     await openAgentRoute(page, workspace);
     await fillComposerDraft(page, "Keep this unfinished question");
-    await page.getByTestId("composer-git-status-pill").click();
+    await page.getByTestId("composer-git-status-pill").hover();
     const button = page.getByTestId("composer-commit-push");
     await expect(button).toBeVisible();
     await button.click();
     const request = await gate.waitForRequest();
     expect(request.agentId).toBe(workspace.agentId);
-    expect(request.text).toContain("commit the changes for this task");
+    expect(request.text).toContain("group the changes for this task by function or feature");
     expect(request.text).toContain("push the current branch");
     expect(request.attachments).toEqual([]);
     await expectComposerDraft(page, "Keep this unfinished question");

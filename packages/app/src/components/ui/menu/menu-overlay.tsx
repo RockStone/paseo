@@ -241,7 +241,33 @@ export interface AnchoredSurfaceProps {
   onPointerLeave?: () => void;
   testID?: string;
   keyboardFocusScope?: KeyboardFocusScope;
+  /** False leaves focus where it was instead of moving it to the first item. */
+  manageFocus?: boolean;
   children: ReactElement;
+}
+
+function useFocusFirstMenuItem({
+  open,
+  placed,
+  manageFocus,
+  surfaceNativeID,
+}: {
+  open: boolean;
+  placed: boolean;
+  manageFocus: boolean | undefined;
+  surfaceNativeID: string;
+}): void {
+  const enabled = open && placed && manageFocus !== false;
+  useEffect(() => {
+    if (!isWeb || !enabled || typeof document === "undefined") return undefined;
+    const frame = requestAnimationFrame(() => {
+      document
+        .getElementById(surfaceNativeID)
+        ?.querySelector<HTMLElement>('[data-menu-item="true"]:not([data-menu-disabled="true"])')
+        ?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [enabled, surfaceNativeID]);
 }
 
 /**
@@ -275,6 +301,7 @@ export function AnchoredSurface({
   onPointerLeave,
   testID,
   keyboardFocusScope,
+  manageFocus,
   children,
 }: AnchoredSurfaceProps): ReactElement | null {
   const { t } = useTranslation();
@@ -306,16 +333,7 @@ export function AnchoredSurface({
   // animation from the final position.
   const placed = position !== null;
 
-  useEffect(() => {
-    if (!isWeb || !open || !placed || typeof document === "undefined") return undefined;
-    const frame = requestAnimationFrame(() => {
-      document
-        .getElementById(surfaceNativeID)
-        ?.querySelector<HTMLElement>('[data-menu-item="true"]:not([data-menu-disabled="true"])')
-        ?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open, placed, surfaceNativeID]);
+  useFocusFirstMenuItem({ open, placed, manageFocus, surfaceNativeID });
 
   const frameStyle = useMemo<StyleProp<ViewStyle>>(() => {
     const { width: screenWidth } = Dimensions.get("window");
@@ -431,11 +449,13 @@ export function MenuOverlay({
   visible,
   onClose,
   restoreFocusRef,
+  manageFocus = true,
   children,
 }: {
   visible: boolean;
   onClose: () => void;
   restoreFocusRef?: RefObject<View | null>;
+  manageFocus?: boolean;
   children: ReactElement | null;
 }): ReactElement | null {
   const floatingLayer = useOverlayLayer("floating");
@@ -488,6 +508,7 @@ export function MenuOverlay({
     layer: floatingLayer,
     onKeyDown: handleWebOverlayKeyDown,
     restoreFocusRef,
+    manageFocus,
   });
 
   if (!visible) return null;

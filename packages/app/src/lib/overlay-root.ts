@@ -112,6 +112,11 @@ export function hasActiveWebOverlay(): boolean {
   return getTopWebOverlay() !== undefined;
 }
 
+/** Hover surfaces preserve the user's focus, so they do not own what the user types. */
+export function hasFocusManagingWebOverlay(): boolean {
+  return webOverlayEntries.some((entry) => entry.manageFocus);
+}
+
 /**
  * True while an element shown with the Popover API is open. Such a layer
  * floats above the app like a registered overlay but lives outside the
