@@ -2618,9 +2618,11 @@ describe("ClaudeAgentSession context window usage", () => {
   });
 
   test("does not probe current context usage after an Agent subagent runs", async () => {
-    const getContextUsage = vi.fn(async () => {
-      throw new Error("getContextUsage should not be called during result handling");
-    });
+    // Session startup reads the /autocompact cap once; result handling must not probe again.
+    const getContextUsage = vi
+      .fn()
+      .mockResolvedValueOnce({ rawMaxTokens: 200_000 })
+      .mockRejectedValue(new Error("getContextUsage should not be called during result handling"));
     const session = await createSessionForTurns(
       [
         [
@@ -2645,7 +2647,7 @@ describe("ClaudeAgentSession context window usage", () => {
     try {
       const result = await session.run("turn");
 
-      expect(getContextUsage).not.toHaveBeenCalled();
+      expect(getContextUsage).toHaveBeenCalledTimes(1);
       expect(result.usage).toEqual({
         inputTokens: 9_000,
         cachedInputTokens: 700,
@@ -2701,9 +2703,11 @@ describe("ClaudeAgentSession context window usage", () => {
   });
 
   test("uses parent request usage after a real subagent tool result", async () => {
-    const getContextUsage = vi.fn(async () => {
-      throw new Error("getContextUsage should not be called during result handling");
-    });
+    // Session startup reads the /autocompact cap once; result handling must not probe again.
+    const getContextUsage = vi
+      .fn()
+      .mockResolvedValueOnce({ rawMaxTokens: 200_000 })
+      .mockRejectedValue(new Error("getContextUsage should not be called during result handling"));
     const session = await createSessionForTurns(
       [
         [
@@ -2801,7 +2805,7 @@ describe("ClaudeAgentSession context window usage", () => {
     try {
       const result = await session.run("turn");
 
-      expect(getContextUsage).not.toHaveBeenCalled();
+      expect(getContextUsage).toHaveBeenCalledTimes(1);
       expect(result.usage).toEqual({
         inputTokens: 4,
         cachedInputTokens: 16_999,
