@@ -31,6 +31,10 @@ function labelText(node: Nodes): string {
   return "";
 }
 
+function waitsForSpace(node: Nodes, following: string | undefined): boolean {
+  return node.type !== "inlineCode" && following !== " ";
+}
+
 function decorate(state: EditorState): DecorationSet {
   const text = state.doc.toString();
   const ranges: Range<Decoration>[] = [];
@@ -75,7 +79,7 @@ function decorate(state: EditorState): DecorationSet {
       width = 1;
       className = "composer-italic";
     }
-    if (width > 0 && text[to] !== " ") return;
+    if (width > 0 && waitsForSpace(node, text[to])) return;
     if (width > 0) {
       ranges.push(Decoration.replace({ atomic: true }).range(from, from + width));
       ranges.push(Decoration.mark({ class: className }).range(from + width, to - width));

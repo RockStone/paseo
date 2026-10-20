@@ -1079,10 +1079,13 @@ test("decorated composer hides reference targets, formats closed Markdown and co
     await expect(input.locator(".composer-code")).toHaveCount(0);
     await input.press("End");
     await input.press("`");
-    await expect(input.locator(".composer-code")).toHaveCount(0);
-    await input.press("Space");
     await expect(input.locator(".composer-code")).toHaveText("quick");
+    await input.press(".");
+    await expect(input.locator(".composer-code")).toHaveText("quick");
+    await expect(input).toHaveAttribute("data-markdown", "the `quick`.");
+    await input.press("Backspace");
     await input.press("ControlOrMeta+z");
+    await input.fill("the `quick");
     await expect(input.locator(".composer-code")).toHaveCount(0);
     await input.fill("1. hello");
     await input.press("End");
