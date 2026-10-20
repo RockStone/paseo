@@ -1,3 +1,4 @@
+import { seedParentWithSubagent } from "../support/helpers/subagents";
 import path from "node:path";
 import type { Page, TestInfo } from "@playwright/test";
 import { test, expect } from "../support/fixtures";
@@ -21,7 +22,7 @@ import { getE2EDaemonPort } from "../support/helpers/daemon-port";
 import { projectEquivalenceViewKey } from "../support/helpers/project-view-key";
 import { escapeRegex } from "../support/helpers/regex";
 import { openFilesPanel } from "../support/helpers/workspace-tabs";
-import { seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 
 const GITHUB_REMOTE_URL = "https://github.com/test-owner/test-repo.git";
 
@@ -644,4 +645,51 @@ test.describe("Half-screen desktop layout", () => {
       await workspace.cleanup();
     }
   });
+});
+
+test("project workspaces reorder by latest agent activity without navigating", async ({ page }) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-workspace-activity-" });
+  try {
+    const pair = await seedParentWithSubagent(workspace, {
+      parentTitle: "Older workspace",
+      childTitle: "Active child",
+    });
+    const created = await workspace.client.createWorkspace({
+      source: {
+        kind: "directory",
+        path: workspace.repoPath,
+        projectId: workspace.projectId,
+      },
+      title: "Newer workspace",
+    });
+    if (!created.workspace) throw new Error(created.error ?? "Workspace not created");
+    await workspace.client.createAgent({
+      provider: "mock",
+      cwd: workspace.repoPath,
+      workspaceId: created.workspace.id,
+      title: "Newer coordinator",
+      modeId: "load-test",
+      model: "ten-second-stream",
+    });
+    await page.setViewportSize({ width: 1400, height: 1000 });
+    await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: pair.parent.id });
+    const older = page.getByTestId(getWorkspaceRowTestId(workspace.workspaceId));
+    const newer = page.getByTestId(getWorkspaceRowTestId(created.workspace.id));
+    await expect(older).toBeVisible();
+    await expect(newer).toBeVisible();
+    expect((await newer.boundingBox())!.y).toBeLessThan((await older.boundingBox())!.y);
+    const url = page.url();
+    await workspace.client.sendAgentMessage(pair.child.id, "Update workspace activity");
+    await expect
+      .poll(async () => (await older.boundingBox())!.y < (await newer.boundingBox())!.y)
+      .toBe(true);
+    await expect(page).toHaveURL(url);
+    await page.reload();
+    await expect(older).toBeVisible();
+    await expect(newer).toBeVisible();
+    expect((await older.boundingBox())!.y).toBeLessThan((await newer.boundingBox())!.y);
+    await page.screenshot({ path: "/tmp/paseoi-r52-workspace-activity-order.png" });
+  } finally {
+    await workspace.cleanup();
+  }
 });

@@ -2,7 +2,7 @@ import type { PrHint } from "@/git/pr-hint";
 import { selectPrHintFromStatus } from "@/git/pr-hint";
 import { type HostProjectListItem } from "@/projects/host-project-model";
 import type { PendingCreateAttempt } from "@/stores/create-flow-store";
-import type { WorkspaceDescriptor } from "@/stores/session-store";
+import type { Agent, WorkspaceDescriptor } from "@/stores/session-store";
 import type {
   WorkspaceStructureHostPlacement,
   WorkspaceStructureProject,
@@ -29,6 +29,28 @@ export interface SidebarWorkspacePlacement {
   workspaceKind: WorkspaceDescriptor["workspaceKind"];
   background?: boolean;
   name: string;
+}
+
+export function orderSidebarWorkspacesByActivity(input: {
+  workspaces: readonly SidebarWorkspacePlacement[];
+  sessions: Readonly<Record<string, { agents: ReadonlyMap<string, Agent> } | undefined>>;
+  activity: ReadonlyMap<string, Date>;
+}): SidebarWorkspacePlacement[] {
+  const latest = new Map<string, number>();
+  const serverIds = new Set(input.workspaces.map((workspace) => workspace.serverId));
+  for (const serverId of serverIds) {
+    const agents = input.sessions[serverId]?.agents;
+    if (!agents) continue;
+    for (const agent of agents.values()) {
+      if (agent.archivedAt || !agent.workspaceId) continue;
+      const key = `${serverId}:${agent.workspaceId}`;
+      const timestamp = (input.activity.get(agent.id) ?? agent.lastActivityAt).getTime();
+      latest.set(key, Math.max(latest.get(key) ?? 0, timestamp));
+    }
+  }
+  return [...input.workspaces].sort(
+    (left, right) => (latest.get(right.workspaceKey) ?? 0) - (latest.get(left.workspaceKey) ?? 0),
+  );
 }
 
 export interface SidebarStatusWorkspacePlacement extends SidebarWorkspacePlacement {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
 import { useSessionStore } from "@/stores/session-store";
@@ -9,6 +10,7 @@ import { getHostRuntimeStore, useHostRegistryLoaded, useHosts } from "@/runtime/
 import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import {
+  orderSidebarWorkspacesByActivity,
   buildSidebarWorkspacePlacementModel,
   computeSidebarOrderUpdates,
   createSidebarWorkspaceEntry,
@@ -148,9 +150,34 @@ export function useSidebarWorkspacesList(options?: {
     [hostProjects],
   );
 
-  const projects = sidebarModel.projects.length > 0 ? sidebarModel.projects : EMPTY_PROJECTS;
-  const workspacePlacements =
-    sidebarModel.workspaces.length > 0 ? sidebarModel.workspaces : EMPTY_WORKSPACES;
+  const baselineProjects =
+    sidebarModel.projects.length > 0 ? sidebarModel.projects : EMPTY_PROJECTS;
+  // Stream timestamps update frequently; subscribe only to changes in visible order.
+  const activityOrder = useSessionStore(
+    useShallow((state) =>
+      orderSidebarWorkspacesByActivity({
+        workspaces: sidebarModel.workspaces,
+        sessions: state.sessions,
+        activity: state.agentLastActivity,
+      }).map((workspace) => workspace.workspaceKey),
+    ),
+  );
+  const projects = useMemo(() => {
+    const rank = new Map(activityOrder.map((key, index) => [key, index]));
+    return baselineProjects.map((project) => {
+      const workspaces = [...project.workspaces].sort(
+        (left, right) => rank.get(left.workspaceKey)! - rank.get(right.workspaceKey)!,
+      );
+      return workspaces.every((workspace, index) => workspace === project.workspaces[index])
+        ? project
+        : { ...project, workspaces };
+    });
+  }, [baselineProjects, activityOrder]);
+  const workspacePlacements = useMemo(
+    () =>
+      projects.length > 0 ? projects.flatMap((project) => project.workspaces) : EMPTY_WORKSPACES,
+    [projects],
+  );
   const projectNamesByViewKey =
     sidebarModel.projectNamesByViewKey.size > 0
       ? sidebarModel.projectNamesByViewKey
@@ -159,7 +186,7 @@ export function useSidebarWorkspacesList(options?: {
   useEffect(() => {
     const orderStore = useSidebarOrderStore.getState();
     const updates = computeSidebarOrderUpdates({
-      projects,
+      projects: baselineProjects,
       persistedProjectOrder,
       getWorkspaceOrder: (projectViewKey) =>
         orderStore.workspaceOrderByProject[projectViewKey] ?? EMPTY_ORDER,
@@ -171,7 +198,7 @@ export function useSidebarWorkspacesList(options?: {
     for (const { projectViewKey, order } of updates.workspaceOrders) {
       orderStore.setWorkspaceOrder(projectViewKey, order);
     }
-  }, [persistedProjectOrder, projects]);
+  }, [persistedProjectOrder, baselineProjects]);
 
   const refreshAll = useCallback(() => {
     if (!isActive) return;

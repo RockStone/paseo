@@ -3,6 +3,7 @@ import type { Agent, WorkspaceDescriptor } from "@/stores/session-store";
 import type { WorkspaceStructureProject } from "@/projects/workspace-structure";
 import { buildWorkspaceAgentActivityIndex } from "@/utils/workspace-agent-activity";
 import {
+  orderSidebarWorkspacesByActivity,
   appendMissingOrderKeys,
   applyStoredOrdering,
   buildSidebarWorkspaceEntries,
@@ -991,5 +992,87 @@ describe("deriveProjectStatusBucket", () => {
         },
       }),
     ).toBe("done");
+  });
+});
+
+describe("workspace ordering by last activity", () => {
+  it("uses the newest activity from any live agent in each workspace", () => {
+    const workspaces = [
+      workspacePlacement({ workspaceId: "older" }),
+      workspacePlacement({ workspaceId: "newer" }),
+    ];
+    const parent = agent({ id: "parent", workspaceId: "older", status: "idle" });
+    const child = {
+      ...agent({ id: "child", workspaceId: "older", status: "idle", parentAgentId: "parent" }),
+      lastActivityAt: new Date(3000),
+    };
+    const other = {
+      ...agent({ id: "other", workspaceId: "newer", status: "idle" }),
+      lastActivityAt: new Date(2000),
+    };
+    const archived = {
+      ...agent({
+        id: "archived",
+        workspaceId: "newer",
+        status: "idle",
+        archivedAt: new Date(4000),
+      }),
+      lastActivityAt: new Date(4000),
+    };
+    const sessions = {
+      srv: { agents: new Map([parent, child, other, archived].map((entry) => [entry.id, entry])) },
+    };
+    expect(
+      orderSidebarWorkspacesByActivity({ workspaces, sessions, activity: new Map() }).map(
+        (entry) => entry.workspaceId,
+      ),
+    ).toEqual(["older", "newer"]);
+    expect(
+      orderSidebarWorkspacesByActivity({
+        workspaces,
+        sessions,
+        activity: new Map([["other", new Date(5000)]]),
+      }).map((entry) => entry.workspaceId),
+    ).toEqual(["newer", "older"]);
+    expect(workspaces.map((entry) => entry.workspaceId)).toEqual(["older", "newer"]);
+  });
+  it("keeps hosts separate and preserves existing order for ties and empty workspaces", () => {
+    const workspaces = [
+      workspacePlacement({ workspaceId: "shared" }),
+      workspacePlacement({ serverId: "remote", workspaceId: "shared" }),
+      workspacePlacement({ workspaceId: "empty" }),
+    ];
+    const sessions = {
+      srv: {
+        agents: new Map([
+          [
+            "local",
+            {
+              ...agent({ id: "local", workspaceId: "shared", status: "idle" }),
+              lastActivityAt: new Date(2000),
+            },
+          ],
+        ]),
+      },
+      remote: {
+        agents: new Map([
+          [
+            "remote",
+            {
+              ...agent({ id: "remote", workspaceId: "shared", status: "idle" }),
+              lastActivityAt: new Date(3000),
+            },
+          ],
+        ]),
+      },
+    };
+    expect(
+      orderSidebarWorkspacesByActivity({ workspaces, sessions, activity: new Map() }).map(
+        (entry) => entry.workspaceKey,
+      ),
+    ).toEqual(["remote:shared", "srv:shared", "srv:empty"]);
+    expect(
+      orderSidebarWorkspacesByActivity({ workspaces, sessions: {}, activity: new Map() }),
+    ).toEqual(workspaces);
   });
 });
