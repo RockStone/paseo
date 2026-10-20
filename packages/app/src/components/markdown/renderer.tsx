@@ -238,7 +238,11 @@ const GalleryThumbnail = memo(function GalleryThumbnail({
           accessibilityLabel={alt || undefined}
         />
       ) : null}
-      {status === "unavailable" ? <Text style={galleryStyles.label}>Unavailable</Text> : null}
+      {status === "unavailable" ? (
+        <Text style={galleryStyles.label} dataSet={markdownCopyDataSet.ignore}>
+          Unavailable
+        </Text>
+      ) : null}
     </Pressable>
   );
 });

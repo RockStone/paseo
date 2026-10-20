@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -117,7 +118,9 @@ function ComposerTrackPillBody({
   const openRef = useRef(open);
   openRef.current = open;
   const hoverEnabled = isWeb && openOnHover && presentation === "popover";
-  useEffect(() => {
+  // Layout timing: a passive reset could land after a quick re-entry and reopen the panel
+  // in focus-taking mode.
+  useLayoutEffect(() => {
     if (!open) setHoverOpened(false);
   }, [open]);
   const cancelClose = useCallback(() => {
