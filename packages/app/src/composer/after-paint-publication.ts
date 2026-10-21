@@ -14,14 +14,28 @@ export const browserAfterPaintScheduler: AfterPaintScheduler = {
       };
     }
 
+    let finished = false;
+    let frameId: number | null = null;
     let timeoutId: number | null = null;
-    const frameId = window.requestAnimationFrame(() => {
-      timeoutId = window.setTimeout(callback, 0);
-    });
-    return () => {
-      window.cancelAnimationFrame(frameId);
+    let fallbackId: number | null = null;
+    const cancel = () => {
+      finished = true;
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
       if (timeoutId !== null) window.clearTimeout(timeoutId);
+      if (fallbackId !== null) window.clearTimeout(fallbackId);
     };
+    const publish = () => {
+      if (finished) return;
+      cancel();
+      callback();
+    };
+    frameId = window.requestAnimationFrame(() => {
+      if (!finished) timeoutId = window.setTimeout(publish, 0);
+    });
+    // Hidden/occluded desktop windows can suspend frames. Draft and caret
+    // observers must still catch up so autocomplete can recover without a restart.
+    fallbackId = window.setTimeout(publish, 100);
+    return cancel;
   },
 };
 

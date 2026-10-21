@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { AfterPaintPublication, type AfterPaintScheduler } from "./after-paint-publication";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  AfterPaintPublication,
+  browserAfterPaintScheduler,
+  type AfterPaintScheduler,
+} from "./after-paint-publication";
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 function createManualScheduler(): AfterPaintScheduler & {
   run: () => void;
@@ -23,6 +32,32 @@ function createManualScheduler(): AfterPaintScheduler & {
 }
 
 describe("AfterPaintPublication", () => {
+  it("publishes once when animation frames stall and ignores a late frame", () => {
+    vi.useFakeTimers();
+    let frame: (() => void) | undefined;
+    vi.stubGlobal("window", {
+      requestAnimationFrame: (callback: () => void) => {
+        frame = callback;
+        return 1;
+      },
+      cancelAnimationFrame: vi.fn(),
+      setTimeout,
+      clearTimeout,
+    });
+    const published = vi.fn();
+    const publication = new AfterPaintPublication(published, browserAfterPaintScheduler);
+    publication.stage("@@");
+    publication.stage("##");
+    vi.advanceTimersByTime(100);
+    expect(published).toHaveBeenCalledExactlyOnceWith("##");
+    frame?.();
+    vi.runAllTimers();
+    expect(published).toHaveBeenCalledTimes(1);
+    publication.stage("cancelled");
+    publication.cancel();
+    vi.runAllTimers();
+    expect(published).toHaveBeenCalledTimes(1);
+  });
   it("publishes the latest staged value once after paint", () => {
     const scheduler = createManualScheduler();
     const published: string[] = [];
