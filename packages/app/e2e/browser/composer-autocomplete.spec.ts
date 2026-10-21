@@ -1034,6 +1034,53 @@ test.describe("Composer session references", () => {
   });
 });
 
+test("composer hyperlinks stay editable and open with a modifier click", async ({
+  page,
+  context,
+}, testInfo) => {
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "composer-hyperlinks-",
+    title: "Composer hyperlinks",
+  });
+  try {
+    await context.route("https://www.example.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<p>Link opened</p>" }),
+    );
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    const markdown =
+      "See https://www.example.com/docs?q=preview#section and [guide](https://www.example.com/guide). `https://code.example.com`";
+    await input.fill(markdown);
+    const url = input.locator(".composer-url");
+    await expect(url).toHaveText("https://www.example.com/docs?q=preview#section");
+    await expect(url).toHaveCSS("text-decoration-line", "underline");
+    await expect(input.locator(".composer-reference[data-composer-url]")).toHaveText("guide");
+    await expect(input.locator(".composer-code")).toHaveText("https://code.example.com");
+    await url.click();
+    await expect(input).toBeFocused();
+    await expect(input).toHaveAttribute("data-markdown", markdown);
+    const opened = context.waitForEvent("page");
+    await url.click({ modifiers: ["ControlOrMeta"] });
+    const popup = await opened;
+    await expect(popup).toHaveURL("https://www.example.com/docs?q=preview#section");
+    await popup.close();
+    await input.fill("See https://www.example.com/new");
+    await input.press("End");
+    await input.press("Backspace");
+    await expect(url).toHaveText("https://www.example.com/ne");
+    await expect(input).toHaveAttribute("data-markdown", "See https://www.example.com/ne");
+    await input.press("ControlOrMeta+z");
+    await expect(url).toHaveText("https://www.example.com/new");
+    await input.fill("See (https://www.example.com/a_(b)).\n```\nhttps://code.example.com\n```");
+    await expect(url).toHaveText("https://www.example.com/a_(b)");
+    await expect(url).toHaveCount(1);
+    await page.screenshot({ path: testInfo.outputPath("composer-hyperlinks.png") });
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 test("decorated composer hides reference targets, formats closed Markdown and continues numbered lists", async ({
   page,
 }) => {

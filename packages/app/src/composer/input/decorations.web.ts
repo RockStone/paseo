@@ -21,6 +21,7 @@ class ReferenceLabel extends WidgetType {
     span.className = "composer-reference";
     span.textContent = this.label;
     span.title = this.url;
+    if (/^https?:\/\//i.test(this.url)) span.dataset.composerUrl = this.url;
     return span;
   }
 }
@@ -35,6 +36,43 @@ function waitsForSpace(node: Nodes, following: string | undefined): boolean {
   return node.type !== "inlineCode" && following !== " ";
 }
 
+function decorateUrls(text: string, from: number, to: number): Range<Decoration>[] {
+  const ranges: Range<Decoration>[] = [];
+  for (const match of text.slice(from, to).matchAll(/\bhttps?:\/\/[^\s<>]+/gi)) {
+    let url = match[0].replace(/[.,;:!?]+$/, "");
+    // Keep balanced URL path parentheses, leaving prose punctuation outside the link.
+    while (url.endsWith(")") && (url.match(/\)/g)?.length ?? 0) > (url.match(/\(/g)?.length ?? 0))
+      url = url.slice(0, -1);
+    ranges.push(
+      Decoration.mark({
+        class: "composer-url",
+        attributes: { "data-composer-url": url, title: url },
+      }).range(from + match.index, from + match.index + url.length),
+    );
+  }
+  return ranges;
+}
+
+function decorateQuote(
+  state: EditorState,
+  from: number,
+  to: number,
+  quotedLines: Set<number>,
+): Range<Decoration>[] {
+  const ranges: Range<Decoration>[] = [];
+  const lastLine = state.doc.lineAt(Math.max(from, to - 1)).number;
+  for (let number = state.doc.lineAt(from).number; number <= lastLine; number++) {
+    const line = state.doc.line(number);
+    if (quotedLines.has(line.from)) continue;
+    quotedLines.add(line.from);
+    ranges.push(Decoration.line({ class: "composer-quote" }).range(line.from));
+    const marker = /^ {0,3}(?:> ?)+/.exec(line.text)?.[0];
+    if (marker)
+      ranges.push(Decoration.replace({ atomic: true }).range(line.from, line.from + marker.length));
+  }
+  return ranges;
+}
+
 function decorate(state: EditorState): DecorationSet {
   const text = state.doc.toString();
   const ranges: Range<Decoration>[] = [];
@@ -44,18 +82,7 @@ function decorate(state: EditorState): DecorationSet {
     const to = node.position?.end.offset;
     if (from === undefined || to === undefined) return;
     if (node.type === "blockquote") {
-      const lastLine = state.doc.lineAt(Math.max(from, to - 1)).number;
-      for (let number = state.doc.lineAt(from).number; number <= lastLine; number++) {
-        const line = state.doc.line(number);
-        if (quotedLines.has(line.from)) continue;
-        quotedLines.add(line.from);
-        ranges.push(Decoration.line({ class: "composer-quote" }).range(line.from));
-        const marker = /^ {0,3}(?:> ?)+/.exec(line.text)?.[0];
-        if (marker)
-          ranges.push(
-            Decoration.replace({ atomic: true }).range(line.from, line.from + marker.length),
-          );
-      }
+      ranges.push(...decorateQuote(state, from, to, quotedLines));
     }
     if (node.type === "link") {
       const label = labelText(node);
@@ -66,6 +93,9 @@ function decorate(state: EditorState): DecorationSet {
         ),
       );
       return;
+    }
+    if (node.type === "text") {
+      ranges.push(...decorateUrls(text, from, to));
     }
     let width = 0;
     let className = "";

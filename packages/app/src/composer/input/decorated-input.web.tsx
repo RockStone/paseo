@@ -13,6 +13,7 @@ import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import type { EditingTextInputHandle, EditingTextInputProps } from "@/components/ui/text-input";
 import { composerDecorations } from "./decorations.web";
+import { openExternalUrl } from "@/utils/open-external-url";
 
 interface DecoratedInputProps extends Omit<
   EditingTextInputProps,
@@ -135,6 +136,12 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
           ".cm-line": { padding: "0" },
           ".cm-placeholder": { color: current.placeholderTextColor?.toString() ?? "inherit" },
           ".composer-reference": { color: current.referenceColor ?? "inherit", cursor: "text" },
+          ".composer-url, .composer-reference[data-composer-url]": {
+            color: current.referenceColor ?? "inherit",
+            textDecoration: "underline",
+            textUnderlineOffset: "2px",
+            cursor: "text",
+          },
           ".composer-bold": { fontWeight: "700" },
           ".composer-italic": { fontStyle: "italic" },
           ".cm-line.composer-quote": {
@@ -162,6 +169,18 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
         composerDecorations,
         configuration.of(presentation()),
         EditorView.domEventHandlers({
+          mousedown: (event) => {
+            if (event.button !== 0 || (!event.metaKey && !event.ctrlKey)) return false;
+            const target =
+              event.target instanceof Element
+                ? event.target.closest<HTMLElement>("[data-composer-url]")
+                : null;
+            const url = target?.dataset.composerUrl;
+            if (!url) return false;
+            event.preventDefault();
+            void openExternalUrl(url);
+            return true;
+          },
           keydown: (event) => {
             if (event.isComposing) return false;
             latest.current.onKeyPress?.({
