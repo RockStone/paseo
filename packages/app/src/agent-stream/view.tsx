@@ -1,5 +1,6 @@
 import { ChangedFilesCard } from "./changed-files-card";
 import { CompactionIntro } from "./compaction-intro";
+import { thinkingDisplayKey, useThinkingDisplayStore } from "./thinking-display";
 import { collectResponseFileChanges } from "./response-file-changes";
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -772,6 +773,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "thought" }>) => {
         return (
           <ThoughtSlot
+            displayKey={thinkingDisplayKey(resolvedServerId, agentId)}
             itemId={item.id}
             onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
             text={item.text}
@@ -781,7 +783,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           />
         );
       },
-      [autoExpandReasoning, setInlineDetailsExpanded],
+      [autoExpandReasoning, setInlineDetailsExpanded, resolvedServerId, agentId],
     );
 
     const renderSingleToolCallItem = useCallback(
@@ -1324,6 +1326,7 @@ interface ToolCallSlotProps extends Omit<
 }
 
 interface ThoughtSlotProps {
+  displayKey: string;
   itemId: string;
   onInlineDetailsExpandedChangeByItemId: (itemId: string, expanded: boolean) => void;
   text: string;
@@ -1334,6 +1337,7 @@ interface ThoughtSlotProps {
 
 // Reasoning text is paced the same way assistant text is; see @/hooks/use-revealed-text.
 function ThoughtSlot({
+  displayKey,
   itemId,
   onInlineDetailsExpandedChangeByItemId,
   text,
@@ -1341,17 +1345,19 @@ function ThoughtSlot({
   isLastInSequence,
   defaultExpanded,
 }: ThoughtSlotProps) {
+  const expanded = useThinkingDisplayStore((state) => state.expanded[displayKey]);
   const revealedText = useRevealedText(text, status === "ready" ? "complete" : "streaming");
   return (
     <ToolCallSlot
+      key={String(expanded)}
       itemId={itemId}
       onInlineDetailsExpandedChangeByItemId={onInlineDetailsExpandedChangeByItemId}
       toolName="thinking"
       args={revealedText}
       status={status === "ready" ? "completed" : "executing"}
       isLastInSequence={isLastInSequence}
-      defaultExpanded={defaultExpanded}
-      forceInline={defaultExpanded}
+      defaultExpanded={expanded ?? defaultExpanded}
+      forceInline={expanded ?? defaultExpanded}
     />
   );
 }

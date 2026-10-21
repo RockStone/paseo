@@ -15,6 +15,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { buildAgentStreamRenderModel } from "./model";
 import { createStreamPresentation, getStreamItemMessageId } from "./presentation";
+import { thinkingDisplayKey, useThinkingDisplayStore } from "./thinking-display";
 
 const runtime = {
   paseo: {},
@@ -491,6 +492,22 @@ function assistantMessage(
 }
 
 describe("timeline presentation", () => {
+  it("scopes thinking expansion to its host and conversation", () => {
+    useThinkingDisplayStore.setState({ expanded: {} });
+    const key = thinkingDisplayKey("host", "agent");
+    useThinkingDisplayStore.getState().toggle(key, true);
+    expect(useThinkingDisplayStore.getState().expanded[key]).toBe(false);
+    expect(
+      useThinkingDisplayStore.getState().expanded[thinkingDisplayKey("other", "agent")],
+    ).toBeUndefined();
+    expect(
+      useThinkingDisplayStore.getState().expanded[thinkingDisplayKey("host", "other")],
+    ).toBeUndefined();
+    useThinkingDisplayStore.getState().toggle(key, true);
+    expect(useThinkingDisplayStore.getState().expanded[key]).toBe(true);
+    useThinkingDisplayStore.setState({ expanded: {} });
+  });
+
   it("folds only long assistant continuations immediately after compaction", () => {
     const summary = {
       ...assistantMessage("intro", 2),
@@ -538,7 +555,6 @@ describe("timeline presentation", () => {
       }).tail,
     ).toEqual([compaction, reply]);
   });
-
   const present = createStreamPresentation();
   function projectTimelineItems(items: StreamItem[], transform?: TimelineItemTransform) {
     return present({ ...presentationOptions, tail: items, head: [], transform }).tail;

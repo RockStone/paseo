@@ -23,6 +23,8 @@ import {
   Maximize,
   Minimize,
   Plus,
+  ChevronRight,
+  ChevronDown,
   X,
 } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -68,6 +70,8 @@ import type { WorkspaceTabLaunchPurpose } from "@/workspace-tabs/launcher";
 import type { SurfaceBackdrop } from "@/styles/surface-backdrop";
 import type { Theme } from "@/styles/theme";
 import { RenderProfile } from "@/utils/render-profiler";
+import { thinkingDisplayKey, useThinkingDisplayStore } from "@/agent-stream/thinking-display";
+import { useSettings } from "@/hooks/use-settings";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useCompactTimeAgo } from "@/hooks/use-time-ago";
@@ -670,6 +674,9 @@ function resolveChipBackdrop({
 }
 
 function TabHandleContent({
+  serverId,
+  thinkingAgentId,
+  showThinkingAction,
   presentation,
   isHighlighted,
   showLabel,
@@ -678,6 +685,9 @@ function TabHandleContent({
   tabLabelStyle,
   modifiedTestId,
 }: {
+  serverId: string;
+  thinkingAgentId?: string;
+  showThinkingAction: boolean;
   presentation: WorkspaceTabPresentation;
   isHighlighted: boolean;
   showLabel: boolean;
@@ -695,7 +705,15 @@ function TabHandleContent({
   return (
     <View style={styles.tabHandle} dataSet={tabHandleDataSet}>
       <View style={styles.tabIcon}>
-        <WorkspaceTabIcon presentation={presentation} active={isHighlighted} backdrop={backdrop} />
+        {thinkingAgentId && showThinkingAction ? (
+          <AgentThinkingToggle serverId={serverId} agentId={thinkingAgentId} />
+        ) : (
+          <WorkspaceTabIcon
+            presentation={presentation}
+            active={isHighlighted}
+            backdrop={backdrop}
+          />
+        )}
       </View>
       {showLabel && presentation.titleState === "loading" ? (
         <View style={tabLabelSkeletonStyle} />
@@ -716,6 +734,47 @@ function TabHandleContent({
       ) : null}
     </View>
   );
+}
+
+function AgentThinkingToggle({ serverId, agentId }: { serverId: string; agentId: string }) {
+  const key = thinkingDisplayKey(serverId, agentId);
+  const defaultExpanded = useSettings((settings) => settings.autoExpandReasoning);
+  const expanded = useThinkingDisplayStore((state) => state.expanded[key] ?? defaultExpanded);
+  const Chevron = expanded ? ChevronDown : ChevronRight;
+  const stop = useCallback(
+    (event: { stopPropagation?: () => void }) => event.stopPropagation?.(),
+    [],
+  );
+  const accessibilityState = useMemo(() => ({ expanded }), [expanded]);
+  const toggle = useCallback(
+    (event: { stopPropagation(): void }) => {
+      event.stopPropagation();
+      useThinkingDisplayStore.getState().toggle(key, defaultExpanded);
+    },
+    [key, defaultExpanded],
+  );
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={expanded ? "Collapse thinking" : "Expand thinking"}
+      accessibilityState={accessibilityState}
+      aria-expanded={expanded}
+      testID={`workspace-tab-thinking-${agentId}`}
+      onPressIn={stop}
+      {...(isWeb ? { onPointerDown: stop, onMouseDown: stop } : {})}
+      onPress={toggle}
+    >
+      <Chevron size={14} color={styles.tabLabelActive.color} />
+    </Pressable>
+  );
+}
+
+function activeThinkingAgentId(tab: WorkspaceTabDescriptor, active: boolean) {
+  return active && tab.target.kind === "agent" ? tab.target.agentId : undefined;
+}
+
+function showTabThinkingAction(hovered: boolean, compact: boolean) {
+  return hovered || isNative || compact;
 }
 
 function TabChip({
@@ -866,6 +925,9 @@ function TabChip({
               aria-selected={isActive}
             >
               <TabHandleContent
+                serverId={serverId}
+                thinkingAgentId={activeThinkingAgentId(tab, isActive)}
+                showThinkingAction={showTabThinkingAction(isHovered, isCompact)}
                 presentation={presentation}
                 isHighlighted={isHighlighted}
                 showLabel={showLabel}

@@ -25,6 +25,7 @@ import {
   expectReadingStreamedMarkdown,
 } from "../support/helpers/chat-outline";
 import { createCreationScenario } from "../support/helpers/creation";
+import { seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import {
   attachPromptTimelineEvidence,
   expectPromptsDrawnByPlugin,
@@ -49,6 +50,41 @@ import {
 // for chrome-width changes elsewhere to stay out of these tests.
 const WIDE_VIEWPORT = { width: 1440, height: 900 };
 const LOADED_TURNS = 16;
+
+test("active tab icon toggles all thinking rows and preserves the provider icon off hover", async ({
+  page,
+}) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "thinking-toggle-",
+    title: "Thinking toggle",
+    model: "ten-second-stream",
+  });
+  try {
+    await agent.client.sendAgentMessage(
+      agent.agentId,
+      "Explain the implementation and run the checks.",
+    );
+    await agent.client.waitForFinish(agent.agentId, 30000);
+    await page.setViewportSize(WIDE_VIEWPORT);
+    await openAgentTimeline(page, agent);
+    const tab = page.getByTestId(`workspace-tab-agent_${agent.agentId}`);
+    const toggle = page.getByTestId(`workspace-tab-thinking-${agent.agentId}`);
+    await page.mouse.move(1200, 700);
+    await expect(toggle).toHaveCount(0);
+    await tab.hover();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const thinking = page.getByTestId("tool-call-badge").filter({ hasText: "Thinking" });
+    await expect(thinking.first()).toContainText("Need to find the scroll container");
+    await toggle.click();
+    await expect(thinking.first()).not.toContainText("Need to find the scroll container");
+    await page.mouse.move(1200, 700);
+    await expect(toggle).toHaveCount(0);
+  } finally {
+    await agent.cleanup();
+  }
+});
 
 test.describe("desktop chat outline", () => {
   test("keeps the prompt marked while reading split Markdown blocks and after completion", async ({
