@@ -35,6 +35,10 @@ carries new-tab actions, while wide leaves those to the strip's `+` menu and lis
 actions only. Items both surfaces share live in one component that each menu renders, from the same
 callbacks, so the two can't drift.
 
+Agent tab menus and sidebar agent menus share their action handlers and item renderer too.
+Keep clipboard, rename, and reload behavior in those shared owners; a new entry point must not
+grow its own version of the same agent action.
+
 ## Selecting an item on iOS
 
 An item that closes the menu runs its action after a fixed grace period on iOS, not immediately:

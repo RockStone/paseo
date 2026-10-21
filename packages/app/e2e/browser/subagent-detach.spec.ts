@@ -2,9 +2,11 @@ import { composerLocator, expectComposerVisible } from "../support/helpers/compo
 import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
 import { getServerId } from "../support/helpers/server-id";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
-import { expect, test } from "../support/fixtures";
+import { expect, test, type Page } from "../support/fixtures";
 import { expectWorkspaceTabVisible, fetchAgentArchivedAt } from "../support/helpers/archive-tab";
 import { expectAgentTabActive } from "../support/helpers/launcher";
+import { renameModalInput, renameModalSubmit, renameModalError } from "../support/helpers/rename";
+import type { SessionInboundMessage } from "@getpaseo/protocol/messages";
 import { openAgentRoute } from "../support/helpers/mock-agent";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import {
@@ -17,6 +19,48 @@ import {
   seedSubagent,
   rejectNextManagedSubagentArchiveRequest,
 } from "../support/helpers/subagents";
+
+async function rejectFirstSidebarAgentActions(page: Page, agentId: string) {
+  const rejected = new Set<string>();
+  await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => {
+      if (typeof message === "string") {
+        const request = (JSON.parse(message) as { message?: SessionInboundMessage }).message;
+        let action: string | null = null;
+        if (request?.type === "refresh_agent_request" && request.agentId === agentId)
+          action = "Reload";
+        if (request?.type === "update_agent_request" && request.agentId === agentId) {
+          if (request.name) action = "Rename";
+          if (
+            Object.entries(request.labels ?? {}).some(
+              ([key, value]) => key.startsWith("paseo.open-agent-tab.") && value === "false",
+            )
+          )
+            action = "Close";
+        }
+        if (action && !rejected.has(action) && request && "requestId" in request) {
+          rejected.add(action);
+          ws.send(
+            JSON.stringify({
+              type: "session",
+              message: {
+                type: "rpc_error",
+                payload: {
+                  requestId: request.requestId,
+                  error: `${action} unavailable; please retry.`,
+                },
+              },
+            }),
+          );
+          return;
+        }
+      }
+      server.send(message);
+    });
+    server.onMessage((message) => ws.send(message));
+  });
+}
 
 test.describe("Subagent detach", () => {
   let workspace: SeededWorkspace;
@@ -50,6 +94,151 @@ test.describe("Subagent detach", () => {
   });
 });
 
+test("sidebar agent menu copies, renames, reloads and closes only the selected agent view", async ({
+  page,
+  context,
+}) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-agent-menu-" });
+  try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const pair = await seedParentWithSubagent(workspace, {
+      parentTitle: "Menu parent",
+      childTitle: "Menu child",
+    });
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await openAgentRoute(page, { workspaceId: pair.workspaceId, agentId: pair.parent.id });
+    const row = page.getByTestId(`sidebar-agent-tree-row-agent:${pair.child.id}`);
+    const menu = page.getByTestId(`sidebar-agent-context-menu-${pair.child.id}`);
+    const item = (key: string) => page.getByTestId(`sidebar-agent-menu-${pair.child.id}-${key}`);
+    await row.click({ button: "right" });
+    await expect(menu.getByRole("menuitem")).toHaveText([
+      "Copy resume command",
+      `Copy agent id${pair.child.id.slice(0, 7)}`,
+      "Rename",
+      "Reload agent",
+      "Close",
+      "Archive agent",
+    ]);
+    await expect(item("close")).toBeDisabled();
+    await item("copy-agent-id").click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe(pair.child.id);
+    await expectAgentTabActive(page, pair.parent.id);
+    await row.click({ button: "right" });
+    await item("copy-resume-command").click();
+    await expect(page.getByText("Resume command not available", { exact: true })).toBeVisible();
+    await row.click({ button: "right" });
+    await item("rename").click();
+    const prefix = `workspace-tab-rename-modal-agent-${pair.child.id}`;
+    await expect(renameModalInput(page, prefix)).toHaveValue("Menu child");
+    await renameModalInput(page, prefix).fill("Renamed menu child");
+    await renameModalSubmit(page, prefix).click();
+    await expect(renameModalInput(page, prefix)).toHaveCount(0);
+    await expect(row).toHaveText("Renamed menu child");
+    await expectAgentTabActive(page, pair.parent.id);
+    await row.click({ button: "right" });
+    await item("reload-agent").click();
+    await expect(page.getByText("Reloaded agent", { exact: true })).toBeVisible();
+    await row.click();
+    await expectAgentTabActive(page, pair.child.id);
+    await row.click({ button: "right" });
+    await expect(item("close")).toBeEnabled();
+    await page.screenshot({
+      path: "/tmp/paseoi-r76-sidebar-agent-menu.png",
+      animations: "disabled",
+    });
+    await item("close").click();
+    await expect(
+      page.getByTestId(`workspace-tab-agent_${pair.child.id}`).filter({ visible: true }),
+    ).toHaveCount(0);
+    await expect(row).toBeVisible();
+    expect(await fetchAgentArchivedAt(workspace.client, pair.child.id)).toBeNull();
+    expect(await fetchAgentArchivedAt(workspace.client, pair.parent.id)).toBeNull();
+    await row.click();
+    await expectAgentTabActive(page, pair.child.id);
+    await page.reload();
+    await expect(row).toHaveText("Renamed menu child");
+    await expectAgentTabActive(page, pair.child.id);
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("sidebar agent actions preserve the selected agent and recover from failures", async ({
+  page,
+  context,
+}) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-agent-menu-retry-" });
+  try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const pair = await seedParentWithSubagent(workspace, {
+      parentTitle: "Retained parent",
+      childTitle: "Retry child",
+    });
+    await rejectFirstSidebarAgentActions(page, pair.child.id);
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await openAgentRoute(page, { workspaceId: pair.workspaceId, agentId: pair.parent.id });
+    const row = page.getByTestId(`sidebar-agent-tree-row-agent:${pair.child.id}`);
+    const item = (key: string) => page.getByTestId(`sidebar-agent-menu-${pair.child.id}-${key}`);
+    const cdp = await context.newCDPSession(page);
+    const { targetInfo } = await cdp.send("Target.getTargetInfo");
+    const permission = {
+      browserContextId: targetInfo.browserContextId,
+      permission: { name: "clipboard-write" },
+      origin: new URL(page.url()).origin,
+    };
+    await cdp.send("Browser.setPermission", { ...permission, setting: "denied" });
+    await row.click({ button: "right" });
+    await item("copy-agent-id").click();
+    await expect(page.getByText("Copy failed", { exact: true })).toBeVisible();
+    await cdp.send("Browser.setPermission", { ...permission, setting: "granted" });
+    await row.click({ button: "right" });
+    await item("copy-agent-id").click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe(pair.child.id);
+    await row.click({ button: "right" });
+    await item("rename").click();
+    const prefix = `workspace-tab-rename-modal-agent-${pair.child.id}`;
+    await renameModalInput(page, prefix).fill("Recovered child name");
+    await renameModalSubmit(page, prefix).click();
+    await expect(renameModalError(page, prefix)).toHaveText("Rename unavailable; please retry.");
+    await expect(renameModalInput(page, prefix)).toHaveValue("Recovered child name");
+    await expect(row).toHaveText("Retry child");
+    await renameModalSubmit(page, prefix).click();
+    await expect(renameModalInput(page, prefix)).toHaveCount(0);
+    await expect(row).toHaveText("Recovered child name");
+    await row.click({ button: "right" });
+    await item("reload-agent").click();
+    await expect(
+      page.getByText("Reload unavailable; please retry.", { exact: true }),
+    ).toBeVisible();
+    await row.click({ button: "right" });
+    await expect(item("reload-agent")).toBeEnabled();
+    await item("reload-agent").click();
+    await expect(page.getByText("Reloaded agent", { exact: true })).toBeVisible();
+    await row.click();
+    await expectAgentTabActive(page, pair.child.id);
+    await row.click({ button: "right" });
+    await item("close").click();
+    await expect(page.getByText("Failed to close agent", { exact: true })).toBeVisible();
+    await expectAgentTabActive(page, pair.child.id);
+    await row.click({ button: "right" });
+    await expect(item("close")).toBeEnabled();
+    await item("close").click();
+    await expect(
+      page.getByTestId(`workspace-tab-agent_${pair.child.id}`).filter({ visible: true }),
+    ).toHaveCount(0);
+    await expect(row).toBeVisible();
+    expect(await fetchAgentArchivedAt(workspace.client, pair.child.id)).toBeNull();
+    expect(await fetchAgentArchivedAt(workspace.client, pair.parent.id)).toBeNull();
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 test("sidebar agent archive can be retried after failure and survives reload", async ({ page }) => {
   const workspace = await seedWorkspace({ repoPrefix: "sidebar-agent-archive-" });
   try {
@@ -65,7 +254,7 @@ test("sidebar agent archive can be retried after failure and survives reload", a
     await page.setViewportSize({ width: 1400, height: 900 });
     await openAgentRoute(page, { workspaceId: pair.workspaceId, agentId: pair.parent.id });
     const row = page.getByTestId(`sidebar-agent-tree-row-agent:${pair.child.id}`);
-    const item = page.getByTestId(`sidebar-agent-archive-${pair.child.id}`);
+    const item = page.getByTestId(`sidebar-agent-menu-${pair.child.id}-archive-agent`);
     await row.click({ button: "right" });
     await expect(item).toBeVisible();
     await item.click();
@@ -110,7 +299,7 @@ test("sidebar archive confirms before stopping a running child", async ({ page }
     await page.setViewportSize({ width: 1400, height: 900 });
     await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: pair.parent.id });
     const row = page.getByTestId(`sidebar-agent-tree-row-agent:${child.id}`);
-    const item = page.getByTestId(`sidebar-agent-archive-${child.id}`);
+    const item = page.getByTestId(`sidebar-agent-menu-${child.id}-archive-agent`);
     await row.click({ button: "right" });
     const canceled = page.waitForEvent("dialog").then((dialog) => {
       expect(dialog.message()).toContain("Archive running agent?");

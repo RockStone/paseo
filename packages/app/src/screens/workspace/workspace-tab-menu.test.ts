@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildWorkspaceDesktopTabActions,
   buildWorkspaceTabMenuEntries,
+  buildAgentRowMenuEntries,
 } from "@/screens/workspace/workspace-tab-menu";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
 
@@ -15,6 +16,57 @@ function createAgentTab(): WorkspaceTabDescriptor {
 }
 
 describe("buildWorkspaceTabMenuEntries", () => {
+  it("gives agent rows the tab actions without actions on neighboring tabs", () => {
+    const calls: string[] = [];
+    const entries = buildAgentRowMenuEntries({
+      agentId: "agent-123",
+      menuTestIDBase: "row",
+      canClose: false,
+      reloading: true,
+      archiving: false,
+      onCopyResumeCommand: (id) => {
+        calls.push(`resume:${id}`);
+      },
+      onCopyAgentId: (id) => {
+        calls.push(`copy:${id}`);
+      },
+      onRenameTab: (tab) => {
+        calls.push(`rename:${tab.tabId}`);
+      },
+      onReloadAgent: (id) => {
+        calls.push(`reload:${id}`);
+      },
+      onCloseTab: (id) => {
+        calls.push(`close:${id}`);
+      },
+      onArchiveAgent: (id) => {
+        calls.push(`archive:${id}`);
+      },
+    });
+    const items = entries.filter((entry) => entry.kind === "item");
+    expect(items.map((entry) => entry.label)).toEqual([
+      "Copy resume command",
+      "Copy agent id",
+      "Rename",
+      "Reload agent",
+      "Close",
+      "Archive agent",
+    ]);
+    expect(items.find((entry) => entry.key === "copy-agent-id")?.hint).toBe("agent-1");
+    expect(items.find((entry) => entry.key === "reload-agent")?.disabled).toBe(true);
+    expect(items.find((entry) => entry.key === "close")?.disabled).toBe(true);
+    expect(items.find((entry) => entry.key === "archive-agent")?.destructive).toBe(true);
+    for (const entry of items) entry.onSelect();
+    expect(calls).toEqual([
+      "resume:agent-123",
+      "copy:agent-123",
+      "rename:agent_agent-123",
+      "reload:agent-123",
+      "close:agent_agent-123",
+      "archive:agent-123",
+    ]);
+  });
+
   it("keeps Archive agent separate from Close", () => {
     const onArchiveAgent = vi.fn();
     const onCloseTab = vi.fn();
