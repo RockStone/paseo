@@ -3,7 +3,7 @@ import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
 import { getServerId } from "../support/helpers/server-id";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { expect, test } from "../support/fixtures";
-import { expectWorkspaceTabVisible } from "../support/helpers/archive-tab";
+import { expectWorkspaceTabVisible, fetchAgentArchivedAt } from "../support/helpers/archive-tab";
 import { expectAgentTabActive } from "../support/helpers/launcher";
 import { openAgentRoute } from "../support/helpers/mock-agent";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
@@ -15,6 +15,7 @@ import {
   seedParentWithSubagent,
   seedParentWithCrossWorkspaceSubagent,
   seedSubagent,
+  rejectNextManagedSubagentArchiveRequest,
 } from "../support/helpers/subagents";
 
 test.describe("Subagent detach", () => {
@@ -47,6 +48,91 @@ test.describe("Subagent detach", () => {
     await expectWorkspaceTabVisible(page, agents.child.id);
     await expectAgentTabActive(page, agents.child.id);
   });
+});
+
+test("sidebar agent archive can be retried after failure and survives reload", async ({ page }) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-agent-archive-" });
+  try {
+    const pair = await seedParentWithSubagent(workspace, {
+      parentTitle: "Retained coordinator",
+      childTitle: "Archive this child",
+    });
+    const sibling = await seedSubagent(workspace, {
+      parentId: pair.parent.id,
+      title: "Retained sibling",
+    });
+    const rejected = await rejectNextManagedSubagentArchiveRequest(page, pair.child.id);
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await openAgentRoute(page, { workspaceId: pair.workspaceId, agentId: pair.parent.id });
+    const row = page.getByTestId(`sidebar-agent-tree-row-agent:${pair.child.id}`);
+    const item = page.getByTestId(`sidebar-agent-archive-${pair.child.id}`);
+    await row.click({ button: "right" });
+    await expect(item).toBeVisible();
+    await item.click();
+    await rejected.waitForRejection();
+    await expect(page.getByText("Failed to archive agent", { exact: true })).toBeVisible();
+    await expect(row).toBeVisible();
+    expect(await fetchAgentArchivedAt(workspace.client, pair.child.id)).toBeNull();
+    await row.click({ button: "right" });
+    await page.screenshot({ path: "/tmp/paseoi-r75-sidebar-agent-menu.png" });
+    await item.click();
+    await expect(row).toHaveCount(0);
+    await expect.poll(() => fetchAgentArchivedAt(workspace.client, pair.child.id)).not.toBeNull();
+    expect(await fetchAgentArchivedAt(workspace.client, pair.parent.id)).toBeNull();
+    expect(await fetchAgentArchivedAt(workspace.client, sibling.id)).toBeNull();
+    await expectAgentTabActive(page, pair.parent.id);
+    await page.reload();
+    await expectAgentTabActive(page, pair.parent.id);
+    await expect(row).toHaveCount(0);
+    await expect(page.getByTestId(`sidebar-agent-tree-row-agent:${sibling.id}`)).toBeVisible();
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("sidebar archive confirms before stopping a running child", async ({ page }) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-running-archive-" });
+  try {
+    const pair = await seedParentWithSubagent(workspace, {
+      parentTitle: "Retained parent",
+      childTitle: "Idle sibling",
+    });
+    const child = await workspace.client.createAgent({
+      provider: "mock",
+      cwd: workspace.repoPath,
+      workspaceId: workspace.workspaceId,
+      title: "Running child",
+      modeId: "load-test",
+      model: "five-minute-stream",
+      labels: { "paseo.parent-agent-id": pair.parent.id },
+      initialPrompt: "Keep running",
+    });
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: pair.parent.id });
+    const row = page.getByTestId(`sidebar-agent-tree-row-agent:${child.id}`);
+    const item = page.getByTestId(`sidebar-agent-archive-${child.id}`);
+    await row.click({ button: "right" });
+    const canceled = page.waitForEvent("dialog").then((dialog) => {
+      expect(dialog.message()).toContain("Archive running agent?");
+      return dialog.dismiss();
+    });
+    await item.click();
+    await canceled;
+    await expect(row).toBeVisible();
+    await expect(workspace.client.fetchAgent({ agentId: child.id })).resolves.toMatchObject({
+      agent: { status: "running", archivedAt: null },
+    });
+    await row.click({ button: "right" });
+    const accepted = page.waitForEvent("dialog").then((dialog) => dialog.accept());
+    await item.click();
+    await accepted;
+    await expect(row).toHaveCount(0);
+    await expect.poll(() => fetchAgentArchivedAt(workspace.client, child.id)).not.toBeNull();
+    expect(await fetchAgentArchivedAt(workspace.client, pair.parent.id)).toBeNull();
+    await expectAgentTabActive(page, pair.parent.id);
+  } finally {
+    await workspace.cleanup();
+  }
 });
 
 test("sidebar coordinator tree collapses, opens child threads and restores relationships after reload", async ({

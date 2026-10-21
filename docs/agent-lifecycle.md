@@ -187,8 +187,8 @@ view from that client; the agent keeps running, retains its history and parent r
 stays available from the sidebar or History. Single close, keyboard shortcuts, and bulk close use
 the same policy. Closing a terminal tab still stops its terminal process after confirmation.
 
-To archive an agent, choose **Archive agent** from its tab menu or use another explicit archive
-action. Archiving is global, stops its runtime, and applies the child rules above. A running agent
+To archive an agent, choose **Archive agent** from its tab menu or its sidebar agent row's
+context menu. Archiving is global, stops its runtime, and applies the child rules above. A running agent
 requires confirmation.
 
 Closing a managed subagent tab clears that client's open-tab label before removing the tab.

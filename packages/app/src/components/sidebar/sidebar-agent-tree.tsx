@@ -1,12 +1,21 @@
-import { memo, useCallback, useMemo, useState, useEffect } from "react";
+import { memo, useCallback, useMemo, useState, useEffect, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react-native";
+import { Archive, ChevronDown, ChevronRight, MessageSquare } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { SidebarGroupToggleRow } from "@/components/sidebar/sidebar-group-toggle-row";
 import { useLimitedSidebarGroup } from "@/components/sidebar/use-limited-sidebar-group";
 import { StatusRing } from "@/components/status-ring";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
+import { useArchiveAgent } from "@/hooks/use-archive-agent";
+import { useToast } from "@/contexts/toast-context";
+import { confirmDialog } from "@/utils/confirm-dialog";
 import { deriveSidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { useSessionStore, selectAgentTurnPresentation, type Agent } from "@/stores/session-store";
 import { useSessionDragSource } from "@/attachments/use-session-drag-source";
@@ -37,7 +46,9 @@ const EMPTY_AGENTS = new Map<string, Agent>();
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedChevronRight = withUnistyles(ChevronRight);
 const ThemedMessage = withUnistyles(MessageSquare);
+const ThemedArchive = withUnistyles(Archive);
 const iconColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const archiveIcon = <ThemedArchive size={16} uniProps={iconColor} />;
 
 export function useSidebarAgentTree({
   serverId,
@@ -271,49 +282,51 @@ function ThreadBranch({
     : t("agentTree.expand", { title });
   return (
     <View>
-      <View style={rowStyle} {...hoverHandlers}>
-        {hasChildren ? (
+      <ThreadRowMenu node={node} serverId={serverId}>
+        <View style={rowStyle} {...hoverHandlers}>
+          {hasChildren ? (
+            <Pressable
+              onPress={toggle}
+              accessibilityRole="button"
+              accessibilityLabel={toggleLabel}
+              accessibilityState={accessibilityState}
+              aria-expanded={expanded}
+              style={styles.toggle}
+              testID={`sidebar-agent-tree-toggle-${node.key}`}
+            >
+              {running ? (
+                <View testID={`sidebar-agent-tree-running-${node.key}`}>
+                  <StatusRing />
+                </View>
+              ) : (
+                <ToggleIcon size={12} uniProps={iconColor} />
+              )}
+            </Pressable>
+          ) : (
+            <View style={styles.toggle}>
+              {running ? (
+                <View testID={`sidebar-agent-tree-running-${node.key}`}>
+                  <StatusRing />
+                </View>
+              ) : (
+                <ThemedMessage size={10} uniProps={iconColor} />
+              )}
+            </View>
+          )}
           <Pressable
-            onPress={toggle}
+            onPress={open}
             accessibilityRole="button"
-            accessibilityLabel={toggleLabel}
-            accessibilityState={accessibilityState}
-            aria-expanded={expanded}
-            style={styles.toggle}
-            testID={`sidebar-agent-tree-toggle-${node.key}`}
+            accessibilityLabel={t("agentTree.open", { title })}
+            style={styles.thread}
+            aria-selected={selected}
+            testID={`sidebar-agent-tree-row-${node.key}`}
           >
-            {running ? (
-              <View testID={`sidebar-agent-tree-running-${node.key}`}>
-                <StatusRing />
-              </View>
-            ) : (
-              <ToggleIcon size={12} uniProps={iconColor} />
-            )}
+            <Text ref={dragRef} style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
           </Pressable>
-        ) : (
-          <View style={styles.toggle}>
-            {running ? (
-              <View testID={`sidebar-agent-tree-running-${node.key}`}>
-                <StatusRing />
-              </View>
-            ) : (
-              <ThemedMessage size={10} uniProps={iconColor} />
-            )}
-          </View>
-        )}
-        <Pressable
-          onPress={open}
-          accessibilityRole="button"
-          accessibilityLabel={t("agentTree.open", { title })}
-          style={styles.thread}
-          aria-selected={selected}
-          testID={`sidebar-agent-tree-row-${node.key}`}
-        >
-          <Text ref={dragRef} style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-        </Pressable>
-      </View>
+        </View>
+      </ThreadRowMenu>
       {hasChildren && expanded ? (
         <View style={styles.children}>
           {node.children
@@ -330,6 +343,63 @@ function ThreadBranch({
         </View>
       ) : null}
     </View>
+  );
+}
+
+function ThreadRowMenu({
+  node,
+  serverId,
+  children,
+}: {
+  node: SidebarThreadNode;
+  serverId: string;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const { archiveAgent, isArchivingAgent } = useArchiveAgent();
+  const toast = useToast();
+  const archive = useCallback(async () => {
+    if (node.target.kind !== "agent") return;
+    const { agentId } = node.target;
+    const agent = useSessionStore.getState().sessions[serverId]?.agents.get(agentId);
+    if (
+      agent?.status === "running" &&
+      !(await confirmDialog({
+        title: t("workspace.tabs.confirmations.archiveRunningAgentTitle"),
+        message: t("workspace.tabs.confirmations.archiveRunningAgentMessage"),
+        confirmLabel: t("workspace.tabs.confirmations.archive"),
+        cancelLabel: t("workspace.tabs.confirmations.cancel"),
+        destructive: true,
+      }))
+    )
+      return;
+    try {
+      await archiveAgent({ serverId, agentId });
+    } catch {
+      toast.error(t("workspace.tabs.toasts.failedToArchiveAgent"));
+    }
+  }, [node.target, serverId, archiveAgent, t, toast]);
+  const handleArchive = useCallback(() => {
+    void archive();
+  }, [archive]);
+  // Native provider threads have provider-owned lifecycles rather than managed agent IDs.
+  if (node.target.kind !== "agent") return children;
+  const { agentId } = node.target;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger contextOnly={isWeb}>{children}</ContextMenuTrigger>
+      <ContextMenuContent width={220} testID={`sidebar-agent-context-menu-${agentId}`}>
+        <ContextMenuItem
+          destructive
+          disabled={isArchivingAgent({ serverId, agentId })}
+          leading={archiveIcon}
+          onSelect={handleArchive}
+          testID={`sidebar-agent-archive-${agentId}`}
+        >
+          {t("workspace.tabs.menu.archiveAgent")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
