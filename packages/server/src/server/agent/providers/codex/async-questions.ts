@@ -119,11 +119,15 @@ export class CodexAsyncQuestions {
         return answer;
       });
       const values = resolution;
-      prompt =
-        "Answers to your questions:\n\n" +
-        record.item.questions
-          .map((question, index) => `${question.title}\n${values[index]}`)
-          .join("\n\n");
+      prompt = record.item.questions
+        .map(
+          (question, index) =>
+            `${question.title
+              .split("\n")
+              .map((line) => `> ${line}`)
+              .join("\n")}\n\n${values[index]}`,
+        )
+        .join("\n\n");
     }
     return {
       prompt,

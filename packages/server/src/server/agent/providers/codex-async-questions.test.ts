@@ -40,12 +40,12 @@ async function setup(metadata?: Record<string, unknown>, rejectSteer = false) {
   const started = waitForNextEvent(session, "turn_started");
   appServer.startsTurn({ threadId: "thread-1", turnId: "native-turn" });
   await started;
-  async function ask() {
-    const shown = waitForTimelineToolCall(session, questionItem.id);
+  async function ask(item = questionItem) {
+    const shown = waitForTimelineToolCall(session, item.id);
     appServer.child.stdout.write(
       JSON.stringify({
         method: "item/completed",
-        params: { threadId: "thread-1", turnId: "native-turn", item: questionItem },
+        params: { threadId: "thread-1", turnId: "native-turn", item },
       }) + "\n",
     );
     await shown;
@@ -226,16 +226,18 @@ test("manager snapshots capture pending and answered question state before the t
   try {
     await ask();
     const [permission] = session.getPendingPermissions();
-    expect(manager.getAgent(agent.id)?.persistence?.metadata?.asyncQuestions).toEqual([
-      {
-        item: {
-          type: "agentMessage",
-          id: questionItem.id,
-          delivery: "async",
-          questions: questionItem.questions,
+    await expect
+      .poll(() => manager.getAgent(agent.id)?.persistence?.metadata?.asyncQuestions)
+      .toEqual([
+        {
+          item: {
+            type: "agentMessage",
+            id: questionItem.id,
+            delivery: "async",
+            questions: questionItem.questions,
+          },
         },
-      },
-    ]);
+      ]);
     await manager.respondToPermission(agent.id, permission.id, answer);
     expect(manager.getAgent(agent.id)?.persistence?.metadata?.asyncQuestions).toEqual([
       {
@@ -326,7 +328,7 @@ test("shows an async question, keeps streaming, and delivers its answer without 
           params: {
             expectedTurnId: "native-turn",
             clientUserMessageId: expect.any(String),
-            input: [{ type: "text", text: expect.stringContaining("Which color?\nGreen") }],
+            input: [{ type: "text", text: expect.stringContaining("> Which color?\n\nGreen") }],
           },
         },
       ],
@@ -402,9 +404,37 @@ test("late answers use the existing follow-up prompt and dismissal does not inte
     await finish();
     expect(session.getPendingPermissions()).toHaveLength(1);
     expect(await session.respondToPermission(permission.id, answer)).toEqual({
-      followUpPrompt: "Answers to your questions:\n\nWhich color?\nGreen",
+      followUpPrompt: "> Which color?\n\nGreen",
     });
     expect(appServer.requests().some((request) => request.method === "turn/interrupt")).toBe(false);
+  } finally {
+    await session.close();
+  }
+});
+
+test("question replies quote each complete question above its plain answer", async () => {
+  const { session, ask, finish } = await setup();
+  try {
+    await ask({
+      ...questionItem,
+      questions: [
+        { title: "Which color?\nChoose a preview color.", options: ["Blue", "Green"] },
+        { title: "Which mode?", options: ["Dev", "Prod"] },
+      ],
+    });
+    await finish();
+    const [permission] = session.getPendingPermissions();
+    expect(
+      await session.respondToPermission(permission.id, {
+        behavior: "allow",
+        updatedInput: {
+          answers: { "Question 1": "Green", "Question 2": "Dev\nWith the preview enabled." },
+        },
+      }),
+    ).toEqual({
+      followUpPrompt:
+        "> Which color?\n> Choose a preview color.\n\nGreen\n\n> Which mode?\n\nDev\nWith the preview enabled.",
+    });
   } finally {
     await session.close();
   }
