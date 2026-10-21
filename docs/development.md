@@ -114,6 +114,13 @@ npm ci
 npm run build:custom:desktop
 ```
 
+Every custom rebuild must be delivered: run the packaged smoke test, replace
+`/Applications/Paseoi.app`, and verify the installed version and files. Preserve a
+rollback copy and leave the running app and managed daemon alone. Then review the
+task diff, commit it in focused feature groups, and push the current branch. Preserve
+unrelated work. Report source validation, installation, and push results separately;
+an installed bundle takes effect when the user relaunches the app.
+
 The output is `packages/desktop/release/mac-arm64/Paseoi.app` on Apple
 Silicon. The app is named Paseoi and uses the root `Paseoi.icns` for its bundle and
 runtime icon. It preserves the existing custom build's app identity,
@@ -512,6 +519,24 @@ exact ref also resolves through its stored branch name.
 Worktrees inherit committed Git state only; uncommitted source-checkout changes are not copied.
 
 ## paseo.json service scripts
+
+The workspace Run menu reads `scripts` from the repository's `paseo.json`. It appears when
+the workspace has configured scripts. These are terminal commands, independent of agents;
+commit the file to keep the same commands across app restarts and checkouts.
+
+For a Flutter debug run, add a command at the Flutter app's workspace root:
+
+```json
+{
+  "scripts": {
+    "flutter-debug": { "command": "flutter run --debug" }
+  }
+}
+```
+
+Use `flutter run --debug -d <device-id>` to select a particular device. For an app in a
+subdirectory, prefix the command with `cd <app-directory> &&`. Run output and keyboard
+input stay in its terminal; a running script is separate from its persisted configuration.
 
 `worktree.setup` and `worktree.teardown` accept either a multiline shell script or an array
 of commands. Both run sequentially.
