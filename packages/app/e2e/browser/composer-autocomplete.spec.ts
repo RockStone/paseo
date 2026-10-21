@@ -1081,6 +1081,100 @@ test("composer hyperlinks stay editable and open with a modifier click", async (
   }
 });
 
+test("composer formats fenced code only after its closing backticks and preserves editable source", async ({
+  page,
+}, testInfo) => {
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "composer-code-fence-",
+    title: "Fenced composer code",
+  });
+  const gate = await installDaemonWebSocketGate(page);
+  try {
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    const source = "Before\n\n```typescript\nconst one = 1;\n\nconst two = 2;\n```";
+    const body = input.locator(".composer-code-block:not(.composer-code-fence)");
+    await input.fill(source.slice(0, -1));
+    await expect(body).toHaveCount(0);
+    await expect(input).toContainText("```typescript");
+    await input.press("End");
+    await input.press("`");
+    await expect(body).toHaveText(["const one = 1;", "", "const two = 2;"]);
+    await expect(body.first()).toHaveCSS("font-family", "monospace");
+    await expect(input).not.toContainText("```");
+    await expect(input).not.toContainText("typescript");
+    await expect(input).toHaveAttribute("data-markdown", source);
+    // Hidden delimiters remain one keyboard step; moving the caret separates this edit for undo.
+    await input.press("ArrowLeft");
+    await expect(input).toHaveAttribute("data-selection-start", String(source.length - 3));
+    await input.press("ArrowRight");
+    await expect(input).toHaveAttribute("data-selection-start", String(source.length));
+    await input.press("Backspace");
+    await expect(body).toHaveCount(0);
+    await expect(input).toContainText("```typescript");
+    await input.press("ControlOrMeta+z");
+    await expect(body).toHaveCount(3);
+    await expect(input).toHaveAttribute("data-markdown", source);
+    await body.last().click();
+    await input.press("End");
+    await input.pressSequentially(" // edited");
+    const edited = source.replace("const two = 2;", "const two = 2; // edited");
+    await expect(input).toHaveAttribute("data-markdown", edited);
+    await expect(body.last()).toHaveText("const two = 2; // edited");
+    await page.screenshot({ path: testInfo.outputPath("composer-fenced-code.png") });
+    await input.press("Enter");
+    await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
+    expect(gate.getClientRequests("send_agent_message_request")[0]!.text).toBe(edited);
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("composer code fences require matching closers and keep monospace with a custom UI font", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("@paseo:app-settings", JSON.stringify({ uiFontFamily: "serif" }));
+  });
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "composer-code-boundaries-",
+    title: "Code fence boundaries",
+  });
+  try {
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    const body = input.locator(".composer-code-block:not(.composer-code-fence)");
+    const source = "Prose\n\n````markdown\n```js\nconst embedded = true;\n```\n````";
+    await input.fill(source.slice(0, -1));
+    await expect(body).toHaveCount(0);
+    await input.press("End");
+    await input.press("`");
+    await expect(body).toHaveText(["```js", "const embedded = true;", "```"]);
+    await expect(body.first()).toHaveCSS("font-family", "monospace");
+    await expect(input.locator(".cm-line").first()).toHaveCSS("font-family", "serif");
+    await input.press("ControlOrMeta+End");
+    await input.press("Shift+Enter");
+    await input.pressSequentially("Then `inline` ");
+    await expect(input.locator(".composer-code")).toHaveText("inline");
+    await expect(input.locator(".composer-code")).toHaveCSS("font-family", "monospace");
+    await expect(body).toHaveCount(3);
+    await expect(input).toHaveAttribute("data-markdown", `${source}\nThen \`inline\` `);
+    await input.fill("```\ntext\n``` trailing text");
+    await expect(input.locator(".composer-code-block")).toHaveCount(0);
+    await input.fill("```\n```");
+    await expect(input.locator(".composer-code-fence")).toHaveCount(2);
+    await expect(input).toHaveAttribute("data-markdown", "```\n```");
+    await input.press("ControlOrMeta+a");
+    await input.press("Backspace");
+    await expect(input).toHaveAttribute("data-markdown", "");
+    await expect(input.locator(".composer-code-block")).toHaveCount(0);
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 test("decorated composer hides reference targets, formats closed Markdown and continues numbered lists", async ({
   page,
 }) => {
@@ -1096,6 +1190,7 @@ test("decorated composer hides reference targets, formats closed Markdown and co
     const markdown = "the `quick` **fox** *lazy* [thread](thread://agent-id?hostId=host)";
     await input.fill(markdown);
     await expect(input.locator(".composer-code")).toHaveText("quick");
+    await expect(input.locator(".composer-code")).toHaveCSS("font-family", "monospace");
     await expect(input.locator(".composer-bold")).toHaveText("fox");
     await expect(input.locator(".composer-italic")).toHaveText("lazy");
     await expect(input.locator(".composer-reference")).toHaveText("thread");

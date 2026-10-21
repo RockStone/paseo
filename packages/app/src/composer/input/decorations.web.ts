@@ -3,6 +3,8 @@ import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemir
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Nodes } from "mdast";
 
+const CODE_FONT_ATTRIBUTES = { "data-pmono": "" };
+
 class ReferenceLabel extends WidgetType {
   constructor(
     readonly label: string,
@@ -73,6 +75,31 @@ function decorateQuote(
   return ranges;
 }
 
+function decorateCodeBlock(state: EditorState, from: number, to: number): Range<Decoration>[] {
+  const opening = state.doc.lineAt(from);
+  const closing = state.doc.lineAt(Math.max(from, to - 1));
+  const fence = /^ {0,3}(`{3,})[^`]*$/.exec(state.sliceDoc(from, opening.to))?.[1];
+  const endFence = /^ {0,3}(`{3,})[\t ]*$/.exec(closing.text)?.[1];
+  // Markdown also parses unfinished fences as code. Wait for an actual matching closer.
+  if (!fence || !endFence || endFence.length < fence.length || opening.number === closing.number)
+    return [];
+  const ranges: Range<Decoration>[] = [
+    Decoration.replace({ atomic: true }).range(from, opening.to),
+    Decoration.replace({ atomic: true }).range(closing.from, closing.to),
+  ];
+  for (let number = opening.number; number <= closing.number; number++) {
+    const classes = ["composer-code-block"];
+    if (number === opening.number) classes.push("composer-code-fence", "composer-code-block-start");
+    if (number === closing.number) classes.push("composer-code-fence", "composer-code-block-end");
+    ranges.push(
+      Decoration.line({ class: classes.join(" "), attributes: CODE_FONT_ATTRIBUTES }).range(
+        state.doc.line(number).from,
+      ),
+    );
+  }
+  return ranges;
+}
+
 function decorate(state: EditorState): DecorationSet {
   const text = state.doc.toString();
   const ranges: Range<Decoration>[] = [];
@@ -97,11 +124,17 @@ function decorate(state: EditorState): DecorationSet {
     if (node.type === "text") {
       ranges.push(...decorateUrls(text, from, to));
     }
+    if (node.type === "code") {
+      ranges.push(...decorateCodeBlock(state, from, to));
+      return;
+    }
     let width = 0;
     let className = "";
+    let attributes: Record<string, string> | undefined;
     if (node.type === "inlineCode") {
       width = text.slice(from, to).match(/^`+/)?.[0].length ?? 1;
       className = "composer-code";
+      attributes = CODE_FONT_ATTRIBUTES;
     } else if (node.type === "strong") {
       width = 2;
       className = "composer-bold";
@@ -112,7 +145,9 @@ function decorate(state: EditorState): DecorationSet {
     if (width > 0 && waitsForSpace(node, text[to])) return;
     if (width > 0) {
       ranges.push(Decoration.replace({ atomic: true }).range(from, from + width));
-      ranges.push(Decoration.mark({ class: className }).range(from + width, to - width));
+      ranges.push(
+        Decoration.mark({ class: className, attributes }).range(from + width, to - width),
+      );
       ranges.push(Decoration.replace({ atomic: true }).range(to - width, to));
     }
     if ("children" in node) node.children.forEach(visit);

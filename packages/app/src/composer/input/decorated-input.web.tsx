@@ -150,13 +150,33 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
             paddingLeft: "8px",
             marginLeft: "2px",
           },
-          ".composer-code": {
+          ".composer-code, .cm-line.composer-code-block": {
             color: current.codeColor ?? "inherit",
             fontFamily: "monospace",
             backgroundColor: current.codeBackground ?? "transparent",
+          },
+          ".composer-code": {
             border: `1px solid ${current.codeBorder ?? "transparent"}`,
             borderRadius: "3px",
             padding: "1px 3px",
+          },
+          ".cm-line.composer-code-block": {
+            borderLeft: `1px solid ${current.codeBorder ?? "transparent"}`,
+            borderRight: `1px solid ${current.codeBorder ?? "transparent"}`,
+            padding: "0 8px",
+          },
+          ".cm-line.composer-code-fence": { height: "0", fontSize: "0", lineHeight: "0" },
+          ".cm-line.composer-code-block-start": {
+            borderTop: `1px solid ${current.codeBorder ?? "transparent"}`,
+            borderTopLeftRadius: "3px",
+            borderTopRightRadius: "3px",
+            paddingTop: "6px",
+          },
+          ".cm-line.composer-code-block-end": {
+            borderBottom: `1px solid ${current.codeBorder ?? "transparent"}`,
+            borderBottomLeftRadius: "3px",
+            borderBottomRightRadius: "3px",
+            paddingBottom: "6px",
           },
         }),
       ];
