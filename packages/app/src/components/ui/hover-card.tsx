@@ -36,6 +36,27 @@ import {
 
 const CLOSE_GRACE_MS = 100;
 
+interface HoverCardGroupValue {
+  claim: (dismiss: () => void) => void;
+  release: (dismiss: () => void) => void;
+}
+
+const HoverCardGroupContext = createContext<HoverCardGroupValue | null>(null);
+
+export function HoverCardGroup({ children }: { children: ReactNode }): ReactElement {
+  const activeDismissRef = useRef<(() => void) | null>(null);
+  const claim = useCallback((dismiss: () => void) => {
+    const previous = activeDismissRef.current;
+    activeDismissRef.current = dismiss;
+    if (previous !== dismiss) previous?.();
+  }, []);
+  const release = useCallback((dismiss: () => void) => {
+    if (activeDismissRef.current === dismiss) activeDismissRef.current = null;
+  }, []);
+  const value = useMemo(() => ({ claim, release }), [claim, release]);
+  return <HoverCardGroupContext.Provider value={value}>{children}</HoverCardGroupContext.Provider>;
+}
+
 interface HoverCardContextValue {
   open: boolean;
   layer: number;
@@ -84,6 +105,7 @@ function WebHoverCard({
   disabled: boolean;
   children: ReactNode;
 }): ReactElement {
+  const group = useContext(HoverCardGroupContext);
   const layer = useOverlayLayer("floating");
   const triggerRef = useRef<View | HTMLElement>(null);
   const contentRef = useRef<View>(null);
@@ -99,10 +121,14 @@ function WebHoverCard({
     }
   }, []);
 
-  const dismiss = useCallback(() => {
-    clearGraceTimer();
-    setOpen(false);
-  }, [clearGraceTimer]);
+  const dismiss = useCallback(
+    function dismiss() {
+      clearGraceTimer();
+      setOpen(false);
+      group?.release(dismiss);
+    },
+    [clearGraceTimer, group],
+  );
 
   const focusInside = useCallback(() => {
     if (!isWeb) return false;
@@ -124,16 +150,17 @@ function WebHoverCard({
     graceTimerRef.current = setTimeout(() => {
       graceTimerRef.current = null;
       if (keyboardFocusInside()) return;
-      setOpen(false);
+      dismiss();
     }, CLOSE_GRACE_MS);
-  }, [keyboardFocusInside]);
+  }, [dismiss, keyboardFocusInside]);
 
   const openNow = useCallback(() => {
     clearGraceTimer();
     if (!disabled) {
+      group?.claim(dismiss);
       setOpen(true);
     }
-  }, [clearGraceTimer, disabled]);
+  }, [clearGraceTimer, disabled, dismiss, group]);
 
   const keyPressed = useCallback(
     (event: KeyboardEvent): boolean => {
@@ -143,8 +170,7 @@ function WebHoverCard({
       if (event.key === "Escape" && open) {
         event.preventDefault();
         if (focusInside()) trigger.focus();
-        clearGraceTimer();
-        setOpen(false);
+        dismiss();
         return true;
       } else if (
         focusInside() &&
@@ -164,7 +190,7 @@ function WebHoverCard({
       }
       return false;
     },
-    [clearGraceTimer, focusInside, open, openNow],
+    [dismiss, focusInside, open, openNow],
   );
 
   const setOverlayScope = useWebOverlayRegistration({
@@ -185,10 +211,7 @@ function WebHoverCard({
     if (!isWeb) return;
     const trigger = triggerRef.current as unknown as HTMLElement | null;
     if (!trigger) return;
-    const close = () => {
-      clearGraceTimer();
-      setOpen(false);
-    };
+    const close = dismiss;
     const focusEntered = (event: FocusEvent) => {
       const target = event.target as Element;
       keyboardFocusedRef.current = target.matches(":focus-visible");
@@ -241,7 +264,7 @@ function WebHoverCard({
       document.removeEventListener("scroll", scrolled, true);
       window.removeEventListener("resize", close);
     };
-  }, [clearGraceTimer, keyPressed, open, openNow, scheduleClose]);
+  }, [clearGraceTimer, dismiss, keyPressed, open, openNow, scheduleClose]);
 
   // While open, the safe zone covers trigger + content + the bridge between
   // them. Close only fires when the pointer leaves the safe zone; re-entering
@@ -256,12 +279,17 @@ function WebHoverCard({
 
   useEffect(() => {
     if (disabled) {
-      clearGraceTimer();
-      setOpen(false);
+      dismiss();
     }
-  }, [clearGraceTimer, disabled]);
+  }, [disabled, dismiss]);
 
-  useEffect(() => clearGraceTimer, [clearGraceTimer]);
+  useEffect(
+    () => () => {
+      clearGraceTimer();
+      group?.release(dismiss);
+    },
+    [clearGraceTimer, dismiss, group],
+  );
 
   const value = useMemo<HoverCardContextValue>(
     () => ({ open, layer, setTriggerRef, triggerRef, contentRef, openNow, scheduleClose, dismiss }),
@@ -358,6 +386,7 @@ function HoverCardSurface({
   triggerRef: RefObject<View | HTMLElement | null>;
   contentRef: RefObject<View | null>;
 }): ReactElement {
+  const group = useContext(HoverCardGroupContext);
   const bottomSheetInternal = useBottomSheetModalInternal(true);
   const [triggerRect, setTriggerRect] = useState<Rect | null>(null);
   const [contentSize, setContentSize] = useState<Size | null>(null);
@@ -413,7 +442,7 @@ function HoverCardSurface({
       <FloatingSurface
         ref={contentRef}
         entering={FadeIn.duration(80)}
-        exiting={FadeOut.duration(80)}
+        exiting={group ? undefined : FadeOut.duration(80)}
         collapsable={false}
         onLayout={handleLayout}
         role={role}

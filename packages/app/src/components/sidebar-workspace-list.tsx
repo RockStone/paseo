@@ -124,6 +124,7 @@ import {
 import { DensityIcon } from "@/components/ui/density-icon";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { HoverCardGroup } from "@/components/ui/hover-card";
 import { Shortcut } from "@/components/ui/shortcut";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
@@ -2020,7 +2021,7 @@ export function SidebarWorkspaceList({
       />
     );
 
-  return content;
+  return <HoverCardGroup>{content}</HoverCardGroup>;
 }
 
 /**

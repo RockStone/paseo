@@ -80,6 +80,33 @@ async function openWorkspaceHoverCard(page: import("@playwright/test").Page, wor
   return hoverCard;
 }
 
+function sampleWorkspaceHoverCardFrames(page: Page): Promise<string[][]> {
+  return page.evaluate(async () => {
+    const samples: string[][] = [];
+    for (let frame = 0; frame < 30; frame++) {
+      await new Promise<number>((resolve) => requestAnimationFrame(resolve));
+      const names = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-testid="workspace-hover-card"]'),
+      )
+        .filter((card) => {
+          const bounds = card.getBoundingClientRect();
+          return (
+            bounds.right > 0 &&
+            bounds.bottom > 0 &&
+            bounds.left < innerWidth &&
+            bounds.top < innerHeight
+          );
+        })
+        .map(
+          (card) =>
+            card.querySelector('[data-testid="hover-card-workspace-name"]')?.textContent ?? "",
+        );
+      samples.push(names);
+    }
+    return samples;
+  });
+}
+
 interface PaseoOwnedWorktree {
   projectName: string;
   workspaceId: string;
@@ -454,6 +481,64 @@ test.describe("Sidebar workspace list", () => {
       await row.click();
       await expect(row).toBeFocused();
       await expectWorkspaceHoverCardOpen(page);
+      await movePointerAwayFromWorkspaceHoverCard(page);
+      await expectWorkspaceHoverCardClosed(page);
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+
+  test("workspace hover cards hand off between rows without overlapping stale details", async ({
+    page,
+  }) => {
+    const workspace = await seedWorkspace({
+      repoPrefix: "sidebar-hover-handoff-",
+      title: "Previous workspace details",
+    });
+    try {
+      const created = await workspace.client.createWorkspace({
+        source: { kind: "directory", path: workspace.repoPath, projectId: workspace.projectId },
+        title: "Next workspace details",
+      });
+      if (!created.workspace) throw new Error(created.error ?? "Failed to create next workspace");
+      await page.setViewportSize({ width: 1400, height: 900 });
+      await gotoAppShell(page);
+      const previous = await waitForSidebarWorkspace(page, workspace.workspaceId);
+      const next = await waitForSidebarWorkspace(page, created.workspace.id);
+      await previous.hover();
+      await expect(page.getByTestId("hover-card-workspace-name")).toHaveText(
+        "Previous workspace details",
+      );
+      for (const [target, title] of [
+        [next, "Next workspace details"],
+        [previous, "Previous workspace details"],
+        [next, "Next workspace details"],
+      ] as const) {
+        const handoff = sampleWorkspaceHoverCardFrames(page);
+        await target.hover();
+        const samples = await handoff;
+        const replacementFrame = samples.findIndex((names) => names.includes(title));
+        expect(replacementFrame).toBeGreaterThanOrEqual(0);
+        expect(samples.filter((names) => names.length > 1)).toEqual([]);
+        expect(
+          samples
+            .slice(replacementFrame)
+            .flat()
+            .filter((name) => name !== title),
+        ).toEqual([]);
+        await expect(page.getByTestId("hover-card-workspace-name")).toHaveText(title);
+      }
+      const rapidHandoff = sampleWorkspaceHoverCardFrames(page);
+      await previous.hover();
+      await next.hover();
+      await previous.hover();
+      expect((await rapidHandoff).filter((names) => names.length > 1)).toEqual([]);
+      await expect(page.getByTestId("hover-card-workspace-name")).toHaveText(
+        "Previous workspace details",
+      );
+      await page.getByTestId("hover-card-workspace-cwd").hover();
+      await expectWorkspaceHoverCardStaysOpen(page);
+      await page.screenshot({ path: "/tmp/paseoi-r72-hover-handoff.png" });
       await movePointerAwayFromWorkspaceHoverCard(page);
       await expectWorkspaceHoverCardClosed(page);
     } finally {

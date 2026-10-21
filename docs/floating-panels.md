@@ -22,6 +22,11 @@ until then prefer copying the closest file and trimming.
 
 Chat auto-scroll does not move a composer anchor. Close hover cards when an ancestor of their trigger scrolls; scrolling another pane must not dismiss them.
 
+Wrap sibling cards that replace each other in `HoverCardGroup`, as the workspace sidebar does.
+An independent close grace period can leave the previous card open beside its replacement;
+Reanimated exit clones can then paint that stale content above the new card. Grouped cards
+keep the trigger-to-card crossing grace but release the previous surface without an exit clone.
+
 On web, hover cards opened inside menus use the shared overlay root. An app-local
 portal stays below the menu backdrop regardless of the card's own z-index, which
 prevents the pointer from reaching scrollable content.
