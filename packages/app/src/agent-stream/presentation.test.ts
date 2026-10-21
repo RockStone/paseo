@@ -508,7 +508,7 @@ describe("timeline presentation", () => {
     useThinkingDisplayStore.setState({ expanded: {} });
   });
 
-  it("folds only long assistant continuations immediately after compaction", () => {
+  it("folds recognized long assistant continuations and preserves ordinary replies", () => {
     const summary = {
       ...assistantMessage("intro", 2),
       text: "This session is being continued from a previous conversation. ".repeat(100),
@@ -554,6 +554,45 @@ describe("timeline presentation", () => {
         head: [],
       }).tail,
     ).toEqual([compaction, reply]);
+  });
+
+  it.each(["live", "history"])("folds a continuation after intervening tools in %s", (source) => {
+    const summary = {
+      ...assistantMessage("intro", 2),
+      text: "Attribution for git commits and pull requests you create from here on. ".repeat(100),
+    };
+    const compaction: StreamItem = {
+      kind: "compaction",
+      id: "compact",
+      timestamp: new Date(0),
+      status: "completed",
+    };
+    const shell = toolCall("intervening-shell", "Bash");
+    const items = [compaction, shell, summary];
+    const result = createStreamPresentation()({
+      level: "detailed",
+      isTurnActive: source === "live",
+      transform: undefined,
+      tail: source === "history" ? items : [],
+      head: source === "live" ? items : [],
+    });
+    expect(rows(result)).toEqual([compaction, shell, { ...summary, isCompactionIntro: true }]);
+  });
+
+  it("folds a recognized continuation when its divider is outside loaded history", () => {
+    const summary = {
+      ...assistantMessage("intro", 2),
+      text: "Attribution for git commits and pull requests you create from here on. ".repeat(100),
+    };
+    const shell = toolCall("intervening-shell", "Bash");
+    const result = createStreamPresentation()({
+      level: "detailed",
+      isTurnActive: false,
+      transform: undefined,
+      tail: [shell, summary],
+      head: [],
+    });
+    expect(result.tail).toEqual([shell, { ...summary, isCompactionIntro: true }]);
   });
   const present = createStreamPresentation();
   function projectTimelineItems(items: StreamItem[], transform?: TimelineItemTransform) {

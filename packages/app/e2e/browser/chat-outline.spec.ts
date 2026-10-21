@@ -26,6 +26,7 @@ import {
 } from "../support/helpers/chat-outline";
 import { createCreationScenario } from "../support/helpers/creation";
 import { seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import {
   attachPromptTimelineEvidence,
   expectPromptsDrawnByPlugin,
@@ -50,6 +51,52 @@ import {
 // for chrome-width changes elsewhere to stay out of these tests.
 const WIDE_VIEWPORT = { width: 1440, height: 900 };
 const LOADED_TURNS = 16;
+
+function withCompactionIntro(raw: string | Buffer, agentId: string, intro: string) {
+  const envelope = JSON.parse(raw.toString());
+  const payload = envelope.message?.payload;
+  if (payload?.agentId !== agentId || !payload.entries) return raw;
+  const lastReply = payload.entries.findLast(
+    (entry: { item?: { type?: string } }) => entry.item?.type === "assistant_message",
+  );
+  if (lastReply) lastReply.item.text = intro;
+  return JSON.stringify(envelope);
+}
+
+test("folds restored compaction text after tool rows and allows expansion", async ({ page }) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "compaction-intro-",
+    title: "Compaction intro",
+    model: "ten-second-stream",
+  });
+  const intro =
+    "Attribution for git commits and pull requests you create from here on.\n\n" +
+    "Restored tools and context. ".repeat(70);
+  try {
+    await agent.client.sendAgentMessage(agent.agentId, "Restore the previous context.");
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+      const server = ws.connectToServer();
+      ws.onMessage((message) => server.send(message));
+      server.onMessage((raw) => ws.send(withCompactionIntro(raw, agent.agentId, intro)));
+    });
+    await page.setViewportSize(WIDE_VIEWPORT);
+    await openAgentTimeline(page, agent);
+    const summary = page.getByRole("button", { name: "Compaction summary", exact: true }).last();
+    await expect(summary).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByText(intro, { exact: true })).toHaveCount(0);
+    await summary.click();
+    await expect(summary).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByText(/Restored tools and context/)).toBeVisible();
+    await page.getByTestId("agent-chat-scroll").first().hover();
+    await page.mouse.wheel(0, -20_000);
+    await summary.click();
+    await expect(summary).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByText(/Restored tools and context/)).toHaveCount(0);
+  } finally {
+    await agent.cleanup();
+  }
+});
 
 function historyRowsDoNotOverlap(element: HTMLElement): boolean {
   const rows = [...element.querySelectorAll<HTMLElement>("[data-history-row-id]")]

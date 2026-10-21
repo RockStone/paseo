@@ -48,7 +48,7 @@ export function createStreamPresentation() {
   let preparedLevel: ToolCallDetailLevel | undefined;
   let preparedHistory: PreparedToolCallHistory | null = null;
 
-  function presentRows(item: StreamItem, followsCompaction = false): StreamItem[] {
+  function presentRows(item: StreamItem): StreamItem[] {
     if (
       item.kind === "tool_call" &&
       item.payload.source === "agent" &&
@@ -56,7 +56,6 @@ export function createStreamPresentation() {
     )
       return [];
     if (
-      followsCompaction &&
       item.kind === "assistant_message" &&
       item.text.length > 1000 &&
       /^(?:Attribution for git commits and pull requests|This session is being continued from a previous conversation)/.test(
@@ -70,19 +69,16 @@ export function createStreamPresentation() {
   return (input: PresentationInput) => {
     // Retained history is not reprojected or regrouped on each live text update.
     if (historySource !== input.tail || historyTransform !== input.transform) {
-      const projected = projectPluginTimelineItems(input.tail, input.transform);
-      historyRows = projected.flatMap<StreamItem>((item, index) =>
-        presentRows(item, projected[index - 1]?.kind === "compaction"),
+      historyRows = projectPluginTimelineItems(input.tail, input.transform).flatMap<StreamItem>(
+        (item) => presentRows(item),
       );
       historySource = input.tail;
       historyTransform = input.transform;
     }
     const head: StreamItem[] = [];
-    let followsCompaction = historyRows.at(-1)?.kind === "compaction";
     for (const item of projectPluginTimelineItems(input.head, input.transform, "streaming")) {
-      const blocks = presentRows(item, followsCompaction);
+      const blocks = presentRows(item);
       head.push(...blocks);
-      followsCompaction = item.kind === "compaction";
     }
     if (preparedTail !== historyRows || preparedLevel !== input.level) {
       preparedHistory = prepareToolCallHistory(input.level, historyRows);
