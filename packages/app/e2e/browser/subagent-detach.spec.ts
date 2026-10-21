@@ -333,7 +333,7 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
                       status: "completed",
                       parentSubagentId: null,
                       description: "Inactive native child",
-                      updatedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+                      updatedAt: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
                     },
                     {
                       ...descriptor,
@@ -410,6 +410,11 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
     );
     await expect(child).toBeVisible({ timeout: 30_000 });
     await expect(nested).toBeVisible();
+    const tree = page.getByTestId(`sidebar-agent-tree-${getServerId()}:${workspace.workspaceId}`);
+    await expect(tree.locator('[data-testid^="sidebar-agent-tree-row-"]')).toHaveCount(2);
+    await expect(
+      page.getByTestId(`sidebar-agent-tree-show-more-${getServerId()}:${workspace.workspaceId}`),
+    ).toHaveCount(0);
     const running = page.getByTestId(
       `sidebar-agent-tree-running-provider:${parent.id}:native-child`,
     );

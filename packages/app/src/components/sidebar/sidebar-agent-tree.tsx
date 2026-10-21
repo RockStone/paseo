@@ -70,7 +70,7 @@ export function useSidebarAgentTree({
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, []);
-  const activityCutoff = now - 24 * 60 * 60 * 1000;
+  const activityCutoff = now - 6 * 60 * 60 * 1000;
   // Subscribe to order and cutoff membership, so output chunks only redraw the
   // tree when they move a row or bring it back into the recent list.
   const selectActivityOrder = useMemo(

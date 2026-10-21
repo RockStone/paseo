@@ -565,8 +565,10 @@ describe("sidebar coordinator tree", () => {
       tree([root], [base, nested], new Set([providerSubagentKey(SERVER_ID, "parent", "native")])),
     ).toEqual([]);
   });
-  it("hides inactive children at 24 hours while retaining live work and recent descendants", () => {
-    const cutoff = AGENT_TIMESTAMP.getTime() + 1;
+  it("hides children inactive for six hours while retaining live work and recent descendants", () => {
+    const hour = 60 * 60 * 1000;
+    const now = AGENT_TIMESTAMP.getTime() + 7 * hour;
+    const cutoff = now - 6 * hour;
     const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });
     const child = (id: string, extra: Partial<Agent> = {}) =>
       makeAgent({
@@ -577,6 +579,7 @@ describe("sidebar coordinator tree", () => {
     const agents = [
       root,
       child("old"),
+      child("recent", { lastActivityAt: new Date(now - 5 * hour) }),
       child("boundary", { lastActivityAt: new Date(cutoff) }),
       child("running", { status: "running" }),
       child("permission", { attentionReason: "permission" }),
@@ -593,6 +596,7 @@ describe("sidebar coordinator tree", () => {
       new Map([["live-activity", new Date(cutoff)]]),
     );
     expect(result[0]?.children.map((node) => node.key)).toEqual([
+      "agent:recent",
       "agent:boundary",
       "agent:live-activity",
       "agent:running",
