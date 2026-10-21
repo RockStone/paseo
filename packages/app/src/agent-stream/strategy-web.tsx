@@ -715,7 +715,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     reportReadingPosition();
   }, [onNearBottomChange, reportReadingPosition]);
 
-  const { isJumpSettling, scrollToMessage } = useScrollToMessage({
+  const { isJumpSettling, scrollToMessage, cancelJump } = useScrollToMessage({
     active: isActive,
     scrollContainerRef,
     rowVirtualizer,
@@ -723,6 +723,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     cancelPendingStickToBottom,
     setFollowOutput,
     onNearBottomChange,
+    releaseReadingAnchor: readingAnchor.reset,
   });
 
   const reconcileReadingPosition = useStableEvent(() => {
@@ -775,6 +776,8 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
 
   const stopFollowingOutputFromUserIntent = useStableEvent(() => {
     cancelPendingStickToBottom();
+    cancelJump();
+    readingAnchor.reset();
     if (followOutputRef.current) {
       setFollowOutput(false);
     }

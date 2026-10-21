@@ -14,6 +14,7 @@ interface UseScrollToMessageInput {
   cancelPendingStickToBottom: () => void;
   setFollowOutput: (value: boolean) => boolean;
   onNearBottomChange: (value: boolean) => void;
+  releaseReadingAnchor: () => void;
 }
 
 const SCROLL_AFFECTING_KEYS = new Set([
@@ -34,6 +35,7 @@ export function useScrollToMessage({
   cancelPendingStickToBottom,
   setFollowOutput,
   onNearBottomChange,
+  releaseReadingAnchor,
 }: UseScrollToMessageInput) {
   const occurrenceRef = useRef<ScrollToMessageOccurrence | undefined>(undefined);
   const removeAbortListener = useRef<(() => void) | null>(null);
@@ -113,6 +115,7 @@ export function useScrollToMessage({
       const container = scrollContainerRef.current;
       if (!container) return;
       cancelPendingStickToBottom();
+      releaseReadingAnchor();
       setFollowOutput(false);
 
       const mounted = container.querySelector<HTMLElement>(
@@ -144,6 +147,7 @@ export function useScrollToMessage({
       historyVirtualized,
       onNearBottomChange,
       rowVirtualizer,
+      releaseReadingAnchor,
       scrollContainerRef,
       settleController,
       setFollowOutput,
@@ -151,6 +155,7 @@ export function useScrollToMessage({
   );
 
   return {
+    cancelJump: settleController.cancel,
     isJumpSettling: settleController.isActive,
     scrollToMessage,
   };

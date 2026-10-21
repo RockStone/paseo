@@ -119,4 +119,18 @@ describe("reading anchor", () => {
       ),
     ).toBe(0);
   });
+
+  it("does not pin a stale offscreen row after a large upward jump", () => {
+    const anchor = createReadingAnchor();
+    anchor.reconcile(10000, [{ id: "old", top: 10000, height: 400 }]);
+    anchor.scroll(1000);
+    expect(anchor.getRowId()).toBeNull();
+    expect(
+      anchor.reconcile(1000, [
+        { id: "destination", top: 950, height: 400 },
+        { id: "old", top: 15000, height: 400 },
+      ]),
+    ).toBe(1000);
+    expect(anchor.getRowId()).toBe("destination");
+  });
 });

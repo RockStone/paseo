@@ -51,6 +51,17 @@ import {
 const WIDE_VIEWPORT = { width: 1440, height: 900 };
 const LOADED_TURNS = 16;
 
+function historyRowsDoNotOverlap(element: HTMLElement): boolean {
+  const rows = [...element.querySelectorAll<HTMLElement>("[data-history-row-id]")]
+    .map((row) => row.getBoundingClientRect())
+    .filter((rect) => rect.height > 0)
+    .sort((a, b) => a.top - b.top);
+  return (
+    rows.length > 0 &&
+    rows.every((row, index) => index === 0 || rows[index - 1]!.bottom <= row.top + 2)
+  );
+}
+
 test("active tab icon toggles all thinking rows and preserves the provider icon off hover", async ({
   page,
 }) => {
@@ -114,6 +125,13 @@ test.describe("desktop chat outline", () => {
 
   test("indexes unloaded prompts and jumps with one bounded merged page", async ({ page }) => {
     test.setTimeout(120_000);
+    await page.addInitScript(() => {
+      (
+        globalThis as typeof globalThis & {
+          __PASEO_E2E_WEB_PARTIAL_VIRTUALIZATION_THRESHOLD: number;
+        }
+      ).__PASEO_E2E_WEB_PARTIAL_VIRTUALIZATION_THRESHOLD = 10;
+    });
     const agent = await seedLongMockAgentTimeline({ turns: 80 });
     try {
       const jumps = await trackPromptJumpRequests(page, agent.agentId);
@@ -137,6 +155,17 @@ test.describe("desktop chat outline", () => {
       await expectTimelinePromptVisible(page, agent.newestPrompt);
       expect(jumps.requests()).toHaveLength(requestsBeforeLoadedJump);
 
+      await rail.getByRole("tab").first().click();
+      await expectTimelinePromptVisible(page, agent.oldestPrompt);
+
+      const scroller = page.getByTestId("agent-chat-scroll").first();
+      const track = scroller.locator("..").getByTestId("workspace-overlay-scrollbar-track");
+      for (const fraction of [0.75, 0.25, 0.9]) {
+        const bounds = await track.boundingBox();
+        if (!bounds) throw new Error("Conversation scrollbar track is missing");
+        await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height * fraction);
+        await expect.poll(() => scroller.evaluate(historyRowsDoNotOverlap)).toBe(true);
+      }
       await rail.getByRole("tab").first().click();
       await expectTimelinePromptVisible(page, agent.oldestPrompt);
       await agent.client.sendAgentMessage(agent.agentId, "live prompt while viewing old history");

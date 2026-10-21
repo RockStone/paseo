@@ -26,7 +26,12 @@ export function createReadingAnchor() {
     },
     scroll(scrollTop: number) {
       const next = readingRow(scrollTop);
-      anchor = next ? { id: next.id, top: next.top } : null;
+      // A large jump can leave the old mounted range entirely. Do not pin its
+      // first offscreen row while the virtualizer mounts the destination.
+      anchor =
+        next && next.top <= scrollTop + READING_POSITION_OFFSET_PX
+          ? { id: next.id, top: next.top }
+          : null;
     },
     reconcile(scrollTop: number, rows: readonly RowGeometry[], userScrolled = false): number {
       geometry = rows;
