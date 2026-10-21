@@ -11,6 +11,7 @@ interface RenamingTabState {
   kind: "terminal" | "agent";
   id: string;
   currentTitle: string;
+  linkedWorkspaceId?: string;
 }
 
 interface UseWorkspaceTabRenameInput {
@@ -26,6 +27,18 @@ interface UseWorkspaceTabRenameResult {
   handleRenameTab: (tab: WorkspaceTabDescriptor) => void;
   handleRenameModalSubmit: (nextTitle: string) => Promise<void>;
   handleRenameModalClose: () => void;
+}
+
+function linkedWorkspaceForAgent(serverId: string, agentId: string): string | undefined {
+  const session = useSessionStore.getState().sessions[serverId];
+  const agent = session?.agents.get(agentId);
+  if (!agent?.workspaceId || agent.parentAgentId || agent.archivedAt) return;
+  const workspace = session.workspaces.get(agent.workspaceId);
+  if (!workspace?.title?.trim()) return;
+  const direct = [...session.agents.values()].filter(
+    (entry) => entry.workspaceId === workspace.id && !entry.archivedAt && !entry.parentAgentId,
+  );
+  return direct.length === 1 ? workspace.id : undefined;
 }
 
 export function useWorkspaceTabRename(
@@ -46,10 +59,15 @@ export function useWorkspaceTabRename(
       }
       if (tab.target.kind === "agent") {
         const { agentId } = tab.target;
-        const agent =
-          useSessionStore.getState().sessions[normalizedServerId]?.agents?.get(agentId) ?? null;
+        const session = useSessionStore.getState().sessions[normalizedServerId];
+        const agent = session?.agents.get(agentId) ?? null;
         const currentTitle = agent?.title ?? "";
-        setRenamingTab({ kind: "agent", id: agentId, currentTitle });
+        setRenamingTab({
+          kind: "agent",
+          id: agentId,
+          currentTitle,
+          linkedWorkspaceId: linkedWorkspaceForAgent(normalizedServerId, agentId),
+        });
       }
     },
     [normalizedServerId, terminalsData],
@@ -73,7 +91,11 @@ export function useWorkspaceTabRename(
         void queryClient.invalidateQueries({ queryKey: terminalsQueryKey });
         return;
       }
-      await client.updateAgent(renamingTab.id, { name: trimmed });
+      if (renamingTab.linkedWorkspaceId) {
+        await client.setWorkspaceTitle(renamingTab.linkedWorkspaceId, trimmed);
+      } else {
+        await client.updateAgent(renamingTab.id, { name: trimmed });
+      }
       void queryClient.invalidateQueries({
         queryKey: ["sidebarAgentsList", normalizedServerId],
       });

@@ -67,7 +67,7 @@ every managed subagent present in its tabs with `paseo.open-agent-tab.<client-id
 generic agent metadata update. This includes background and restored tabs; navigation does not own
 the marker. Closing a tab sets that client's label to `false`. Any `true` client label keeps the child
 open. Detach clears the parent and every open-tab label. The surviving child therefore becomes a
-normal root agent immediately, and closing its still-open tab archives it.
+normal root agent immediately. Closing its tab only changes the layout.
 
 The sidebar groups delegated workspaces beneath their parent workspace. Their agents still open
 in their actual workspaces. A workspace with an independent root, a missing or archived parent,
@@ -170,6 +170,10 @@ Provider session connection owns every process it spawns until the session is re
 received.
 
 ## Tabs vs archive
+
+A workspace's generated or explicit title also names its sole direct agent. Workspace renames
+update that agent's stored name; renaming its tab updates the workspace title. Subagents retain
+their own names. Workspaces with several independent agents keep separate agent names.
 
 These are two distinct concepts that used to be conflated:
 
