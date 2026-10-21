@@ -11,6 +11,33 @@ import { gotoWorkspace } from "../support/helpers/launcher";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { waitForWorkspaceTabsVisible } from "../support/helpers/workspace-tabs";
 
+test("hidden agent sidebar previews from the left edge without pinning it", async ({ page }) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-edge-preview-" });
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoWorkspace(page, workspace.workspaceId);
+    await waitForWorkspaceTabsVisible(page);
+    const sidebar = page.getByTestId("sidebar-sessions").filter({ visible: true });
+    await expect(sidebar).toHaveCount(1);
+    await page.keyboard.press(`${modifier}+b`);
+    await expect(sidebar).toHaveCount(0);
+    await page.getByTestId("sidebar-edge-trigger").hover();
+    const preview = page.getByTestId("sidebar-edge-preview");
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveCSS("position", "absolute");
+    await expect(sidebar).toHaveCount(1);
+    await page.mouse.move(1200, 450);
+    await expect(preview).toHaveCount(0);
+    await expect(sidebar).toHaveCount(0);
+    await page.keyboard.press(`${modifier}+b`);
+    await expect(sidebar).toHaveCount(1);
+    await expect(page.getByTestId("sidebar-edge-trigger")).toHaveCount(0);
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 function visible(page: Page, testId: string): Locator {
   return page.getByTestId(testId).filter({ visible: true });
 }

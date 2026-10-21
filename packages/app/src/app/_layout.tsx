@@ -531,6 +531,12 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
       viewportWidth,
     }),
   });
+  const sidebarPreview = useSidebarEdgePreview({
+    isCompactLayout,
+    chromeEnabled,
+    mounted: desktopSidebarMounted,
+    visible: desktopSidebarVisible,
+  });
   const hasTopLeftWindowControls = useHasWindowChromeObstruction("top-left");
   const appChromeLayout = resolveDesktopAppChromeLayout({
     desktopSidebarRendered: desktopSidebarVisible,
@@ -540,7 +546,13 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   const sidebarChrome = (
     <SidebarChrome
       mounted={isCompactLayout ? chromeEnabled : desktopSidebarMounted}
-      visible={isCompactLayout ? chromeEnabled : desktopSidebarVisible}
+      visible={sidebarChromeVisible(
+        isCompactLayout,
+        chromeEnabled,
+        desktopSidebarVisible,
+        sidebarPreview.open,
+      )}
+      preview={sidebarPreview.open}
       keyboardShortcutsEnabled={keyboardShortcutsEnabled}
     />
   );
@@ -552,9 +564,11 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
     <View style={rowStyle}>
       <WorkspaceLayoutModePublisher />
       {!isCompactLayout ? (
-        <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
-          {themedSidebarChrome}
-        </WindowChromeRegion>
+        <SidebarPreviewFrame preview={sidebarPreview.open} onDismiss={sidebarPreview.dismiss}>
+          <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
+            {themedSidebarChrome}
+          </WindowChromeRegion>
+        </SidebarPreviewFrame>
       ) : null}
       {usesCompactExplorerHost ? (
         <CompactExplorerSidebarHost
@@ -578,6 +592,10 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   const surface = (
     <View style={layoutStyles.surfaceFill}>
       {workspaceChrome}
+      <SidebarEdgeTrigger
+        visible={sidebarPreview.triggerVisible}
+        onReveal={sidebarPreview.reveal}
+      />
       <AppearanceStyleBoundary>
         {!isCompactLayout && appChromeLayout.sidebarToggleOwner === "window" ? (
           <WindowChromeRegion corners="top-left">
@@ -633,19 +651,80 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   );
 }
 
+function sidebarChromeVisible(
+  compact: boolean,
+  chrome: boolean,
+  visible: boolean,
+  preview: boolean,
+) {
+  return compact ? chrome : visible || preview;
+}
+
+function useSidebarEdgePreview(input: {
+  isCompactLayout: boolean;
+  chromeEnabled: boolean;
+  mounted: boolean;
+  visible: boolean;
+}) {
+  const [requested, setRequested] = useState(false);
+  const enabled =
+    isWeb && !input.isCompactLayout && input.chromeEnabled && input.mounted && !input.visible;
+  const reveal = useCallback(() => setRequested(true), []);
+  const dismiss = useCallback(() => setRequested(false), []);
+  useEffect(() => {
+    if (!enabled) setRequested(false);
+  }, [enabled]);
+  return { open: enabled && requested, triggerVisible: enabled && !requested, reveal, dismiss };
+}
+
+function SidebarPreviewFrame({
+  preview,
+  onDismiss,
+  children,
+}: {
+  preview: boolean;
+  onDismiss: () => void;
+  children: ReactNode;
+}) {
+  const mouseHandlers = useMemo(() => (isWeb ? { onMouseLeave: onDismiss } : {}), [onDismiss]);
+  return (
+    <View
+      style={preview ? layoutStyles.sidebarPreview : undefined}
+      {...(mouseHandlers as object)}
+      testID={preview ? "sidebar-edge-preview" : undefined}
+    >
+      {children}
+    </View>
+  );
+}
+
+function SidebarEdgeTrigger({ visible, onReveal }: { visible: boolean; onReveal: () => void }) {
+  const mouseHandlers = useMemo(() => ({ onMouseEnter: onReveal }), [onReveal]);
+  if (!visible) return null;
+  return (
+    <View
+      style={layoutStyles.sidebarEdge}
+      {...(mouseHandlers as object)}
+      testID="sidebar-edge-trigger"
+    />
+  );
+}
+
 function SidebarChrome({
   mounted,
   visible,
+  preview = false,
   keyboardShortcutsEnabled,
 }: {
   mounted: boolean;
   visible: boolean;
+  preview?: boolean;
   keyboardShortcutsEnabled: boolean;
 }) {
   const isCompactLayout = useIsCompactFormFactor();
   const isMobileActive = useIsMobilePanelActive("agent-list");
   const isDesktopOpen = usePanelStore((state) => state.desktop.agentListOpen);
-  const active = visible && (isCompactLayout ? isMobileActive : isDesktopOpen);
+  const active = visible && (preview || (isCompactLayout ? isMobileActive : isDesktopOpen));
   return (
     <SidebarModelProvider active={active}>
       {mounted ? <LeftSidebar active={active} /> : null}
@@ -1003,6 +1082,24 @@ export default function RootLayout() {
 }
 
 const layoutStyles = StyleSheet.create((theme) => ({
+  sidebarPreview: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 30,
+    backgroundColor: theme.colors.surface0,
+    borderRightWidth: theme.borderWidth[1],
+    borderRightColor: theme.colors.border,
+  },
+  sidebarEdge: {
+    position: "absolute",
+    top: HEADER_INNER_HEIGHT,
+    bottom: 0,
+    left: 0,
+    width: 6,
+    zIndex: 30,
+  },
   surfaceFill: {
     flex: 1,
     backgroundColor: theme.colors.surface0,
