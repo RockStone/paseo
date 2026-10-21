@@ -1,5 +1,6 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { ToolDetailText as Text } from "./tool-detail-tone";
 import { StyleSheet } from "react-native-unistyles";
 import { isWeb } from "@/constants/platform";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";

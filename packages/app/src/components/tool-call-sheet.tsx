@@ -17,6 +17,7 @@ import { ToolCallDetailsContent } from "./tool-call-details";
 // ----- Types -----
 
 export interface ToolCallSheetData {
+  muted?: boolean;
   toolName: string;
   displayName: string;
   summary?: string;
@@ -182,6 +183,7 @@ function ToolCallSheetContent({ data, onClose }: ToolCallSheetContentProps) {
       {/* Content */}
       <BottomSheetScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <ToolCallDetailsContent
+          muted={data.muted}
           toolName={toolName}
           detail={detail}
           errorText={errorText}

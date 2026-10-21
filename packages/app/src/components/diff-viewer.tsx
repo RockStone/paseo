@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { View, Text, ScrollView as RNScrollView } from "react-native";
+import { View, ScrollView as RNScrollView } from "react-native";
+import { ToolDetailText as Text } from "./tool-detail-tone";
 import { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native-unistyles";
 import type { DiffLine } from "@/utils/tool-call-parsers";

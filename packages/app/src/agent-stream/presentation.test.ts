@@ -562,6 +562,26 @@ describe("timeline presentation", () => {
   const envelope =
     "<spoken-input>\nPlease fix the voice chat.\n</spoken-input>\n<instruction>This message was spoken by the user. Respond using the speak tool only, not normal messages, because the user may not be looking at the chat.</instruction>";
 
+  it.each(["live", "history"])("keeps Claude task notification cards visible in %s", (source) => {
+    const notification = toolCall("background-complete", "task_notification");
+    if (notification.payload.source !== "agent") throw new Error("Expected agent tool");
+    notification.payload.data.provider = "claude";
+    const ordinaryTool = toolCall("shell", "Bash");
+    const user = { ...userMessage("quoted", 1), text: "Explain <task-notification>" };
+    const reply = assistantMessage("reply", 2);
+    const items = [notification, notification, ordinaryTool, user, reply];
+    const result = createStreamPresentation()({
+      level: "detailed",
+      isTurnActive: source === "live",
+      tail: source === "history" ? items : [],
+      head: source === "live" ? items : [],
+      transform: undefined,
+    });
+    expect(rows(result)).toEqual(items);
+    expect(items).toHaveLength(5);
+    expect(notification.payload.data.name).toBe("task_notification");
+  });
+
   it.each(["live", "history"])(
     "shows only spoken words from a %s user message without mutating its source",
     (source) => {

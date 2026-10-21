@@ -1,5 +1,9 @@
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import { buildAgentMessageDisplay } from "@getpaseo/protocol/paseo-tool-presentation/index";
+import {
+  getPaseoToolLeafName,
+  normalizeToolName,
+} from "@getpaseo/protocol/tool-name-normalization";
 import type { PlanOutcome } from "@/components/plan-card";
 import type { ComponentType } from "react";
 import type { ToolCallDetail } from "@getpaseo/protocol/agent-types";
@@ -27,6 +31,7 @@ interface BuildToolCallPresentationInput {
 }
 
 export interface ToolCallPresentation {
+  emphasized: boolean;
   detail: ToolCallDetail | undefined;
   displayName: string;
   summary?: string;
@@ -79,6 +84,7 @@ export function buildToolCallPresentation(
   const hasDetails = Boolean(input.error) || hasMeaningfulToolCallDetail(detail);
 
   return {
+    emphasized: Boolean(input.agentMessage) || isAgentMessageTool(input.toolName),
     detail,
     displayName: displayModel.displayName,
     summary: displayModel.summary,
@@ -91,6 +97,16 @@ export function buildToolCallPresentation(
     isPlan: input.detail?.type === "plan",
     planOutcome: input.detail?.type === "plan" ? resolvePlanOutcome(input) : undefined,
   };
+}
+
+function isAgentMessageTool(name: string): boolean {
+  const normalized = normalizeToolName(name);
+  return (
+    getPaseoToolLeafName(name) === "send_agent_prompt" ||
+    normalized === "send_agent_prompt" ||
+    normalized === "sendmessage" ||
+    normalized === "agent_message"
+  );
 }
 
 function resolvePlanOutcome(input: BuildToolCallPresentationInput): PlanOutcome | undefined {

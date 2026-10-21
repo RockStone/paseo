@@ -1596,6 +1596,7 @@ interface ExpandableBadgeProps {
   disableOuterSpacing?: boolean;
   borderlessWhenExpanded?: boolean;
   muted?: boolean;
+  emphasized?: boolean;
   testID?: string;
 }
 
@@ -1959,7 +1960,8 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   isLastInSequence = false,
   disableOuterSpacing,
   borderlessWhenExpanded = false,
-  muted = false,
+  muted = true,
+  emphasized,
   testID,
 }: ExpandableBadgeProps) {
   const resolvedDisableOuterSpacing = useDisableOuterSpacing(disableOuterSpacing);
@@ -2153,18 +2155,18 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   const labelStyle = useMemo(
     () => [
       expandableBadgeStylesheet.label,
-      isActive && !muted && expandableBadgeStylesheet.labelActive,
+      (isActive || emphasized) && !muted && expandableBadgeStylesheet.labelActive,
       isLoading && !muted && expandableBadgeStylesheet.labelLoading,
     ],
-    [isActive, isLoading, muted],
+    [isActive, isLoading, muted, emphasized],
   );
 
   const secondaryLabelStyle = useMemo(
     () => [
       expandableBadgeStylesheet.secondaryLabel,
-      isActive && expandableBadgeStylesheet.secondaryLabelActive,
+      (isActive || emphasized) && !muted && expandableBadgeStylesheet.secondaryLabelActive,
     ],
-    [isActive],
+    [isActive, emphasized, muted],
   );
 
   const shimmerLabelTextStyle = useMemo(
@@ -2198,7 +2200,11 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   );
 
   const ThemedIcon = useMemo(() => (icon ? withUnistyles(icon) : null), [icon]);
-  const iconNode = renderExpandableBadgeIcon({ isError, isActive, ThemedIcon });
+  const iconNode = renderExpandableBadgeIcon({
+    isError,
+    isActive: Boolean(emphasized),
+    ThemedIcon,
+  });
   const iconSlotNode = renderExpandableBadgeIconSlot({
     showChevron: isInteractive && (isHovered || isExpanded),
     chevronStyle,
@@ -2282,6 +2288,7 @@ function areExpandableBadgePropsEqual(previous: ExpandableBadgeProps, next: Expa
   if (previous.disableOuterSpacing !== next.disableOuterSpacing) return false;
   if (previous.borderlessWhenExpanded !== next.borderlessWhenExpanded) return false;
   if (previous.muted !== next.muted) return false;
+  if (previous.emphasized !== next.emphasized) return false;
   if (previous.testID !== next.testID) return false;
   if (previous.onToggle !== next.onToggle) return false;
   if (previous.onOpenFile !== next.onOpenFile) return false;
@@ -2385,6 +2392,7 @@ export const ToolCall = memo(function ToolCall({
         errorText: presentation.errorText,
         icon: presentation.icon,
         showLoadingSkeleton: presentation.isLoadingDetails,
+        muted: !presentation.emphasized,
       });
     } else {
       setIsExpanded((prev) => !prev);
@@ -2399,6 +2407,7 @@ export const ToolCall = memo(function ToolCall({
     presentation.errorText,
     presentation.icon,
     presentation.isLoadingDetails,
+    presentation.emphasized,
   ]);
 
   useEffect(() => {
@@ -2433,6 +2442,7 @@ export const ToolCall = memo(function ToolCall({
     if (!shouldRenderInline) return null;
     return (
       <ToolCallDetailsContent
+        muted={!presentation.emphasized}
         toolName={toolName}
         detail={presentation.detail}
         errorText={presentation.errorText}
@@ -2447,6 +2457,7 @@ export const ToolCall = memo(function ToolCall({
     presentation.errorText,
     presentation.isLoadingDetails,
     maxDetailHeight,
+    presentation.emphasized,
   ]);
 
   if (presentation.isPlan && effectiveDetail?.type === "plan") {
@@ -2464,7 +2475,8 @@ export const ToolCall = memo(function ToolCall({
     <ExpandableBadge
       testID="tool-call-badge"
       label={presentation.displayName}
-      muted={toolName === "thinking"}
+      muted={!presentation.emphasized}
+      emphasized={presentation.emphasized}
       secondaryLabel={presentation.summary}
       icon={presentation.icon}
       isExpanded={shouldRenderInline && isExpanded}

@@ -1,11 +1,5 @@
 import React, { useMemo, type ReactNode } from "react";
-import {
-  View,
-  Text,
-  ScrollView as RNScrollView,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
+import { View, ScrollView as RNScrollView, type StyleProp, type ViewStyle } from "react-native";
 import { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native-unistyles";
 import type { TFunction } from "i18next";
@@ -25,12 +19,14 @@ import { HighlightedLines } from "./highlighted-content";
 import { DiffViewer } from "./diff-viewer";
 import { getCodeInsets } from "./code-insets";
 import { isWeb } from "@/constants/platform";
+import { ToolDetailMutedContext, ToolDetailText as Text } from "./tool-detail-tone";
 
 const ScrollView = isWeb ? RNScrollView : GHScrollView;
 
 // ---- Content Component ----
 
 interface ToolCallDetailsContentProps {
+  muted?: boolean;
   toolName?: string;
   detail?: ToolCallDetail;
   errorText?: string;
@@ -788,7 +784,15 @@ function LoadingSkeleton({ containerStyle }: { containerStyle: StyleProp<ViewSty
   );
 }
 
-export function ToolCallDetailsContent({
+export function ToolCallDetailsContent({ muted = true, ...props }: ToolCallDetailsContentProps) {
+  return (
+    <ToolDetailMutedContext.Provider value={muted}>
+      <ToolCallDetailsBody {...props} />
+    </ToolDetailMutedContext.Provider>
+  );
+}
+
+function ToolCallDetailsBody({
   toolName,
   detail,
   errorText,

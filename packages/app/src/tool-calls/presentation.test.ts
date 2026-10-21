@@ -121,6 +121,7 @@ it.each([
       resolveIcon: fakeResolveIcon,
     });
     expect(presentation.displayName).toBe(heading);
+    expect(presentation.emphasized).toBe(true);
     expect(presentation.summary).toBe("QA messenger");
     expect(presentation.icon).toBe(fakeIcons.paseo);
     expect(presentation.detail).toEqual({
@@ -129,6 +130,25 @@ it.each([
     });
   },
 );
+
+it.each([
+  ["bash", false],
+  ["thinking", false],
+  ["read_file", false],
+  ["mcp__paseo__send_agent_prompt", true],
+  ["paseo.send_agent_prompt", true],
+  ["SendMessage", true],
+  ["agent_message", true],
+] as const)("uses the communication tone for %s: %s", (toolName, emphasized) => {
+  expect(
+    buildToolCallPresentation({
+      toolName,
+      status: "completed",
+      error: null,
+      resolveIcon: fakeResolveIcon,
+    }).emphasized,
+  ).toBe(emphasized);
+});
 
 it("uses an opaque sender ID when no title is available", () => {
   const presentation = buildToolCallPresentation({
