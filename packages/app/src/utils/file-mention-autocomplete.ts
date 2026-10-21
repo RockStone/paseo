@@ -64,5 +64,5 @@ export function formatFileMentionPath(relativePath: string): string {
 export function applyFileMentionReplacement(input: ApplyFileMentionReplacementInput): string {
   const before = input.text.slice(0, input.mention.start);
   const after = input.text.slice(input.mention.end);
-  return `${before}${formatFileMentionPath(input.relativePath)}${after}`;
+  return `${before}${formatFileMentionPath(input.relativePath)}${after.startsWith(" ") ? "" : " "}${after}`;
 }

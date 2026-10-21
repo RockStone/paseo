@@ -33,6 +33,7 @@ import {
 import {
   applyFileMentionReplacement,
   findActiveFileMention,
+  formatFileMentionPath,
   type FileMentionRange,
 } from "@/utils/file-mention-autocomplete";
 
@@ -600,15 +601,16 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
       }
 
       if (selected.type !== "workspace_entry" || !current.fileMention) return;
+      const relativePath =
+        selected.kind === "directory"
+          ? `${selected.entryPath.replace(/\/$/, "")}/`
+          : selected.entryPath;
       const nextInput = applyFileMentionReplacement({
         text: current.text,
         mention: current.fileMention,
-        relativePath:
-          selected.kind === "directory"
-            ? `${selected.entryPath.replace(/\/$/, "")}/`
-            : selected.entryPath,
+        relativePath,
       });
-      const caret = nextInput.length - (current.text.length - current.fileMention.end);
+      const caret = current.fileMention.start + formatFileMentionPath(relativePath).length + 1;
       setUserInput(nextInput, { start: caret, end: caret });
       onAutocompleteApplied?.();
     },

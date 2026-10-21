@@ -144,7 +144,27 @@ describe("applyFileMentionReplacement", () => {
       mention: { start: 0, end: 4, query: "foo" },
       relativePath: 'src/"quoted".ts',
     });
-    expect(next).toBe('[@src/"quoted".ts](src/%22quoted%22.ts)');
+    expect(next).toBe('[@src/"quoted".ts](src/%22quoted%22.ts) ');
+  });
+
+  it.each(["README.md", "src/"])("adds a trailing space after selecting %s", (relativePath) => {
+    expect(
+      applyFileMentionReplacement({
+        text: "open @re",
+        mention: { start: 5, end: 8, query: "re" },
+        relativePath,
+      }),
+    ).toBe(`open ${formatFileMentionPath(relativePath)} `);
+  });
+
+  it("separates a selected path from following text without changing that text", () => {
+    expect(
+      applyFileMentionReplacement({
+        text: "@re, please",
+        mention: { start: 0, end: 3, query: "re" },
+        relativePath: "README.md",
+      }),
+    ).toBe("[@README.md](README.md) , please");
   });
 });
 

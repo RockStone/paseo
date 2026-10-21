@@ -4,7 +4,11 @@ import { seedAgentProfiles } from "../support/helpers/agent-profiles";
 import { expectWorkspaceAgentConfiguration } from "../support/helpers/command-center-agent-controls";
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { expect, test, type Page } from "../support/fixtures";
-import { composerLocator, expectComposerVisible } from "../support/helpers/composer";
+import {
+  composerLocator,
+  expectComposerDraft,
+  expectComposerVisible,
+} from "../support/helpers/composer";
 import {
   openAgentRoute,
   seedMockAgentWorkspace,
@@ -1130,13 +1134,22 @@ test("file references use at-sign links and open the workspace file", async ({ p
     await input.fill("Open @README");
     await page.getByTestId("autocomplete-option-file:README.md").click();
     await expect(input.locator(".composer-reference")).toHaveText("@README.md");
-    await input.press("End");
-    await input.pressSequentially(" and @reference-folder");
+    await expectComposerDraft(page, "Open [@README.md](README.md) ");
+    await input.pressSequentially("and @reference-folder");
     await page.getByTestId("autocomplete-option-directory:reference-folder").click();
     await expect(input.locator(".composer-reference")).toHaveText([
       "@README.md",
       "@reference-folder/",
     ]);
+    await expectComposerDraft(
+      page,
+      "Open [@README.md](README.md) and [@reference-folder/](reference-folder/) ",
+    );
+    await input.pressSequentially("next");
+    await expectComposerDraft(
+      page,
+      "Open [@README.md](README.md) and [@reference-folder/](reference-folder/) next",
+    );
     await input.press("Enter");
     const message = page.getByTestId("user-message").filter({ hasText: "Open @README.md" }).last();
     const link = message.getByRole("link", { name: "@README.md", exact: true });
