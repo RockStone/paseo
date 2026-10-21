@@ -58,7 +58,8 @@ export function createStreamPresentation() {
     if (
       item.kind === "assistant_message" &&
       item.text.length > 1000 &&
-      /^(?:Attribution for git commits and pull requests|This session is being continued from a previous conversation)/.test(
+      // Claude's restored instructions may start with an XML tag that Markdown hides.
+      /^(?:<system-reminder>\s*)?(?:Attribution for git commits and pull requests|This session is being continued from a previous conversation)/.test(
         item.text.trimStart(),
       )
     )

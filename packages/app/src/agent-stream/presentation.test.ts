@@ -594,6 +594,42 @@ describe("timeline presentation", () => {
     });
     expect(result.tail).toEqual([shell, { ...summary, isCompactionIntro: true }]);
   });
+
+  it.each(["live", "history"])("folds Claude's XML-wrapped restored intro in %s", (source) => {
+    const summary = {
+      ...assistantMessage("wrapped-intro", 2),
+      text:
+        "<system-reminder>\nAttribution for git commits and pull requests you create from here on.\n</system-reminder>\n\n" +
+        "Restored context and tool results. ".repeat(2000),
+    };
+    const result = createStreamPresentation()({
+      level: "detailed",
+      isTurnActive: source === "live",
+      transform: undefined,
+      tail: source === "history" ? [summary] : [],
+      head: source === "live" ? [summary] : [],
+    });
+    expect(rows(result)).toEqual([{ ...summary, isCompactionIntro: true }]);
+    expect(summary).not.toHaveProperty("isCompactionIntro");
+  });
+
+  it("does not fold unrelated system reminders", () => {
+    const message = {
+      ...assistantMessage("ordinary-reminder", 2),
+      text:
+        "<system-reminder>\n" +
+        "Use the existing test commands. ".repeat(100) +
+        "</system-reminder>",
+    };
+    const result = createStreamPresentation()({
+      level: "detailed",
+      isTurnActive: false,
+      transform: undefined,
+      tail: [message],
+      head: [],
+    });
+    expect(result.tail).toEqual([message]);
+  });
   const present = createStreamPresentation();
   function projectTimelineItems(items: StreamItem[], transform?: TimelineItemTransform) {
     return present({ ...presentationOptions, tail: items, head: [], transform }).tail;

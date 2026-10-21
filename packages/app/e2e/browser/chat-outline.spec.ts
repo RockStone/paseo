@@ -70,8 +70,8 @@ test("folds restored compaction text after tool rows and allows expansion", asyn
     model: "ten-second-stream",
   });
   const intro =
-    "Attribution for git commits and pull requests you create from here on.\n\n" +
-    "Restored tools and context. ".repeat(70);
+    "<system-reminder>\nAttribution for git commits and pull requests you create from here on.\n</system-reminder>\n\n" +
+    "Restored tools and context. ".repeat(2500);
   try {
     await agent.client.sendAgentMessage(agent.agentId, "Restore the previous context.");
     await agent.client.waitForFinish(agent.agentId, 30_000);
@@ -84,7 +84,7 @@ test("folds restored compaction text after tool rows and allows expansion", asyn
     await openAgentTimeline(page, agent);
     const summary = page.getByRole("button", { name: "Compaction summary", exact: true }).last();
     await expect(summary).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByText(intro, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/Restored tools and context/)).toHaveCount(0);
     await summary.click();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByText(/Restored tools and context/)).toBeVisible();
