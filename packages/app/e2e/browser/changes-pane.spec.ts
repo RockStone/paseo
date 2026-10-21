@@ -1073,9 +1073,7 @@ test("scrolling clears the hovered review affordance", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Add review comment" })).toHaveCount(0);
 });
 
-test("canvas diff uses the overlay scrollbar and its thumb controls vertical scrolling", async ({
-  page,
-}) => {
+test("canvas diff overlay scrollbar supports thumb dragging and track jumps", async ({ page }) => {
   const lines = Array.from({ length: 240 }, (_, index) => `export const line${index} = ${index};`);
   const workspace = await createWorkspaceWithExactSelectionDiff(lines.join("\n"));
   await openSelectionWorkspaceChanges(page, workspace);
@@ -1095,6 +1093,30 @@ test("canvas diff uses the overlay scrollbar and its thumb controls vertical scr
   await page.mouse.up();
 
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  const track = root.getByTestId("workspace-overlay-scrollbar-track");
+  const trackBounds = await track.boundingBox();
+  if (!trackBounds) throw new Error("Diff overlay scrollbar track has no bounds");
+  const trackX = trackBounds.x + trackBounds.width / 2;
+  await page.mouse.click(trackX, trackBounds.y + trackBounds.height * 0.75);
+  await expect
+    .poll(async () => {
+      const thumb = await grab.boundingBox();
+      if (!thumb) throw new Error("Diff overlay scrollbar thumb has no bounds");
+      return Math.abs(thumb.y + thumb.height / 2 - (trackBounds.y + trackBounds.height * 0.75));
+    })
+    .toBeLessThan(3);
+
+  await page.mouse.click(trackX, trackBounds.y + 1);
+  await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(0);
+  await page.mouse.click(trackX, trackBounds.y + trackBounds.height - 1);
+  await expect
+    .poll(() =>
+      scroller.evaluate((element) =>
+        Math.abs(element.scrollHeight - element.clientHeight - element.scrollTop),
+      ),
+    )
+    .toBeLessThan(2);
 });
 
 test("canvas headers keep a many-file diff bounded while scrolling end to end", async ({

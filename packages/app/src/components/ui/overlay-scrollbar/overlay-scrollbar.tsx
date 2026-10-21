@@ -3,7 +3,12 @@ import { Pressable, View, type PressableStateCallbackType, type ViewStyle } from
 import { StyleSheet } from "react-native-unistyles";
 import { WEB_SCROLLBAR_RESTING_OPACITY, WEB_SCROLLBAR_SIZE_PX } from "@/styles/web-scrollbar";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
-import { computeOverlayScrollbarGeometry, scrollOffsetFromThumbDrag } from "./geometry";
+import { isWeb } from "@/constants/platform";
+import {
+  computeOverlayScrollbarGeometry,
+  scrollOffsetFromThumbDrag,
+  scrollOffsetFromTrackPress,
+} from "./geometry";
 
 const THUMB_WIDTH = WEB_SCROLLBAR_SIZE_PX - 4;
 const GRAB_WIDTH = 12;
@@ -16,6 +21,8 @@ export interface OverlayScrollbarMetrics {
 
 interface PointerLikeEvent {
   clientY?: number;
+  button?: number;
+  currentTarget?: { getBoundingClientRect: () => { top: number } };
   nativeEvent?: { clientY?: number; preventDefault?: () => void };
   preventDefault?: () => void;
   stopPropagation?: () => void;
@@ -49,6 +56,7 @@ export function OverlayScrollbar({
 
   const startDrag = useCallback(
     (event: PointerLikeEvent) => {
+      if (!isWeb || (event.button !== undefined && event.button !== 0)) return;
       const clientY = readClientY(event);
       if (clientY === null) return;
       event.preventDefault?.();
@@ -63,8 +71,26 @@ export function OverlayScrollbar({
     [metrics.offset],
   );
 
+  const jumpToTrackPosition = useCallback(
+    (event: PointerLikeEvent) => {
+      if (!isWeb || (event.button !== undefined && event.button !== 0)) return;
+      const clientY = readClientY(event);
+      const trackTop = event.currentTarget?.getBoundingClientRect().top;
+      if (clientY === null || trackTop === undefined) return;
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      const nextOffset = scrollOffsetFromTrackPress({
+        pointerOffset: clientY - trackTop,
+        ...geometryRef.current,
+      });
+      if (nextOffset < metrics.offset) onUserScrollUp?.();
+      onScrollToOffset(nextOffset);
+    },
+    [metrics.offset, onScrollToOffset, onUserScrollUp],
+  );
+
   useEffect(() => {
-    if (!isDragging) return;
+    if (!isWeb || !isDragging) return;
     const handlePointerMove = (event: PointerEvent) => {
       const current = geometryRef.current;
       const nextOffset = scrollOffsetFromThumbDrag({
@@ -106,6 +132,11 @@ export function OverlayScrollbar({
 
   return (
     <View style={styles.overlay} pointerEvents="box-none" testID="workspace-overlay-scrollbar">
+      <View
+        style={styles.track}
+        {...({ onPointerDown: jumpToTrackPosition } as object)}
+        testID="workspace-overlay-scrollbar-track"
+      />
       <Pressable
         style={thumbRegionStyle}
         {...({ onPointerDown: startDrag } as object)}
@@ -131,6 +162,11 @@ const styles = StyleSheet.create((theme) => ({
     bottom: 0,
     width: WEB_SCROLLBAR_SIZE_PX,
     zIndex: 10,
+  },
+  track: {
+    ...StyleSheet.absoluteFillObject,
+    touchAction: "none",
+    userSelect: "none",
   },
   thumbRegion: {
     position: "absolute",

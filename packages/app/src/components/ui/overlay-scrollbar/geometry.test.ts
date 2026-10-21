@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeOverlayScrollbarGeometry, scrollOffsetFromThumbDrag } from "./geometry";
+import {
+  computeOverlayScrollbarGeometry,
+  scrollOffsetFromThumbDrag,
+  scrollOffsetFromTrackPress,
+} from "./geometry";
 
 describe("computeOverlayScrollbarGeometry", () => {
   it("hides the thumb when the content fits", () => {
@@ -45,5 +49,31 @@ describe("scrollOffsetFromThumbDrag", () => {
         maxThumbOffset: 200,
       }),
     ).toBe(1000);
+  });
+});
+
+describe("scrollOffsetFromTrackPress", () => {
+  it.each([
+    [0, 0],
+    [250, 750],
+    [500, 1500],
+    [-20, 0],
+    [520, 1500],
+  ])("maps a track press at %s to scroll offset %s", (pointerOffset, expected) => {
+    const geometry = computeOverlayScrollbarGeometry({
+      viewportSize: 500,
+      contentSize: 2000,
+      offset: 0,
+    });
+    expect(scrollOffsetFromTrackPress({ pointerOffset, ...geometry })).toBe(expected);
+  });
+
+  it("does not scroll content that fits", () => {
+    const geometry = computeOverlayScrollbarGeometry({
+      viewportSize: 500,
+      contentSize: 400,
+      offset: 0,
+    });
+    expect(scrollOffsetFromTrackPress({ pointerOffset: 250, ...geometry })).toBe(0);
   });
 });

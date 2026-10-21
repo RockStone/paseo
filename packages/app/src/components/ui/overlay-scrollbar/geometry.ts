@@ -61,3 +61,17 @@ export function scrollOffsetFromThumbDrag(input: {
     input.maxScrollOffset,
   );
 }
+
+export function scrollOffsetFromTrackPress(input: {
+  pointerOffset: number;
+  thumbSize: number;
+  maxScrollOffset: number;
+  maxThumbOffset: number;
+}): number {
+  return scrollOffsetFromThumbDrag({
+    startOffset: 0,
+    dragDelta: input.pointerOffset - input.thumbSize / 2,
+    maxScrollOffset: input.maxScrollOffset,
+    maxThumbOffset: input.maxThumbOffset,
+  });
+}
