@@ -1,3 +1,4 @@
+import { WorkspaceTabContextMenuItem } from "./workspace-tab-context-menu-item";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import React, {
   useCallback,
@@ -11,13 +12,6 @@ import React, {
 } from "react";
 import { Pressable, Text, View, type LayoutChangeEvent } from "react-native";
 import {
-  CopyX,
-  ArrowLeftToLine,
-  ArrowRightToLine,
-  Copy,
-  Pencil,
-  RotateCw,
-  Archive,
   Columns2,
   Rows2,
   Ellipsis,
@@ -40,7 +34,6 @@ import { isNative, isWeb } from "@/constants/platform";
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
@@ -62,7 +55,6 @@ import { buildDeterministicWorkspaceTabId } from "@/workspace-tabs/identity";
 import {
   buildWorkspaceDesktopTabActions,
   type WorkspaceDesktopTabActions,
-  type WorkspaceTabMenuEntry,
   type WorkspaceTabMenuLabels,
 } from "@/screens/workspace/workspace-tab-menu";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
@@ -122,14 +114,7 @@ const AGENT_TOOLTIP_TITLE_MAX_LENGTH = 80;
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const ThemedX = withUnistyles(X);
-const ThemedCopy = withUnistyles(Copy);
 
-const ThemedRotateCw = withUnistyles(RotateCw);
-const ThemedArchive = withUnistyles(Archive);
-const ThemedArrowLeftToLine = withUnistyles(ArrowLeftToLine);
-const ThemedArrowRightToLine = withUnistyles(ArrowRightToLine);
-const ThemedCopyX = withUnistyles(CopyX);
-const ThemedPencil = withUnistyles(Pencil);
 const ThemedPlus = withUnistyles(Plus);
 const ThemedColumns2 = withUnistyles(Columns2);
 const ThemedRows2 = withUnistyles(Rows2);
@@ -412,52 +397,6 @@ function WorkspaceExitFocusModeButton({
         <ThemedX size={14} uniProps={mutedColorMapping} />
       </ToolbarButton>
     </View>
-  );
-}
-
-function TabContextMenuItem({
-  entry,
-}: {
-  entry: Extract<WorkspaceTabMenuEntry, { kind: "item" }>;
-}) {
-  const leading = useMemo(() => {
-    switch (entry.icon) {
-      case "copy":
-        return <ThemedCopy size={16} uniProps={mutedColorMapping} />;
-      case "rotate-cw":
-        return <ThemedRotateCw size={16} uniProps={mutedColorMapping} />;
-      case "archive":
-        return <ThemedArchive size={16} uniProps={mutedColorMapping} />;
-      case "arrow-left-to-line":
-        return <ThemedArrowLeftToLine size={16} uniProps={mutedColorMapping} />;
-      case "arrow-right-to-line":
-        return <ThemedArrowRightToLine size={16} uniProps={mutedColorMapping} />;
-      case "copy-x":
-        return <ThemedCopyX size={16} uniProps={mutedColorMapping} />;
-      case "pencil":
-        return <ThemedPencil size={16} uniProps={mutedColorMapping} />;
-      case "x":
-        return <ThemedX size={16} uniProps={mutedColorMapping} />;
-      default:
-        return undefined;
-    }
-  }, [entry.icon]);
-  const trailing = useMemo(
-    () => (entry.hint ? <Text style={styles.menuItemHint}>{entry.hint}</Text> : undefined),
-    [entry.hint],
-  );
-  return (
-    <ContextMenuItem
-      testID={entry.testID}
-      disabled={entry.disabled}
-      destructive={entry.destructive}
-      onSelect={entry.onSelect}
-      tooltip={entry.tooltip}
-      leading={leading}
-      trailing={trailing}
-    >
-      {entry.label}
-    </ContextMenuItem>
   );
 }
 
@@ -1009,7 +948,7 @@ function TabChip({
             entry.kind === "separator" ? (
               <ContextMenuSeparator key={entry.key} />
             ) : (
-              <TabContextMenuItem key={entry.key} entry={entry} />
+              <WorkspaceTabContextMenuItem key={entry.key} entry={entry} />
             ),
           )}
         </ContextMenuContent>
@@ -1840,10 +1779,6 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.sm,
   },
   tooltipAgentActivity: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
-  },
-  menuItemHint: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
   },
