@@ -520,22 +520,24 @@ Worktrees inherit committed Git state only; uncommitted source-checkout changes 
 
 ## paseo.json service scripts
 
-The workspace Run menu reads `scripts` from the repository's `paseo.json`. It appears when
+The workspace Run menu reads `scripts` from `paseo.json` in the workspace directory. It appears when
 the workspace has configured scripts. These are terminal commands, independent of agents;
 commit the file to keep the same commands across app restarts and checkouts.
 
-For a Flutter debug run, add a command at the Flutter app's workspace root:
+For a repository whose Flutter app lives in `flutter/`, keep the workspace at the repository
+root and add this command to its `paseo.json`:
 
 ```json
 {
   "scripts": {
-    "flutter-debug": { "command": "flutter run --debug" }
+    "flutter-debug": { "command": "cd flutter && flutter run --debug" }
   }
 }
 ```
 
-Use `flutter run --debug -d <device-id>` to select a particular device. For an app in a
-subdirectory, prefix the command with `cd <app-directory> &&`. Run output and keyboard
+Use `flutter run --debug -d <device-id>` to select a particular device. Omit `cd flutter &&`
+when the Flutter app lives at the workspace root. Existing worktrees read their own copy of
+`paseo.json`; changing the source checkout does not update those files. Run output and keyboard
 input stay in its terminal; a running script is separate from its persisted configuration.
 
 `worktree.setup` and `worktree.teardown` accept either a multiline shell script or an array
