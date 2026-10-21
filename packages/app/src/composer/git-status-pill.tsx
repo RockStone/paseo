@@ -32,7 +32,6 @@ export const ComposerGitStatusPill = memo(function ComposerGitStatusPill({
       segments={[{ bucket: null, text: t("gitStatusPill.title", { count: summary.total }) }]}
       panelTitle={t("gitStatusPill.heading")}
       testID="composer-git-status-pill"
-      openOnHover
     >
       <GitStatusList summary={summary} serverId={serverId} cwd={cwd} agentId={agentId} />
     </ComposerTrackPill>

@@ -858,7 +858,7 @@ async function expectReviewEditorBody(page: Page, body: string) {
   );
 }
 
-test("uncommitted status pill opens all files in a capped list and clears on commit", async ({
+test("uncommitted status pill opens on click, lists all files and clears on commit", async ({
   page,
 }, testInfo) => {
   const agent = await seedChangedAgent("composer-git-status-");
@@ -883,6 +883,9 @@ test("uncommitted status pill opens all files in a capped list and clears on com
     expect(right!.x).toBeGreaterThanOrEqual(left!.x + left!.width);
     await pill.hover();
     const preview = page.getByTestId("composer-git-status-pill-panel");
+    await expect(preview).toHaveCount(0);
+    await expectComposerFocused(page);
+    await pill.click();
     await expect(preview).toBeVisible();
     await expect(preview).toContainText("1 tracked · 12 untracked");
     await expect(preview.getByTestId("composer-git-status-file")).toHaveCount(13);
@@ -924,8 +927,7 @@ test("status file undo confirms discard, preserves other files and recovers from
     git("mv", "before-rename.txt", "after-rename.txt");
     await agent.client.checkoutRefresh(agent.cwd);
     await openAgentRoute(page, agent);
-    // The status pill opens on hover; a click would race the backdrop the hover puts over it.
-    await page.getByTestId("composer-git-status-pill").hover();
+    await page.getByTestId("composer-git-status-pill").click();
     const panel = page.getByTestId("composer-git-status-pill-panel");
     const discardTracked = panel.getByRole("button", {
       name: "Discard changes to tracked.txt",
@@ -1033,13 +1035,17 @@ test("pills above the composer hand typing back to the composer", async ({ page 
     await expect(statusPill).toBeVisible();
     await expectComposerFocused(page);
 
-    // A hover preview leaves the caret in the draft and closes without parking focus on the pill.
+    // Hover leaves the transcript unobscured and the caret in the draft.
     await statusPill.hover();
-    await expect(statusPanel).toBeVisible();
+    await expect(statusPanel).toHaveCount(0);
     await expectComposerFocused(page);
-    // The open panel's backdrop covers the feed, so move the pointer rather than hover a locator.
     const feedBox = (await feed.boundingBox())!;
+    await statusPill.click();
+    await expect(statusPanel).toBeVisible();
+    // Leaving a clicked panel keeps it open until dismissal.
     await page.mouse.move(feedBox.x + feedBox.width / 2, feedBox.y + feedBox.height / 3);
+    await expect(statusPanel).toBeVisible();
+    await page.mouse.click(feedBox.x + feedBox.width / 2, feedBox.y + feedBox.height / 3);
     await expect(statusPanel).toHaveCount(0);
     await page.keyboard.type("a");
     await expectComposerDraft(page, "a");
@@ -1198,7 +1204,7 @@ test("Commit & Push asks only the current agent and preserves the composer draft
     await page.setViewportSize({ width: 1400, height: 900 });
     await openAgentRoute(page, workspace);
     await fillComposerDraft(page, "Keep this unfinished question");
-    await page.getByTestId("composer-git-status-pill").hover();
+    await page.getByTestId("composer-git-status-pill").click();
     const button = page.getByTestId("composer-commit-push");
     await expect(button).toBeVisible();
     await button.click();
