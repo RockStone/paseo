@@ -21,17 +21,21 @@ export function resolveDesktopSidebarVisibility(input: {
 
 export function resolveDesktopAppChromeLayout(input: {
   desktopSidebarRendered: boolean;
+  sidebarPreviewRendered?: boolean;
   hasTopLeftWindowControls: boolean;
   sidebarControlsEnabled: boolean;
 }) {
-  const sidebarOwnsTopLeft = input.desktopSidebarRendered && input.hasTopLeftWindowControls;
+  const pinnedSidebarOwnsTopLeft = input.desktopSidebarRendered && input.hasTopLeftWindowControls;
+  const sidebarOwnsTopLeft =
+    pinnedSidebarOwnsTopLeft ||
+    (input.sidebarPreviewRendered === true && input.hasTopLeftWindowControls);
   let sidebarToggleOwner: "none" | "window" | "content" = "none";
   if (input.sidebarControlsEnabled) {
     sidebarToggleOwner = input.hasTopLeftWindowControls ? "window" : "content";
   }
   return {
     sidebarCorners: sidebarOwnsTopLeft ? ("top-left" as const) : ("none" as const),
-    contentCorners: sidebarOwnsTopLeft ? ("top-right" as const) : ("both" as const),
+    contentCorners: pinnedSidebarOwnsTopLeft ? ("top-right" as const) : ("both" as const),
     sidebarToggleOwner,
   };
 }

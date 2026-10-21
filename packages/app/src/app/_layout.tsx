@@ -540,6 +540,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   const hasTopLeftWindowControls = useHasWindowChromeObstruction("top-left");
   const appChromeLayout = resolveDesktopAppChromeLayout({
     desktopSidebarRendered: desktopSidebarVisible,
+    sidebarPreviewRendered: sidebarPreview.open,
     hasTopLeftWindowControls,
     sidebarControlsEnabled: chromeEnabled && !isWorkspaceFocusModeEnabled,
   });
@@ -689,7 +690,7 @@ function SidebarPreviewFrame({
   const mouseHandlers = useMemo(() => (isWeb ? { onMouseLeave: onDismiss } : {}), [onDismiss]);
   return (
     <View
-      style={preview ? layoutStyles.sidebarPreview : undefined}
+      style={preview ? layoutStyles.sidebarPreview : layoutStyles.sidebarFrame}
       {...(mouseHandlers as object)}
       testID={preview ? "sidebar-edge-preview" : undefined}
     >
@@ -1082,7 +1083,11 @@ export default function RootLayout() {
 }
 
 const layoutStyles = StyleSheet.create((theme) => ({
+  sidebarFrame: {
+    flexDirection: "row",
+  },
   sidebarPreview: {
+    flexDirection: "row",
     position: "absolute",
     top: 0,
     bottom: 0,

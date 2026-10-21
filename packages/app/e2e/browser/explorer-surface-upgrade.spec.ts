@@ -20,6 +20,7 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
     await waitForWorkspaceTabsVisible(page);
     const sidebar = page.getByTestId("sidebar-sessions").filter({ visible: true });
     await expect(sidebar).toHaveCount(1);
+    await expectSidebarFooterAtBottom(page);
     await page.keyboard.press(`${modifier}+b`);
     await expect(sidebar).toHaveCount(0);
     await page.getByTestId("sidebar-edge-trigger").hover();
@@ -27,16 +28,30 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
     await expect(preview).toBeVisible();
     await expect(preview).toHaveCSS("position", "absolute");
     await expect(sidebar).toHaveCount(1);
+    await expectSidebarFooterAtBottom(page);
+    await page.screenshot({ path: "/tmp/paseoi-r69-sidebar-preview.png" });
     await page.mouse.move(1200, 450);
     await expect(preview).toHaveCount(0);
     await expect(sidebar).toHaveCount(0);
     await page.keyboard.press(`${modifier}+b`);
     await expect(sidebar).toHaveCount(1);
+    await expectSidebarFooterAtBottom(page);
     await expect(page.getByTestId("sidebar-edge-trigger")).toHaveCount(0);
   } finally {
     await workspace.cleanup();
   }
 });
+
+async function expectSidebarFooterAtBottom(page: Page) {
+  const footer = page.getByTestId("sidebar-footer").filter({ visible: true });
+  await expect
+    .poll(() =>
+      footer.evaluate((element) =>
+        Math.abs(window.innerHeight - element.getBoundingClientRect().bottom),
+      ),
+    )
+    .toBeLessThanOrEqual(1);
+}
 
 function visible(page: Page, testId: string): Locator {
   return page.getByTestId(testId).filter({ visible: true });

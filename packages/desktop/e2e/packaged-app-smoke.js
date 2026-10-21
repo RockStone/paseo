@@ -811,6 +811,38 @@ async function openSmokeWorkspace({ appPath, env, page, daemonHome }) {
   console.log(`Packaged desktop smoke: renderer opened workspace ${workspace.workspaceId}`);
 }
 
+async function assertMacSidebarLayout(options) {
+  const { page } = options;
+  await openSmokeWorkspace(options);
+  const width = await page.evaluate(() => window.innerWidth);
+  await page.mouse.click(width - 40, 100);
+  const assertAligned = () =>
+    page.waitForFunction(() => {
+      const footer = document.querySelector('[data-testid="sidebar-footer"]');
+      const navigation = document.querySelector('[data-testid="sidebar-global-new-workspace"]');
+      return (
+        footer &&
+        navigation &&
+        Math.abs(footer.getBoundingClientRect().bottom - window.innerHeight) <= 1 &&
+        navigation.getBoundingClientRect().top >= 36
+      );
+    });
+  await assertAligned();
+  await page.keyboard.press("Meta+b");
+  const edge = page.getByTestId("sidebar-edge-trigger");
+  await edge.waitFor({ state: "visible" });
+  await edge.hover();
+  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  await assertAligned();
+  await page.mouse.move(width - 40, 400);
+  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "detached" });
+  await page.keyboard.press("Meta+b");
+  await assertAligned();
+  console.log(
+    "Packaged desktop smoke: pinned and preview sidebars fill the window and reserve Mac controls",
+  );
+}
+
 async function assertSandboxState({ browser, page, expectedSandbox, stdout, stderr }) {
   const diagnostics = await page.evaluate(() =>
     window.paseoDesktop.invoke("desktop_sandbox_diagnostics"),
@@ -951,6 +983,9 @@ async function smokePackagedDesktopApp({
     console.log("Packaged desktop smoke: every built-in plugin started");
     await smokeCliShim({ appPath, env });
     await smokeCliTerminal({ appPath, env });
+    if (process.platform === "darwin") {
+      await assertMacSidebarLayout({ appPath, env, page, daemonHome });
+    }
     if (expectedSandbox !== undefined) {
       await assertSandboxState({ browser, page, expectedSandbox, stdout, stderr });
       await openSmokeWorkspace({ appPath, env, page, daemonHome });

@@ -66,6 +66,17 @@ describe("desktop sidebar layout", () => {
     ).toBe("none");
   });
 
+  it("reserves Mac window controls in a sidebar preview without shifting content chrome", () => {
+    expect(
+      resolveDesktopAppChromeLayout({
+        desktopSidebarRendered: false,
+        sidebarPreviewRendered: true,
+        hasTopLeftWindowControls: true,
+        sidebarControlsEnabled: true,
+      }),
+    ).toEqual({ sidebarCorners: "top-left", contentCorners: "both", sidebarToggleOwner: "window" });
+  });
+
   it("clamps a persisted wide sidebar to preserve the center pane", () => {
     const atHalfScreen = resolveDesktopSidebarWidth({ requestedWidth: 600, viewportWidth: 751 });
     expect(atHalfScreen).toBe(351);
