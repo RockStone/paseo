@@ -721,6 +721,7 @@ export const en = {
         closeOthers: "Close other tabs",
         moveToMain: "Move to main panel",
         reloadAgent: "Reload agent",
+        archiveAgent: "Archive agent",
         reloadAgentTooltip: "Reload agent to update skills, MCPs or login status.",
         close: "Close",
         renameTerminal: "Rename terminal",
@@ -764,6 +765,7 @@ export const en = {
         reloadedAgent: "Reloaded agent",
         failedToReloadAgent: "Failed to reload agent",
         failedToCloseAgent: "Failed to close agent",
+        failedToArchiveAgent: "Failed to archive agent",
       },
       confirmations: {
         close: "Close",

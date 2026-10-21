@@ -728,6 +728,7 @@ export const ja: TranslationResources = {
         closeOthers: "他のタブを閉じる",
         moveToMain: "メインパネルへ移動",
         reloadAgent: "エージェントを再読み込み",
+        archiveAgent: "エージェントをアーカイブ",
         reloadAgentTooltip:
           "スキル、MCP、ログイン状態を更新するためにエージェントを再読み込みします。",
         close: "閉じる",
@@ -772,6 +773,7 @@ export const ja: TranslationResources = {
         reloadedAgent: "エージェントを再読み込みしました",
         failedToReloadAgent: "エージェントの再読み込みに失敗しました",
         failedToCloseAgent: "エージェントを閉じられませんでした",
+        failedToArchiveAgent: "エージェントをアーカイブできませんでした",
       },
       confirmations: {
         unsavedTitle: "未保存の変更",

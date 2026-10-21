@@ -722,6 +722,7 @@ export const ar: TranslationResources = {
         closeOthers: "أغلق علامات التبويب الأخرى",
         moveToMain: "Move to main panel",
         reloadAgent: "إعادة تحميل الوكيل",
+        archiveAgent: "أرشفة الوكيل",
         reloadAgentTooltip: "قم بإعادة تحميل الوكيل لتحديث المهارات أو MCPs أو حالة تسجيل الدخول.",
         close: "يغلق",
         renameTerminal: "إعادة تسمية المحطة",
@@ -765,6 +766,7 @@ export const ar: TranslationResources = {
         reloadedAgent: "وكيل إعادة تحميل",
         failedToReloadAgent: "فشل في إعادة تحميل الوكيل",
         failedToCloseAgent: "فشل في إغلاق الوكيل",
+        failedToArchiveAgent: "تعذرت أرشفة الوكيل",
       },
       confirmations: {
         unsavedTitle: "تغييرات غير محفوظة",

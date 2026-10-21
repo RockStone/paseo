@@ -15,11 +15,45 @@ function createAgentTab(): WorkspaceTabDescriptor {
 }
 
 describe("buildWorkspaceTabMenuEntries", () => {
+  it("keeps Archive agent separate from Close", () => {
+    const onArchiveAgent = vi.fn();
+    const onCloseTab = vi.fn();
+    const entries = buildWorkspaceTabMenuEntries({
+      surface: "desktop",
+      tab: createAgentTab(),
+      index: 0,
+      tabCount: 1,
+      menuTestIDBase: "agent-menu",
+      onCopyResumeCommand: vi.fn(),
+      onCopyAgentId: vi.fn(),
+      onCopyTerminalId: vi.fn(),
+      onCopyFilePath: vi.fn(),
+      onReloadAgent: vi.fn(),
+      onArchiveAgent,
+      onRenameTab: vi.fn(),
+      onCloseTab,
+      onCloseTabsBefore: vi.fn(),
+      onCloseTabsAfter: vi.fn(),
+      onCloseOtherTabs: vi.fn(),
+    });
+    const close = entries.find((entry) => entry.key === "close");
+    const archive = entries.find((entry) => entry.key === "archive-agent");
+    if (close?.kind !== "item" || archive?.kind !== "item") throw new Error("Missing actions");
+    close.onSelect();
+    expect(onCloseTab).toHaveBeenCalledWith("agent_123");
+    expect(onArchiveAgent).not.toHaveBeenCalled();
+    expect(archive.destructive).toBe(true);
+    archive.onSelect();
+    expect(onArchiveAgent).toHaveBeenCalledExactlyOnceWith("agent-123");
+    expect(onCloseTab).toHaveBeenCalledTimes(1);
+  });
+
   it("uses desktop tab ordering labels for desktop menus", () => {
     const onCopyResumeCommand = vi.fn();
     const onCopyAgentId = vi.fn();
     const onCopyFilePath = vi.fn();
     const onReloadAgent = vi.fn();
+    const onArchiveAgent = vi.fn();
     const onRenameTab = vi.fn();
     const onCloseTab = vi.fn();
     const onCloseTabsBefore = vi.fn();
@@ -37,6 +71,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId: vi.fn(),
       onCopyFilePath,
       onReloadAgent,
+      onArchiveAgent,
       onRenameTab,
       onCloseTab,
       onCloseTabsBefore,
@@ -53,6 +88,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       "Close other tabs",
       "Reload agent",
       "Close",
+      "Archive agent",
     ]);
   });
 
@@ -68,6 +104,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
       onCloseTabsBefore: vi.fn(),
@@ -84,6 +121,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       "Close other tabs",
       "Reload agent",
       "Close",
+      "Archive agent",
     ]);
   });
 
@@ -104,6 +142,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
       onCloseTabsBefore: vi.fn(),
@@ -118,6 +157,9 @@ describe("buildWorkspaceTabMenuEntries", () => {
       false,
     );
     expect(entries.some((entry) => entry.kind === "item" && entry.label === "Rename")).toBe(false);
+    expect(entries.some((entry) => entry.kind === "item" && entry.key === "archive-agent")).toBe(
+      false,
+    );
     expect(entries.some((entry) => entry.kind === "separator")).toBe(false);
   });
 
@@ -133,6 +175,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
       onCloseTabsBefore: vi.fn(),
@@ -163,6 +206,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
       onRenameTab,
       onCloseTab: vi.fn(),
       onCloseTabsBefore: vi.fn(),
@@ -199,6 +243,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId,
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
       onRenameTab,
       onCloseTab: vi.fn(),
       onCloseTabsBefore: vi.fn(),
@@ -250,6 +295,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId: vi.fn(),
       onCopyFilePath,
       onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
       onCloseTabsBefore: vi.fn(),
@@ -293,6 +339,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
       onCloseTabsToLeft: vi.fn(),
@@ -324,6 +371,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCopyTerminalId: vi.fn(),
       onCopyFilePath: vi.fn(),
       onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
       onRenameTab: vi.fn(),
       onCloseTab: vi.fn(),
       onCloseTabsBefore: vi.fn(),

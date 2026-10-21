@@ -729,6 +729,7 @@ export const ru: TranslationResources = {
         closeOthers: "Закрыть другие вкладки",
         moveToMain: "Переместить на основную панель",
         reloadAgent: "Перезагрузить агента",
+        archiveAgent: "Архивировать агента",
         reloadAgentTooltip: "Перезагрузите агента, чтобы обновить навыки, MCP или статус входа.",
         close: "Закрыть",
         renameTerminal: "Переименовать терминал",
@@ -772,6 +773,7 @@ export const ru: TranslationResources = {
         reloadedAgent: "Агент перезагружен",
         failedToReloadAgent: "Не удалось перезагрузить агента",
         failedToCloseAgent: "Не удалось закрыть агента",
+        failedToArchiveAgent: "Не удалось архивировать агента",
       },
       confirmations: {
         unsavedTitle: "Несохранённые изменения",

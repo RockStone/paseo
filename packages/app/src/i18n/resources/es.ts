@@ -730,6 +730,7 @@ export const es: TranslationResources = {
         closeOthers: "Cerrar otras pestañas",
         moveToMain: "Mover al panel principal",
         reloadAgent: "Recargar agente",
+        archiveAgent: "Archivar agente",
         reloadAgentTooltip:
           "Vuelva a cargar el agente para actualizar habilidades, MCP o estado de inicio de sesión.",
         close: "Cerrar",
@@ -774,6 +775,7 @@ export const es: TranslationResources = {
         reloadedAgent: "Agente recargado",
         failedToReloadAgent: "No se pudo recargar el agente",
         failedToCloseAgent: "No se pudo cerrar el agente",
+        failedToArchiveAgent: "No se pudo archivar el agente",
       },
       confirmations: {
         unsavedTitle: "Cambios sin guardar",

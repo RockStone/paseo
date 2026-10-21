@@ -1,3 +1,4 @@
+import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { randomUUID } from "node:crypto";
 import { expect } from "@playwright/test";
 import { test } from "../support/fixtures";
@@ -10,11 +11,14 @@ import {
   archiveAgentFromSessions,
   clickSessionRow,
   createIdleAgent,
+  createMockIdleAgent,
+  closeWorkspaceAgentTab,
   expectArchivedAgentFocused,
   expectSessionRowArchived,
   expectSessionRowVisible,
   expectWorkspaceArchiveOutcome,
   expectWorkspaceTabHidden,
+  expectWorkspaceTabVisible,
   fetchAgentArchivedAt,
   openSessions,
   openWorkspaceWithAgents,
@@ -23,6 +27,13 @@ import {
   reloadWorkspace,
 } from "../support/helpers/archive-tab";
 import { expectAgentTabActive } from "../support/helpers/launcher";
+import { openAgentRoute } from "../support/helpers/mock-agent";
+import { seedWorkspace } from "../support/helpers/seed-client";
+import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
+import {
+  rejectNextManagedSubagentArchiveRequest,
+  seedSubagent,
+} from "../support/helpers/subagents";
 
 test.describe("Archive tab reconciliation", () => {
   let client: Awaited<ReturnType<typeof connectSeedClient>>;
@@ -153,5 +164,165 @@ test.describe("Archive tab reconciliation", () => {
     await expect(page).toHaveURL(buildHostWorkspaceRoute(getServerId(), archived.workspaceId), {
       timeout: 30_000,
     });
+  });
+});
+
+test.describe("Agent tab lifecycle", () => {
+  test("tab close keeps the parent history and children, and can be reopened from the sidebar", async ({
+    page,
+  }) => {
+    const workspace = await seedWorkspace({ repoPrefix: "close-parent-tab-" });
+    const timelineClient = workspace.client as typeof workspace.client &
+      Pick<DaemonClient, "fetchAgentTimeline">;
+    try {
+      const parent = await createMockIdleAgent(workspace.client, {
+        cwd: workspace.repoPath,
+        workspaceId: workspace.workspaceId,
+        title: "Parent whose tab can close",
+      });
+      const child = await seedSubagent(workspace, { parentId: parent.id, title: "Retained child" });
+      await workspace.client.sendAgentMessage(parent.id, "Keep this original conversation.");
+      await workspace.client.waitForFinish(parent.id, 30_000);
+      const before = await timelineClient.fetchAgentTimeline(parent.id, {
+        direction: "tail",
+        limit: 0,
+        projection: "projected",
+      });
+      expect(before.entries.length).toBeGreaterThan(0);
+      await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: parent.id });
+      await page.getByTestId(`workspace-tab-agent_${parent.id}`).filter({ visible: true }).hover();
+      await closeWorkspaceAgentTab(page, parent.id);
+      expect(await fetchAgentArchivedAt(workspace.client, parent.id)).toBeNull();
+      await expect(workspace.client.fetchAgent({ agentId: child.id })).resolves.toMatchObject({
+        agent: { archivedAt: null, labels: { "paseo.parent-agent-id": parent.id } },
+      });
+      await page.reload();
+      await expectWorkspaceTabHidden(page, parent.id);
+      await switchWorkspaceViaSidebar({
+        page,
+        serverId: getServerId(),
+        workspaceId: workspace.workspaceId,
+      });
+      await expectAgentTabActive(page, parent.id);
+      const after = await timelineClient.fetchAgentTimeline(parent.id, {
+        direction: "tail",
+        limit: 0,
+        projection: "projected",
+      });
+      expect(after.entries.map((entry) => entry.item)).toEqual(
+        before.entries.map((entry) => entry.item),
+      );
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+
+  test("bulk and single tab close preserve running agents; explicit archive requires confirmation", async ({
+    page,
+  }) => {
+    const workspace = await seedWorkspace({ repoPrefix: "bulk-close-agent-tabs-" });
+    try {
+      const parent = await workspace.client.createAgent({
+        provider: "mock",
+        cwd: workspace.repoPath,
+        workspaceId: workspace.workspaceId,
+        title: "Running parent",
+        modeId: "load-test",
+        model: "five-minute-stream",
+        initialPrompt: "Keep running",
+      });
+      const child = await seedSubagent(workspace, { parentId: parent.id, title: "Child tab" });
+      const control = await createMockIdleAgent(workspace.client, {
+        cwd: workspace.repoPath,
+        workspaceId: workspace.workspaceId,
+        title: "Keep this tab",
+      });
+      for (const agent of [parent, child, control]) {
+        await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: agent.id });
+        await expectWorkspaceTabVisible(page, agent.id);
+      }
+      const controlTab = page
+        .getByTestId(`workspace-tab-agent_${control.id}`)
+        .filter({ visible: true });
+      await controlTab.click({ button: "right" });
+      const bulkDialog = page.waitForEvent("dialog").then(async (dialog) => {
+        expect(dialog.message()).toContain("This will close 2 tab(s).");
+        return dialog.accept();
+      });
+      await page.getByTestId(`workspace-tab-context-agent_${control.id}-close-others`).click();
+      await bulkDialog;
+      await expectWorkspaceTabHidden(page, parent.id);
+      await expectWorkspaceTabHidden(page, child.id);
+      await expect(workspace.client.fetchAgent({ agentId: parent.id })).resolves.toMatchObject({
+        agent: { status: "running", archivedAt: null },
+      });
+      await expect(workspace.client.fetchAgent({ agentId: child.id })).resolves.toMatchObject({
+        agent: { archivedAt: null, labels: { "paseo.parent-agent-id": parent.id } },
+      });
+
+      await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: parent.id });
+      await page.getByTestId(`workspace-tab-agent_${parent.id}`).filter({ visible: true }).hover();
+      await closeWorkspaceAgentTab(page, parent.id);
+      await expect(workspace.client.fetchAgent({ agentId: parent.id })).resolves.toMatchObject({
+        agent: { status: "running", archivedAt: null },
+      });
+      await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: parent.id });
+      const parentTab = page
+        .getByTestId(`workspace-tab-agent_${parent.id}`)
+        .filter({ visible: true });
+      await parentTab.click({ button: "right" });
+      const archiveItem = page.getByTestId(
+        `workspace-tab-context-agent_${parent.id}-archive-agent`,
+      );
+      const cancelDialog = page.waitForEvent("dialog").then(async (dialog) => {
+        expect(dialog.message()).toContain("Archive running agent?");
+        return dialog.dismiss();
+      });
+      await archiveItem.click();
+      await cancelDialog;
+      await expectWorkspaceTabVisible(page, parent.id);
+      await expect(workspace.client.fetchAgent({ agentId: parent.id })).resolves.toMatchObject({
+        agent: { status: "running", archivedAt: null },
+      });
+
+      await parentTab.click({ button: "right" });
+      await page.screenshot({ path: "/tmp/paseoi-r71-tab-archive-menu.png" });
+      const acceptDialog = page.waitForEvent("dialog").then((dialog) => dialog.accept());
+      await archiveItem.click();
+      await acceptDialog;
+      await expectWorkspaceTabHidden(page, parent.id);
+      await expect.poll(() => fetchAgentArchivedAt(workspace.client, parent.id)).not.toBeNull();
+      await expect.poll(() => fetchAgentArchivedAt(workspace.client, child.id)).not.toBeNull();
+      expect(await fetchAgentArchivedAt(workspace.client, control.id)).toBeNull();
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+
+  test("explicit archive restores the tab on failure and can be retried", async ({ page }) => {
+    const workspace = await seedWorkspace({ repoPrefix: "retry-tab-archive-" });
+    try {
+      const parent = await createMockIdleAgent(workspace.client, {
+        cwd: workspace.repoPath,
+        workspaceId: workspace.workspaceId,
+        title: "Retry archive",
+      });
+      const rejected = await rejectNextManagedSubagentArchiveRequest(page, parent.id);
+      await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: parent.id });
+      const tab = page.getByTestId(`workspace-tab-agent_${parent.id}`).filter({ visible: true });
+      const item = page.getByTestId(`workspace-tab-context-agent_${parent.id}-archive-agent`);
+      await tab.click({ button: "right" });
+      await item.click();
+      await rejected.waitForRejection();
+      await expect(page.getByText("Failed to archive agent", { exact: true })).toBeVisible();
+      await expectWorkspaceTabVisible(page, parent.id);
+      expect(await fetchAgentArchivedAt(workspace.client, parent.id)).toBeNull();
+      await tab.click({ button: "right" });
+      await item.click();
+      await expectWorkspaceTabHidden(page, parent.id);
+      await expect.poll(() => fetchAgentArchivedAt(workspace.client, parent.id)).not.toBeNull();
+    } finally {
+      await workspace.cleanup();
+    }
   });
 });

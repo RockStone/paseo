@@ -729,6 +729,7 @@ export const ptBR: TranslationResources = {
         closeOthers: "Fechar outras abas",
         moveToMain: "Mover para o painel principal",
         reloadAgent: "Recarregar agente",
+        archiveAgent: "Arquivar agente",
         reloadAgentTooltip: "Recarregue o agente para atualizar skills, MCPs ou status de login.",
         close: "Fechar",
         renameTerminal: "Renomear terminal",
@@ -772,6 +773,7 @@ export const ptBR: TranslationResources = {
         reloadedAgent: "Agente recarregado",
         failedToReloadAgent: "Falha ao recarregar agente",
         failedToCloseAgent: "Falha ao fechar agente",
+        failedToArchiveAgent: "Não foi possível arquivar o agente",
       },
       confirmations: {
         unsavedTitle: "Alterações não salvas",

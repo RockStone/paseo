@@ -727,6 +727,7 @@ export const fr: TranslationResources = {
         closeOthers: "Fermer les autres onglets",
         moveToMain: "Déplacer vers le panneau principal",
         reloadAgent: "Recharger l’agent",
+        archiveAgent: "Archiver l’agent",
         reloadAgentTooltip:
           "Rechargez l’agent pour mettre à jour les skills, les MCP ou l’état de connexion.",
         close: "Fermer",
@@ -771,6 +772,7 @@ export const fr: TranslationResources = {
         reloadedAgent: "Agent rechargé",
         failedToReloadAgent: "Impossible de recharger l’agent",
         failedToCloseAgent: "Impossible de fermer l’agent",
+        failedToArchiveAgent: "Impossible d’archiver l’agent",
       },
       confirmations: {
         unsavedTitle: "Modifications non enregistrées",
