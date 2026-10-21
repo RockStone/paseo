@@ -10,6 +10,7 @@ import { RetainedPanelActivity } from "@/components/retained-panel";
 import type { StreamItem } from "@/types/stream";
 import type { StreamRenderInput, StreamSegmentRenderers, StreamViewportHandle } from "./strategy";
 import { createWebStreamStrategy } from "./strategy-web";
+import { CompactionIntro } from "./compaction-intro";
 
 vi.hoisted(() => {
   Object.defineProperty(window, "matchMedia", {
@@ -86,6 +87,7 @@ describe("createWebStreamStrategy", () => {
   let originalOffsetHeight: PropertyDescriptor | undefined;
 
   beforeEach(() => {
+    vi.stubGlobal("React", React);
     Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
       value: true,
       configurable: true,
@@ -129,6 +131,27 @@ describe("createWebStreamStrategy", () => {
       Reflect.deleteProperty(HTMLElement.prototype, "offsetHeight");
     }
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps a compaction intro collapsed until opened and supports closing it again", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() =>
+      root?.render(
+        <CompactionIntro enabled forceExpanded={false}>
+          <div>Restored context body</div>
+        </CompactionIntro>,
+      ),
+    );
+    const button = container.querySelector<HTMLElement>('[aria-label="Compaction summary"]');
+    expect(button).not.toBeNull();
+    expect(container.textContent).toBe("Compaction summary");
+    act(() => button!.click());
+    expect(container.textContent).toContain("Restored context body");
+    act(() => button!.click());
+    expect(container.textContent).toBe("Compaction summary");
   });
 
   it("mounts virtualized history without recursive row measurement updates", () => {

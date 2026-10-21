@@ -491,6 +491,54 @@ function assistantMessage(
 }
 
 describe("timeline presentation", () => {
+  it("folds only long assistant continuations immediately after compaction", () => {
+    const summary = {
+      ...assistantMessage("intro", 2),
+      text: "This session is being continued from a previous conversation. ".repeat(100),
+    };
+    const compaction: StreamItem = {
+      kind: "compaction",
+      id: "compact",
+      timestamp: new Date(0),
+      status: "completed",
+    };
+    const present = createStreamPresentation();
+    const result = present({
+      level: "detailed",
+      isTurnActive: false,
+      transform: undefined,
+      tail: [compaction],
+      head: [summary, assistantMessage("reply", 3)],
+    });
+    expect(result.head).toEqual([
+      { ...summary, isCompactionIntro: true },
+      assistantMessage("reply", 3),
+    ]);
+    expect(
+      present({
+        level: "detailed",
+        isTurnActive: false,
+        transform: undefined,
+        tail: [compaction, summary],
+        head: [],
+      }).tail,
+    ).toEqual([compaction, { ...summary, isCompactionIntro: true }]);
+    expect(summary).not.toHaveProperty("isCompactionIntro");
+    const reply = {
+      ...assistantMessage("answer", 4),
+      text: "The implementation now handles this correctly. ".repeat(100),
+    };
+    expect(
+      present({
+        level: "detailed",
+        isTurnActive: false,
+        transform: undefined,
+        tail: [compaction, reply],
+        head: [],
+      }).tail,
+    ).toEqual([compaction, reply]);
+  });
+
   const present = createStreamPresentation();
   function projectTimelineItems(items: StreamItem[], transform?: TimelineItemTransform) {
     return present({ ...presentationOptions, tail: items, head: [], transform }).tail;

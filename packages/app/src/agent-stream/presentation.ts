@@ -48,29 +48,41 @@ export function createStreamPresentation() {
   let preparedLevel: ToolCallDetailLevel | undefined;
   let preparedHistory: PreparedToolCallHistory | null = null;
 
-  function presentRows(item: StreamItem): StreamItem[] {
+  function presentRows(item: StreamItem, followsCompaction = false): StreamItem[] {
     if (
       item.kind === "tool_call" &&
       item.payload.source === "agent" &&
       item.payload.data.metadata?.paseoiWorkspaceSnapshot === true
     )
       return [];
+    if (
+      followsCompaction &&
+      item.kind === "assistant_message" &&
+      item.text.length > 1000 &&
+      /^(?:Attribution for git commits and pull requests|This session is being continued from a previous conversation)/.test(
+        item.text.trimStart(),
+      )
+    )
+      return [{ ...item, isCompactionIntro: true }];
     return [item.kind === "user_message" ? presentUserMessage(item) : item];
   }
 
   return (input: PresentationInput) => {
     // Retained history is not reprojected or regrouped on each live text update.
     if (historySource !== input.tail || historyTransform !== input.transform) {
-      historyRows = projectPluginTimelineItems(input.tail, input.transform).flatMap<StreamItem>(
-        (item) => presentRows(item),
+      const projected = projectPluginTimelineItems(input.tail, input.transform);
+      historyRows = projected.flatMap<StreamItem>((item, index) =>
+        presentRows(item, projected[index - 1]?.kind === "compaction"),
       );
       historySource = input.tail;
       historyTransform = input.transform;
     }
     const head: StreamItem[] = [];
+    let followsCompaction = historyRows.at(-1)?.kind === "compaction";
     for (const item of projectPluginTimelineItems(input.head, input.transform, "streaming")) {
-      const blocks = presentRows(item);
+      const blocks = presentRows(item, followsCompaction);
       head.push(...blocks);
+      followsCompaction = item.kind === "compaction";
     }
     if (preparedTail !== historyRows || preparedLevel !== input.level) {
       preparedHistory = prepareToolCallHistory(input.level, historyRows);
