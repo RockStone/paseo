@@ -113,6 +113,20 @@ it("projects the daemon-owned active turn identity", () => {
   });
 });
 
+it("keeps conversation activity separate from metadata timestamps in live and stored payloads", () => {
+  const lastActivityAt = new Date("2025-01-01T00:02:00.000Z");
+  const agent = createManagedAgent({
+    lastActivityAt,
+    updatedAt: new Date("2025-01-01T00:05:00.000Z"),
+  });
+  const stored = toStoredAgentRecord(agent);
+  expect(stored.lastActivityAt).toBe(lastActivityAt.toISOString());
+  expect(toAgentPayload(agent).lastActivityAt).toBe(lastActivityAt.toISOString());
+  expect(buildStoredAgentPayload(stored, ["claude"]).lastActivityAt).toBe(
+    lastActivityAt.toISOString(),
+  );
+});
+
 function createPermission(overrides: Partial<AgentPermissionRequest> = {}): AgentPermissionRequest {
   const base: AgentPermissionRequest = {
     id: "perm-1",

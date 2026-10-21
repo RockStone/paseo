@@ -15,6 +15,7 @@ function createSnapshot(
     model: input.model ?? null,
     createdAt: input.createdAt ?? "2026-04-20T00:00:00.000Z",
     updatedAt: input.updatedAt ?? "2026-04-20T00:01:00.000Z",
+    lastActivityAt: input.lastActivityAt,
     lastUserMessageAt: input.lastUserMessageAt ?? null,
     status: input.status ?? "idle",
     activeTurn: input.activeTurn,
@@ -36,6 +37,18 @@ function createSnapshot(
 }
 
 describe("normalizeAgentSnapshot", () => {
+  it("round-trips activity independently of metadata and accepts older snapshots", () => {
+    const lastActivityAt = "2026-04-20T00:00:30.000Z";
+    const snapshot = createSnapshot({ lastActivityAt });
+    const normalized = normalizeAgentSnapshot(snapshot, "server-1");
+    expect(normalized.lastActivityAt.toISOString()).toBe(lastActivityAt);
+    expect(projectAgentSnapshot(normalized).lastActivityAt).toBe(lastActivityAt);
+    const olderSnapshot = createSnapshot();
+    expect(normalizeAgentSnapshot(olderSnapshot, "server-1").lastActivityAt.toISOString()).toBe(
+      olderSnapshot.updatedAt,
+    );
+  });
+
   it("round-trips identified active turns through the canonical snapshot boundary", () => {
     const snapshot = createSnapshot({
       status: "running",

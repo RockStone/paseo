@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Text } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { DiffStat } from "@/components/diff-stat";
@@ -5,6 +6,11 @@ import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list"
 import { useAppSettings } from "@/hooks/use-settings";
 import type { SidebarWorkspaceTrailing } from "@/hooks/use-settings";
 import { useCompactTimeAgo } from "@/hooks/use-time-ago";
+import { useSessionStore, type Agent } from "@/stores/session-store";
+import { useProviderSubagentStore } from "@/subagents/provider-store";
+import { selectWorkspaceLastActivity } from "@/utils/workspace-agent-activity";
+
+const EMPTY_AGENTS = new Map<string, Agent>();
 
 export type { SidebarWorkspaceTrailing };
 
@@ -32,7 +38,7 @@ export function hasSidebarWorkspaceTrailing({
   trailing: SidebarWorkspaceTrailing;
 }): boolean {
   if (trailing === "diff") return workspace.diffStat !== null;
-  if (trailing === "timestamp") return workspace.statusEnteredAt !== null;
+  if (trailing === "timestamp") return true;
   return false;
 }
 
@@ -48,8 +54,8 @@ export function SidebarWorkspaceTrailingContent({
       <DiffStat additions={workspace.diffStat.additions} deletions={workspace.diffStat.deletions} />
     );
   }
-  if (trailing === "timestamp" && workspace.statusEnteredAt) {
-    return <WorkspaceTimestamp enteredAt={workspace.statusEnteredAt} />;
+  if (trailing === "timestamp") {
+    return <WorkspaceTimestamp serverId={workspace.serverId} workspaceId={workspace.workspaceId} />;
   }
   return null;
 }
@@ -59,10 +65,32 @@ export function SidebarWorkspaceTrailingContent({
  * re-renders the component that owns it — keeping that component down to a single `<Text>` is
  * what stops a minute tick from reaching the row, the list, or the diff stat next door.
  */
-function WorkspaceTimestamp({ enteredAt }: { enteredAt: Date }) {
-  const label = useCompactTimeAgo(enteredAt);
+function WorkspaceTimestamp({ serverId, workspaceId }: { serverId: string; workspaceId: string }) {
+  const providerSubagents = useProviderSubagentStore((state) => state.descriptors);
+  const lastActivityAt = useSessionStore((state) =>
+    selectWorkspaceLastActivity({
+      serverId,
+      workspaceId,
+      agents: state.sessions[serverId]?.agents ?? EMPTY_AGENTS,
+      activity: state.agentLastActivity,
+      providerSubagents,
+    }),
+  );
+  const label = useCompactTimeAgo(lastActivityAt === null ? null : new Date(lastActivityAt));
+  const dataSet = useMemo(
+    () => ({
+      activityAt: lastActivityAt === null ? undefined : new Date(lastActivityAt).toISOString(),
+    }),
+    [lastActivityAt],
+  );
+  if (lastActivityAt === null) return null;
   return (
-    <Text style={styles.timestamp} numberOfLines={1} testID="sidebar-workspace-timestamp">
+    <Text
+      style={styles.timestamp}
+      numberOfLines={1}
+      testID="sidebar-workspace-timestamp"
+      dataSet={dataSet}
+    >
       {label}
     </Text>
   );

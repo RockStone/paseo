@@ -93,7 +93,16 @@ import {
   type ProviderSubagentStoreEvent,
 } from "./provider-subagents/store.js";
 import { withTimeout } from "../../utils/promise-timeout.js";
-import { extractAttention } from "../persistence-hooks.js";
+import { extractAttention, resolveStoredAgentLastActivityAt } from "../persistence-hooks.js";
+
+function registrationTimestamps(
+  now: Date,
+  options: { createdAt?: Date; updatedAt?: Date; lastActivityAt?: Date } = {},
+) {
+  const createdAt = options.createdAt ?? now;
+  const updatedAt = options.updatedAt ?? now;
+  return { createdAt, updatedAt, lastActivityAt: options.lastActivityAt ?? updatedAt };
+}
 
 const RELOAD_SESSION_CLOSE_TIMEOUT_MS = 3_000;
 const INTERRUPT_SESSION_TIMEOUT_MS = 2_000;
@@ -416,6 +425,8 @@ interface ManagedAgentBase {
   runtimeInfo?: AgentRuntimeInfo;
   createdAt: Date;
   updatedAt: Date;
+  /** Conversation activity, independent of metadata and attention updates. */
+  lastActivityAt?: Date;
   availableModes: AgentMode[];
   features?: AgentFeature[];
   currentModeId: string | null;
@@ -948,6 +959,10 @@ export class AgentManager {
     return next;
   }
 
+  private touchActivity(agent: ManagedAgent): void {
+    agent.lastActivityAt = this.touchUpdatedAt(agent);
+  }
+
   private nextStoredUpdatedAt(record: StoredAgentRecord): string {
     const previousMs = Date.parse(record.updatedAt);
     const nowMs = Date.now();
@@ -1444,6 +1459,9 @@ export class AgentManager {
     await this.requireExternalMcpSupport(session, storedConfig);
     return this.registerSession(session, storedConfig, resolvedAgentId, {
       ...options,
+      lastActivityAt: record
+        ? new Date(resolveStoredAgentLastActivityAt(record))
+        : options?.updatedAt,
       persistence: handle,
       restoring: true,
     });
@@ -1630,6 +1648,7 @@ export class AgentManager {
         owner: existing.owner,
         createdAt: existing.createdAt,
         updatedAt: existing.updatedAt,
+        lastActivityAt: existing.lastActivityAt,
         lastUserMessageAt: existing.lastUserMessageAt,
         historyPrimed: rehydrateFromDisk ? false : preservedHistoryPrimed,
         lastUsage: preservedLastUsage,
@@ -1997,6 +2016,7 @@ export class AgentManager {
         runtimeInfo: undefined,
         lifecycle: "closed",
         createdAt: new Date(record.createdAt),
+        lastActivityAt: new Date(resolveStoredAgentLastActivityAt(record)),
         updatedAt,
         availableModes: [],
         features: record.features,
@@ -2480,7 +2500,7 @@ export class AgentManager {
       // Persist timeline items so they show up in fetchAgentTimeline; broadcast
       // for live subscribers. Other event types are broadcast only.
       if (event.type === "timeline") {
-        this.touchUpdatedAt(agent);
+        this.touchActivity(agent);
         const row = this.recordTimeline(agent.id, event.item);
         this.dispatchStream(agent.id, event, {
           seq: row.seq,
@@ -2512,7 +2532,7 @@ export class AgentManager {
   ): Promise<{ seq: number; epoch: string }> {
     const agent = this.requireAgent(agentId);
     item = limitAgentTimelineItemContent(item);
-    this.touchUpdatedAt(agent);
+    this.touchActivity(agent);
     const row = this.recordTimeline(agentId, item);
     this.dispatchStream(
       agentId,
@@ -2533,7 +2553,7 @@ export class AgentManager {
 
   async emitLiveTimelineItem(agentId: string, item: AgentTimelineItem): Promise<void> {
     const agent = this.requireAgent(agentId);
-    this.touchUpdatedAt(agent);
+    this.touchActivity(agent);
     this.dispatchStream(agentId, {
       type: "timeline",
       item,
@@ -2650,7 +2670,7 @@ export class AgentManager {
       agent.activeForegroundTurnId = turnId;
       this.openActiveTurn(agent, turnId, turnStartedAt);
       agent.lifecycle = "running";
-      this.touchUpdatedAt(agent);
+      this.touchActivity(agent);
       // AgentManager owns the accepted-turn boundary. Publish liveness before the canonical
       // prompt so clients can retire optimistic activity without painting an idle frame.
       // The provider's duplicate start for this turn is suppressed at the ingestion boundary.
@@ -2764,7 +2784,7 @@ export class AgentManager {
       "agent.manager.finalize",
     );
     if (!shouldHoldBusyForReplacement) {
-      this.touchUpdatedAt(mutableAgent);
+      this.touchActivity(mutableAgent);
       this.emitState(mutableAgent);
     }
   }
@@ -2804,7 +2824,7 @@ export class AgentManager {
     const agent = this.requireSessionAgent(agentId);
     agent.pendingReplacement = true;
     agent.lifecycle = "running";
-    this.touchUpdatedAt(agent);
+    this.touchActivity(agent);
     this.emitState(agent);
 
     try {
@@ -2950,7 +2970,7 @@ export class AgentManager {
     this.assertSteerAdmissionOwnsTurn(agent, expectedTurnId);
     agent.pendingReplacement = true;
     agent.lifecycle = "running";
-    this.touchUpdatedAt(agent);
+    this.touchActivity(agent);
     this.emitState(agent);
 
     try {
@@ -3116,7 +3136,7 @@ export class AgentManager {
         // Ignore refresh errors - state sync after permission approval is best effort.
       }
 
-      this.touchUpdatedAt(agent);
+      this.touchActivity(agent);
       await this.persistSnapshot(agent);
       this.emitState(agent);
 
@@ -3179,7 +3199,7 @@ export class AgentManager {
       this.runs.settleForegroundRun(agentId, run.token);
       if (!agent.pendingReplacement) {
         agent.lifecycle = "idle";
-        this.touchUpdatedAt(agent);
+        this.touchActivity(agent);
         this.emitState(agent);
       }
     } else if (settlement === "timed_out" && run.kind === "autonomous") {
@@ -3196,7 +3216,7 @@ export class AgentManager {
 
     if (agent.pendingPermissions.size > 0) {
       this.resolvePendingPermissionsForAgent(agent, agent.provider, undefined, "Interrupted");
-      this.touchUpdatedAt(agent);
+      this.touchActivity(agent);
       this.emitState(agent);
     }
     return { status: "settled" };
@@ -3564,6 +3584,7 @@ export class AgentManager {
     options?: {
       createdAt?: Date;
       updatedAt?: Date;
+      lastActivityAt?: Date;
       lastUserMessageAt?: Date | null;
       labels?: Record<string, string>;
       timeline?: AgentTimelineItem[];
@@ -3753,6 +3774,7 @@ export class AgentManager {
       | {
           createdAt?: Date;
           updatedAt?: Date;
+          lastActivityAt?: Date;
           lastUserMessageAt?: Date | null;
           labels?: Record<string, string>;
           historyPrimed?: boolean;
@@ -3777,8 +3799,7 @@ export class AgentManager {
       config,
       runtimeInfo: undefined,
       lifecycle: "initializing",
-      createdAt: options?.createdAt ?? now,
-      updatedAt: options?.updatedAt ?? now,
+      ...registrationTimestamps(now, options),
       availableModes: [],
       currentModeId: null,
       pendingPermissions: new Map<string, AgentPermissionRequest>(),
@@ -4365,7 +4386,7 @@ export class AgentManager {
 
     // Only update timestamp for live events, not history replay
     if (!options?.fromHistory) {
-      this.touchUpdatedAt(agent);
+      this.touchActivity(agent);
       if (this.agentStreamCoalescer.handle(agent.id, event)) {
         this.traceCoalescerBuffered(agent, event, eventTurnId);
         return false;
@@ -4902,7 +4923,7 @@ export class AgentManager {
       this.timelineStore.getSubmittedUserMessage(agent.id, item.clientMessageId)
     )
       return;
-    this.touchUpdatedAt(agent);
+    this.touchActivity(agent);
     if (item.type === "user_message") agent.lastUserMessageAt = new Date();
     this.recordAndDispatchTimelineItem(agent.id, item, agent.provider, options?.turnId, options);
   }

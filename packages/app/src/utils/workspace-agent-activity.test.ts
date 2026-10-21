@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Agent } from "@/stores/session-store";
-import { buildWorkspaceAgentActivityIndex } from "./workspace-agent-activity";
+import {
+  buildWorkspaceAgentActivityIndex,
+  selectWorkspaceLastActivity,
+} from "./workspace-agent-activity";
 
 function agent(input: {
   id: string;
@@ -64,6 +67,87 @@ function agent(input: {
     labels: {},
   };
 }
+
+describe("workspace last activity", () => {
+  it("includes streamed descendants across workspace boundaries, independently of status and metadata", () => {
+    const root = agent({
+      id: "root",
+      workspaceId: "workspace-1",
+      status: "idle",
+      updatedAt: "2026-01-01T00:01:00Z",
+    });
+    const child = agent({
+      id: "child",
+      workspaceId: "workspace-2",
+      parentAgentId: root.id,
+      status: "idle",
+      updatedAt: "2026-01-01T00:02:00Z",
+    });
+    const grandchild = agent({
+      id: "grandchild",
+      workspaceId: "workspace-2",
+      parentAgentId: child.id,
+      status: "idle",
+      updatedAt: "2026-01-01T00:03:00Z",
+    });
+    const unrelated = agent({
+      id: "unrelated",
+      workspaceId: "workspace-3",
+      status: "running",
+      updatedAt: "2026-01-01T01:00:00Z",
+    });
+    const agents = new Map([root, child, grandchild, unrelated].map((value) => [value.id, value]));
+    const activity = new Map([[grandchild.id, new Date("2026-01-01T00:04:00Z")]]);
+    root.updatedAt = new Date("2026-01-01T02:00:00Z");
+    const input = { serverId: "srv", workspaceId: "workspace-1", agents, activity };
+    expect(selectWorkspaceLastActivity(input)).toBe(Date.parse("2026-01-01T00:04:00Z"));
+    // A late snapshot must not be overwritten by an older stream timestamp.
+    grandchild.lastActivityAt = new Date("2026-01-01T00:05:00Z");
+    expect(selectWorkspaceLastActivity(input)).toBe(Date.parse("2026-01-01T00:05:00Z"));
+    expect(selectWorkspaceLastActivity({ ...input, workspaceId: "empty" })).toBeNull();
+  });
+
+  it("includes provider child updates only for the matching host and active parent, and tolerates parent cycles", () => {
+    const root = agent({
+      id: "root",
+      workspaceId: "workspace-1",
+      status: "idle",
+      updatedAt: "2026-01-01T00:01:00Z",
+      parentAgentId: "child",
+    });
+    const child = agent({
+      id: "child",
+      workspaceId: "workspace-2",
+      status: "idle",
+      updatedAt: "2026-01-01T00:02:00Z",
+      parentAgentId: root.id,
+    });
+    const archived = agent({
+      id: "archived",
+      workspaceId: "workspace-1",
+      status: "idle",
+      updatedAt: "2026-01-01T04:00:00Z",
+      archivedAt: "2026-01-01T04:01:00Z",
+    });
+    const agents = new Map([root, child, archived].map((value) => [value.id, value]));
+    const input = {
+      serverId: "srv",
+      workspaceId: "workspace-1",
+      agents,
+      activity: new Map(),
+      providerSubagents: new Map([
+        ["srv\0root\0native", { parentAgentId: root.id, updatedAt: "2026-01-01T00:03:00Z" }],
+        ["other\0root\0native", { parentAgentId: root.id, updatedAt: "2026-01-01T03:00:00Z" }],
+        [
+          "srv\0archived\0native",
+          { parentAgentId: archived.id, updatedAt: "2026-01-01T04:00:00Z" },
+        ],
+      ]),
+    };
+    expect(selectWorkspaceLastActivity(input)).toBe(Date.parse("2026-01-01T00:03:00Z"));
+    expect(selectWorkspaceLastActivity({ ...input, workspaceId: "empty" })).toBeNull();
+  });
+});
 
 describe("workspace agent activity index", () => {
   it("uses turn liveness for running while preserving protocol lifecycle states", () => {

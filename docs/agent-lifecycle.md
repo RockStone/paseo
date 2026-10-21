@@ -199,6 +199,11 @@ retains its parent until explicitly detached or detached by the parent archive r
 
 ## Workspace activity
 
+The sidebar's workspace age measures the latest conversation activity, including subagents.
+It is independent of the status clock: reading, renaming, and restoring an idle runtime must not
+make old work appear recent. Keep activity separate from metadata timestamps in persistence and
+snapshots so that distinction survives reconnects and restarts.
+
 Agent lifecycle status stays literal: a parent agent is `idle` when its own turn is idle, even if a child is running.
 
 Workspace status is an aggregate activity signal computed **per `workspaceId`**. Ownership is never derived from `cwd` — many workspaces may share one directory, and same-`cwd` siblings do not clump under one status. Root agents and cross-workspace subagents contribute their normal state bucket to their own workspace. Same-workspace descendants contribute `running` to the nearest ancestor in that workspace; their non-running attention, permission, and error states stay in the parent's subagents track. This makes a cross-workspace subagent behave like a detached agent for workspace visibility and status without removing its parent relationship.

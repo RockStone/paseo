@@ -68,6 +68,7 @@ export function projectAgentSnapshot(agent: Agent): AgentSnapshotPayload {
     thinkingOptionId: agent.thinkingOptionId ?? null,
     createdAt: agent.createdAt.toISOString(),
     updatedAt: agent.updatedAt.toISOString(),
+    lastActivityAt: agent.lastActivityAt.toISOString(),
     lastUserMessageAt: agent.lastUserMessageAt?.toISOString() ?? null,
     status: agent.status,
     ...projectActiveTurn(agent),
@@ -113,7 +114,8 @@ export function normalizeAgentSnapshot(snapshot: AgentSnapshotPayload, serverId:
     createdAt,
     updatedAt,
     lastUserMessageAt,
-    lastActivityAt: updatedAt,
+    // COMPAT(agentActivityTime): added in v0.12.0, remove after 2027-04-21.
+    lastActivityAt: snapshot.lastActivityAt ? new Date(snapshot.lastActivityAt) : updatedAt,
     capabilities: snapshot.capabilities,
     currentModeId: snapshot.currentModeId,
     availableModes: snapshot.availableModes ?? [],

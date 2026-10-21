@@ -134,6 +134,10 @@ export function resolveStoredAgentUpdatedAt(record: StoredAgentRecord): string {
   return timestamps[0].raw;
 }
 
+export function resolveStoredAgentLastActivityAt(record: StoredAgentRecord): string {
+  return record.lastActivityAt ?? record.updatedAt;
+}
+
 export function extractTimestamps(record: StoredAgentRecord): {
   createdAt: Date;
   updatedAt: Date;
