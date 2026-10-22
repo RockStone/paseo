@@ -127,6 +127,12 @@ describe("createCodeClipboardContent", () => {
 });
 
 describe("writeMarkdownToRichClipboard", () => {
+  it("rejects a failed plain-text fallback so callers can keep their selection and retry", async () => {
+    await expect(
+      writeMarkdownToRichClipboard("keep this", { writePlainText: async () => false }),
+    ).rejects.toThrow("Clipboard write failed");
+  });
+
   it("writes plain text and html when a rich clipboard writer is available", async () => {
     const clipboard = createRecordingClipboard();
 

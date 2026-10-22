@@ -24,6 +24,7 @@ import { selectionReplyAnchor, type SelectionReplyAnchor } from "./position.web"
 interface AssistantSelectionCopySurfaceProps {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
+  selectionReplyEnabled?: boolean;
 }
 
 interface SelectionReply {
@@ -36,6 +37,7 @@ const DISPLAY_CONTENTS: CSSProperties = { display: "contents" };
 export function AssistantSelectionCopySurface({
   children,
   style,
+  selectionReplyEnabled = true,
 }: AssistantSelectionCopySurfaceProps) {
   const onReply = useContext(SelectionReplyContext);
   const active = useRetainedPanelActive();
@@ -46,7 +48,7 @@ export function AssistantSelectionCopySurface({
   const { t } = useTranslation();
 
   useEffect(() => {
-    if (!onReply || !active) return;
+    if (!onReply || !active || !selectionReplyEnabled) return;
     function readSelection() {
       const selection = window.getSelection();
       const surface = surfaceRef.current;
@@ -82,10 +84,10 @@ export function AssistantSelectionCopySurface({
       window.removeEventListener("touchmove", dismiss, true);
       window.removeEventListener("resize", dismiss);
     };
-  }, [onReply, active]);
+  }, [onReply, active, selectionReplyEnabled]);
 
   const overlay = useWebOverlayRegistration({
-    active: reply !== null && active && onReply !== null,
+    active: reply !== null && active && selectionReplyEnabled && onReply !== null,
     layer,
     manageFocus: false,
     onKeyDown: (event) => {
@@ -136,7 +138,7 @@ export function AssistantSelectionCopySurface({
     const observer = new ResizeObserver(placeAction);
     observer.observe(action);
     return () => observer.disconnect();
-  }, [reply, active, onReply]);
+  }, [reply, active, onReply, selectionReplyEnabled]);
 
   const handleCopy = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
     const content = createAssistantSelectionClipboardContent(window.getSelection());
@@ -149,7 +151,7 @@ export function AssistantSelectionCopySurface({
   return (
     <div ref={surfaceRef} onCopy={handleCopy} style={DISPLAY_CONTENTS}>
       <View style={style}>{children}</View>
-      {reply && active && onReply
+      {reply && active && selectionReplyEnabled && onReply
         ? createPortal(
             <div ref={setActionScope} style={actionStyle} onPointerDown={preserveSelection}>
               <Button

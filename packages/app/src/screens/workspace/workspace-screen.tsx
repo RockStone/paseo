@@ -1,4 +1,9 @@
 import {
+  MessageSelectionProvider,
+  MessageSelectionToolbar,
+} from "@/agent-stream/message-selection";
+import { messageSelectionTarget } from "@/agent-stream/message-selection/model";
+import {
   AssistantFileLinkResolverProvider,
   createInlinePathOpener,
   type InlinePathTarget,
@@ -417,12 +422,14 @@ export const WorkspaceScreen = memo(function WorkspaceScreen({
     };
   }, [serverId, workspaceId]);
   return (
-    <WorkspaceScreenContent
-      serverId={serverId}
-      workspaceId={workspaceId}
-      isRouteFocused={isRouteFocused ?? navigationFocused}
-      recoveryRequested={recoveryRequested ?? false}
-    />
+    <MessageSelectionProvider key={`${serverId}:${workspaceId}`}>
+      <WorkspaceScreenContent
+        serverId={serverId}
+        workspaceId={workspaceId}
+        isRouteFocused={isRouteFocused ?? navigationFocused}
+        recoveryRequested={recoveryRequested ?? false}
+      />
+    </MessageSelectionProvider>
   );
 });
 
@@ -3089,10 +3096,18 @@ function WorkspaceScreenContent({
     workspaceKey: persistenceKey,
   });
 
+  const selectionTarget = useMemo(
+    () =>
+      focusedPaneAgentId && isRouteFocused
+        ? messageSelectionTarget(normalizedServerId, focusedPaneAgentId)
+        : null,
+    [focusedPaneAgentId, isRouteFocused, normalizedServerId],
+  );
   const headerRight = useMemo(
     () => (
       <View style={styles.headerRight}>
         <PluginHeaderButtons serverId={normalizedServerId} workspaceId={normalizedWorkspaceId} />
+        <MessageSelectionToolbar target={selectionTarget} />
         {workspaceDescriptor ? (
           <WorkspaceScriptsButton
             serverId={normalizedServerId}
@@ -3131,6 +3146,7 @@ function WorkspaceScreenContent({
       </View>
     ),
     [
+      selectionTarget,
       workspaceDescriptor,
       normalizedServerId,
       normalizedWorkspaceId,
@@ -3303,6 +3319,7 @@ function WorkspaceScreenContent({
             onCloseTabsBelow={handleCloseTabsToRight}
             onCloseOtherTabs={handleCloseOtherTabs}
           />
+          <MessageSelectionToolbar target={selectionTarget} />
           <WorkspaceHeaderMenuMobile
             normalizedServerId={normalizedServerId}
             scripts={compactHeaderScripts}
@@ -3322,6 +3339,7 @@ function WorkspaceScreenContent({
         </CompactWorkspaceHeader>
       ) : null,
     [
+      selectionTarget,
       activeTabKey,
       canOpenImportSheet,
       compactHeaderScripts,

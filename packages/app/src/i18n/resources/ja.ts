@@ -379,6 +379,15 @@ export const ja: TranslationResources = {
     },
   },
   message: {
+    selection: {
+      start: "メッセージを選択",
+      copy: "選択したメッセージをコピー（{{count}}）",
+      copied: "メッセージをコピーしました",
+      user: "ユーザーのメッセージを選択",
+      assistant: "アシスタントのメッセージを選択",
+      failed: "メッセージをコピーできませんでした",
+      retry: "選択は保持されています。コピーで再試行するか、キャンセルしてください。",
+    },
     diagram: {
       diagram: "図",
       zoomIn: "拡大",

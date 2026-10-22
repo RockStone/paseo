@@ -1,3 +1,10 @@
+import {
+  MessageSelectionRow,
+  MessageSelectionError,
+  useMessageSelection,
+  useMessageSelectionActive,
+} from "./message-selection";
+import { messageSelectionTarget } from "./message-selection/model";
 import { ChangedFilesCard } from "./changed-files-card";
 import { CompactionIntro } from "./compaction-intro";
 import { thinkingDisplayKey, useThinkingDisplayStore } from "./thinking-display";
@@ -364,6 +371,9 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     // Get serverId (fallback to agent's serverId if not provided)
     const resolvedServerId = serverId ?? context.serverId ?? "";
+    const selectionTarget = messageSelectionTarget(resolvedServerId, agentId);
+    const messageSelection = useMessageSelection();
+    const selectionActive = useMessageSelectionActive(selectionTarget);
     const transformTimelineItem = useInstalledTimelineTransform(resolvedServerId);
 
     const client = useSessionStore((state) => state.sessions[resolvedServerId]?.client ?? null);
@@ -512,6 +522,14 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     // the component reads the current (fresh) streamItems/streamHead from props.
     const effectiveStreamItems = useRetainedValue(streamItems, isActive);
     const effectiveStreamHead = useRetainedValue(streamHead, isActive);
+    const readSelectionSource = useStableEvent(() => [
+      ...effectiveStreamItems,
+      ...(effectiveStreamHead ?? []),
+    ]);
+    useEffect(
+      () => messageSelection?.registerSource(selectionTarget, readSelectionSource),
+      [messageSelection, selectionTarget, readSelectionSource],
+    );
     const effectiveTurnPresentation = useRetainedValue(turnPresentation, isActive);
     const isTurnActive = effectiveTurnPresentation.isActive;
     const completedChangeTail = useRetainedValue(effectiveStreamItems, !isTurnActive);
@@ -941,8 +959,17 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const renderStreamItem = useCallback(
       (layoutItem: StreamLayoutItem) => {
         const content = renderStreamItemContent(layoutItem);
+        const item = layoutItem.item;
+        const selectableContent =
+          item.kind === "user_message" || item.kind === "assistant_message" ? (
+            <MessageSelectionRow target={selectionTarget} item={item}>
+              {content}
+            </MessageSelectionRow>
+          ) : (
+            content
+          );
         return renderStreamItemWithTurnFooter({
-          content,
+          content: selectableContent,
           layoutItem,
           strategy: streamRenderStrategy,
           supportsTimelineCursor: supportsAgentForkContextCursor,
@@ -953,6 +980,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         handleForkAssistantTurn,
         readOnly,
         renderStreamItemContent,
+        selectionTarget,
         streamRenderStrategy,
         supportsAgentForkContextCursor,
       ],
@@ -1135,7 +1163,11 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         visibleMessageIds={mountedMessageIds}
       >
         <ToolCallSheetProvider>
-          <AssistantSelectionCopySurface style={stylesheet.container}>
+          <AssistantSelectionCopySurface
+            style={stylesheet.container}
+            selectionReplyEnabled={!selectionActive}
+          >
+            <MessageSelectionError target={selectionTarget} />
             <MessageOuterSpacingProvider disableOuterSpacing>
               {streamRenderStrategy.render({
                 agentId,

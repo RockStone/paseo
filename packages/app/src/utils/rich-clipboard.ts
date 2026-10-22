@@ -83,5 +83,7 @@ export async function writeMarkdownToRichClipboard(
     }
   }
 
-  await environment.writePlainText(markdown);
+  const written = await environment.writePlainText(markdown);
+  // Expo's web fallback reports a denied legacy write as false instead of rejecting.
+  if (written === false) throw new Error("Clipboard write failed");
 }

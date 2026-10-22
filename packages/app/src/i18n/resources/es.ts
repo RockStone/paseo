@@ -381,6 +381,15 @@ export const es: TranslationResources = {
     },
   },
   message: {
+    selection: {
+      start: "Seleccionar mensajes",
+      copy: "Copiar mensajes seleccionados ({{count}})",
+      copied: "Mensajes copiados",
+      user: "Seleccionar mensaje del usuario",
+      assistant: "Seleccionar mensaje del asistente",
+      failed: "No se pudieron copiar los mensajes",
+      retry: "Se conserva la selección. Usa Copiar para reintentar o Cancelar.",
+    },
     diagram: {
       diagram: "Diagrama",
       zoomIn: "Acercar",

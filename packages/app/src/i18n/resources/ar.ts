@@ -374,6 +374,15 @@ export const ar: TranslationResources = {
     },
   },
   message: {
+    selection: {
+      start: "تحديد الرسائل",
+      copy: "نسخ الرسائل المحددة ({{count}})",
+      copied: "تم نسخ الرسائل",
+      user: "تحديد رسالة المستخدم",
+      assistant: "تحديد رسالة المساعد",
+      failed: "تعذر نسخ الرسائل",
+      retry: "تم الاحتفاظ بالتحديد. اضغط نسخ للمحاولة مجدداً أو إلغاء.",
+    },
     diagram: {
       diagram: "مخطط",
       zoomIn: "تكبير",

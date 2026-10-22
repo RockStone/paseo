@@ -374,6 +374,15 @@ export const zhCN: TranslationResources = {
     },
   },
   message: {
+    selection: {
+      start: "选择消息",
+      copy: "复制所选消息（{{count}}）",
+      copied: "消息已复制",
+      user: "选择用户消息",
+      assistant: "选择助手消息",
+      failed: "无法复制消息",
+      retry: "已保留所选消息。点击复制重试，或点击取消。",
+    },
     diagram: {
       diagram: "图表",
       zoomIn: "放大",

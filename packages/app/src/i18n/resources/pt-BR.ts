@@ -380,6 +380,15 @@ export const ptBR: TranslationResources = {
     },
   },
   message: {
+    selection: {
+      start: "Selecionar mensagens",
+      copy: "Copiar mensagens selecionadas ({{count}})",
+      copied: "Mensagens copiadas",
+      user: "Selecionar mensagem do usuário",
+      assistant: "Selecionar mensagem do assistente",
+      failed: "Não foi possível copiar as mensagens",
+      retry: "A seleção foi mantida. Use Copiar para tentar novamente ou Cancelar.",
+    },
     diagram: {
       diagram: "Diagrama",
       zoomIn: "Aproximar",

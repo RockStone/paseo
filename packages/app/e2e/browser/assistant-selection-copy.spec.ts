@@ -987,3 +987,201 @@ test("Reply quotes Thinking, shell output, and selections spanning both", async 
     await agent.cleanup();
   }
 });
+
+for (const layout of ["desktop", "compact"] as const) {
+  test(`copies nonadjacent user and assistant messages as original Markdown (${layout})`, async ({
+    page,
+    context,
+  }, testInfo) => {
+    if (layout === "compact") await page.setViewportSize({ width: 430, height: 932 });
+    const prompt = "Please keep **user Markdown** and `inline code`.";
+    const response = "A [link](https://example.com).\n\n```ts\nconst answer = 42;\n```";
+    const agent = await seedMockAgentWorkspace({
+      repoPrefix: "multi-message-copy-",
+      title: "Multi-message selection",
+      initialPrompt: prompt,
+      featureValues: { mockAssistantResponse: response },
+    });
+    try {
+      await allowRichClipboard(context);
+      await agent.client.waitForFinish(agent.agentId, 15_000);
+      await agent.client.sendAgentMessage(agent.agentId, "Leave this middle prompt unselected.");
+      await agent.client.waitForFinish(agent.agentId, 15_000);
+      await openAgentRoute(page, agent);
+      await page.getByTestId("message-selection-start").click();
+      await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
+      const users = page.getByRole("checkbox", { name: "Select user message", exact: true });
+      const assistants = page.getByRole("checkbox", {
+        name: "Select assistant message",
+        exact: true,
+      });
+      await expect(users).toHaveCount(2);
+      await expect(assistants).toHaveCount(2);
+      // Reverse click order must still copy chronological conversation order.
+      await assistants.last().click();
+      await users.first().click();
+      await expect(page.getByTestId("message-selection-copy")).toHaveAccessibleName(
+        "Copy selected messages (2)",
+      );
+      await page.screenshot({ path: testInfo.outputPath(`multi-message-${layout}.png`) });
+      await page.getByTestId("message-selection-copy").click();
+      await expect(page.getByText("Messages copied", { exact: true })).toBeVisible();
+      expect(await readPlainClipboard(page)).toBe(
+        `### User\n\n${prompt}\n\n---\n\n### Assistant\n\n${response}`,
+      );
+      await expect(page.getByTestId("message-selection-start")).toBeVisible();
+      await expect(users).toHaveCount(0);
+      await page.getByTestId("message-selection-start").click();
+      await users.first().click();
+      await page.getByTestId("message-selection-cancel").click();
+      await expect(users).toHaveCount(0);
+      await page.getByTestId("message-selection-start").click();
+      await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
+      await page.getByTestId("message-selection-cancel").click();
+    } finally {
+      await agent.cleanup();
+    }
+  });
+}
+
+test("keeps message checkboxes selected after clipboard denial and allows Copy to retry", async ({
+  page,
+  context,
+}) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "multi-copy-retry-",
+    title: "Copy retry",
+    initialPrompt: "Keep my selection.",
+    featureValues: { mockAssistantResponse: "A **complete** response." },
+  });
+  try {
+    await allowRichClipboard(context);
+    await agent.client.waitForFinish(agent.agentId, 15_000);
+    await openAgentRoute(page, agent);
+    await page.evaluate(() => {
+      let denied = true;
+      window.addEventListener("allow-test-clipboard", () => {
+        denied = false;
+      });
+      for (const method of ["write", "writeText"] as const) {
+        const original = navigator.clipboard[method].bind(navigator.clipboard);
+        Object.defineProperty(navigator.clipboard, method, {
+          configurable: true,
+          value: (...args: unknown[]) => {
+            if (denied) return Promise.reject(new DOMException("Denied", "NotAllowedError"));
+            return Reflect.apply(original, navigator.clipboard, args);
+          },
+        });
+      }
+      const original = document.execCommand.bind(document);
+      document.execCommand = (...args: Parameters<typeof document.execCommand>) => {
+        if (denied && args[0] === "copy") throw new DOMException("Denied", "NotAllowedError");
+        return original(...args);
+      };
+    });
+    await page.getByTestId("message-selection-start").click();
+    const checkbox = page.getByRole("checkbox", { name: "Select user message", exact: true });
+    await checkbox.click();
+    await page.getByTestId("message-selection-copy").click();
+    await expect(page.getByTestId("message-selection-error")).toContainText(
+      "Your selection is kept",
+    );
+    await expect(checkbox).toBeChecked();
+    await expect(page.getByTestId("message-selection-copy")).toBeEnabled();
+    await page.evaluate(() => window.dispatchEvent(new Event("allow-test-clipboard")));
+    await page.getByTestId("message-selection-copy").click();
+    await expect(page.getByTestId("message-selection-start")).toBeVisible();
+    await expect(page.getByTestId("message-selection-error")).toHaveCount(0);
+    expect(await readPlainClipboard(page)).toBe("### User\n\nKeep my selection.");
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("keeps message selections while loading and scrolling to older conversation history", async ({
+  page,
+  context,
+}) => {
+  const firstPrompt = "Earliest selected prompt.";
+  const response = "Keep **original Markdown**.\n\n```text\nselected reply\n```";
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "multi-copy-history-",
+    title: "History selection",
+    initialPrompt: firstPrompt,
+    featureValues: { mockAssistantResponse: response },
+  });
+  try {
+    await allowRichClipboard(context);
+    await agent.client.waitForFinish(agent.agentId, 15_000);
+    for (let index = 1; index < 45; index++) {
+      await agent.client.sendAgentMessage(agent.agentId, `Unselected prompt ${index}.`);
+      await agent.client.waitForFinish(agent.agentId, 15_000);
+    }
+    await openAgentRoute(page, agent);
+    await expect(page.getByText(firstPrompt, { exact: true })).toHaveCount(0);
+    await page.getByTestId("message-selection-start").click();
+    const latestCheckbox = page
+      .getByRole("checkbox", { name: "Select assistant message", exact: true })
+      .last();
+    await latestCheckbox.click();
+    await expect(latestCheckbox).toBeChecked();
+    await page.getByTestId("assistant-message").last().click();
+    await page.keyboard.press("ControlOrMeta+f");
+    const find = page.getByRole("textbox", { name: "Find in pane", exact: true });
+    await find.fill(firstPrompt);
+    await expect(page.getByText(firstPrompt, { exact: true })).toBeVisible();
+    await find.press("Escape");
+    const earliest = page
+      .locator("[data-message-id]")
+      .filter({ has: page.getByText(firstPrompt, { exact: true }) });
+    await earliest.getByRole("checkbox", { name: "Select user message", exact: true }).click();
+    await expect(page.getByTestId("message-selection-copy")).toHaveAccessibleName(
+      "Copy selected messages (2)",
+    );
+    await page.getByTestId("message-selection-copy").click();
+    await expect(page.getByTestId("message-selection-start")).toBeVisible();
+    expect(await readPlainClipboard(page)).toBe(
+      `### User\n\n${firstPrompt}\n\n---\n\n### Assistant\n\n${response}`,
+    );
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("keeps an expanded compaction summary open when entering and leaving message selection", async ({
+  page,
+  context,
+}) => {
+  const intro =
+    "This session is being continued from a previous conversation.\n\n" +
+    "Keep the expanded context visible while choosing messages. ".repeat(30);
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "multi-copy-expanded-",
+    title: "Expanded selection",
+    initialPrompt: "Show the restored context.",
+    featureValues: { mockAssistantResponse: intro },
+  });
+  try {
+    await allowRichClipboard(context);
+    await agent.client.waitForFinish(agent.agentId, 15_000);
+    await openAgentRoute(page, agent);
+    const summary = page.getByRole("button", { name: "Compaction summary", exact: true }).last();
+    await summary.click();
+    await expect(summary).toHaveAttribute("aria-expanded", "true");
+    await page.getByTestId("message-selection-start").click();
+    await expect(summary).toHaveAttribute("aria-expanded", "true");
+    await page.getByTestId("message-selection-cancel").click();
+    await expect(summary).toHaveAttribute("aria-expanded", "true");
+    await page.getByTestId("message-selection-start").click();
+    await page
+      .getByRole("checkbox", { name: "Select assistant message", exact: true })
+      .last()
+      .click();
+    await page.getByTestId("message-selection-copy").click();
+    await expect(page.getByTestId("message-selection-start")).toBeVisible();
+    await expect(summary).toHaveAttribute("aria-expanded", "true");
+    expect(await readPlainClipboard(page)).toBe(`### Assistant\n\n${intro}`);
+  } finally {
+    await agent.cleanup();
+  }
+});

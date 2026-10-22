@@ -375,6 +375,15 @@ export const ko: TranslationResources = {
     },
   },
   message: {
+    selection: {
+      start: "메시지 선택",
+      copy: "선택한 메시지 복사 ({{count}})",
+      copied: "메시지를 복사했습니다",
+      user: "사용자 메시지 선택",
+      assistant: "어시스턴트 메시지 선택",
+      failed: "메시지를 복사하지 못했습니다",
+      retry: "선택이 유지됩니다. 복사로 다시 시도하거나 취소하세요.",
+    },
     diagram: {
       diagram: "다이어그램",
       zoomIn: "확대",

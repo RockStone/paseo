@@ -373,6 +373,15 @@ export const en = {
     },
   },
   message: {
+    selection: {
+      start: "Select messages",
+      copy: "Copy selected messages ({{count}})",
+      copied: "Messages copied",
+      user: "Select user message",
+      assistant: "Select assistant message",
+      failed: "Could not copy messages",
+      retry: "Your selection is kept. Use Copy to retry, or Cancel.",
+    },
     diagram: {
       diagram: "Diagram",
       zoomIn: "Zoom in",

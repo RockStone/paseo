@@ -379,6 +379,15 @@ export const fr: TranslationResources = {
     },
   },
   message: {
+    selection: {
+      start: "Sélectionner des messages",
+      copy: "Copier les messages sélectionnés ({{count}})",
+      copied: "Messages copiés",
+      user: "Sélectionner le message utilisateur",
+      assistant: "Sélectionner le message assistant",
+      failed: "Impossible de copier les messages",
+      retry: "Votre sélection est conservée. Utilisez Copier pour réessayer ou Annuler.",
+    },
     diagram: {
       diagram: "Diagramme",
       zoomIn: "Zoomer",
