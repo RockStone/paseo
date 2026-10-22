@@ -21,6 +21,52 @@ function emptyDraft(): ProjectConfigDraft {
 }
 
 describe("script edit transactions", () => {
+  it("preserves a new draft while changing Shared scope and retrying a failed scope read", async () => {
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        repoRoot: "/project",
+        config: {},
+        revision: null,
+        requestId: "local",
+      })
+      .mockRejectedValueOnce(new Error("Disconnected"))
+      .mockResolvedValue({
+        ok: true,
+        repoRoot: "/shared",
+        sharedScriptsRoot: "/shared",
+        config: { scripts: { existing: { command: "keep" } } },
+        revision: { mtimeMs: 2, size: 8 },
+        requestId: "shared",
+      });
+    const write = vi.fn().mockResolvedValue({ ok: true });
+    const model = openScriptEditForm({ scriptName: null, read, write, saved: vi.fn() });
+    await model.load();
+    const initial = model.getState();
+    if (initial.status !== "editing") throw new Error("Expected loaded form");
+    model.change({ ...initial.draft, name: "capture", commandText: "echo screenshot" });
+    await model.setShared(true);
+    expect(model.getState()).toMatchObject({
+      status: "scope-error",
+      error: "read_failed",
+      draft: { name: "capture", commandText: "echo screenshot" },
+    });
+    await model.save();
+    expect(write).not.toHaveBeenCalled();
+    await model.load(true);
+    await model.save();
+    expect(read).toHaveBeenNthCalledWith(2, true);
+    expect(read).toHaveBeenNthCalledWith(3, true);
+    expect(write).toHaveBeenCalledExactlyOnceWith({
+      repoRoot: "/shared",
+      expectedRevision: { mtimeMs: 2, size: 8 },
+      config: {
+        scripts: { existing: { command: "keep" }, capture: { command: "echo screenshot" } },
+      },
+    });
+  });
+
   it("preserves other config fields, retains edits on failure, and writes with the loaded revision", async () => {
     const config = {
       custom: { keep: true },

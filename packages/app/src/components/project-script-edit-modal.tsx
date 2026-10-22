@@ -37,6 +37,8 @@ interface ScriptEditModalProps {
   headerTitle?: string;
   saveDisabled?: boolean;
   scopeLabel?: string;
+  shared?: boolean;
+  onSharedChange?: (shared: boolean) => void;
 }
 
 interface ScriptFieldsTouched {
@@ -57,6 +59,8 @@ export function ScriptEditModal({
   headerTitle,
   saveDisabled = false,
   scopeLabel,
+  shared = false,
+  onSharedChange,
 }: ScriptEditModalProps) {
   const { t } = useTranslation();
   const [touched, setTouched] = useState<ScriptFieldsTouched>(NONE_TOUCHED);
@@ -177,6 +181,21 @@ export function ScriptEditModal({
           />
         </View>
       </View>
+      {onSharedChange ? (
+        <View style={styles.serviceToggleRow}>
+          <View style={styles.serviceToggleText}>
+            <Text style={styles.serviceToggleLabel}>{t("settings.project.scripts.shared")}</Text>
+            <Text style={styles.modalHint}>{t("settings.project.scripts.sharedScope")}</Text>
+          </View>
+          <Switch
+            disabled={pending}
+            value={shared}
+            onValueChange={onSharedChange}
+            accessibilityLabel={t("settings.project.scripts.shared")}
+            testID="script-edit-shared-toggle"
+          />
+        </View>
+      ) : null}
       {error}
       <View style={styles.modalFooter}>
         <Button

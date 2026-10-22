@@ -2950,6 +2950,7 @@ export const fr: TranslationResources = {
         command: "Commande",
         nameAccessibility: "Nom du script",
         commandAccessibility: "Commande du script",
+        shared: "Partagé",
         addShared: "Ajouter une commande partagée",
         sharedScope: "Tous les projets sur cet hôte",
         updateHost: "Mettez à jour l’hôte pour utiliser les commandes partagées.",

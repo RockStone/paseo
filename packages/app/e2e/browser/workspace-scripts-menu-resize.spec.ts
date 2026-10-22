@@ -204,10 +204,16 @@ test("shared commands span projects and sequential commands share one terminal w
       ],
     ]) {
       await openWorkspaceScriptsMenu(page);
-      await page.getByTestId("workspace-scripts-add-shared").click();
-      await expect(page.getByText("All projects on this host", { exact: true })).toBeVisible();
+      await expect(page.getByTestId("workspace-scripts-add-shared")).toHaveCount(0);
+      await page.getByTestId("workspace-scripts-add").click();
       await page.getByTestId("script-edit-name").fill(name!);
       await page.getByTestId("script-edit-command").fill(command!);
+      await page.getByTestId("script-edit-shared-toggle").click();
+      await expect(page.getByText("All projects on this host", { exact: true })).toBeVisible();
+      await expect(page.getByTestId("script-edit-name")).toHaveValue(name!);
+      await expect(page.getByTestId("script-edit-command")).toHaveValue(command!);
+      await expect(page.getByTestId("script-edit-save")).toBeEnabled();
+      await page.screenshot({ path: `/tmp/paseoi-r85-shared-${name}.png` });
       await page.getByTestId("script-edit-save").click();
       await expect(page.getByTestId("script-edit-modal")).toHaveCount(0);
     }

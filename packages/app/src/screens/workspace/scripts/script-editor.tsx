@@ -18,18 +18,27 @@ interface ScriptEditorProps {
   scriptName: string | null;
   onClose: () => void;
   shared: boolean;
+  supportsShared: boolean;
 }
 
-function ScriptEditor({ serverId, configRoot, scriptName, onClose, shared }: ScriptEditorProps) {
+function ScriptEditor({
+  serverId,
+  configRoot,
+  scriptName,
+  onClose,
+  shared,
+  supportsShared,
+}: ScriptEditorProps) {
   const { t } = useTranslation();
   const client = useHostRuntimeClient(serverId);
   const queries = useQueryClient();
   const toast = useToast();
-  const resolvedRoot = useRef<string | null>(null);
+  const resolvedRoot = useRef(new Map<boolean, string>());
   const [model] = useState(() =>
     openScriptEditForm({
       scriptName,
-      read: async () => {
+      shared,
+      read: async (requestedShared = false) => {
         if (!client) throw new Error("Host disconnected");
         const fetch = (root: string) =>
           queries.fetchQuery(
@@ -40,15 +49,17 @@ function ScriptEditor({ serverId, configRoot, scriptName, onClose, shared }: Scr
               queryFn: () => client.readProjectConfig(root),
             }),
           );
-        if (resolvedRoot.current) return fetch(resolvedRoot.current);
+        const resolved = resolvedRoot.current.get(requestedShared);
+        if (resolved) return fetch(resolved);
         const project = await fetch(configRoot);
         if (!project.ok) return project;
         const root = project.sharedScriptsRoot;
         const inherited =
           scriptName !== null && !Object.hasOwn(project.config?.scripts ?? {}, scriptName);
-        if (shared && !root) throw new Error("Host does not support shared commands");
-        resolvedRoot.current = (shared || inherited) && root ? root : project.repoRoot;
-        if (resolvedRoot.current !== project.repoRoot) return fetch(resolvedRoot.current);
+        if (requestedShared && !root) throw new Error("Host does not support shared commands");
+        const targetRoot = (requestedShared || inherited) && root ? root : project.repoRoot;
+        resolvedRoot.current.set(requestedShared, targetRoot);
+        if (targetRoot !== project.repoRoot) return fetch(targetRoot);
         return project;
       },
       write: (input) => {
@@ -72,7 +83,8 @@ function ScriptEditor({ serverId, configRoot, scriptName, onClose, shared }: Scr
   }, [model]);
   const state = useSyncExternalStore(model.subscribe, model.getState);
   const reload = useCallback(() => {
-    void model.load();
+    const current = model.getState();
+    void model.load(current.status === "scope-error");
   }, [model]);
   const save = useCallback(() => {
     void model.save();
@@ -94,20 +106,20 @@ function ScriptEditor({ serverId, configRoot, scriptName, onClose, shared }: Scr
   }
   let error = null;
   if (state.error) {
+    const readFailed = state.status === "load-error" || state.status === "scope-error";
     let description = t("settings.project.writeFailures.failedDescription");
     if (state.error === "stale_project_config")
       description = t("settings.project.writeFailures.staleDescription");
     if (state.error === "duplicate_script") description = t("settings.project.scripts.nameExists");
-    if (state.status === "load-error")
-      description = t("settings.project.readFailures.failedDescription");
-    const needsReload = state.status === "load-error" || state.error === "stale_project_config";
+    if (readFailed) description = t("settings.project.readFailures.failedDescription");
+    const needsReload = readFailed || state.error === "stale_project_config";
     const recover = needsReload ? reload : save;
     error = (
       <Alert
         testID="script-editor-error"
         variant="error"
         title={t(
-          state.status === "load-error"
+          readFailed
             ? "settings.project.readFailures.failedTitle"
             : "settings.project.writeFailures.failedTitle",
         )}
@@ -137,11 +149,17 @@ function ScriptEditor({ serverId, configRoot, scriptName, onClose, shared }: Scr
       onChange={model.change}
       onCancel={onClose}
       onSave={save}
-      pending={state.status === "saving"}
-      saveDisabled={state.error === "stale_project_config"}
+      pending={state.status === "saving" || state.status === "loading-scope"}
+      saveDisabled={state.error === "stale_project_config" || state.status === "scope-error"}
       error={error}
       headerTitle={title.title}
-      scopeLabel={model.isShared() ? t("settings.project.scripts.sharedScope") : undefined}
+      scopeLabel={
+        scriptName !== null && model.isShared()
+          ? t("settings.project.scripts.sharedScope")
+          : undefined
+      }
+      shared={model.isShared()}
+      onSharedChange={scriptName === null && supportsShared ? model.setShared : undefined}
     />
   );
 }
@@ -172,6 +190,7 @@ export function useScriptEditor(serverId: string, configRoot: string) {
       configRoot={configRoot}
       scriptName={editing.name}
       shared={editing.shared}
+      supportsShared={supported}
       onClose={close}
     />
   ) : null;

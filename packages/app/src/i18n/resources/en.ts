@@ -3014,6 +3014,7 @@ export const en = {
         command: "Command",
         nameAccessibility: "Script name",
         commandAccessibility: "Script command",
+        shared: "Shared",
         addShared: "Add shared command",
         sharedScope: "All projects on this host",
         updateHost: "Update the host to use shared commands.",

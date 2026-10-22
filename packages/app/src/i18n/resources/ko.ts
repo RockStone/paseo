@@ -2897,6 +2897,7 @@ export const ko: TranslationResources = {
         command: "명령",
         nameAccessibility: "스크립트 이름",
         commandAccessibility: "스크립트 명령",
+        shared: "공유",
         addShared: "공유 명령 추가",
         sharedScope: "이 호스트의 모든 프로젝트",
         updateHost: "공유 명령을 사용하려면 호스트를 업데이트하세요.",

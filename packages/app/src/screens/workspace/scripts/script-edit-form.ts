@@ -21,11 +21,16 @@ type Failure =
 export type ScriptEditState =
   | { status: "loading" }
   | { status: "load-error"; error: Failure }
-  | { status: "editing" | "saving"; draft: ProjectScriptDraft; error: Failure | null };
+  | {
+      status: "editing" | "saving" | "loading-scope" | "scope-error";
+      draft: ProjectScriptDraft;
+      error: Failure | null;
+    };
 
 interface ScriptEditPorts {
   scriptName: string | null;
-  read: () => Promise<ReadResult>;
+  read: (shared?: boolean) => Promise<ReadResult>;
+  shared?: boolean;
   write: DaemonClient["writeProjectConfig"];
   saved: (result: Extract<WriteResult, { ok: true }>) => void;
 }
@@ -35,6 +40,7 @@ export function openScriptEditForm(ports: ScriptEditPorts) {
   let state: ScriptEditState = { status: "loading" };
   let snapshot: Snapshot | null = null;
   let closed = false;
+  let shared = ports.shared ?? false;
   let operation = 0;
   const listeners = new Set<() => void>();
   function publish(next: ScriptEditState) {
@@ -42,15 +48,29 @@ export function openScriptEditForm(ports: ScriptEditPorts) {
     state = next;
     for (const listener of listeners) listener();
   }
-  async function load() {
+  async function load(preserveDraft = false) {
     if (state.status === "saving") return;
     const request = ++operation;
-    publish({ status: "loading" });
+    const retainedDraft = preserveDraft && "draft" in state ? state.draft : null;
+    snapshot = null;
+    publish(
+      retainedDraft
+        ? { status: "loading-scope", draft: retainedDraft, error: null }
+        : { status: "loading" },
+    );
     try {
-      const result = await ports.read();
+      const result = await ports.read(shared);
       if (closed || request !== operation) return;
       if (!result.ok) {
-        publish({ status: "load-error", error: result.error.code });
+        publish(
+          retainedDraft
+            ? {
+                status: "scope-error",
+                draft: retainedDraft,
+                error: result.error.code,
+              }
+            : { status: "load-error", error: result.error.code },
+        );
         return;
       }
       snapshot = result;
@@ -64,26 +84,39 @@ export function openScriptEditForm(ports: ScriptEditPorts) {
       publish({
         status: "editing",
         error: null,
-        draft: draft ?? {
-          id: "new-script",
-          name: "",
-          commandText: "",
-          commandOriginalKind: "string",
-          type: "",
-          portText: "",
-          rawEntry: {},
-        },
+        draft: retainedDraft ??
+          draft ?? {
+            id: "new-script",
+            name: "",
+            commandText: "",
+            commandOriginalKind: "string",
+            type: "",
+            portText: "",
+            rawEntry: {},
+          },
       });
     } catch {
-      publish({ status: "load-error", error: "read_failed" });
+      if (closed || request !== operation) return;
+      publish(
+        retainedDraft
+          ? {
+              status: "scope-error",
+              draft: retainedDraft,
+              error: "read_failed",
+            }
+          : { status: "load-error", error: "read_failed" },
+      );
     }
   }
   function change(draft: ProjectScriptDraft) {
-    if (state.status !== "editing") return;
+    if (state.status !== "editing" && state.status !== "scope-error") return;
     publish({
       ...state,
       draft,
-      error: state.error === "stale_project_config" ? state.error : null,
+      error:
+        state.error === "stale_project_config" || state.status === "scope-error"
+          ? state.error
+          : null,
     });
   }
   async function save() {
@@ -121,7 +154,14 @@ export function openScriptEditForm(ports: ScriptEditPorts) {
   }
   return {
     getState: () => state,
-    isShared: () => snapshot !== null && snapshot.repoRoot === snapshot.sharedScriptsRoot,
+    isShared: () =>
+      shared || (snapshot !== null && snapshot.repoRoot === snapshot.sharedScriptsRoot),
+    setShared: async (next: boolean) => {
+      if (ports.scriptName !== null || next === shared) return;
+      if (state.status !== "editing" && state.status !== "scope-error") return;
+      shared = next;
+      await load(true);
+    },
     subscribe: (listener: () => void) => {
       listeners.add(listener);
       return () => {

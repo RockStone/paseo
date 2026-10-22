@@ -2883,6 +2883,7 @@ export const ar: TranslationResources = {
         command: "يأمر",
         nameAccessibility: "اسم البرنامج النصي",
         commandAccessibility: "أمر البرنامج النصي",
+        shared: "مشترك",
         addShared: "إضافة أمر مشترك",
         sharedScope: "كل المشاريع على هذا المضيف",
         updateHost: "حدّث المضيف لاستخدام الأوامر المشتركة.",

@@ -2913,6 +2913,7 @@ export const ja: TranslationResources = {
         command: "コマンド",
         nameAccessibility: "スクリプト名",
         commandAccessibility: "スクリプトコマンド",
+        shared: "共有",
         addShared: "共有コマンドを追加",
         sharedScope: "このホスト上のすべてのプロジェクト",
         updateHost: "共有コマンドを使うにはホストを更新してください。",

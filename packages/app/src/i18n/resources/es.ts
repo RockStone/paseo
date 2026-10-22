@@ -2945,6 +2945,7 @@ export const es: TranslationResources = {
         command: "Dominio",
         nameAccessibility: "Nombre del guión",
         commandAccessibility: "Comando de guión",
+        shared: "Compartido",
         addShared: "Añadir comando compartido",
         sharedScope: "Todos los proyectos de este host",
         updateHost: "Actualiza el host para usar comandos compartidos.",

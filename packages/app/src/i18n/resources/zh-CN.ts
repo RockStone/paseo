@@ -2849,6 +2849,7 @@ export const zhCN: TranslationResources = {
         command: "命令",
         nameAccessibility: "Script 名称",
         commandAccessibility: "Script 命令",
+        shared: "共享",
         addShared: "添加共享命令",
         sharedScope: "此主机上的所有项目",
         updateHost: "请更新主机以使用共享命令。",

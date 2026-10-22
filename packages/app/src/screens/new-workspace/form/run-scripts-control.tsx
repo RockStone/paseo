@@ -81,7 +81,6 @@ export function RunScriptsControl({
   const [open, setOpen] = useState(false);
   const { open: editScript, editor } = useScriptEditor(serverId, repoRoot);
   const addScript = useCallback(() => editScript(null), [editScript]);
-  const addSharedScript = useCallback(() => editScript(null, true), [editScript]);
   const config = useFetchQuery({
     queryKey: ["project-script-options", serverId, repoRoot],
     dataShape: "value",
@@ -169,9 +168,6 @@ export function RunScriptsControl({
               <DropdownMenuSeparator />
               <DropdownMenuItem testID="workspace-scripts-add" onSelect={addScript}>
                 {t("settings.project.scripts.actions.add")}
-              </DropdownMenuItem>
-              <DropdownMenuItem testID="workspace-scripts-add-shared" onSelect={addSharedScript}>
-                {t("settings.project.scripts.addShared")}
               </DropdownMenuItem>
             </>
           ) : null}

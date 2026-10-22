@@ -181,7 +181,6 @@ function ScriptsPage({
 }): ReactElement {
   const { t } = useTranslation();
   const add = useCallback(() => onEdit(null), [onEdit]);
-  const addShared = useCallback(() => onEdit(null, true), [onEdit]);
   return (
     <>
       {scripts.map((script) =>
@@ -199,9 +198,6 @@ function ScriptsPage({
       <DropdownMenuSeparator />
       <DropdownMenuItem testID="workspace-scripts-add" onSelect={add}>
         {t("settings.project.scripts.actions.add")}
-      </DropdownMenuItem>
-      <DropdownMenuItem testID="workspace-scripts-add-shared" onSelect={addShared}>
-        {t("settings.project.scripts.addShared")}
       </DropdownMenuItem>
     </>
   );
