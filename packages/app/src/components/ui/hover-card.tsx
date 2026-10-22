@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,10 +12,10 @@ import {
   type RefObject,
 } from "react";
 import { Dimensions, View, type Role, type StyleProp, type ViewStyle } from "react-native";
-import { FadeIn, FadeOut } from "react-native-reanimated";
+import { FadeOut } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
 import { Portal } from "@gorhom/portal";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { useBottomSheetModalInternal } from "@gorhom/bottom-sheet";
 import {
   OverlayLayerProvider,
@@ -25,14 +26,7 @@ import {
 import { FloatingSurface } from "@/components/ui/floating";
 import { isWeb } from "@/constants/platform";
 import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
-import {
-  computePosition,
-  measureElement,
-  type Alignment,
-  type Placement,
-  type Rect,
-  type Size,
-} from "./anchor";
+import { computePosition, type Alignment, type Placement } from "./anchor";
 
 const CLOSE_GRACE_MS = 100;
 
@@ -182,7 +176,7 @@ function WebHoverCard({
         requestAnimationFrame(() => {
           (contentRef.current as unknown as HTMLElement | null)
             ?.querySelector<HTMLElement>(
-              'button, [role="button"][tabindex="0"], a[href], input, [tabindex="0"]',
+              ':is(button, [role="button"][tabindex="0"], a[href], input, [tabindex="0"]):not(:disabled):not([aria-disabled="true"])',
             )
             ?.focus();
         });
@@ -388,52 +382,43 @@ function HoverCardSurface({
 }): ReactElement {
   const group = useContext(HoverCardGroupContext);
   const bottomSheetInternal = useBottomSheetModalInternal(true);
-  const [triggerRect, setTriggerRect] = useState<Rect | null>(null);
-  const [contentSize, setContentSize] = useState<Size | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
 
-  useEffect(() => {
-    if (!triggerRef.current) return;
-    let cancelled = false;
-    void measureElement(triggerRef.current).then((rect) => {
-      if (!cancelled) setTriggerRect(rect);
-      return undefined;
-    });
-    return () => {
-      cancelled = true;
+  useLayoutEffect(() => {
+    if (!isWeb) return;
+    const trigger = triggerRef.current as HTMLElement | null;
+    const content = contentRef.current as unknown as HTMLElement | null;
+    if (!trigger || !content) return;
+    const update = () => {
+      const { width, height } = Dimensions.get("window");
+      const { x, y } = computePosition({
+        triggerRect: trigger.getBoundingClientRect(),
+        contentSize: content.getBoundingClientRect(),
+        displayArea: { x: 0, y: 0, width, height },
+        placement,
+        flipHorizontal: true,
+        alignment,
+        offset,
+      });
+      setPosition((previous) => (previous?.x === x && previous.y === y ? previous : { x, y }));
     };
-  }, [triggerRef]);
-
-  useEffect(() => {
-    if (!triggerRect || !contentSize) return;
-    const { width, height } = Dimensions.get("window");
-    const { x, y } = computePosition({
-      triggerRect,
-      contentSize,
-      displayArea: { x: 0, y: 0, width, height },
-      placement,
-      flipHorizontal: true,
-      alignment,
-      offset,
-    });
-    setPosition({ x, y });
-  }, [alignment, contentSize, offset, placement, triggerRect]);
-
-  const handleLayout = useCallback(
-    (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
-      const { width, height } = event.nativeEvent.layout;
-      setContentSize({ width, height });
-    },
-    [],
-  );
+    // Measure at the real available width before revealing the surface. RN's onLayout
+    // arrives after paint; streaming usage can otherwise paint at the previous height.
+    update();
+    const observer = new ResizeObserver(() => flushSync(update));
+    observer.observe(content, { box: "border-box" });
+    observer.observe(trigger, { box: "border-box" });
+    return () => observer.disconnect();
+  }, [alignment, contentRef, offset, placement, triggerRef]);
 
   const frameStyle = useMemo(
     () => ({
       position: "absolute" as const,
-      top: position?.y ?? -9999,
-      left: position?.x ?? -9999,
+      top: position?.y ?? 0,
+      left: position?.x ?? 0,
+      opacity: position ? 1 : 0,
     }),
-    [position?.x, position?.y],
+    [position],
   );
   const surfaceStyle = useMemo(() => [styles.surface, style], [style]);
 
@@ -441,10 +426,8 @@ function HoverCardSurface({
     <View pointerEvents="box-none" style={[styles.portalOverlay, { zIndex: layer }]}>
       <FloatingSurface
         ref={contentRef}
-        entering={FadeIn.duration(80)}
         exiting={group ? undefined : FadeOut.duration(80)}
         collapsable={false}
-        onLayout={handleLayout}
         role={role}
         accessibilityLabel={accessibilityLabel}
         testID={testID}

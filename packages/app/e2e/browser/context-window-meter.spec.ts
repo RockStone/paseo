@@ -134,6 +134,72 @@ test("keeps the context popup open during live usage updates and unrelated scrol
   await expect(card).toHaveCount(0);
 });
 
+test("positions context details before revealing them and before painting streamed usage", async ({
+  page,
+  agent,
+}) => {
+  const usage = await scriptAgentUsage(page);
+  await page.setViewportSize({ width: 900, height: 600 });
+  await openAgent(page, agent);
+  const [claude, codex] = claudeAndCodexReports();
+  const ready = gate();
+  usage.answerNext({ stream: [ready.promise, onWorkLogin(claude!), onWorkLogin(codex!)] });
+
+  // Sample after resize delivery but before each paint. A later rAF misses the bad frame
+  // when RN's asynchronous onLayout has already corrected the previous paint.
+  await page.evaluate(() => {
+    const samples: Array<{ top: number; bottom: number; anchorTop: number }> = [];
+    const observers = new Map<Element, ResizeObserver>();
+    const sample = (card: Element) => {
+      const style = getComputedStyle(card);
+      if (style.visibility === "hidden" || Number(style.opacity) === 0) return;
+      const anchor = document.querySelector('[data-testid="context-window-meter"]')!;
+      const box = card.getBoundingClientRect();
+      if (box.bottom <= 0) return;
+      samples.push({
+        top: box.top,
+        bottom: box.bottom,
+        anchorTop: anchor.getBoundingClientRect().top,
+      });
+    };
+    const watch = () => {
+      for (const card of document.querySelectorAll('[data-testid="context-window-details"]')) {
+        if (observers.has(card)) continue;
+        const observer = new ResizeObserver(() => sample(card));
+        observers.set(card, observer);
+        observer.observe(card);
+      }
+    };
+    const mutation = new MutationObserver(watch);
+    mutation.observe(document.body, { childList: true, subtree: true });
+    Object.assign(window, {
+      contextPositionSamples: samples,
+      stopContextPositionSamples: () => {
+        mutation.disconnect();
+        for (const observer of observers.values()) observer.disconnect();
+      },
+    });
+  });
+  const card = await hoverContextWindowMeter(page);
+  await expect(card.getByText("Loading usage...", { exact: true })).toBeVisible();
+  ready.open();
+  await expect(usageCard(card, "codex:work")).toBeVisible();
+  await page.screenshot({ path: "/tmp/paseoi-r82-context-position.png" });
+  const samples = await page.evaluate(() => {
+    const recorder = window as typeof window & {
+      contextPositionSamples: Array<{ top: number; bottom: number; anchorTop: number }>;
+      stopContextPositionSamples: () => void;
+    };
+    recorder.stopContextPositionSamples();
+    return recorder.contextPositionSamples;
+  });
+  expect(samples.length).toBeGreaterThanOrEqual(1);
+  for (const sample of samples) {
+    expect(sample.top).toBeGreaterThanOrEqual(8);
+    expect(sample.bottom).toBeCloseTo(sample.anchorTop - 8, 0);
+  }
+});
+
 test("compacts from the context popup with visible failure, retry and idle gating", async ({
   page,
 }) => {
