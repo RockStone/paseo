@@ -398,6 +398,34 @@ function resolveAutocompletePresentation(
   return referenceCompletion.isVisible ? referenceCompletion.presentation : fallback;
 }
 
+function useAutocompleteDismissal(input: {
+  serverId: string;
+  agentId: string;
+  userInput: string;
+  reference: ReturnType<typeof useComposerReferenceAutocomplete>;
+  file: FileMentionRange | null;
+  command: SlashCommandRange | null;
+}) {
+  let trigger = input.reference.isVisible ? input.reference.trigger : null;
+  if (!trigger && input.file) trigger = { start: input.file.start, prefix: "@" };
+  if (!trigger && input.command) trigger = { start: input.command.start, prefix: "/" };
+  const triggerKey = trigger
+    ? JSON.stringify([
+        input.serverId,
+        input.agentId,
+        trigger.prefix,
+        trigger.start,
+        input.userInput.slice(0, trigger.start),
+      ])
+    : null;
+  const [dismissedTrigger, setDismissedTrigger] = useState<string | null>(null);
+  useEffect(() => {
+    if (dismissedTrigger !== null && dismissedTrigger !== triggerKey) setDismissedTrigger(null);
+  }, [dismissedTrigger, triggerKey]);
+  const dismiss = useCallback(() => setDismissedTrigger(triggerKey), [triggerKey]);
+  return { isDismissed: triggerKey !== null && dismissedTrigger === triggerKey, dismiss };
+}
+
 export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAutocompleteResult {
   const { t } = useTranslation();
   const {
@@ -478,12 +506,22 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
   const { commands, isError, error } = commandsQuery;
   const isCommandsLoading = canListCommands && commandsQuery.isLoading;
 
-  const isVisible = resolveAutocompleteVisibility({
-    referenceVisible: referenceCompletion.isVisible,
-    canShowAutocomplete,
-    mode,
-    isCommandsLoading,
+  const dismissal = useAutocompleteDismissal({
+    serverId,
+    agentId,
+    userInput,
+    reference: referenceCompletion,
+    file: activeFileMention,
+    command: activeSlashCommand,
   });
+  const isVisible =
+    !dismissal.isDismissed &&
+    resolveAutocompleteVisibility({
+      referenceVisible: referenceCompletion.isVisible,
+      canShowAutocomplete,
+      mode,
+      isCommandsLoading,
+    });
 
   const fileSuggestionsQuery = useQuery({
     queryKey: [
@@ -639,10 +677,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
     options,
     query: referenceCompletion.isVisible ? referenceCompletion.query : autocompleteQuery,
     onSelectOption: selectOptionFromKeyPress,
-    onEscape:
-      mode === "command" && activeSlashCommand?.position === "start"
-        ? () => setUserInput("")
-        : undefined,
+    onEscape: dismissal.dismiss,
   });
 
   const isLoading = resolveAutocompleteIsLoading({

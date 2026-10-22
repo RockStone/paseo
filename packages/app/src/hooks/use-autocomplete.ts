@@ -66,9 +66,15 @@ export function useAutocomplete<
 
   const onKeyPress = useCallback(
     (event: TKeyPressEvent) => {
-      if (!input.isVisible || input.options.length === 0) {
-        return false;
+      if (!input.isVisible) return false;
+
+      if (event.key === "Escape" && input.onEscape) {
+        event.preventDefault();
+        input.onEscape();
+        return true;
       }
+
+      if (input.options.length === 0) return false;
 
       if (event.key === "ArrowUp") {
         event.preventDefault();
@@ -108,12 +114,6 @@ export function useAutocomplete<
         if (selectedOption) {
           input.onSelectOption(selectedOption, event);
         }
-        return true;
-      }
-
-      if (event.key === "Escape" && input.onEscape) {
-        event.preventDefault();
-        input.onEscape();
         return true;
       }
 

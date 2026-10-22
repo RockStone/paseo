@@ -85,6 +85,7 @@ export function useProfileReferenceAutocomplete(input: ProfileReferenceAutocompl
   const errorMessage = state.error ? t("agentAutocomplete.failedToLoad") : undefined;
   return {
     isVisible,
+    trigger: mention ? { start: mention.start, prefix: "@@" } : null,
     options,
     query,
     select,

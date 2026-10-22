@@ -251,6 +251,7 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
   );
   return {
     isVisible,
+    trigger: mention ? { start: mention.start, prefix: "##" } : null,
     options,
     query: `${scope}\0${query}`,
     header,

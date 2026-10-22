@@ -1305,3 +1305,32 @@ test("file references use at-sign links and open the workspace file", async ({ p
     await workspace.cleanup();
   }
 });
+
+test("Escape dismisses every suggestion trigger without clearing the draft or losing focus", async ({
+  page,
+}) => {
+  await installListCommandsStub(page);
+  const session = await openReadyMockAgent(page);
+  try {
+    const input = composerLocator(page);
+    const popover = page.getByTestId("composer-autocomplete-popover");
+    for (const trigger of ["/he", "@READ", "@@", "##"]) {
+      await input.fill(trigger);
+      await expect(popover).toBeVisible();
+      await input.press("Escape");
+      await expect(popover).not.toBeVisible();
+      await expectComposerDraft(page, trigger);
+      await expect(input).toBeFocused();
+      await input.press("x");
+      await expectComposerDraft(page, `${trigger}x`);
+      await expect(popover).not.toBeVisible();
+      await input.fill("");
+      await input.fill(trigger);
+      await expect(popover).toBeVisible();
+      await input.press("Escape");
+      await input.fill("");
+    }
+  } finally {
+    await session.cleanup();
+  }
+});
