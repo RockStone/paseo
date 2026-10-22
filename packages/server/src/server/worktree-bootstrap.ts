@@ -1,3 +1,4 @@
+import { readWorkspaceScriptConfig } from "../utils/shared-scripts.js";
 import { v4 as uuidv4 } from "uuid";
 import type { Logger } from "pino";
 import type { TerminalManager } from "../terminal/terminal-manager.js";
@@ -8,7 +9,6 @@ import {
   isServiceScript,
   paseoConfigParseError,
   processCarriageReturns,
-  readPaseoConfig,
   resolveWorktreeRuntimeEnv,
   runWorktreeSetupCommands,
   WorktreeSetupError,
@@ -722,6 +722,7 @@ export interface WorktreeScriptResult {
 }
 
 export interface SpawnWorkspaceScriptOptions {
+  sharedScriptsRoot?: string;
   repoRoot: string;
   workspaceId: string;
   projectSlug: string;
@@ -847,8 +848,16 @@ async function setupServiceScriptRoute(params: {
   return { hostname: registeredRoute.hostname, port, env };
 }
 
+function workspaceScriptInput(repoRoot: string, command: string, serviceScript: boolean): string {
+  // Sharing a terminal must not inherit another command's cd/export/exec side effects.
+  if (serviceScript || process.platform === "win32") return `${command}\r`;
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  return `env -u BASH_ENV bash -c ${quote(`cd -- ${quote(repoRoot)} || exit\n${command}`)}\r`;
+}
+
 async function acquireWorkspaceScriptTerminal(params: {
   serviceScript: boolean;
+  runtimeStore: WorkspaceScriptRuntimeStore;
   existingRuntimeEntry: ReturnType<WorkspaceScriptRuntimeStore["get"]>;
   terminalManager: TerminalManager;
   repoRoot: string;
@@ -858,6 +867,7 @@ async function acquireWorkspaceScriptTerminal(params: {
 }): Promise<{ terminal: TerminalSession; reusableTerminal: TerminalSession | null }> {
   const {
     serviceScript,
+    runtimeStore,
     existingRuntimeEntry,
     terminalManager,
     repoRoot,
@@ -866,8 +876,25 @@ async function acquireWorkspaceScriptTerminal(params: {
     env,
   } = params;
   let reusableTerminal: TerminalSession | null = null;
-  if (!serviceScript && existingRuntimeEntry?.terminalId) {
-    reusableTerminal = terminalManager.getTerminal(existingRuntimeEntry.terminalId) ?? null;
+  if (!serviceScript) {
+    const entries = runtimeStore.listForWorkspace(workspaceId);
+    const candidates = existingRuntimeEntry
+      ? [existingRuntimeEntry, ...entries.toReversed()]
+      : entries.toReversed();
+    for (const candidate of candidates) {
+      if (candidate.type !== "script" || candidate.lifecycle !== "stopped") continue;
+      const terminal = terminalManager.getTerminal(candidate.terminalId);
+      if (!terminal || terminal.getExitInfo()) continue;
+      const revision = terminal.getInputRevision?.();
+      if (revision === undefined || revision !== candidate.reuseInputRevision) continue;
+      if (
+        entries.some((entry) => entry.terminalId === terminal.id && entry.lifecycle === "running")
+      )
+        continue;
+      reusableTerminal = terminal;
+      terminal.setTitle(scriptName);
+      break;
+    }
   }
   const terminal =
     reusableTerminal ??
@@ -882,6 +909,14 @@ async function acquireWorkspaceScriptTerminal(params: {
 }
 
 export async function spawnWorkspaceScript(
+  options: SpawnWorkspaceScriptOptions,
+): Promise<WorktreeScriptResult> {
+  return options.runtimeStore.withLaunchLock(options.workspaceId, () =>
+    launchWorkspaceScript(options),
+  );
+}
+
+async function launchWorkspaceScript(
   options: SpawnWorkspaceScriptOptions,
 ): Promise<WorktreeScriptResult> {
   const {
@@ -900,7 +935,7 @@ export async function spawnWorkspaceScript(
     logger,
     onLifecycleChanged,
   } = options;
-  const configResult = readPaseoConfig(repoRoot);
+  const configResult = readWorkspaceScriptConfig(repoRoot, options.sharedScriptsRoot);
   if (!configResult.ok) {
     throw paseoConfigParseError(configResult);
   }
@@ -949,6 +984,7 @@ export async function spawnWorkspaceScript(
 
     const { terminal, reusableTerminal } = await acquireWorkspaceScriptTerminal({
       serviceScript,
+      runtimeStore,
       existingRuntimeEntry,
       terminalManager,
       repoRoot,
@@ -986,6 +1022,7 @@ export async function spawnWorkspaceScript(
         lifecycle: "stopped",
         terminalId: terminal.id,
         exitCode: input.exitCode,
+        reuseInputRevision: terminal.getInputRevision?.(),
       });
       onLifecycleChanged?.();
       logger?.info(
@@ -1020,7 +1057,10 @@ export async function spawnWorkspaceScript(
     if (!reusableTerminal) {
       await waitForTerminalBootstrapReadiness(terminal);
     }
-    terminal.send({ type: "input", data: `${config.command}\r` });
+    terminal.send({
+      type: "input",
+      data: workspaceScriptInput(repoRoot, config.command, serviceScript),
+    });
 
     logger?.info(
       {

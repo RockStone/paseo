@@ -115,6 +115,8 @@ export interface TerminalSession {
   getReplayPreamble(): string;
   getTitle(): string | undefined;
   getActivity(): TerminalActivity | null;
+  /** Adapters without an input counter cannot offer safe command-terminal reuse. */
+  getInputRevision?(): number;
   setActivity(state: TerminalActivityState): void;
   clearActivityAttention(): boolean;
   setTitle(title: string): void;
@@ -986,6 +988,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
   const id = options.id ?? randomUUID();
   const listeners = new Set<(msg: ServerMessage) => void>();
   const exitListeners = new Set<(info: TerminalExitInfo) => void>();
+  let inputRevision = 0;
   const commandFinishedListeners = new Set<(info: TerminalCommandFinishedInfo) => void>();
   const titleChangeListeners = new Set<(title?: string) => void>();
   let killed = false;
@@ -1397,6 +1400,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
 
     switch (msg.type) {
       case "input": {
+        if (msg.data.length > 0) inputRevision++;
         if (isTerminalActivityInterruptInput(msg.data)) {
           activityTracker.interrupt();
         }
@@ -1639,6 +1643,7 @@ export async function createTerminal(options: CreateTerminalOptions): Promise<Te
     getReplayPreamble,
     getTitle,
     getActivity,
+    getInputRevision: () => inputRevision,
     setActivity,
     clearActivityAttention,
     setTitle,

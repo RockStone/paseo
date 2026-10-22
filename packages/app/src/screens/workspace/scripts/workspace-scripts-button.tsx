@@ -468,6 +468,7 @@ export function WorkspaceScriptsButton({
   const { t } = useTranslation();
   const { open: editScript, editor } = useScriptEditor(serverId, configRoot);
   const addScript = useCallback(() => editScript(null), [editScript]);
+  const addSharedScript = useCallback(() => editScript(null, true), [editScript]);
   const actions = useWorkspaceScriptActions({
     serverId,
     workspaceId,
@@ -526,6 +527,9 @@ export function WorkspaceScriptsButton({
             <DropdownMenuSeparator />
             <DropdownMenuItem testID="workspace-scripts-add" onSelect={addScript}>
               {t("settings.project.scripts.actions.add")}
+            </DropdownMenuItem>
+            <DropdownMenuItem testID="workspace-scripts-add-shared" onSelect={addSharedScript}>
+              {t("settings.project.scripts.addShared")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

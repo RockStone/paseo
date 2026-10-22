@@ -528,8 +528,8 @@ Worktrees inherit committed Git state only; uncommitted source-checkout changes 
 
 ## paseo.json service scripts
 
-The workspace Run menu reads `scripts` from `paseo.json` in the workspace directory. It appears when
-the workspace has configured scripts. These are terminal commands, independent of agents;
+The workspace Run menu reads project `scripts` from `paseo.json` in the workspace directory,
+alongside [host-shared commands](data-model.md#shared-command-config). These are terminal commands, independent of agents;
 commit the file to keep the same commands across app restarts and checkouts.
 
 On **New workspace**, select **Terminal**, then use **Run** beside the project controls.
@@ -542,6 +542,18 @@ settings button, to edit commands in a dialog. Touch layouts keep the settings
 button visible. An existing workspace edits its own `paseo.json`; New workspace
 edits the selected project's source copy. Saving applies to the next run and does
 not restart a running command. Save and launch results appear as toasts.
+
+Choose **Add shared command** for device screenshots and other commands you want
+in every project on the connected host. The editor labels these **All projects on
+this host**. A project command with the same name overrides the shared command;
+editing that overridden entry changes the project copy.
+
+Sequential plain commands share an idle command terminal in the same workspace.
+The terminal must have finished its previous command and received no further input.
+Busy terminals, services, and terminals with typed input are kept separate. On
+macOS/Linux each plain command uses a child Bash shell rooted at the workspace,
+so one command's directory or environment changes do not affect the next. Closing
+a terminal stops it immediately without a confirmation.
 
 For a repository whose Flutter app lives in `flutter/`, keep the workspace at the repository
 root and add this command to its `paseo.json`:

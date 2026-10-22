@@ -186,3 +186,110 @@ test("scripts menu resizes when a service row grows after launch", async ({ page
     await repo.cleanup();
   }
 });
+
+test("shared commands span projects and sequential commands share one terminal which closes immediately", async ({
+  page,
+}) => {
+  const first = await seedWorkspace({ repoPrefix: "shared-commands-first-" });
+  const second = await seedWorkspace({ repoPrefix: "shared-commands-second-" });
+  let sharedRoot: string | undefined;
+  try {
+    await page.goto(buildHostWorkspaceRoute(getServerId(), first.workspaceId));
+    await waitForWorkspaceTabsVisible(page);
+    for (const [name, command] of [
+      ["android-capture", "cd /; export CAPTURE_TEST=android; printf 'android-captured\\n'"],
+      [
+        "iphone-capture",
+        'printf \'iphone-captured %s %s\\n\' "$PWD" "${CAPTURE_TEST:-clean}"; sleep 60',
+      ],
+    ]) {
+      await openWorkspaceScriptsMenu(page);
+      await page.getByTestId("workspace-scripts-add-shared").click();
+      await expect(page.getByText("All projects on this host", { exact: true })).toBeVisible();
+      await page.getByTestId("script-edit-name").fill(name!);
+      await page.getByTestId("script-edit-command").fill(command!);
+      await page.getByTestId("script-edit-save").click();
+      await expect(page.getByTestId("script-edit-modal")).toHaveCount(0);
+    }
+    const project = await first.client.readProjectConfig(first.repoPath);
+    expect(project.ok).toBe(true);
+    if (!project.ok) throw new Error("Project config unavailable");
+    sharedRoot = project.sharedScriptsRoot;
+    expect(project.config?.scripts).toBeUndefined();
+    expect(sharedRoot).toBeDefined();
+    await page.goto(buildHostWorkspaceRoute(getServerId(), second.workspaceId));
+    await waitForWorkspaceTabsVisible(page);
+    await openWorkspaceScriptsMenu(page);
+    await page.getByTestId("script-edit-trigger-android-capture").click();
+    await expect(page.getByText("All projects on this host", { exact: true })).toBeVisible();
+    await page.getByTestId("script-edit-cancel").click();
+    await page.reload();
+    await waitForWorkspaceTabsVisible(page);
+    await openWorkspaceScriptsMenu(page);
+    await page.getByTestId("workspace-scripts-start-android-capture").click();
+    await expectTerminalOutputContains(page, "android-captured");
+    await expect
+      .poll(
+        async () =>
+          (await second.client.listWorkspaceScripts(second.workspaceId)).scripts?.find(
+            (script) => script.scriptName === "android-capture",
+          )?.lifecycle,
+      )
+      .toBe("stopped");
+    const terminals = await second.client.listTerminals(undefined, undefined, {
+      workspaceId: second.workspaceId,
+    });
+    expect(terminals.terminals).toHaveLength(1);
+    const terminalId = terminals.terminals[0]!.id;
+    await page.keyboard.press("Escape");
+    await openWorkspaceScriptsMenu(page);
+    await page.getByTestId("workspace-scripts-start-iphone-capture").click();
+    await expectTerminalOutputContains(page, `iphone-captured ${second.workspaceDirectory} clean`);
+    expect(
+      (
+        await second.client.listTerminals(undefined, undefined, { workspaceId: second.workspaceId })
+      ).terminals.map((terminal) => terminal.id),
+    ).toEqual([terminalId]);
+    await page.keyboard.press("Escape");
+    const tab = page
+      .getByTestId(`workspace-tab-terminal_${terminalId}`)
+      .filter({ visible: true })
+      .first();
+    await tab.hover();
+    await page
+      .getByTestId(`workspace-terminal-close-${terminalId}`)
+      .filter({ visible: true })
+      .first()
+      .click();
+    await expect(tab).toHaveCount(0);
+    await expect
+      .poll(
+        async () =>
+          (
+            await second.client.listTerminals(undefined, undefined, {
+              workspaceId: second.workspaceId,
+            })
+          ).terminals.length,
+      )
+      .toBe(0);
+    await expect(
+      page.getByText("Any running process in this terminal will be stopped immediately."),
+    ).toHaveCount(0);
+  } finally {
+    if (sharedRoot) {
+      const snapshot = await first.client.readProjectConfig(sharedRoot);
+      if (snapshot.ok) {
+        const scripts = { ...snapshot.config?.scripts };
+        delete scripts["android-capture"];
+        delete scripts["iphone-capture"];
+        await first.client.writeProjectConfig({
+          repoRoot: sharedRoot,
+          config: { ...snapshot.config, scripts },
+          expectedRevision: snapshot.revision,
+        });
+      }
+    }
+    await first.cleanup();
+    await second.cleanup();
+  }
+});

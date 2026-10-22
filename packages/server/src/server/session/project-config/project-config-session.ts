@@ -1,5 +1,5 @@
-import { realpathSync } from "node:fs";
-import { resolve, sep } from "path";
+import { mkdirSync, realpathSync } from "node:fs";
+import { basename, dirname, join, resolve, sep } from "path";
 import type pino from "pino";
 import type { SessionInboundMessage, SessionOutboundMessage } from "../../messages.js";
 import type { ProjectRegistry, WorkspaceRegistry } from "../../workspace-registry.js";
@@ -19,6 +19,7 @@ export interface ProjectConfigSessionOptions {
   projectRegistry: Pick<ProjectRegistry, "list">;
   workspaceRegistry: Pick<WorkspaceRegistry, "list">;
   logger: pino.Logger;
+  sharedScriptsRoot?: string;
 }
 
 /**
@@ -33,12 +34,16 @@ export class ProjectConfigSession {
   private readonly projectRegistry: Pick<ProjectRegistry, "list">;
   private readonly workspaceRegistry: Pick<WorkspaceRegistry, "list">;
   private readonly logger: pino.Logger;
+  private readonly sharedScriptsRoot: string | undefined;
 
   constructor(options: ProjectConfigSessionOptions) {
     this.host = options.host;
     this.projectRegistry = options.projectRegistry;
     this.workspaceRegistry = options.workspaceRegistry;
     this.logger = options.logger;
+    this.sharedScriptsRoot = options.sharedScriptsRoot
+      ? canonicalizeConfigRoot(options.sharedScriptsRoot)
+      : undefined;
   }
 
   async handleReadProjectConfigRequest(
@@ -77,6 +82,7 @@ export class ProjectConfigSession {
         ok: true,
         config: result.config,
         revision: result.revision,
+        ...(this.sharedScriptsRoot ? { sharedScriptsRoot: this.sharedScriptsRoot } : {}),
         ...(setupCommitStatus === null
           ? {}
           : { hasUncommittedWorktreeSetupChanges: setupCommitStatus }),
@@ -97,6 +103,14 @@ export class ProjectConfigSession {
       { repoRoot, requestId: msg.requestId, outcome: "write_attempt" },
       "Writing project config",
     );
+    if (repoRoot === this.sharedScriptsRoot) {
+      try {
+        mkdirSync(repoRoot, { recursive: true });
+      } catch {
+        this.emitProjectConfigWriteFailure(msg, { code: "write_failed" }, repoRoot);
+        return;
+      }
+    }
     const result = writePaseoConfigForEdit({
       repoRoot,
       config: msg.config,
@@ -177,6 +191,7 @@ export class ProjectConfigSession {
 
   private async resolveKnownProjectRoot(repoRoot: string): Promise<string | null> {
     const requestedRoot = canonicalizeConfigRoot(repoRoot);
+    if (requestedRoot === this.sharedScriptsRoot) return requestedRoot;
     const projects = await this.projectRegistry.list();
     const activeProjects = new Set<string>();
     for (const project of projects) {
@@ -203,7 +218,10 @@ function canonicalizeConfigRoot(repoRoot: string): string {
   try {
     return stripTrailingPathSeparators(realpathSync(resolved));
   } catch {
-    return stripTrailingPathSeparators(resolved);
+    const parent = dirname(resolved);
+    return parent === resolved
+      ? resolved
+      : join(canonicalizeConfigRoot(parent), basename(resolved));
   }
 }
 

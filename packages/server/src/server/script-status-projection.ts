@@ -1,3 +1,4 @@
+import { readWorkspaceScriptConfig } from "../utils/shared-scripts.js";
 import type { Logger } from "pino";
 import type {
   ScriptStatusUpdateMessage,
@@ -5,7 +6,7 @@ import type {
   WorkspaceScriptPayload,
 } from "@getpaseo/protocol/messages";
 import type { PaseoConfig } from "@getpaseo/protocol/paseo-config-schema";
-import { getScriptConfigs, isServiceScript, readPaseoConfig } from "../utils/worktree.js";
+import { getScriptConfigs, isServiceScript } from "../utils/worktree.js";
 import { deriveProjectSlug } from "./workspace-git-metadata.js";
 import type { ScriptHealthEntry, ScriptHealthState } from "./script-health-monitor.js";
 import type {
@@ -36,8 +37,9 @@ interface BuildWorkspaceScriptPayloadsOptions {
 export function readPaseoConfigForProjection(
   workspaceDirectory: string,
   logger: Logger,
+  sharedScriptsRoot?: string,
 ): PaseoConfig | null {
-  const result = readPaseoConfig(workspaceDirectory);
+  const result = readWorkspaceScriptConfig(workspaceDirectory, sharedScriptsRoot);
   if (result.ok) {
     return result.config;
   }
@@ -279,6 +281,7 @@ export function createScriptStatusEmitter({
   daemonPort,
   serviceProxyPublicBaseUrl,
   resolveWorkspaceDirectory,
+  sharedScriptsRoot,
   logger,
 }: {
   sessions: () => SessionEmitter[];
@@ -286,6 +289,7 @@ export function createScriptStatusEmitter({
   runtimeStore: WorkspaceScriptRuntimeStore;
   daemonPort: number | null | (() => number | null);
   serviceProxyPublicBaseUrl?: string | null;
+  sharedScriptsRoot?: string;
   resolveWorkspaceDirectory: (workspaceId: string) => string | null | Promise<string | null>;
   logger: Logger;
 }): (workspaceId: string, scripts: ScriptHealthEntry[]) => void {
@@ -304,7 +308,7 @@ export function createScriptStatusEmitter({
       const projected = buildWorkspaceScriptPayloads({
         workspaceId,
         workspaceDirectory,
-        paseoConfig: readPaseoConfigForProjection(workspaceDirectory, logger),
+        paseoConfig: readPaseoConfigForProjection(workspaceDirectory, logger, sharedScriptsRoot),
         serviceProxy,
         runtimeStore,
         daemonPort: resolvedDaemonPort,

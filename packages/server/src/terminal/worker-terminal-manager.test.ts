@@ -189,7 +189,12 @@ it("creates a terminal through the worker and streams output", async () => {
   await new Promise((resolve) => setTimeout(resolve, 100));
   const snapshotsBeforeOutput = snapshots;
 
+  expect(session.getInputRevision?.()).toBe(0);
   session.send({ type: "input", data: "hello\r" });
+  // A launch must see user input immediately, before the worker acknowledges it.
+  expect(session.getInputRevision?.()).toBe(1);
+  session.send({ type: "resize", rows: 24, cols: 80 });
+  expect(session.getInputRevision?.()).toBe(1);
 
   await waitForCondition(
     () =>

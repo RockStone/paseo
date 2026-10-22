@@ -1,3 +1,4 @@
+import { sharedScriptsRoot } from "../utils/shared-scripts.js";
 import type { PluginRegistries } from "@getpaseo/protocol/plugin-registry";
 import { describeHookWorkspace } from "./plugins/lifecycle/index.js";
 import express from "express";
@@ -705,6 +706,7 @@ export async function createPaseoDaemon(
       daemonPort: () => (boundListenTarget?.type === "tcp" ? boundListenTarget.port : null),
       resolveWorkspaceDirectory: async (workspaceId) =>
         (await workspaceRegistry?.get(workspaceId))?.cwd ?? null,
+      sharedScriptsRoot: sharedScriptsRoot(config.paseoHome),
       logger,
       serviceProxyPublicBaseUrl,
     }),

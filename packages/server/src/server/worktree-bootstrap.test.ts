@@ -354,6 +354,7 @@ describe("runAsyncWorktreeBootstrap", () => {
           id: terminalId,
           name: options.name ?? "Terminal",
           cwd: options.cwd,
+          getInputRevision: () => sentInputs.length,
           send: (message) => {
             if (message.type === "input") {
               sentInputs.push(message.data);
@@ -390,6 +391,7 @@ describe("runAsyncWorktreeBootstrap", () => {
           getTitle: () => undefined,
           getActivity: () => null,
           setActivity: () => {},
+          setTitle: () => {},
           getExitInfo: () => null,
           killAndWait: async () => {},
         };
@@ -533,7 +535,7 @@ describe("runAsyncWorktreeBootstrap", () => {
     expect(createTerminalCalls[0]?.name).toBe("web");
     expect(createTerminalCalls[0]?.title).toBe("web");
     expect(createTerminalCalls[0]?.env).toBeUndefined();
-    expect(terminalRecords[0]?.sentInputs).toEqual(["npm run dev\r"]);
+    expect(terminalRecords[0]?.sentInputs).toEqual([expect.stringContaining("npm run dev")]);
     expect(runtimeStore.get({ workspaceId: repoDir, scriptName: "web" })).toMatchObject({
       type: "script",
       lifecycle: "running",
@@ -578,7 +580,9 @@ describe("runAsyncWorktreeBootstrap", () => {
       terminalId: result.terminalId,
       exitCode: 7,
     });
-    expect(terminalRecords[0]?.sentInputs).toEqual(['node -e "process.exit(7)"\r']);
+    expect(terminalRecords[0]?.sentInputs).toEqual([
+      expect.stringContaining('node -e "process.exit(7)"'),
+    ]);
   });
 
   it("reuses a live terminal when rerunning after plain script completion", async () => {
@@ -631,7 +635,10 @@ describe("runAsyncWorktreeBootstrap", () => {
 
     expect(secondResult.terminalId).toBe(firstResult.terminalId);
     expect(createTerminalCalls).toHaveLength(1);
-    expect(terminalRecords[0]?.sentInputs).toEqual(["npm run typecheck\r", "npm run typecheck\r"]);
+    expect(terminalRecords[0]?.sentInputs).toEqual([
+      expect.stringContaining("npm run typecheck"),
+      expect.stringContaining("npm run typecheck"),
+    ]);
     expect(runtimeStore.get({ workspaceId: repoDir, scriptName: "typecheck" })).toMatchObject({
       type: "script",
       lifecycle: "running",
@@ -645,6 +652,78 @@ describe("runAsyncWorktreeBootstrap", () => {
       terminalId: firstResult.terminalId,
       exitCode: 0,
     });
+  });
+
+  it("shares an idle command terminal across different scripts without taking over typed or busy terminals", async () => {
+    commitPaseoScripts(
+      {
+        android: { command: "echo android" },
+        iphone: { command: "echo iphone" },
+        other: { command: "echo other" },
+      },
+      "command pool",
+    );
+    const runtimeStore = new WorkspaceScriptRuntimeStore();
+    const calls: CreateTerminalCall[] = [];
+    const records: StubTerminalRecord[] = [];
+    const terminalManager = createStubTerminalManager(calls, records);
+    const launch = (scriptName: string) =>
+      spawnWorkspaceScript({
+        repoRoot: repoDir,
+        workspaceId: repoDir,
+        projectSlug: "repo",
+        branchName: "main",
+        scriptName,
+        serviceProxy: new ScriptRouteStore(),
+        runtimeStore,
+        terminalManager,
+      });
+    const android = await launch("android");
+    records[0]!.triggerCommandFinished(0);
+    const iphone = await launch("iphone");
+    expect(iphone.terminalId).toBe(android.terminalId);
+    expect(calls).toHaveLength(1);
+    const busy = await launch("other");
+    expect(busy.terminalId).not.toBe(iphone.terminalId);
+    records[0]!.triggerCommandFinished(0);
+    terminalManager
+      .getTerminal(iphone.terminalId)!
+      .send({ type: "input", data: "unfinished user input" });
+    const next = await launch("android");
+    expect(next.terminalId).not.toBe(iphone.terminalId);
+    expect(next.terminalId).not.toBe(busy.terminalId);
+  });
+
+  it("reserves an idle terminal when different commands launch concurrently", async () => {
+    commitPaseoScripts(
+      {
+        first: { command: "echo first" },
+        second: { command: "echo second" },
+        third: { command: "echo third" },
+      },
+      "concurrent command pool",
+    );
+    const runtimeStore = new WorkspaceScriptRuntimeStore();
+    const calls: CreateTerminalCall[] = [];
+    const records: StubTerminalRecord[] = [];
+    const terminalManager = createStubTerminalManager(calls, records);
+    const launch = (scriptName: string) =>
+      spawnWorkspaceScript({
+        repoRoot: repoDir,
+        workspaceId: repoDir,
+        projectSlug: "repo",
+        branchName: "main",
+        scriptName,
+        serviceProxy: new ScriptRouteStore(),
+        runtimeStore,
+        terminalManager,
+      });
+    const first = await launch("first");
+    records[0]!.triggerCommandFinished(0);
+    const [second, third] = await Promise.all([launch("second"), launch("third")]);
+    expect(second.terminalId).toBe(first.terminalId);
+    expect(third.terminalId).not.toBe(second.terminalId);
+    expect(calls).toHaveLength(2);
   });
 
   it("tracks command completion when reusing a live terminal from a stopped plain script entry", async () => {
@@ -674,6 +753,7 @@ describe("runAsyncWorktreeBootstrap", () => {
       lifecycle: "stopped",
       terminalId: existingTerminal.id,
       exitCode: 1,
+      reuseInputRevision: 0,
     });
 
     const result = await spawnWorkspaceScript({
@@ -690,7 +770,7 @@ describe("runAsyncWorktreeBootstrap", () => {
 
     expect(result.terminalId).toBe(existingTerminal.id);
     expect(createTerminalCalls).toHaveLength(1);
-    expect(terminalRecords[0]?.sentInputs).toEqual(["npm run typecheck\r"]);
+    expect(terminalRecords[0]?.sentInputs).toEqual([expect.stringContaining("npm run typecheck")]);
 
     terminalRecords[0]?.triggerCommandFinished(0);
 

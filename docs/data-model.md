@@ -45,6 +45,8 @@ Store APIs own persistence atomicity and should not make services coordinate raw
 ```
 $PASEO_HOME/
 ├── config.json                          # Daemon configuration
+├── shared-scripts/
+│   └── paseo.json                        # Host-shared Run commands
 ├── server-id                            # Stable daemon identifier (plain text, "srv_<base64url>")
 ├── daemon-keypair.json                  # E2EE keypair for relay (mode 0600)
 ├── paseo.pid                            # Daemon PID lock file
@@ -73,6 +75,14 @@ $PASEO_HOME/
 The `agents/{sanitized-cwd}/` directory name is derived from the agent's `cwd` by stripping the filesystem root and replacing path separators with `-` (Windows drive letters become a `C-` style prefix). Persistent server stores write atomically by writing a temp file in the target directory and then renaming it into place.
 
 ---
+
+## Shared command config
+
+`$PASEO_HOME/shared-scripts/paseo.json` stores Run commands shared by every project
+on that host. It survives app restarts and upgrades independently of repo checkouts.
+Only its `scripts` entries are inherited; project lifecycle hooks and metadata
+remain local. Project scripts take precedence when names collide. The Run editor
+uses the existing revision-checked config write path for both scopes.
 
 ## Custom build response changes
 

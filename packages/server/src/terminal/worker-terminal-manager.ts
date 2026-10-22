@@ -63,6 +63,7 @@ interface PendingRequest {
 }
 
 interface WorkerTerminalRecord {
+  inputRevision: number;
   info: RequiredWorkerTerminalInfo;
   state: TerminalState;
   activity: TerminalActivity | null;
@@ -232,6 +233,7 @@ export function createWorkerTerminalManager(
     }
 
     const record: WorkerTerminalRecord = {
+      inputRevision: 0,
       info: cloneTerminalInfo(input.info),
       state: input.state,
       activity: input.info.activity,
@@ -258,7 +260,9 @@ export function createWorkerTerminalManager(
       get workspaceId() {
         return record.info.workspaceId;
       },
+      getInputRevision: () => record.inputRevision,
       send(message: ClientMessage): void {
+        if (message.type === "input" && message.data.length > 0) record.inputRevision++;
         if (message.type === "resize") {
           record.state = {
             ...record.state,

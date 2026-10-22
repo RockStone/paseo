@@ -38,11 +38,13 @@ function projectRecord(rootPath: string, archivedAt: string | null = null): Pers
 function makeSubsystem(
   records: PersistedProjectRecord[],
   workspaces: PersistedWorkspaceRecord[] = [],
+  sharedScriptsRoot?: string,
 ) {
   const emitted: SessionOutboundMessage[] = [];
   const host: ProjectConfigSessionHost = { emit: (msg) => emitted.push(msg) };
   const subsystem = new ProjectConfigSession({
     host,
+    sharedScriptsRoot,
     projectRegistry: { list: async () => records },
     workspaceRegistry: { list: async () => workspaces },
     logger: pino({ level: "silent" }),
@@ -51,6 +53,45 @@ function makeSubsystem(
 }
 
 describe("ProjectConfigSession", () => {
+  test("edits host-shared commands with revisions without modifying a project", async () => {
+    const project = makeRoot();
+    const shared = join(makeRoot(), "shared-scripts");
+    const { subsystem, emitted } = makeSubsystem([projectRecord(project)], [], shared);
+    await subsystem.handleReadProjectConfigRequest({
+      type: "read_project_config_request",
+      requestId: "project",
+      repoRoot: project,
+    });
+    expect(emitted[0]).toMatchObject({ payload: { ok: true, sharedScriptsRoot: shared } });
+    await subsystem.handleWriteProjectConfigRequest({
+      type: "write_project_config_request",
+      requestId: "save",
+      repoRoot: shared,
+      expectedRevision: null,
+      config: { scripts: { capture: { command: "echo screenshot" } } },
+    });
+    expect(emitted[1]).toMatchObject({ payload: { ok: true } });
+    await subsystem.handleReadProjectConfigRequest({
+      type: "read_project_config_request",
+      requestId: "shared",
+      repoRoot: shared,
+    });
+    expect(emitted[2]).toMatchObject({
+      payload: { ok: true, config: { scripts: { capture: { command: "echo screenshot" } } } },
+    });
+    await subsystem.handleWriteProjectConfigRequest({
+      type: "write_project_config_request",
+      requestId: "stale",
+      repoRoot: shared,
+      expectedRevision: null,
+      config: { scripts: {} },
+    });
+    expect(emitted[3]).toMatchObject({
+      payload: { ok: false, error: { code: "stale_project_config" } },
+    });
+    expect(statPaseoConfigPath(project)).toBeNull();
+  });
+
   test("edits the active workspace's config without changing the source checkout", async () => {
     const source = makeRoot();
     const checkout = makeRoot();

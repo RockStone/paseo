@@ -81,15 +81,26 @@ export function RunScriptsControl({
   const [open, setOpen] = useState(false);
   const { open: editScript, editor } = useScriptEditor(serverId, repoRoot);
   const addScript = useCallback(() => editScript(null), [editScript]);
+  const addSharedScript = useCallback(() => editScript(null, true), [editScript]);
   const config = useFetchQuery({
-    queryKey: ["project-config", serverId, repoRoot],
+    queryKey: ["project-script-options", serverId, repoRoot],
     dataShape: "value",
     staleTimeMs: 0,
     enabled: Boolean(client) && connected,
     retry: false,
     queryFn: async () => {
       if (!client) throw new Error(t("common.errors.daemonClientUnavailable"));
-      return client.readProjectConfig(repoRoot);
+      const project = await client.readProjectConfig(repoRoot);
+      if (!project.ok || !project.sharedScriptsRoot) return project;
+      const shared = await client.readProjectConfig(project.sharedScriptsRoot);
+      if (!shared.ok) return shared;
+      return {
+        ...project,
+        config: {
+          ...project.config,
+          scripts: { ...shared.config?.scripts, ...project.config?.scripts },
+        },
+      };
     },
   });
   const scripts = useMemo(
@@ -158,6 +169,9 @@ export function RunScriptsControl({
               <DropdownMenuSeparator />
               <DropdownMenuItem testID="workspace-scripts-add" onSelect={addScript}>
                 {t("settings.project.scripts.actions.add")}
+              </DropdownMenuItem>
+              <DropdownMenuItem testID="workspace-scripts-add-shared" onSelect={addSharedScript}>
+                {t("settings.project.scripts.addShared")}
               </DropdownMenuItem>
             </>
           ) : null}

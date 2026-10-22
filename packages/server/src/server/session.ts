@@ -1,3 +1,4 @@
+import { sharedScriptsRoot } from "../utils/shared-scripts.js";
 import { AgentDirectory } from "./agent/directory.js";
 import { searchTimeline } from "./agent/chat-search/index.js";
 import type { BrowserToolsBroker } from "./browser-tools/broker.js";
@@ -1034,6 +1035,7 @@ export class Session {
       projectRegistry: this.projectRegistry,
       workspaceRegistry: this.workspaceRegistry,
       logger: this.sessionLogger,
+      sharedScriptsRoot: sharedScriptsRoot(this.paseoHome),
     });
     this.daemonSession = new DaemonSession({
       host: {
@@ -1178,6 +1180,7 @@ export class Session {
       spawnWorkspaceScript,
       assertAutomationAllowed: (workspaceId) =>
         assertWorkspaceAutomationAllowedForWorkspace(this.workspaceRegistry, workspaceId),
+      sharedScriptsRoot: sharedScriptsRoot(this.paseoHome),
       globalServicePorts: loadPersistedConfig(this.paseoHome).worktrees?.servicePorts,
     });
     this.workspaceDirectory = new WorkspaceDirectory({

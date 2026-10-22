@@ -30,6 +30,9 @@ interface SeedProjectDescriptor {
  * prefer those wrappers over reaching for this client directly.
  */
 export interface SeedDaemonClient {
+  readProjectConfig: DaemonClient["readProjectConfig"];
+  writeProjectConfig: DaemonClient["writeProjectConfig"];
+  listWorkspaceScripts: DaemonClient["listWorkspaceScripts"];
   getCheckoutStatus(cwd: string): Promise<CheckoutStatusResponse["payload"]>;
   connect(): Promise<void>;
   close(): Promise<void>;

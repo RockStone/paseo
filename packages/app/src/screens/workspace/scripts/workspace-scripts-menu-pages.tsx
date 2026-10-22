@@ -177,10 +177,11 @@ function ScriptsPage({
 }: {
   scripts: WorkspaceDescriptor["scripts"];
   actions: WorkspaceScriptActions;
-  onEdit: (name: string | null) => void;
+  onEdit: (name: string | null, shared?: boolean) => void;
 }): ReactElement {
   const { t } = useTranslation();
   const add = useCallback(() => onEdit(null), [onEdit]);
+  const addShared = useCallback(() => onEdit(null, true), [onEdit]);
   return (
     <>
       {scripts.map((script) =>
@@ -199,6 +200,9 @@ function ScriptsPage({
       <DropdownMenuItem testID="workspace-scripts-add" onSelect={add}>
         {t("settings.project.scripts.actions.add")}
       </DropdownMenuItem>
+      <DropdownMenuItem testID="workspace-scripts-add-shared" onSelect={addShared}>
+        {t("settings.project.scripts.addShared")}
+      </DropdownMenuItem>
     </>
   );
 }
@@ -208,7 +212,7 @@ function RunningScriptRow({
   onEdit,
 }: {
   script: WorkspaceScript;
-  onEdit: (name: string | null) => void;
+  onEdit: (name: string | null, shared?: boolean) => void;
 }): ReactElement {
   const { t } = useTranslation();
   const icon = useMemo(() => <ScriptIcon script={script} size={ROW_ICON_SIZE} />, [script]);
@@ -236,7 +240,7 @@ function StoppedScriptRow({
 }: {
   script: WorkspaceScript;
   actions: WorkspaceScriptActions;
-  onEdit: (name: string | null) => void;
+  onEdit: (name: string | null, shared?: boolean) => void;
 }): ReactElement {
   const { start } = actions;
   const handleSelect = useCallback(() => start(script.scriptName), [start, script.scriptName]);

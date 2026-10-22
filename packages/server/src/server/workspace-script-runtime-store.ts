@@ -5,6 +5,7 @@ export interface ScriptRuntimeEntry {
   lifecycle: "running" | "stopped";
   terminalId: string;
   exitCode: number | null;
+  reuseInputRevision?: number;
 }
 
 interface RuntimeEntryKey {
@@ -13,6 +14,24 @@ interface RuntimeEntryKey {
 }
 
 export class WorkspaceScriptRuntimeStore {
+  private readonly launchQueues = new Map<string, Promise<void>>();
+
+  async withLaunchLock<T>(workspaceId: string, launch: () => Promise<T>): Promise<T> {
+    const previous = this.launchQueues.get(workspaceId) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.launchQueues.set(workspaceId, current);
+    await previous;
+    try {
+      return await launch();
+    } finally {
+      release();
+      if (this.launchQueues.get(workspaceId) === current) this.launchQueues.delete(workspaceId);
+    }
+  }
+
   private readonly entries = new Map<string, ScriptRuntimeEntry>();
   private readonly scriptsByWorkspace = new Map<string, Set<string>>();
 

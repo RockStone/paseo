@@ -36,6 +36,7 @@ interface ScriptEditModalProps {
   error?: ReactNode;
   headerTitle?: string;
   saveDisabled?: boolean;
+  scopeLabel?: string;
 }
 
 interface ScriptFieldsTouched {
@@ -55,6 +56,7 @@ export function ScriptEditModal({
   error,
   headerTitle,
   saveDisabled = false,
+  scopeLabel,
 }: ScriptEditModalProps) {
   const { t } = useTranslation();
   const [touched, setTouched] = useState<ScriptFieldsTouched>(NONE_TOUCHED);
@@ -118,6 +120,7 @@ export function ScriptEditModal({
       testID="script-edit-modal"
       desktopMaxWidth={560}
     >
+      {scopeLabel ? <Text style={styles.modalHint}>{scopeLabel}</Text> : null}
       <View style={styles.modalSection}>
         <Text style={styles.modalLabel}>{t("settings.project.scripts.name")}</Text>
         <TextInput

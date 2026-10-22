@@ -3683,6 +3683,7 @@ export const ServerInfoStatusPayloadSchema = z
         checkoutWorkingTreeSummary: z.boolean().optional(),
         recentCheckoutCommits: z.boolean().optional(),
         composerGitDetails: z.boolean().optional(),
+        sharedCommands: z.boolean().optional(),
         // COMPAT(agentThinkingUpdate): added in v0.2.4, remove gate after 2027-01-28.
         agentThinkingUpdate: z.boolean().optional(),
         // COMPAT(daemonDiagnostics): added in v0.1.100, remove gate after 2026-12-25 once daemon floor >= v0.1.100.
@@ -5124,6 +5125,7 @@ export const ReadProjectConfigResponseMessageSchema = z.object({
       config: PaseoConfigRawSchema.nullable(),
       revision: PaseoConfigRevisionSchema.nullable(),
       hasUncommittedWorktreeSetupChanges: z.boolean().optional(),
+      sharedScriptsRoot: z.string().optional(),
     }),
     z.object({
       requestId: z.string(),

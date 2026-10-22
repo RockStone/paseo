@@ -121,6 +121,7 @@ export function openScriptEditForm(ports: ScriptEditPorts) {
   }
   return {
     getState: () => state,
+    isShared: () => snapshot !== null && snapshot.repoRoot === snapshot.sharedScriptsRoot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
       return () => {

@@ -65,6 +65,7 @@ export function createWorkspaceScriptsService(deps: {
   serviceProxyPublicBaseUrl: string | null;
   resolveScriptHealth: ((hostname: string) => ScriptHealthState | null) | null;
   globalServicePorts?: PaseoServicePortAllocation;
+  sharedScriptsRoot?: string;
   logger: pino.Logger;
   emit: (message: SessionOutboundMessage) => void;
   // Script status is daemon state, so it reaches every client, not only the requester.
@@ -84,6 +85,7 @@ export function createWorkspaceScriptsService(deps: {
     serviceProxyPublicBaseUrl,
     resolveScriptHealth,
     globalServicePorts,
+    sharedScriptsRoot,
     logger,
     emit,
     publishStatusUpdate,
@@ -122,7 +124,7 @@ export function createWorkspaceScriptsService(deps: {
     return buildWorkspaceScriptPayloads({
       workspaceId: workspace.workspaceId,
       workspaceDirectory: workspace.cwd,
-      paseoConfig: readPaseoConfigForProjection(workspace.cwd, logger),
+      paseoConfig: readPaseoConfigForProjection(workspace.cwd, logger, sharedScriptsRoot),
       serviceProxy,
       runtimeStore: scriptRuntimeStore,
       daemonPort: getDaemonTcpPort?.() ?? null,
@@ -191,6 +193,7 @@ export function createWorkspaceScriptsService(deps: {
       runtimeStore: available.runtimeStore,
       terminalManager: available.terminalManager,
       globalServicePorts,
+      sharedScriptsRoot,
       logger,
       onLifecycleChanged: () => {
         void emitStatusUpdate(workspace.workspaceId, workspace.cwd);
