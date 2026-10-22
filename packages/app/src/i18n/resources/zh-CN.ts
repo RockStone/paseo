@@ -846,6 +846,7 @@ export const zhCN: TranslationResources = {
         direct: "直接地址",
       },
       states: {
+        started: "已启动 {{scriptName}}",
         exitCode: "exit {{code}}",
         startFailed: "启动 {{scriptName}} 失败",
         stopFailed: "停止 {{scriptName}} 失败",
@@ -2848,6 +2849,7 @@ export const zhCN: TranslationResources = {
         command: "命令",
         nameAccessibility: "Script 名称",
         commandAccessibility: "Script 命令",
+        nameExists: "已存在同名脚本。",
         nameRequired: "名称必填",
         commandRequired: "命令必填",
         newScript: "新建 script",

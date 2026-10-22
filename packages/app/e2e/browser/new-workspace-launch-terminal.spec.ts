@@ -118,6 +118,37 @@ async function failFirstScriptRequests(page: Page, repoRoot: string): Promise<st
   return launchWorkspaceIds;
 }
 
+async function failFirstConfigWrite(page: Page) {
+  const frames = await loadSessionMessageReaders();
+  let fail = true;
+  await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => {
+      const request = frames.client(message);
+      if (fail && request?.type === "write_project_config_request") {
+        fail = false;
+        ws.send(
+          JSON.stringify({
+            type: "session",
+            message: {
+              type: "write_project_config_response",
+              payload: {
+                requestId: request.requestId,
+                repoRoot: request.repoRoot,
+                ok: false,
+                error: { code: "write_failed" },
+              },
+            },
+          }),
+        );
+        return;
+      }
+      server.send(message);
+    });
+    server.onMessage((message) => ws.send(message));
+  });
+}
+
 test.describe("New workspace: launching a terminal", () => {
   let workspace: SeededWorkspace;
 
@@ -136,6 +167,45 @@ test.describe("New workspace: launching a terminal", () => {
 
   test.afterEach(async () => {
     await workspace?.cleanup();
+  });
+
+  test("compact Run menu adds a command before a workspace exists and retries failed saves", async ({
+    page,
+  }) => {
+    await failFirstConfigWrite(page);
+    await gotoAppShell(page);
+    await waitForSidebarHydration(page);
+    await openNewWorkspaceComposer(page, {
+      projectKey: workspace.projectKey,
+      projectDisplayName: workspace.projectDisplayName,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await launchTrigger(page).click();
+    await page.getByRole("menuitem", { name: "Terminal", exact: true }).click();
+    await page.getByTestId("new-workspace-scripts-trigger").click();
+    await page.getByTestId("workspace-scripts-add").click();
+    await page.getByTestId("script-edit-name").fill("capture");
+    await page.getByTestId("script-edit-command").fill("printf 'new-command-ready\\n'; exec cat");
+    await page.getByTestId("script-edit-save").click();
+    await expect(page.getByTestId("script-editor-error")).toBeVisible();
+    await expect(page.getByTestId("script-edit-command")).toHaveValue(
+      "printf 'new-command-ready\\n'; exec cat",
+    );
+    await page.getByTestId("script-editor-reload").click();
+    await expect(page.getByTestId("script-edit-modal")).toHaveCount(0);
+    await expect(page.getByText("Project saved", { exact: true })).toBeVisible();
+    const workspaces = await workspace.client.fetchWorkspaces({
+      filter: { projectId: workspace.projectId },
+    });
+    expect(workspaces.entries).toHaveLength(1);
+    await page.getByTestId("new-workspace-scripts-trigger").click();
+    await expect(page.getByTestId("script-edit-trigger-capture")).toBeVisible();
+    await page.screenshot({ path: "/tmp/paseoi-r78-compact-command-editor.png" });
+    await page.getByRole("menuitem", { name: "capture", exact: true }).click();
+    await expect(page.locator('[data-testid="terminal-surface"]:visible').first()).toBeVisible({
+      timeout: 30_000,
+    });
+    await expectTerminalOutputContains(page, "new-command-ready");
   });
 
   for (const isolation of ["local", "worktree"] as const) {
@@ -231,7 +301,10 @@ test.describe("New workspace: launching a terminal", () => {
         projectDisplayName: other.projectDisplayName,
       });
       await selectLaunchOption(page, "blank");
-      await expect(page.getByTestId("new-workspace-scripts-trigger")).toHaveCount(0);
+      await page.getByTestId("new-workspace-scripts-trigger").click();
+      await expect(page.getByTestId("new-workspace-script-preview")).toHaveCount(0);
+      await expect(page.getByTestId("workspace-scripts-add")).toBeVisible();
+      await page.keyboard.press("Escape");
       await selectNewWorkspaceProject(page, {
         projectKey: workspace.projectKey,
         projectDisplayName: workspace.projectDisplayName,

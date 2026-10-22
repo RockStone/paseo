@@ -1,4 +1,8 @@
 import { test, expect } from "../support/fixtures";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { seedWorkspace } from "../support/helpers/seed-client";
+import { expectTerminalOutputContains } from "../support/helpers/new-workspace-launch";
 import { createTempGitRepo } from "../support/helpers/workspace";
 import {
   connectWorkspaceSetupClient,
@@ -11,6 +15,110 @@ import {
 import { waitForWorkspaceTabsVisible } from "../support/helpers/workspace-tabs";
 import { getServerId } from "../support/helpers/server-id";
 import { buildHostWorkspaceRoute } from "../../src/utils/host-routes";
+
+for (const kind of ["local", "worktree"] as const) {
+  test(`Run menu edits and runs the ${kind} config, preserving unrelated fields`, async ({
+    page,
+  }) => {
+    const original = "printf 'original-command\\n'; exec cat";
+    const edited = "printf 'edited-command-ready\\n'; exec cat";
+    const seeded = await seedWorkspace({
+      repoPrefix: "script-edit-",
+      repo: {
+        paseoConfig: {
+          custom: { keep: true },
+          scripts: { capture: { command: original, custom: 7 }, other: { command: "echo other" } },
+        },
+      },
+    });
+    try {
+      let target = { id: seeded.workspaceId, workspaceDirectory: seeded.workspaceDirectory };
+      if (kind === "worktree") {
+        const created = await seeded.client.createWorkspace({
+          source: {
+            kind: "worktree",
+            cwd: seeded.repoPath,
+            projectId: seeded.projectId,
+            worktreeSlug: "script-edit-worktree",
+          },
+        });
+        if (!created.workspace) throw new Error(created.error ?? "Workspace creation failed");
+        target = created.workspace;
+      }
+      await page.goto(buildHostWorkspaceRoute(getServerId(), target.id));
+      await waitForWorkspaceTabsVisible(page);
+      await openWorkspaceScriptsMenu(page);
+      const edit = page.getByTestId("script-edit-trigger-capture");
+      await edit.hover();
+      await page.screenshot({ path: `/tmp/paseoi-r78-${kind}-edit-hover.png` });
+      await edit.click();
+      await expect(page.getByTestId("script-edit-modal")).toBeVisible();
+      await page.getByTestId("script-edit-command").fill(edited);
+      await page.getByTestId("script-edit-save").click();
+      await expect(page.getByTestId("script-edit-modal")).toHaveCount(0);
+      await expect(page.getByText("Project saved", { exact: true })).toBeVisible();
+      const actual = JSON.parse(
+        await readFile(join(target.workspaceDirectory, "paseo.json"), "utf8"),
+      );
+      expect(actual).toEqual({
+        custom: { keep: true },
+        scripts: { capture: { command: edited, custom: 7 }, other: { command: "echo other" } },
+      });
+      const source = JSON.parse(await readFile(join(seeded.repoPath, "paseo.json"), "utf8"));
+      expect(source.scripts.capture.command).toBe(kind === "local" ? edited : original);
+      const terminals = await seeded.client.listTerminals(undefined, undefined, {
+        workspaceId: target.id,
+      });
+      expect(terminals.terminals).toHaveLength(0);
+      await openWorkspaceScriptsMenu(page);
+      await page.getByTestId("workspace-scripts-start-capture").click();
+      await expect(page.getByText("Started capture", { exact: true })).toBeVisible();
+      await expectTerminalOutputContains(page, "edited-command-ready");
+    } finally {
+      await seeded.cleanup();
+    }
+  });
+}
+
+test("script editing detects disk conflicts, preserves the draft and supports explicit reload", async ({
+  page,
+}) => {
+  const seeded = await seedWorkspace({
+    repoPrefix: "script-conflict-",
+    repo: { paseoConfig: { scripts: { capture: { command: "echo original" } } } },
+  });
+  try {
+    await page.goto(buildHostWorkspaceRoute(getServerId(), seeded.workspaceId));
+    await waitForWorkspaceTabsVisible(page);
+    await openWorkspaceScriptsMenu(page);
+    await page.getByTestId("script-edit-trigger-capture").click();
+    await page.getByTestId("script-edit-command").fill("echo my draft");
+    await writeFile(
+      join(seeded.repoPath, "paseo.json"),
+      JSON.stringify({
+        external: true,
+        scripts: { capture: { command: "echo externally changed" } },
+      }),
+    );
+    await page.getByTestId("script-edit-save").click();
+    await expect(page.getByTestId("script-editor-error")).toContainText(
+      "Reload to fetch the latest",
+    );
+    await expect(page.getByTestId("script-edit-command")).toHaveValue("echo my draft");
+    await expect(page.getByTestId("script-edit-save")).toBeDisabled();
+    await page.getByTestId("script-editor-reload").click();
+    await expect(page.getByTestId("script-edit-command")).toHaveValue("echo externally changed");
+    await page.getByTestId("script-edit-command").fill("echo canceled edit");
+    await page.getByTestId("script-edit-cancel").click();
+    const config = JSON.parse(await readFile(join(seeded.repoPath, "paseo.json"), "utf8"));
+    expect(config).toEqual({
+      external: true,
+      scripts: { capture: { command: "echo externally changed" } },
+    });
+  } finally {
+    await seeded.cleanup();
+  }
+});
 
 test("scripts menu resizes when a service row grows after launch", async ({ page }) => {
   const client = await connectWorkspaceSetupClient();

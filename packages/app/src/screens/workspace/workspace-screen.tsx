@@ -3105,9 +3105,10 @@ function WorkspaceScreenContent({
     () => (
       <View style={styles.headerRight}>
         <PluginHeaderButtons serverId={normalizedServerId} workspaceId={normalizedWorkspaceId} />
-        {workspaceDescriptor && workspaceDescriptor.scripts.length > 0 ? (
+        {workspaceDescriptor ? (
           <WorkspaceScriptsButton
             serverId={normalizedServerId}
+            configRoot={workspaceDescriptor.workspaceDirectory}
             workspaceId={normalizedWorkspaceId}
             scripts={workspaceDescriptor.scripts}
             liveTerminalIds={liveTerminalIds}
@@ -3262,6 +3263,7 @@ function WorkspaceScreenContent({
     () => ({
       serverId: normalizedServerId,
       workspaceId: normalizedWorkspaceId,
+      configRoot: workspaceDirectory ?? "",
       scripts: workspaceScripts,
       liveTerminalIds,
       onScriptTerminalStarted: handleScriptTerminalStarted,
@@ -3271,6 +3273,7 @@ function WorkspaceScreenContent({
     [
       normalizedServerId,
       normalizedWorkspaceId,
+      workspaceDirectory,
       workspaceScripts,
       liveTerminalIds,
       handleScriptTerminalStarted,

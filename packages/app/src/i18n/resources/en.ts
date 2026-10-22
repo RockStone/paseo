@@ -847,6 +847,7 @@ export const en = {
         direct: "Direct",
       },
       states: {
+        started: "Started {{scriptName}}",
         exitCode: "exit {{code}}",
         startFailed: "Failed to start {{scriptName}}",
         stopFailed: "Failed to stop {{scriptName}}",
@@ -3013,6 +3014,7 @@ export const en = {
         command: "Command",
         nameAccessibility: "Script name",
         commandAccessibility: "Script command",
+        nameExists: "A script with this name already exists.",
         nameRequired: "Name is required",
         commandRequired: "Command is required",
         newScript: "New script",

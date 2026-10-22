@@ -858,6 +858,7 @@ export const fr: TranslationResources = {
         direct: "Directe",
       },
       states: {
+        started: "{{scriptName}} démarré",
         exitCode: "sortie {{code}}",
         startFailed: "Impossible de démarrer {{scriptName}}",
         stopFailed: "Impossible d’arrêter {{scriptName}}",
@@ -2949,6 +2950,7 @@ export const fr: TranslationResources = {
         command: "Commande",
         nameAccessibility: "Nom du script",
         commandAccessibility: "Commande du script",
+        nameExists: "Un script porte déjà ce nom.",
         nameRequired: "Le nom est obligatoire",
         commandRequired: "La commande est obligatoire",
         newScript: "Nouveau script",

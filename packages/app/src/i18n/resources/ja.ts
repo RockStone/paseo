@@ -854,6 +854,7 @@ export const ja: TranslationResources = {
         direct: "直接接続",
       },
       states: {
+        started: "{{scriptName}} を開始しました",
         exitCode: "終了コード: {{code}}",
         startFailed: "{{scriptName}}の起動に失敗しました",
         stopFailed: "{{scriptName}}の停止に失敗しました",
@@ -2912,6 +2913,7 @@ export const ja: TranslationResources = {
         command: "コマンド",
         nameAccessibility: "スクリプト名",
         commandAccessibility: "スクリプトコマンド",
+        nameExists: "この名前のスクリプトは既に存在します。",
         nameRequired: "名前は必須です",
         commandRequired: "コマンドは必須です",
         newScript: "新しいスクリプト",

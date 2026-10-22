@@ -7,10 +7,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
+import { ScriptEditButton } from "@/screens/workspace/scripts/script-edit-button";
+import { useScriptEditor } from "@/screens/workspace/scripts/script-editor";
 import {
   FieldTriggerContent,
   useFieldTriggerStyle,
@@ -30,17 +33,26 @@ function ScriptItem({
   service,
   disabled,
   onRun,
+  onEdit,
 }: {
   name: string;
   service: boolean;
   disabled: boolean;
   onRun: (name: string) => void;
+  onEdit: (name: string | null) => void;
 }): ReactElement {
   const run = useCallback(() => onRun(name), [name, onRun]);
+  const leading = useMemo(
+    () => (
+      <ScriptEditButton name={name} icon={service ? serviceIcon : commandIcon} onEdit={onEdit} />
+    ),
+    [name, service, onEdit],
+  );
   return (
     <DropdownMenuItem
       testID={`new-workspace-script-${name}`}
-      leading={service ? serviceIcon : commandIcon}
+      accessibilityLabel={name}
+      leading={leading}
       disabled={disabled}
       onSelect={run}
     >
@@ -67,6 +79,8 @@ export function RunScriptsControl({
   const client = useHostRuntimeClient(serverId);
   const connected = useHostRuntimeIsConnected(serverId);
   const [open, setOpen] = useState(false);
+  const { open: editScript, editor } = useScriptEditor(serverId, repoRoot);
+  const addScript = useCallback(() => editScript(null), [editScript]);
   const config = useFetchQuery({
     queryKey: ["project-config", serverId, repoRoot],
     dataShape: "value",
@@ -97,49 +111,59 @@ export function RunScriptsControl({
     void refetch();
   }, [refetch]);
 
-  if (config.data?.ok && scripts.length === 0 && !readError) return null;
-
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen} compactMode="sheet">
-      <DropdownMenuTrigger
-        testID="new-workspace-scripts-trigger"
-        accessibilityRole="button"
-        accessibilityLabel={t("workspace.scripts.accessibility.trigger")}
-        disabled={pending}
-        style={triggerStyle}
-      >
-        <FieldTriggerContent
-          variant={variant}
-          label={t("workspace.scripts.title")}
-          icon={playIcon}
-          value={config.isPending ? t("common.loading") : t("workspace.scripts.actions.run")}
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        offset={8}
-        width={260}
-        sheetTitle={t("workspace.scripts.title")}
-      >
-        {readError ? (
-          <>
-            <DropdownMenuItem disabled>{readError}</DropdownMenuItem>
-            <DropdownMenuItem testID="new-workspace-scripts-retry" onSelect={retry}>
-              {t("common.retry")}
-            </DropdownMenuItem>
-          </>
-        ) : (
-          scripts.map(([name, entry]) => (
-            <ScriptItem
-              key={name}
-              name={name}
-              service={entry.type === "service"}
-              disabled={pending}
-              onRun={onRun}
-            />
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu open={open} onOpenChange={setOpen} compactMode="sheet">
+        <DropdownMenuTrigger
+          testID="new-workspace-scripts-trigger"
+          accessibilityRole="button"
+          accessibilityLabel={t("workspace.scripts.accessibility.trigger")}
+          disabled={pending}
+          style={triggerStyle}
+        >
+          <FieldTriggerContent
+            variant={variant}
+            label={t("workspace.scripts.title")}
+            icon={playIcon}
+            value={config.isPending ? t("common.loading") : t("workspace.scripts.actions.run")}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          offset={8}
+          width={260}
+          sheetTitle={t("workspace.scripts.title")}
+        >
+          {readError ? (
+            <>
+              <DropdownMenuItem disabled>{readError}</DropdownMenuItem>
+              <DropdownMenuItem testID="new-workspace-scripts-retry" onSelect={retry}>
+                {t("common.retry")}
+              </DropdownMenuItem>
+            </>
+          ) : (
+            scripts.map(([name, entry]) => (
+              <ScriptItem
+                key={name}
+                name={name}
+                service={entry.type === "service"}
+                disabled={pending}
+                onRun={onRun}
+                onEdit={editScript}
+              />
+            ))
+          )}
+          {!readError ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem testID="workspace-scripts-add" onSelect={addScript}>
+                {t("settings.project.scripts.actions.add")}
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {editor}
+    </>
   );
 }

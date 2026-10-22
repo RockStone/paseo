@@ -858,6 +858,7 @@ export const ru: TranslationResources = {
         direct: "Прямой адрес",
       },
       states: {
+        started: "{{scriptName}} запущен",
         exitCode: "Код выхода: {{code}}",
         startFailed: "Не удалось запустить скрипт {{scriptName}}",
         stopFailed: "Не удалось остановить скрипт {{scriptName}}",
@@ -2934,6 +2935,7 @@ export const ru: TranslationResources = {
         command: "Команда",
         nameAccessibility: "Название скрипта",
         commandAccessibility: "Команда скрипта",
+        nameExists: "Скрипт с таким именем уже существует.",
         nameRequired: "Укажите название",
         commandRequired: "Требуется команда",
         newScript: "Новый скрипт",

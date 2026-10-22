@@ -17,6 +17,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   useDropdownMenuClose,
 } from "@/components/ui/dropdown-menu";
@@ -32,6 +33,8 @@ import { buttonControlHeight, HEADER_CONTROL_HEIGHT } from "@/components/ui/cont
 import { extraMutedIconColorMapping } from "@/components/ui/icon-color";
 import { ExitCodeBadge, routeLabelKey, ScriptIcon } from "./script-marks";
 import { scriptToneColorMapping } from "./script-status";
+import { ScriptEditButton } from "./script-edit-button";
+import { useScriptEditor } from "./script-editor";
 import {
   useWorkspaceScriptActions,
   type WorkspaceScriptActions,
@@ -41,6 +44,7 @@ type RowActionIcon = "copy" | "open" | "restart" | "start" | "stop" | "terminal"
 
 interface WorkspaceScriptsButtonProps {
   serverId: string;
+  configRoot: string;
   workspaceId: string;
   scripts: WorkspaceDescriptor["scripts"];
   liveTerminalIds?: readonly string[];
@@ -302,6 +306,7 @@ function ServiceLinkRow({
 }
 
 interface ScriptRowProps {
+  onEdit: (name: string | null) => void;
   script: WorkspaceDescriptor["scripts"][number];
   liveTerminalIdSet: Set<string>;
   actions: WorkspaceScriptActions;
@@ -310,6 +315,7 @@ interface ScriptRowProps {
 }
 
 function ScriptRow({
+  onEdit,
   script,
   liveTerminalIdSet,
   actions,
@@ -317,6 +323,7 @@ function ScriptRow({
   onOpenUrlInBrowserTab,
 }: ScriptRowProps): ReactElement {
   const { t } = useTranslation();
+  const editIcon = useMemo(() => <ScriptIcon script={script} size={14} />, [script]);
   const isRunning = script.lifecycle === "running";
   const exitCode = script.exitCode ?? null;
   const { selected: selectedLink, targets: linkTargets } = actions.resolveLinks(script);
@@ -410,7 +417,7 @@ function ScriptRow({
       })}
     >
       <View style={styles.scriptHeader}>
-        <ScriptIcon script={script} size={14} />
+        <ScriptEditButton name={script.scriptName} icon={editIcon} onEdit={onEdit} />
         <Text style={scriptNameStyle} numberOfLines={1}>
           {script.scriptName}
         </Text>
@@ -449,6 +456,7 @@ function ScriptRow({
 
 export function WorkspaceScriptsButton({
   serverId,
+  configRoot,
   workspaceId,
   scripts,
   liveTerminalIds = [],
@@ -458,6 +466,8 @@ export function WorkspaceScriptsButton({
   hideLabels,
 }: WorkspaceScriptsButtonProps): ReactElement | null {
   const { t } = useTranslation();
+  const { open: editScript, editor } = useScriptEditor(serverId, configRoot);
+  const addScript = useCallback(() => editScript(null), [editScript]);
   const actions = useWorkspaceScriptActions({
     serverId,
     workspaceId,
@@ -473,10 +483,6 @@ export function WorkspaceScriptsButton({
     ],
     [],
   );
-
-  if (scripts.length === 0) {
-    return null;
-  }
 
   // The trigger only says whether anything runs; health is for the rows inside.
   const hasAnyRunning = scripts.some((s) => s.lifecycle === "running");
@@ -510,15 +516,21 @@ export function WorkspaceScriptsButton({
               <ScriptRow
                 key={script.scriptName}
                 script={script}
+                onEdit={editScript}
                 liveTerminalIdSet={liveTerminalIdSet}
                 actions={actions}
                 onViewTerminal={onViewTerminal}
                 onOpenUrlInBrowserTab={onOpenUrlInBrowserTab}
               />
             ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem testID="workspace-scripts-add" onSelect={addScript}>
+              {t("settings.project.scripts.actions.add")}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </View>
+      {editor}
     </View>
   );
 }

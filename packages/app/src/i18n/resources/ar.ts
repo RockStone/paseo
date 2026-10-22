@@ -850,6 +850,7 @@ export const ar: TranslationResources = {
         direct: "مباشر",
       },
       states: {
+        started: "تم تشغيل {{scriptName}}",
         exitCode: "الخروج من{{code}}",
         startFailed: "فشل بدء تشغيل{{scriptName}}",
         stopFailed: "فشل إيقاف{{scriptName}}",
@@ -2882,6 +2883,7 @@ export const ar: TranslationResources = {
         command: "يأمر",
         nameAccessibility: "اسم البرنامج النصي",
         commandAccessibility: "أمر البرنامج النصي",
+        nameExists: "يوجد برنامج نصي بهذا الاسم بالفعل.",
         nameRequired: "الاسم مطلوب",
         commandRequired: "الأمر مطلوب",
         newScript: "نص جديد",

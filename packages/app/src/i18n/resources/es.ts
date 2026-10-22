@@ -860,6 +860,7 @@ export const es: TranslationResources = {
         direct: "Directa",
       },
       states: {
+        started: "Se inició {{scriptName}}",
         exitCode: "salir de{{code}}",
         startFailed: "No se pudo iniciar{{scriptName}}",
         stopFailed: "No se pudo detener{{scriptName}}",
@@ -2944,6 +2945,7 @@ export const es: TranslationResources = {
         command: "Dominio",
         nameAccessibility: "Nombre del guión",
         commandAccessibility: "Comando de guión",
+        nameExists: "Ya existe un script con este nombre.",
         nameRequired: "El nombre es obligatorio",
         commandRequired: "Se requiere comando",
         newScript: "Nuevo guión",

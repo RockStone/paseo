@@ -1390,6 +1390,7 @@ export function NewWorkspaceScreen({
             navigateToWorkspace({ serverId: targetServerId, workspaceId, target });
           },
         });
+        toast.show(t("workspace.scripts.states.started", { scriptName }), { variant: "success" });
         if (outcome === "background") setPendingAction(null);
       } catch (error) {
         const message = toErrorMessage(error);

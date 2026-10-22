@@ -244,61 +244,64 @@ export function WorkspaceHeaderMenuMobile({
   const scriptsMenu = useWorkspaceScriptsMenuPages(scripts);
 
   return (
-    <DropdownMenu compactMode="sheet">
-      <DropdownMenuTrigger
-        testID="workspace-header-menu-trigger"
-        style={triggerStyle}
-        hitSlop={COMPACT_HEADER_BUTTON_HIT_SLOP}
-        accessibilityRole="button"
-        accessibilityLabel={
-          scriptsMenu.needsAttention
-            ? t("workspace.header.actions.workspaceActionsUnhealthy")
-            : t("workspace.header.actions.workspaceActions")
-        }
-      >
-        {scriptsMenu.needsAttention ? (
-          <WorkspaceHeaderMenuAttentionTriggerIcon />
-        ) : (
-          <WorkspaceHeaderMenuTriggerIcon />
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        width={220}
-        testID="workspace-header-menu"
-        pages={scriptsMenu.pages}
-        sheetTitle={t("workspace.header.actions.workspaceActions")}
-      >
-        {scriptsMenu.trigger}
-        {showCreateBrowserTab ? (
-          <DropdownMenuItem
-            testID="workspace-header-new-browser"
-            leading={MENU_NEW_BROWSER_ICON}
-            onSelect={onCreateBrowser}
-          >
-            {t("workspace.header.actions.newBrowser")}
-          </DropdownMenuItem>
-        ) : null}
-        <WorkspaceHeaderWorkspaceActionItems {...workspaceActions} />
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>{t("workspace.tabs.actions.terminalProfilesMenu")}</DropdownMenuLabel>
-        {profiles.map((profile) => (
-          <HeaderMenuProfileItem
-            key={profile.id}
-            profile={profile}
-            disabled={createTerminalDisabled}
-            onCreateTerminalWithProfile={onCreateTerminalWithProfile}
-          />
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          testID="workspace-header-edit-terminal-profiles"
-          onSelect={handleEditProfiles}
+    <>
+      <DropdownMenu compactMode="sheet">
+        <DropdownMenuTrigger
+          testID="workspace-header-menu-trigger"
+          style={triggerStyle}
+          hitSlop={COMPACT_HEADER_BUTTON_HIT_SLOP}
+          accessibilityRole="button"
+          accessibilityLabel={
+            scriptsMenu.needsAttention
+              ? t("workspace.header.actions.workspaceActionsUnhealthy")
+              : t("workspace.header.actions.workspaceActions")
+          }
         >
-          {t("workspace.tabs.actions.editTerminalProfiles")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {scriptsMenu.needsAttention ? (
+            <WorkspaceHeaderMenuAttentionTriggerIcon />
+          ) : (
+            <WorkspaceHeaderMenuTriggerIcon />
+          )}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          width={220}
+          testID="workspace-header-menu"
+          pages={scriptsMenu.pages}
+          sheetTitle={t("workspace.header.actions.workspaceActions")}
+        >
+          {scriptsMenu.trigger}
+          {showCreateBrowserTab ? (
+            <DropdownMenuItem
+              testID="workspace-header-new-browser"
+              leading={MENU_NEW_BROWSER_ICON}
+              onSelect={onCreateBrowser}
+            >
+              {t("workspace.header.actions.newBrowser")}
+            </DropdownMenuItem>
+          ) : null}
+          <WorkspaceHeaderWorkspaceActionItems {...workspaceActions} />
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>{t("workspace.tabs.actions.terminalProfilesMenu")}</DropdownMenuLabel>
+          {profiles.map((profile) => (
+            <HeaderMenuProfileItem
+              key={profile.id}
+              profile={profile}
+              disabled={createTerminalDisabled}
+              onCreateTerminalWithProfile={onCreateTerminalWithProfile}
+            />
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            testID="workspace-header-edit-terminal-profiles"
+            onSelect={handleEditProfiles}
+          >
+            {t("workspace.tabs.actions.editTerminalProfiles")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {scriptsMenu.editor}
+    </>
   );
 }
 

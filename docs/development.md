@@ -529,6 +529,12 @@ Choosing a script creates the workspace and opens its script terminal without a 
 **Local** uses the source checkout; **New worktree** runs the config from the selected base
 branch, so commit `paseo.json` there before creating a worktree.
 
+Use **Add script** in the Run menu, or hover a script's leading icon and click its
+settings button, to edit commands in a dialog. Touch layouts keep the settings
+button visible. An existing workspace edits its own `paseo.json`; New workspace
+edits the selected project's source copy. Saving applies to the next run and does
+not restart a running command. Save and launch results appear as toasts.
+
 For a repository whose Flutter app lives in `flutter/`, keep the workspace at the repository
 root and add this command to its `paseo.json`:
 

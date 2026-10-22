@@ -856,6 +856,7 @@ export const ptBR: TranslationResources = {
         direct: "Direta",
       },
       states: {
+        started: "{{scriptName}} iniciado",
         exitCode: "saída {{code}}",
         startFailed: "Falha ao iniciar {{scriptName}}",
         stopFailed: "Falha ao parar {{scriptName}}",
@@ -2927,6 +2928,7 @@ export const ptBR: TranslationResources = {
         command: "Comando",
         nameAccessibility: "Nome do script",
         commandAccessibility: "Comando do script",
+        nameExists: "Já existe um script com este nome.",
         nameRequired: "O nome é obrigatório",
         commandRequired: "O comando é obrigatório",
         newScript: "Novo script",

@@ -850,6 +850,7 @@ export const ko: TranslationResources = {
         direct: "직접",
       },
       states: {
+        started: "{{scriptName}} 시작됨",
         exitCode: "종료 {{code}}",
         startFailed: "{{scriptName}}을(를) 시작하지 못했습니다",
         stopFailed: "{{scriptName}}를 중지하지 못했습니다.",
@@ -2896,6 +2897,7 @@ export const ko: TranslationResources = {
         command: "명령",
         nameAccessibility: "스크립트 이름",
         commandAccessibility: "스크립트 명령",
+        nameExists: "이 이름의 스크립트가 이미 있습니다.",
         nameRequired: "이름을 입력하세요",
         commandRequired: "명령을 입력하세요",
         newScript: "새 스크립트",

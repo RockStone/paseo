@@ -88,6 +88,9 @@ export function useWorkspaceScriptActions({
       );
     },
     onSuccess: (result) => {
+      toast.show(t("workspace.scripts.states.started", { scriptName: result.scriptName }), {
+        variant: "success",
+      });
       if (result.terminalId) {
         onScriptTerminalStarted?.(result.terminalId);
       }

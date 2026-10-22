@@ -16,6 +16,8 @@ import type {
   WorkspaceScriptLinkKind,
   WorkspaceScriptLinkTarget,
 } from "@/utils/workspace-script-links";
+import { ScriptEditButton } from "./script-edit-button";
+import { useScriptEditor } from "./script-editor";
 import { ExitCodeBadge, routeLabelKey, ScriptIcon } from "./script-marks";
 import { scriptToneColorMapping, summarizeScripts, type ScriptsSummary } from "./script-status";
 import {
@@ -57,6 +59,7 @@ function scriptPageId(scriptName: string): string {
 
 export interface UseWorkspaceScriptsMenuPagesInput {
   serverId: string;
+  configRoot: string;
   workspaceId: string;
   scripts: WorkspaceDescriptor["scripts"];
   liveTerminalIds: readonly string[];
@@ -71,6 +74,7 @@ export interface WorkspaceScriptsMenuPages {
   pages: MenuPageDefinition[];
   /** A running service reports unhealthy, so the menu's own trigger should say so. */
   needsAttention: boolean;
+  editor: ReactElement | null;
 }
 
 /**
@@ -85,6 +89,7 @@ export interface WorkspaceScriptsMenuPages {
  */
 export function useWorkspaceScriptsMenuPages({
   serverId,
+  configRoot,
   workspaceId,
   scripts,
   liveTerminalIds,
@@ -93,6 +98,7 @@ export function useWorkspaceScriptsMenuPages({
   onOpenUrlInBrowserTab,
 }: UseWorkspaceScriptsMenuPagesInput): WorkspaceScriptsMenuPages {
   const { t } = useTranslation();
+  const { open: editScript, editor } = useScriptEditor(serverId, configRoot);
   const actions = useWorkspaceScriptActions({
     serverId,
     workspaceId,
@@ -101,19 +107,15 @@ export function useWorkspaceScriptsMenuPages({
   });
   const summary = useMemo(() => summarizeScripts(scripts), [scripts]);
 
-  const trigger = useMemo(
-    () => (scripts.length === 0 ? null : <ScriptsMenuTrigger summary={summary} />),
-    [scripts.length, summary],
-  );
+  const trigger = useMemo(() => <ScriptsMenuTrigger summary={summary} />, [summary]);
 
   const pages = useMemo<MenuPageDefinition[]>(() => {
-    if (scripts.length === 0) return [];
     const liveTerminalIdSet = new Set(liveTerminalIds);
     return [
       {
         id: SCRIPTS_PAGE_ID,
         title: t("workspace.scripts.title"),
-        content: <ScriptsPage scripts={scripts} actions={actions} />,
+        content: <ScriptsPage scripts={scripts} actions={actions} onEdit={editScript} />,
       },
       ...scripts.map((script) => ({
         id: scriptPageId(script.scriptName),
@@ -133,9 +135,9 @@ export function useWorkspaceScriptsMenuPages({
         ),
       })),
     ];
-  }, [actions, liveTerminalIds, onOpenUrlInBrowserTab, onViewTerminal, scripts, t]);
+  }, [actions, editScript, liveTerminalIds, onOpenUrlInBrowserTab, onViewTerminal, scripts, t]);
 
-  return { trigger, pages, needsAttention: summary.tone === "unhealthy" };
+  return { trigger, pages, editor, needsAttention: summary.tone === "unhealthy" };
 }
 
 /** The root row: ▶ in the colour of the whole set, and what is running as its value. */
@@ -171,26 +173,49 @@ function ScriptsMenuTrigger({ summary }: { summary: ScriptsSummary }): ReactElem
 function ScriptsPage({
   scripts,
   actions,
+  onEdit,
 }: {
   scripts: WorkspaceDescriptor["scripts"];
   actions: WorkspaceScriptActions;
+  onEdit: (name: string | null) => void;
 }): ReactElement {
+  const { t } = useTranslation();
+  const add = useCallback(() => onEdit(null), [onEdit]);
   return (
     <>
       {scripts.map((script) =>
         script.lifecycle === "running" ? (
-          <RunningScriptRow key={script.scriptName} script={script} />
+          <RunningScriptRow key={script.scriptName} script={script} onEdit={onEdit} />
         ) : (
-          <StoppedScriptRow key={script.scriptName} script={script} actions={actions} />
+          <StoppedScriptRow
+            key={script.scriptName}
+            script={script}
+            actions={actions}
+            onEdit={onEdit}
+          />
         ),
       )}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem testID="workspace-scripts-add" onSelect={add}>
+        {t("settings.project.scripts.actions.add")}
+      </DropdownMenuItem>
     </>
   );
 }
 
-function RunningScriptRow({ script }: { script: WorkspaceScript }): ReactElement {
+function RunningScriptRow({
+  script,
+  onEdit,
+}: {
+  script: WorkspaceScript;
+  onEdit: (name: string | null) => void;
+}): ReactElement {
   const { t } = useTranslation();
-  const leading = useMemo(() => <ScriptIcon script={script} size={ROW_ICON_SIZE} />, [script]);
+  const icon = useMemo(() => <ScriptIcon script={script} size={ROW_ICON_SIZE} />, [script]);
+  const leading = useMemo(
+    () => <ScriptEditButton name={script.scriptName} icon={icon} onEdit={onEdit} />,
+    [script.scriptName, icon, onEdit],
+  );
   return (
     <DropdownMenuSubTrigger
       id={scriptPageId(script.scriptName)}
@@ -207,14 +232,20 @@ function RunningScriptRow({ script }: { script: WorkspaceScript }): ReactElement
 function StoppedScriptRow({
   script,
   actions,
+  onEdit,
 }: {
   script: WorkspaceScript;
   actions: WorkspaceScriptActions;
+  onEdit: (name: string | null) => void;
 }): ReactElement {
   const { start } = actions;
   const handleSelect = useCallback(() => start(script.scriptName), [start, script.scriptName]);
   const exitCode = script.exitCode ?? null;
-  const leading = useMemo(() => <ScriptIcon script={script} size={ROW_ICON_SIZE} />, [script]);
+  const icon = useMemo(() => <ScriptIcon script={script} size={ROW_ICON_SIZE} />, [script]);
+  const leading = useMemo(
+    () => <ScriptEditButton name={script.scriptName} icon={icon} onEdit={onEdit} />,
+    [script.scriptName, icon, onEdit],
+  );
   const trailing = useMemo(
     () => (
       <View style={styles.trailing}>
@@ -231,6 +262,7 @@ function StoppedScriptRow({
   return (
     <DropdownMenuItem
       leading={leading}
+      accessibilityLabel={script.scriptName}
       trailing={trailing}
       disabled={actions.isStartPending}
       onSelect={handleSelect}

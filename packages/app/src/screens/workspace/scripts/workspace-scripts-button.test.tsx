@@ -12,6 +12,11 @@ import { WorkspaceScriptsButton } from "./workspace-scripts-button";
 
 void testI18n;
 
+vi.mock("./script-editor", () => ({ useScriptEditor: () => ({ open: vi.fn(), editor: null }) }));
+vi.mock("./script-edit-button", () => ({
+  ScriptEditButton: ({ icon }: { icon: ReactElement }) => icon,
+}));
+
 const {
   theme,
   startWorkspaceScriptMock,
@@ -259,6 +264,7 @@ function renderScripts(
       <QueryClientProvider client={queryClient}>
         <WorkspaceScriptsButton
           serverId="test-server"
+          configRoot="/repo"
           workspaceId="workspace-1"
           scripts={nextScripts}
           liveTerminalIds={LIVE_TERMINAL_IDS}

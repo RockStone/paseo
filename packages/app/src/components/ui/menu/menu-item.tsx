@@ -222,6 +222,7 @@ function resolveItemLabel(input: {
 }
 
 export interface MenuItemProps {
+  accessibilityLabel?: string;
   description?: string;
   onSelect?: () => void;
   disabled?: boolean;
@@ -254,6 +255,7 @@ export interface MenuItemProps {
 }
 
 export function MenuItem({
+  accessibilityLabel,
   children,
   description,
   onSelect,
@@ -338,6 +340,7 @@ export function MenuItem({
     <Pressable
       testID={testID}
       accessibilityRole="menuitem"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={accessibilityState}
       aria-checked={selected}
       tabIndex={-1}

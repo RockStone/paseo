@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { openScriptEditForm } from "@/screens/workspace/scripts/script-edit-form";
 import { PaseoConfigRawSchema } from "@getpaseo/protocol/paseo-config-schema";
 import type { PaseoConfigRaw } from "@getpaseo/protocol/messages";
 import { applyDraftToConfig, configToDraft, type ProjectConfigDraft } from "./project-config-form";
@@ -18,6 +19,84 @@ function emptyDraft(): ProjectConfigDraft {
     metadataGenerationBase: undefined,
   };
 }
+
+describe("script edit transactions", () => {
+  it("preserves other config fields, retains edits on failure, and writes with the loaded revision", async () => {
+    const config = {
+      custom: { keep: true },
+      scripts: {
+        preview: { command: ["echo old"], custom: 7 },
+        other: { command: "echo other", port: "" },
+      },
+    };
+    const revision = { mtimeMs: 1, size: 10 };
+    const read = vi
+      .fn()
+      .mockResolvedValue({ ok: true, repoRoot: "/worktree", config, revision, requestId: "read" });
+    const write = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, error: { code: "write_failed" } })
+      .mockResolvedValueOnce({
+        ok: true,
+        config: {},
+        revision,
+        repoRoot: "/worktree",
+        requestId: "write",
+      });
+    const saved = vi.fn();
+    const model = openScriptEditForm({ scriptName: "preview", read, write, saved });
+    await model.load();
+    const initial = model.getState();
+    expect(initial.status).toBe("editing");
+    if (initial.status !== "editing") throw new Error("Expected loaded form");
+    model.change({ ...initial.draft, name: "capture", commandText: "echo new" });
+    await model.save();
+    expect(model.getState()).toMatchObject({
+      status: "editing",
+      error: "write_failed",
+      draft: { name: "capture", commandText: "echo new" },
+    });
+    await model.save();
+    expect(write).toHaveBeenLastCalledWith({
+      repoRoot: "/worktree",
+      expectedRevision: revision,
+      config: {
+        custom: { keep: true },
+        scripts: { capture: { command: ["echo new"], custom: 7 }, other: config.scripts.other },
+      },
+    });
+    expect(saved).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks duplicate names and stale writes until an explicit reload", async () => {
+    const read = vi.fn().mockResolvedValue({
+      ok: true,
+      repoRoot: "/repo",
+      config: { scripts: { one: { command: "echo one" }, two: { command: "echo two" } } },
+      revision: null,
+      requestId: "read",
+    });
+    const write = vi.fn().mockResolvedValue({ ok: false, error: { code: "stale_project_config" } });
+    const model = openScriptEditForm({ scriptName: "one", read, write, saved: vi.fn() });
+    await model.load();
+    const initial = model.getState();
+    if (initial.status !== "editing") throw new Error("Expected loaded form");
+    model.change({ ...initial.draft, name: "two" });
+    await model.save();
+    expect(write).not.toHaveBeenCalled();
+    expect(model.getState()).toMatchObject({ error: "duplicate_script" });
+    model.change({ ...initial.draft, commandText: "new draft" });
+    await model.save();
+    expect(model.getState()).toMatchObject({
+      error: "stale_project_config",
+      draft: { commandText: "new draft" },
+    });
+    await model.save();
+    expect(write).toHaveBeenCalledTimes(1);
+    await model.load();
+    expect(model.getState()).toMatchObject({ error: null, draft: { commandText: "echo one" } });
+  });
+});
 
 describe("configToDraft", () => {
   it("returns an empty draft for null config", () => {
