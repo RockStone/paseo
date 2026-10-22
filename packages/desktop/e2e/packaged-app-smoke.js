@@ -838,8 +838,23 @@ async function assertMacSidebarLayout(options) {
   await page.getByTestId("sidebar-edge-preview").waitFor({ state: "detached" });
   await page.keyboard.press("Meta+b");
   await assertAligned();
+  await page.getByTestId("sidebar-global-new-workspace").click();
+  await page.waitForURL((url) => url.pathname === "/new");
+  await page.keyboard.press("Meta+b");
+  await edge.waitFor({ state: "visible" });
+  const edgeRegion = await edge.evaluate((node) =>
+    getComputedStyle(node).getPropertyValue("-webkit-app-region"),
+  );
+  if (edgeRegion !== "no-drag") {
+    throw new Error(`New workspace sidebar edge belongs to the window drag region: ${edgeRegion}`);
+  }
+  await edge.hover();
+  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  await assertAligned();
+  await page.mouse.move(width - 40, 400);
+  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "detached" });
   console.log(
-    "Packaged desktop smoke: pinned and preview sidebars fill the window and reserve Mac controls",
+    "Packaged desktop smoke: pinned and preview sidebars fill the window, reserve Mac controls, and reveal on New workspace",
   );
 }
 

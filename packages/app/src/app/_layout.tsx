@@ -691,6 +691,7 @@ function SidebarPreviewFrame({
   return (
     <View
       style={preview ? layoutStyles.sidebarPreview : layoutStyles.sidebarFrame}
+      {...(isWeb ? { dataSet: { windowNoDrag: "true" } } : {})}
       {...(mouseHandlers as object)}
       testID={preview ? "sidebar-edge-preview" : undefined}
     >
@@ -705,6 +706,7 @@ function SidebarEdgeTrigger({ visible, onReveal }: { visible: boolean; onReveal:
   return (
     <View
       style={layoutStyles.sidebarEdge}
+      {...(isWeb ? { dataSet: { windowNoDrag: "true" } } : {})}
       {...(mouseHandlers as object)}
       testID="sidebar-edge-trigger"
     />

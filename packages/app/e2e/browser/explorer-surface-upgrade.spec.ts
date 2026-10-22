@@ -42,6 +42,41 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
   }
 });
 
+test("New workspace reveals the hidden sidebar from a non-draggable left edge", async ({
+  page,
+}) => {
+  const workspace = await seedWorkspace({ repoPrefix: "new-workspace-edge-preview-" });
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoWorkspace(page, workspace.workspaceId);
+    await page.getByTestId("sidebar-global-new-workspace").click();
+    await expect(page).toHaveURL(/\/new(?:\?|$)/);
+    await page.keyboard.press(`${modifier}+b`);
+    const edge = page.getByTestId("sidebar-edge-trigger");
+    await expect(edge).toBeVisible();
+    await expect
+      .poll(() =>
+        edge.evaluate((node) => getComputedStyle(node).getPropertyValue("-webkit-app-region")),
+      )
+      .toBe("no-drag");
+    await edge.hover();
+    const preview = page.getByTestId("sidebar-edge-preview");
+    await expect(preview).toBeVisible();
+    await expect
+      .poll(() =>
+        preview.evaluate((node) => getComputedStyle(node).getPropertyValue("-webkit-app-region")),
+      )
+      .toBe("no-drag");
+    await expectSidebarFooterAtBottom(page);
+    await page.mouse.move(1200, 450);
+    await expect(preview).toHaveCount(0);
+    await expect(page.getByTestId("sidebar-sessions").filter({ visible: true })).toHaveCount(0);
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 async function expectSidebarFooterAtBottom(page: Page) {
   const footer = page.getByTestId("sidebar-footer").filter({ visible: true });
   await expect
