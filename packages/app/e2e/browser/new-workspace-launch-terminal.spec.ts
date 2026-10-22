@@ -135,7 +135,7 @@ test.describe("New workspace: launching a terminal", () => {
       await selectProfile(BARE_PROFILE);
       await expect(terminalPromptInput(page)).toHaveCount(0);
       await selectProfile(PROMPT_PROFILE);
-      await expect(terminalPromptInput(page)).toHaveValue(prompt);
+      await expect(terminalPromptInput(page)).toHaveAttribute("data-markdown", prompt);
       await expect(fullscreen).toBeVisible();
     });
 
@@ -144,14 +144,17 @@ test.describe("New workspace: launching a terminal", () => {
       await expect(fullscreen).toHaveCount(0);
       await selectProfile(BARE_PROFILE);
       await selectProfile(PROMPT_PROFILE);
-      await expect(terminalPromptInput(page)).toHaveValue("Short draft");
+      await expect(terminalPromptInput(page)).toHaveAttribute("data-markdown", "Short draft");
       await expect(fullscreen).toHaveCount(0);
       await terminalPromptInput(page).press("End");
       await terminalPromptInput(page).press("Shift+Enter");
       await terminalPromptInput(page).pressSequentially("Second");
       await terminalPromptInput(page).press("Shift+Enter");
       await terminalPromptInput(page).pressSequentially("Third");
-      await expect(terminalPromptInput(page)).toHaveValue("Short draft\nSecond\nThird");
+      await expect(terminalPromptInput(page)).toHaveAttribute(
+        "data-markdown",
+        "Short draft\nSecond\nThird",
+      );
       await expect(fullscreen).toBeVisible();
     });
   });
@@ -266,7 +269,7 @@ test.describe("New workspace: fullscreen composer across the compact breakpoint"
       await exitComposerFullscreen(page);
       await expectNewWorkspaceHeaderVisible(page);
       await expect(projectPicker).toBeVisible();
-      await expect(terminalPromptInput(page)).toHaveValue(prompt);
+      await expect(terminalPromptInput(page)).toHaveAttribute("data-markdown", prompt);
     });
   });
 });

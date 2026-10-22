@@ -280,7 +280,10 @@ export async function fillNewWorkspaceDraft(page: Page, draft: string): Promise<
 }
 
 export async function expectNewWorkspaceDraft(page: Page, draft: string): Promise<void> {
-  await expect(page.getByRole("textbox", { name: "Message agent..." })).toHaveValue(draft);
+  await expect(page.getByRole("textbox", { name: "Message agent..." })).toHaveAttribute(
+    "data-markdown",
+    draft,
+  );
 }
 
 export async function selectNewWorkspaceHost(page: Page, hostLabel: string): Promise<void> {

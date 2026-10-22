@@ -1291,7 +1291,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     paneFocusedRef.current = isPaneFocused;
     const [webTextArea, setWebTextArea] = useState<HTMLElement | null>(null);
     const appliedTextReplacementKeyRef = useRef(textReplacement.key);
-    const webTextareaRef = useRef<HTMLElement | null>(null);
     const updateLiveTextPresence = useCallback((text: string) => {
       const nextHasLiveText = text.trim().length > 0;
       if (hasLiveTextRef.current === nextHasLiveText) return;
@@ -1308,7 +1307,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       // deferred draft publication. Restore the editor from the live owner.
       input?.replaceText(valueRef.current, selectionRef.current);
       const element = getWebTextAreaImpl(input) as HTMLElement | null;
-      webTextareaRef.current = element;
       setWebTextArea(element);
     }, []);
     // Only mouse-driven UIs restore editing focus on navigation. Touch users return
@@ -1359,7 +1357,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const getLiveText = useCallback(() => valueRef.current, []);
     const composerHeight = useComposerHeight({
       getText: getLiveText,
-      textareaRef: webTextareaRef,
+      textarea: webTextArea,
       minHeight: MIN_INPUT_HEIGHT,
       maxHeight: maxInputHeight,
       onRenderedLinesChange: setRenderedLines,

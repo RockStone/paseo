@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { RefObject } from "react";
 import type { ComposerHeightResult } from "./height.types";
 
 interface ComposerHeightArgs {
   getText: () => string;
-  textareaRef: RefObject<HTMLElement | null>;
+  textarea: HTMLElement | null;
   minHeight: number;
   maxHeight: number;
   onRenderedLinesChange?: (lines: number) => void;
@@ -35,7 +34,7 @@ const COPIED_STYLES = [
 
 export function useComposerHeight({
   getText,
-  textareaRef,
+  textarea,
   minHeight,
   maxHeight,
   onRenderedLinesChange,
@@ -58,7 +57,7 @@ export function useComposerHeight({
   const measure = useCallback(
     (text: string) => {
       const mirror = mirrorRef.current;
-      const source = textareaRef.current;
+      const source = textarea;
       if (!mirror || !source || typeof window === "undefined") return;
       const sourceWidth = source.clientWidth;
       if (sourceWidth <= 0) return;
@@ -87,7 +86,7 @@ export function useComposerHeight({
         );
       setBoundedHeight(mirror.scrollHeight);
     },
-    [setBoundedHeight, textareaRef],
+    [setBoundedHeight, textarea],
   );
 
   useEffect(() => {
@@ -124,7 +123,7 @@ export function useComposerHeight({
   }, [maxHeight, minHeight, getText, measure, presentationKey]);
 
   useEffect(() => {
-    const source = textareaRef.current;
+    const source = textarea;
     if (!source || typeof ResizeObserver === "undefined") return;
     let previousWidth = source.clientWidth;
     let previousHeight = source.scrollHeight;
@@ -140,7 +139,7 @@ export function useComposerHeight({
     });
     observer.observe(source);
     return () => observer.disconnect();
-  }, [measure, textareaRef, presentationKey]);
+  }, [measure, textarea, presentationKey]);
 
   const onTextChange = useCallback(
     (_previousText: string, nextText: string) => measure(nextText),

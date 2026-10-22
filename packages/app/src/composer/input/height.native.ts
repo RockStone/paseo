@@ -1,10 +1,9 @@
 import { useMemo } from "react";
-import type { RefObject } from "react";
 import type { ComposerHeightResult } from "./height.types";
 
 interface ComposerHeightArgs {
   getText: () => string;
-  textareaRef: RefObject<unknown>;
+  textarea: unknown;
   minHeight: number;
   maxHeight: number;
   onRenderedLinesChange?: (lines: number) => void;

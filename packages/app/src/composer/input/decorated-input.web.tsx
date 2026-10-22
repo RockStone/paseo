@@ -37,6 +37,15 @@ const HOST_STYLE = { height: "100%", minWidth: 0 };
 const configuration = new Compartment();
 const externalEdit = Transaction.userEvent.of("input.complete");
 
+function boundedSelection(selection: { start: number; end: number }, length: number) {
+  // Restored drafts can retain a caret from a longer previous value. Match the
+  // native text input's bounds before handing that selection to CodeMirror.
+  return EditorSelection.range(
+    Math.max(0, Math.min(selection.start, length)),
+    Math.max(0, Math.min(selection.end, length)),
+  );
+}
+
 const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
   function DecoratedInput(props, ref) {
     const host = useRef<HTMLDivElement>(null);
@@ -81,15 +90,16 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
           const caret = selection ?? { start: text.length, end: text.length };
           view.dispatch({
             changes: { from: 0, to: view.state.doc.length, insert: text },
-            selection: EditorSelection.range(caret.start, caret.end),
+            selection: boundedSelection(caret, text.length),
             annotations: externalEdit,
           });
           replacing.current = false;
         },
-        setSelection: (selection) =>
-          editor.current?.dispatch({
-            selection: EditorSelection.range(selection.start, selection.end),
-          }),
+        setSelection: (selection) => {
+          const view = editor.current;
+          if (!view) return;
+          view.dispatch({ selection: boundedSelection(selection, view.state.doc.length) });
+        },
         reset: () => {
           const view = editor.current;
           if (!view) return;
