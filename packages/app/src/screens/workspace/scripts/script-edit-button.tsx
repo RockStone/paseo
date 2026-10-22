@@ -6,8 +6,6 @@ import { useTranslation } from "react-i18next";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
 import { useDropdownMenuClose } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Text } from "react-native";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import type { Theme } from "@/styles/theme";
 
@@ -43,31 +41,24 @@ export function ScriptEditButton({
   );
   const label = t("settings.project.scripts.editScript", { name });
   return (
-    <Tooltip delayDuration={300} enabledOnDesktop enabledOnMobile={false}>
-      <TooltipTrigger asChild>
-        <PressHighlight
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          testID={`script-edit-trigger-${name}`}
-          onPress={edit}
-          onHoverIn={enter}
-          onHoverOut={leave}
-          onFocus={focus}
-          onBlur={blur}
-          style={styles.button}
-        >
-          <View pointerEvents="none" style={reveal ? styles.hidden : styles.layer}>
-            {icon}
-          </View>
-          <View pointerEvents="none" style={reveal ? styles.layer : styles.hidden}>
-            <ThemedSettings size={14} uniProps={mutedColor} />
-          </View>
-        </PressHighlight>
-      </TooltipTrigger>
-      <TooltipContent>
-        <Text>{label}</Text>
-      </TooltipContent>
-    </Tooltip>
+    <PressHighlight
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={`script-edit-trigger-${name}`}
+      onPress={edit}
+      onHoverIn={enter}
+      onHoverOut={leave}
+      onFocus={focus}
+      onBlur={blur}
+      style={styles.button}
+    >
+      <View pointerEvents="none" style={reveal ? styles.hidden : styles.layer}>
+        {icon}
+      </View>
+      <View pointerEvents="none" style={reveal ? styles.layer : styles.hidden}>
+        <ThemedSettings size={14} uniProps={mutedColor} />
+      </View>
+    </PressHighlight>
   );
 }
 const styles = StyleSheet.create({

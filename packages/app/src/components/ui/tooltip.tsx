@@ -11,6 +11,7 @@ import {
   useState,
   type PropsWithChildren,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -19,7 +20,9 @@ import {
   Modal,
   Pressable,
   StatusBar,
+  Text,
   View,
+  type TextProps,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
@@ -445,6 +448,18 @@ export function TooltipTrigger({
   );
 }
 
+// Portaled text has no surrounding text color to inherit. Apply the default to
+// simple labels while keeping custom text styles and rich layouts intact.
+function tooltipChildren(children: ReactNode): ReactNode {
+  return Children.map(children, (child) => {
+    if (typeof child === "string" || typeof child === "number")
+      return <Text style={styles.text}>{child}</Text>;
+    if (isValidElement<TextProps>(child) && child.type === Text)
+      return cloneElement(child, { style: [styles.text, child.props.style] });
+    return child;
+  });
+}
+
 export function TooltipContent({
   children,
   side = "top",
@@ -544,7 +559,7 @@ export function TooltipContent({
           style={contentStyle}
           frameStyle={frameStyle}
         >
-          {children}
+          {tooltipChildren(children)}
         </FloatingSurface>
       </View>,
       getOverlayRoot(),
@@ -571,7 +586,7 @@ export function TooltipContent({
           style={contentStyle}
           frameStyle={frameStyle}
         >
-          {children}
+          {tooltipChildren(children)}
         </FloatingSurface>
       </Pressable>
     </Modal>
@@ -579,6 +594,7 @@ export function TooltipContent({
 }
 
 const styles = StyleSheet.create((theme) => ({
+  text: { color: theme.colors.foreground },
   overlay: { flex: 1 },
   portalOverlay: {
     position: "absolute",
