@@ -211,5 +211,12 @@ export function sidebarWorkspaceTarget(
   workspaceId: string,
 ): Extract<WorkspaceTabTarget, { kind: "agent" }> | undefined {
   const roots = workspaceRootAgentIds(agents, workspaceId);
-  return roots.length === 1 ? { kind: "agent", agentId: roots[0]! } : undefined;
+  // Detaching a later agent must not turn the original coordinator into a nested row
+  // or change what the workspace itself opens. Creation time survives archive/resume.
+  roots.sort(
+    (left, right) =>
+      agents.get(left)!.createdAt.getTime() - agents.get(right)!.createdAt.getTime() ||
+      left.localeCompare(right),
+  );
+  return roots.length > 0 ? { kind: "agent", agentId: roots[0]! } : undefined;
 }

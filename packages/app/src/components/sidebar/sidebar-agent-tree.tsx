@@ -17,6 +17,7 @@ import {
   buildSidebarThreadTree,
   createSidebarActivityOrderSelector,
   sidebarThreadKeys,
+  sidebarWorkspaceTarget,
   workspaceRootAgentIds,
   type SidebarThreadNode,
 } from "@/subagents/sidebar-tree";
@@ -108,9 +109,14 @@ export function useSidebarAgentTree({
       activityOrder,
     ],
   );
-  // A single coordinator is already represented by the workspace row. Keep named
-  // groups only when multiple independent coordinators would otherwise be ambiguous.
-  const visibleTree = roots.length === 1 ? tree.flatMap((node) => node.children) : tree;
+  // The workspace row represents its original coordinator, even after another root
+  // appears. Other independent roots keep their own named groups.
+  const primary = sidebarWorkspaceTarget(agents, workspaceId);
+  const visibleTree = tree.flatMap((node) =>
+    node.target.kind === "agent" && node.target.agentId === primary?.agentId
+      ? node.children
+      : [node],
+  );
   return { roots, visibleTree, providerSupported };
 }
 

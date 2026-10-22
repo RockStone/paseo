@@ -26,6 +26,38 @@ import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-
 
 const GITHUB_REMOTE_URL = "https://github.com/test-owner/test-repo.git";
 
+test("workspace row keeps its coordinator when a second independent root appears", async ({
+  page,
+}) => {
+  const workspace = await seedWorkspace({ repoPrefix: "workspace-primary-coordinator-" });
+  try {
+    const first = await seedParentWithSubagent(workspace, {
+      parentTitle: "Main coordinator",
+      childTitle: "Main task",
+    });
+    const second = await seedParentWithSubagent(workspace, {
+      parentTitle: "Independent agent",
+      childTitle: "Independent task",
+    });
+    await gotoAppShell(page);
+    await waitForSidebarWorkspace(page, workspace.workspaceId);
+    await expect(page.getByTestId(`sidebar-agent-tree-row-agent:${first.child.id}`)).toBeVisible();
+    await expect(
+      page.getByTestId(`sidebar-agent-tree-row-agent:${second.parent.id}`),
+    ).toBeVisible();
+    await expect(page.getByTestId(`sidebar-agent-tree-row-agent:${first.parent.id}`)).toHaveCount(
+      0,
+    );
+    await openWorkspaceFromSidebar(page, workspace.workspaceId);
+    await expect(page.getByTestId(`workspace-tab-agent_${first.parent.id}`)).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 function getWorkspaceRowTestId(workspaceId: string): string {
   return `sidebar-workspace-row-${getServerId()}:${workspaceId}`;
 }

@@ -4,7 +4,11 @@ import {
   groupSidebarProjects,
 } from "./sidebar-workspace-grouping";
 import type { SidebarProjectEntry } from "@/hooks/sidebar-workspaces-view-model";
-import { buildSidebarThreadTree, createSidebarActivityOrderSelector } from "./sidebar-tree";
+import {
+  buildSidebarThreadTree,
+  createSidebarActivityOrderSelector,
+  sidebarWorkspaceTarget,
+} from "./sidebar-tree";
 import { providerSubagentKey } from "./provider-store";
 import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messages";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -457,6 +461,36 @@ describe("selectSubagentsForParent", () => {
 });
 
 describe("sidebar coordinator tree", () => {
+  it("keeps the earliest workspace root as its target when another independent agent appears", () => {
+    const first = makeAgent({
+      id: "coordinator",
+      workspaceId: "workspace-a",
+      createdAt: new Date(0),
+    });
+    const second = makeAgent({
+      id: "independent",
+      workspaceId: "workspace-a",
+      createdAt: new Date(1),
+    });
+    const child = makeAgent({
+      id: "older-child",
+      workspaceId: "workspace-a",
+      createdAt: new Date(-1),
+      parentAgentId: first.id,
+    });
+    const agents = new Map([second, child, first].map((agent) => [agent.id, agent]));
+    expect(sidebarWorkspaceTarget(agents, "workspace-a")).toEqual({
+      kind: "agent",
+      agentId: first.id,
+    });
+    expect(sidebarWorkspaceTarget(new Map(agents), "missing")).toBeUndefined();
+    agents.set(first.id, { ...first, archivedAt: AGENT_TIMESTAMP });
+    expect(sidebarWorkspaceTarget(agents, "workspace-a")).toEqual({
+      kind: "agent",
+      agentId: second.id,
+    });
+    expect(child.parentAgentId).toBe(first.id);
+  });
   function tree(
     agents: Agent[],
     descriptors: ProviderSubagentDescriptorPayload[] = [],
