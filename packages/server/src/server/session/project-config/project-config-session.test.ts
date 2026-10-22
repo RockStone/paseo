@@ -6,7 +6,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import pino from "pino";
 import { ProjectConfigSession, type ProjectConfigSessionHost } from "./project-config-session.js";
 import { statPaseoConfigPath } from "../../../utils/paseo-config-file.js";
-import type { PersistedProjectRecord } from "../../workspace-registry.js";
+import type { PersistedProjectRecord, PersistedWorkspaceRecord } from "../../workspace-registry.js";
 import type { SessionOutboundMessage } from "../../messages.js";
 
 const tempDirs: string[] = [];
@@ -35,18 +35,79 @@ function projectRecord(rootPath: string, archivedAt: string | null = null): Pers
   };
 }
 
-function makeSubsystem(records: PersistedProjectRecord[]) {
+function makeSubsystem(
+  records: PersistedProjectRecord[],
+  workspaces: PersistedWorkspaceRecord[] = [],
+) {
   const emitted: SessionOutboundMessage[] = [];
   const host: ProjectConfigSessionHost = { emit: (msg) => emitted.push(msg) };
   const subsystem = new ProjectConfigSession({
     host,
     projectRegistry: { list: async () => records },
+    workspaceRegistry: { list: async () => workspaces },
     logger: pino({ level: "silent" }),
   });
   return { subsystem, emitted };
 }
 
 describe("ProjectConfigSession", () => {
+  test("edits the active workspace's config without changing the source checkout", async () => {
+    const source = makeRoot();
+    const checkout = makeRoot();
+    const project = projectRecord(source);
+    writeFileSync(
+      join(source, "paseo.json"),
+      JSON.stringify({ scripts: { dev: { command: "source" } } }),
+    );
+    writeFileSync(
+      join(checkout, "paseo.json"),
+      JSON.stringify({ scripts: { dev: { command: "worktree" } } }),
+    );
+    const workspace: PersistedWorkspaceRecord = {
+      workspaceId: "workspace",
+      projectId: project.projectId,
+      cwd: checkout,
+      kind: "worktree",
+      displayName: "Worktree",
+      worktreeRoot: checkout,
+      isPaseoOwnedWorktree: true,
+      mainRepoRoot: source,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+      archivedAt: null,
+    };
+    const { subsystem, emitted } = makeSubsystem([project], [workspace]);
+    await subsystem.handleReadProjectConfigRequest({
+      type: "read_project_config_request",
+      requestId: "read",
+      repoRoot: checkout,
+    });
+    expect(emitted[0]).toMatchObject({
+      type: "read_project_config_response",
+      payload: { ok: true, config: { scripts: { dev: { command: "worktree" } } } },
+    });
+    const revision = statPaseoConfigPath(checkout);
+    await subsystem.handleWriteProjectConfigRequest({
+      type: "write_project_config_request",
+      requestId: "write",
+      repoRoot: checkout,
+      expectedRevision: revision,
+      config: { scripts: { dev: { command: "updated" } } },
+    });
+    expect(emitted[1]).toMatchObject({
+      type: "write_project_config_response",
+      payload: { ok: true },
+    });
+    workspace.archivedAt = project.createdAt;
+    await subsystem.handleReadProjectConfigRequest({
+      type: "read_project_config_request",
+      requestId: "archived",
+      repoRoot: checkout,
+    });
+    expect(emitted[2]).toMatchObject({
+      payload: { ok: false, error: { code: "project_not_found" } },
+    });
+  });
   test("read reports when the saved worktree setup differs from HEAD", async () => {
     const repoRoot = makeRoot();
     execFileSync("git", ["init", "-b", "main"], { cwd: repoRoot });
