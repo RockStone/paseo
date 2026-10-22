@@ -116,7 +116,7 @@ export type UserComposerAttachment =
   | SessionReferenceAttachment
   | AgentProfileComposerAttachment
   | { kind: "image"; metadata: AttachmentMetadata; inlineMention?: string }
-  | { kind: "file"; attachment: UploadedFileAttachment }
+  | { kind: "file"; attachment: UploadedFileAttachment; inlineMention?: string }
   | WorkspaceFileComposerAttachment
   | PluginResourceComposerAttachment
   | { kind: "forge_issue"; item: ForgeSearchItem }

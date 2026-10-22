@@ -62,13 +62,21 @@ on hover instead of duplicate attachment cards. File mentions use `@` links and
 open through the workspace Files flow. Existing attachment-style drafts still
 work. Native input continues to edit plain Markdown.
 
+Escape dismisses the active `/`, `@`, `@@`, or `##` suggestion list without
+changing the draft. That trigger stays dismissed while you finish its text;
+leaving it and typing a new trigger opens suggestions again.
+
 Image previews brighten on hover and reveal a light, top-right delete control.
 Touch layouts keep the control visible. Adding or pasting an image inserts a
 numbered inline reference backed by its local attachment ID. Labels follow attachment order and renumber after an image is removed.
 Their attachment IDs stay unchanged; sent context maps each ID to the actual image
 order for providers that receive only image bytes. Deleting a thumbnail removes
-its inline reference too. These IDs identify attachments, not file paths or tool
-resources. Inline code uses the active theme's accent, surface, and border colors.
+its inline reference too. Uploaded non-image files insert `@File 1`, `@File 2`,
+and so on, numbered separately from images. Removing a file renumbers surviving
+file references. The outgoing mapping ties each label to its uploaded file path;
+saved messages retain the mapping as link details. These IDs identify attachments,
+not file paths or tool resources. Inline code uses the active theme's accent,
+surface, and border colors.
 
 Sidebar thread trees show recorded coordinator/child relationships, including
 nested managed and provider-native children. Click a thread to open it, or its

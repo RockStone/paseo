@@ -572,3 +572,63 @@ test("pasted images renumber remaining references without changing attachment ID
     await workspace.cleanup();
   }
 });
+
+test("uploaded file references insert at the caret, renumber, survive reload, and map sent files", async ({
+  page,
+}) => {
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "file-inline-ids-",
+    title: "File IDs",
+  });
+  const gate = await installDaemonWebSocketGate(page);
+  try {
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    await input.fill("Compare  please");
+    await selectComposerDraftRange(page, 8, 8);
+    await attachFileFromMenu(page, TEST_JSON);
+    await expect(input.locator(".composer-reference")).toHaveText("@File 1");
+    await expect(input).toHaveAttribute(
+      "data-markdown",
+      /^Compare \[@File 1\]\(attachment:\/\/[^)]+\)  please$/,
+    );
+    await dropFileOnComposer(page, { ...TEST_JSON, name: "second.json" });
+    await expect(input.locator(".composer-reference")).toHaveText(["@File 1", "@File 2"]);
+    const original = (await input.getAttribute("data-markdown")) ?? "";
+    const ids = [...original.matchAll(/attachment:\/\/([^)]*)\)/g)].map((match) => match[1]);
+    await page.getByTestId("composer-file-attachment-pill").first().hover();
+    await page.getByRole("button", { name: "Remove file attachment" }).first().click();
+    await expect(input.locator(".composer-reference")).toHaveText("@File 1");
+    await expect(input).toHaveAttribute("data-markdown", new RegExp(`attachment://${ids[1]}`));
+    await page.reload();
+    await expectComposerVisible(page);
+    await expect(input.locator(".composer-reference")).toHaveText("@File 1");
+    await page.getByTestId("composer-file-attachment-pill").hover();
+    await page.getByRole("button", { name: "Remove file attachment" }).click();
+    await expect(input.locator(".composer-reference")).toHaveCount(0);
+    await dropFileOnComposer(page, TEST_JSON);
+    await expect(input.locator(".composer-reference")).toHaveText("@File 1");
+    await input.press("Enter");
+    await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
+    const request = gate.getClientRequests("send_agent_message_request")[0]!;
+    expect(request.attachments).toEqual([
+      expect.objectContaining({ type: "uploaded_file", fileName: "config.json" }),
+      expect.objectContaining({
+        type: "text",
+        title: "File 1",
+        text: expect.stringMatching(
+          /^Attached file 1: attachment:\/\/[^\n]+\nFile name: config.json\nPath: /,
+        ),
+      }),
+    ]);
+    const sent = page.getByTestId("user-message").filter({ hasText: "Compare" }).last();
+    await expect(sent.getByRole("link", { name: "@File 1", exact: true })).toBeVisible();
+    await expect(sent).not.toContainText("Attached file 1:");
+    await sent.getByRole("link", { name: "@File 1", exact: true }).hover();
+    await expect(page.getByTestId("message-reference-details")).toContainText("config.json");
+    await page.screenshot({ path: "/tmp/paseoi-r79-file-reference.png" });
+  } finally {
+    await workspace.cleanup();
+  }
+});

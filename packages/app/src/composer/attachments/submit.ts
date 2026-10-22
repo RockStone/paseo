@@ -1,4 +1,4 @@
-import { imageReferenceContext } from "./image-reference";
+import { fileReferenceContext, imageReferenceContext } from "./attachment-reference";
 import { sessionReferenceToAgentAttachment } from "@/attachments/session-reference";
 import { profileReferenceToAgentAttachment } from "@/agent-profiles/profile-reference";
 import type { ComposerAttachment } from "@/attachments/types";
@@ -39,6 +39,7 @@ export function splitComposerAttachmentsForSubmit(
 } {
   const images: ImageAttachment[] = [];
   const agentAttachments: AgentAttachment[] = [];
+  let filePosition = 0;
   // COMPAT(githubAttachmentKinds): emit legacy GitHub attachments for daemons
   // predating forge-neutral attachments. Remove after 2027-01-17 once the
   // supported daemon floor is >= v0.2.0.
@@ -66,7 +67,10 @@ export function splitComposerAttachmentsForSubmit(
     }
 
     if (attachment.kind === "file") {
+      filePosition++;
       agentAttachments.push(attachment.attachment);
+      if (attachment.inlineMention)
+        agentAttachments.push(fileReferenceContext(attachment, filePosition));
       continue;
     }
 

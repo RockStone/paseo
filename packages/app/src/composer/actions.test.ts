@@ -1,4 +1,9 @@
-import { addImageReferences, renumberImageReferences } from "./attachments/image-reference";
+import {
+  addFileReferences,
+  addImageReferences,
+  renumberImageReferences,
+  renumberFileReferences,
+} from "./attachments/attachment-reference";
 import { messageReferenceDetails } from "@/attachments/reference-details";
 import { formatInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
@@ -1338,6 +1343,67 @@ describe("sent inline reference details", () => {
     expect(messageReferenceDetails("An older message", [attachment]).visibleAttachments).toEqual([
       attachment,
     ]);
+  });
+});
+
+describe("inline uploaded file references", () => {
+  function file(id: string): Extract<UserComposerAttachment, { kind: "file" }> {
+    return {
+      kind: "file",
+      attachment: {
+        type: "uploaded_file",
+        id,
+        fileName: `${id}.txt`,
+        path: `/uploads/${id}.txt`,
+        mimeType: "text/plain",
+        size: 8,
+      },
+    };
+  }
+  it("numbers files independently, renumbers after removal, and persists stable identities", () => {
+    const images = addImageReferences([], [imageWithId("image")]);
+    const files = addFileReferences(images, [file("a"), file("b")]);
+    expect(files.map((item) => item.inlineMention)).toEqual([
+      "[@File 1](attachment://a)",
+      "[@File 2](attachment://b)",
+    ]);
+    const text = `Compare ${files[0]!.inlineMention} and ${files[1]!.inlineMention} with ${images[0]!.inlineMention}.`;
+    const result = renumberFileReferences({
+      attachments: [...images, files[1]!],
+      removed: files[0]!.attachment,
+      text,
+      selection: { start: text.length, end: text.length },
+    });
+    expect(result.text).toBe(
+      "Compare  and [@File 1](attachment://b) with [@Image 1](attachment://image).",
+    );
+    expect(result.selection).toEqual({ start: result.text.length, end: result.text.length });
+    const survivor = result.attachments[1]!;
+    expect(
+      UserComposerAttachmentSchema.parse(
+        JSON.parse(JSON.stringify(normalizeComposerAttachment(survivor))),
+      ),
+    ).toEqual(survivor);
+    expect(addFileReferences(result.attachments, [file("c")])[0]!.inlineMention).toBe(
+      "[@File 2](attachment://c)",
+    );
+  });
+  it("sends an unambiguous file mapping while retaining the actual uploaded file", () => {
+    const [reference] = addFileReferences([], [file("a")]);
+    const wire = splitComposerAttachmentsForSubmit([reference!]);
+    expect(wire.images).toEqual([]);
+    expect(wire.attachments).toEqual([
+      file("a").attachment,
+      {
+        type: "text",
+        mimeType: "text/plain",
+        title: "File 1",
+        text: "Attached file 1: attachment://a\nFile name: a.txt\nPath: /uploads/a.txt",
+      },
+    ]);
+    const details = messageReferenceDetails(reference!.inlineMention, wire.attachments);
+    expect(details.visibleAttachments).toEqual([file("a").attachment]);
+    expect(details.details.get("attachment://a")?.text).toContain("/uploads/a.txt");
   });
 });
 

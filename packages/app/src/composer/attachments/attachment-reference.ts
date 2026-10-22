@@ -1,7 +1,7 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Nodes } from "mdast";
 import type { AttachmentMetadata, UserComposerAttachment } from "@/attachments/types";
-import type { AgentAttachment } from "@getpaseo/protocol/messages";
+import type { AgentAttachment, UploadedFileAttachment } from "@getpaseo/protocol/messages";
 
 export function addImageReferences(
   current: readonly UserComposerAttachment[],
@@ -18,20 +18,44 @@ export function addImageReferences(
   });
 }
 
-export function renumberImageReferences(input: {
+type FileAttachment = Extract<UserComposerAttachment, { kind: "file" }>;
+
+export function addFileReferences(
+  current: readonly UserComposerAttachment[],
+  files: readonly FileAttachment[],
+) {
+  let number = current.filter((attachment) => attachment.kind === "file").length;
+  return files.map((file) => ({
+    ...file,
+    inlineMention: `[@File ${++number}](attachment://${encodeURIComponent(file.attachment.id)})`,
+  }));
+}
+
+interface RenumberInput {
   attachments: readonly UserComposerAttachment[];
-  removed: AttachmentMetadata;
   text: string;
   selection: { start: number; end: number };
-}) {
-  const removedUrl = `attachment://${encodeURIComponent(input.removed.id)}`;
+}
+
+export function renumberImageReferences(input: RenumberInput & { removed: AttachmentMetadata }) {
+  return renumberReferences({ ...input, kind: "image", removedId: input.removed.id });
+}
+
+export function renumberFileReferences(input: RenumberInput & { removed: UploadedFileAttachment }) {
+  return renumberReferences({ ...input, kind: "file", removedId: input.removed.id });
+}
+
+function renumberReferences(input: RenumberInput & { kind: "image" | "file"; removedId: string }) {
+  const removedUrl = `attachment://${encodeURIComponent(input.removedId)}`;
   const references = new Map<string, string>();
+  const label = input.kind === "image" ? "Image" : "File";
   let number = 0;
   const attachments = input.attachments.map((attachment) => {
-    if (attachment.kind !== "image") return attachment;
+    if (attachment.kind !== input.kind) return attachment;
     number++;
-    const url = `attachment://${encodeURIComponent(attachment.metadata.id)}`;
-    const inlineMention = `[@Image ${number}](${url})`;
+    const id = attachment.kind === "image" ? attachment.metadata.id : attachment.attachment.id;
+    const url = `attachment://${encodeURIComponent(id)}`;
+    const inlineMention = `[@${label} ${number}](${url})`;
     references.set(url, inlineMention);
     return attachment.inlineMention ? { ...attachment, inlineMention } : attachment;
   });
@@ -41,7 +65,7 @@ export function renumberImageReferences(input: {
       const generatedLabel =
         node.children.length === 1 &&
         node.children[0]?.type === "text" &&
-        /^@Image \d+$/.test(node.children[0].value);
+        /^@(Image|File) \d+$/.test(node.children[0].value);
       let replacement: string | undefined;
       if (node.url === removedUrl) replacement = "";
       else if (generatedLabel) replacement = references.get(node.url);
@@ -89,5 +113,17 @@ export function imageReferenceContext(
     mimeType: "text/plain",
     title: attachment.inlineMention?.split("]")[0].slice(2) ?? "Image",
     text: `Attached image ${position}: attachment://${encodeURIComponent(attachment.metadata.id)}`,
+  };
+}
+
+export function fileReferenceContext(
+  attachment: FileAttachment,
+  position: number,
+): Extract<AgentAttachment, { type: "text" }> {
+  return {
+    type: "text",
+    mimeType: "text/plain",
+    title: attachment.inlineMention?.split("]")[0].slice(2) ?? "File",
+    text: `Attached file ${position}: attachment://${encodeURIComponent(attachment.attachment.id)}\nFile name: ${attachment.attachment.fileName}\nPath: ${attachment.attachment.path}`,
   };
 }

@@ -1,4 +1,9 @@
-import { addImageReferences, renumberImageReferences } from "./attachments/image-reference";
+import {
+  addFileReferences,
+  addImageReferences,
+  renumberFileReferences,
+  renumberImageReferences,
+} from "./attachments/attachment-reference";
 import { getInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
   createSessionContextAttachment,
@@ -1535,14 +1540,10 @@ function ComposerContentImpl({
   >(null);
   const onSubmitMessageRef = useRef(onSubmitMessage);
 
-  const latestImageAttachments = useRef(attachments);
-  latestImageAttachments.current = attachments;
-  const addImages = useCallback(
-    (images: ImageAttachment[]) => {
-      if (images.length === 0) return;
-      const references = addImageReferences(latestImageAttachments.current, images);
-      latestImageAttachments.current = [...latestImageAttachments.current, ...references];
-      setSelectedAttachments((prev) => [...prev, ...references]);
+  const latestAttachments = useRef(attachments);
+  latestAttachments.current = attachments;
+  const insertAttachmentReferences = useCallback(
+    (references: { inlineMention: string }[]) => {
       const snapshot = messageInputRef.current?.getInputSnapshot() ?? {
         text: textSource.getSnapshot(),
         selection: { start: textSource.getSnapshot().length, end: textSource.getSnapshot().length },
@@ -1555,14 +1556,27 @@ function ComposerContentImpl({
       const caret = before.length + insertion.length;
       replaceUserInput(before + insertion + after, { start: caret, end: caret });
     },
-    [replaceUserInput, setSelectedAttachments, textSource],
+    [replaceUserInput, textSource],
   );
-
-  const addFiles = useCallback(
-    (files: UserComposerAttachment[]) => {
-      setSelectedAttachments((prev) => [...prev, ...files]);
+  const addImages = useCallback(
+    (images: ImageAttachment[]) => {
+      if (images.length === 0) return;
+      const references = addImageReferences(latestAttachments.current, images);
+      latestAttachments.current = [...latestAttachments.current, ...references];
+      setSelectedAttachments((prev) => [...prev, ...references]);
+      insertAttachmentReferences(references);
     },
-    [setSelectedAttachments],
+    [setSelectedAttachments, insertAttachmentReferences],
+  );
+  const addFiles = useCallback(
+    (files: Extract<UserComposerAttachment, { kind: "file" }>[]) => {
+      if (files.length === 0) return;
+      const references = addFileReferences(latestAttachments.current, files);
+      latestAttachments.current = [...latestAttachments.current, ...references];
+      setSelectedAttachments((prev) => [...prev, ...references]);
+      insertAttachmentReferences(references);
+    },
+    [setSelectedAttachments, insertAttachmentReferences],
   );
 
   const focusInput = useCallback(() => {
@@ -2046,7 +2060,7 @@ function ComposerContentImpl({
       }
       const removed = selectedAttachments[index];
       const attachmentIndex = attachments.findIndex((attachment) => attachment === removed);
-      if (removed?.kind === "image") {
+      if (removed?.kind === "image" || removed?.kind === "file") {
         const snapshot = messageInputRef.current?.getInputSnapshot() ?? {
           text: textSource.getSnapshot(),
           selection: {
@@ -2054,16 +2068,24 @@ function ComposerContentImpl({
             end: textSource.getSnapshot().length,
           },
         };
-        const result = renumberImageReferences({
-          ...snapshot,
-          attachments: removeComposerAttachmentAtIndex({
-            attachments,
-            index: attachmentIndex,
-            deleteAttachments,
-          }),
-          removed: removed.metadata,
+        const remaining = removeComposerAttachmentAtIndex({
+          attachments,
+          index: attachmentIndex,
+          deleteAttachments,
         });
-        latestImageAttachments.current = result.attachments;
+        const result =
+          removed.kind === "image"
+            ? renumberImageReferences({
+                ...snapshot,
+                attachments: remaining,
+                removed: removed.metadata,
+              })
+            : renumberFileReferences({
+                ...snapshot,
+                attachments: remaining,
+                removed: removed.attachment,
+              });
+        latestAttachments.current = result.attachments;
         setSelectedAttachments(result.attachments);
         replaceUserInput(result.text, result.selection);
         return;
