@@ -1,5 +1,57 @@
 import { describe, expect, it, vi } from "vitest";
-import { runCreateTerminalWorkspace } from "./new-workspace-terminal";
+import { runCreateScriptWorkspace, runCreateTerminalWorkspace } from "./new-workspace-terminal";
+
+describe("runCreateScriptWorkspace", () => {
+  it("runs the configured script in the created workspace without creating an agent", async () => {
+    const ensureWorkspace = vi.fn().mockResolvedValue({
+      id: "worktree-workspace",
+      workspaceDirectory: "/worktrees/preview",
+    });
+    const startScript = vi.fn().mockResolvedValue({ terminalId: "script-terminal", error: null });
+    const navigate = vi.fn();
+    await runCreateScriptWorkspace({
+      cwd: "/repo",
+      scriptName: "preview",
+      ensureWorkspace,
+      startScript,
+      startFailedMessage: "Could not start preview",
+      serverId: "host",
+      navigate,
+    });
+    expect(ensureWorkspace).toHaveBeenCalledWith({
+      cwd: "/repo",
+      prompt: "",
+      attachments: [],
+      withInitialAgent: false,
+    });
+    expect(startScript).toHaveBeenCalledWith("worktree-workspace", "preview");
+    expect(navigate).toHaveBeenCalledWith("host", "worktree-workspace", {
+      kind: "terminal",
+      terminalId: "script-terminal",
+    });
+  });
+
+  it.each([
+    { terminalId: null, error: "Configured command failed" },
+    { terminalId: null, error: null },
+  ])("keeps the create page when the script cannot start: %j", async (result) => {
+    const navigate = vi.fn();
+    await expect(
+      runCreateScriptWorkspace({
+        cwd: "/repo",
+        scriptName: "preview",
+        ensureWorkspace: vi
+          .fn()
+          .mockResolvedValue({ id: "workspace", workspaceDirectory: "/repo" }),
+        startScript: vi.fn().mockResolvedValue(result),
+        startFailedMessage: "Could not start preview",
+        serverId: "host",
+        navigate,
+      }),
+    ).rejects.toThrow(result.error ?? "Could not start preview");
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});
 
 function createRecordingNavigate() {
   const recorded: Array<{ serverId: string; workspaceId: string; target: unknown }> = [];

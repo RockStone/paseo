@@ -34,7 +34,7 @@ import { resolveTerminalProfiles } from "@getpaseo/protocol/terminal-profiles";
 import type { TerminalProfile } from "@getpaseo/protocol/messages";
 import { resolveLaunchTarget, type LaunchTarget } from "@/new-workspace-launch/target";
 import { useTerminalComposerState } from "@/new-workspace-launch/composer-state";
-import { runCreateTerminalWorkspace } from "./new-workspace-terminal";
+import { runCreateScriptWorkspace, runCreateTerminalWorkspace } from "./new-workspace-terminal";
 import {
   useHostRuntimeClient,
   useHostRuntimeConnectionStatuses,
@@ -1365,6 +1365,56 @@ export function NewWorkspaceScreen({
     ],
   );
 
+  const scriptLaunchPending = useRef(false);
+  const handleRunScript = useCallback(
+    async (scriptName: string) => {
+      if (isPending || scriptLaunchPending.current) return;
+      scriptLaunchPending.current = true;
+      setPendingAction("terminal");
+      setErrorMessage(null);
+      try {
+        await updateFormPreferences({ launchTarget });
+        let outcome: SubmitOutcome = "background";
+        await runCreateScriptWorkspace({
+          cwd: selectedSourceDirectory ?? "",
+          scriptName,
+          ensureWorkspace: async (request) => (await ensureWorkspace(request)).workspace,
+          startScript: (workspaceId, name) =>
+            withConnectedClient().startWorkspaceScript(workspaceId, name),
+          startFailedMessage: t("workspace.scripts.states.startFailed", { scriptName }),
+          serverId: selectedServerId,
+          navigate: (targetServerId, workspaceId, target) => {
+            if (!isStillOnCreateScreen()) return;
+            outcome = "navigated";
+            leaveFullscreen();
+            navigateToWorkspace({ serverId: targetServerId, workspaceId, target });
+          },
+        });
+        if (outcome === "background") setPendingAction(null);
+      } catch (error) {
+        const message = toErrorMessage(error);
+        setPendingAction(null);
+        setErrorMessage(message);
+        toast.error(message);
+      } finally {
+        scriptLaunchPending.current = false;
+      }
+    },
+    [
+      ensureWorkspace,
+      isPending,
+      isStillOnCreateScreen,
+      launchTarget,
+      leaveFullscreen,
+      selectedServerId,
+      selectedSourceDirectory,
+      t,
+      toast,
+      updateFormPreferences,
+      withConnectedClient,
+    ],
+  );
+
   const handleSubmitTerminalLaunch = useCallback(async () => {
     try {
       setErrorMessage(null);
@@ -1517,6 +1567,7 @@ export function NewWorkspaceScreen({
       onChange: setManualLaunchTarget,
       profiles: terminalProfiles,
       disabled: isPending,
+      onRunScript: handleRunScript,
     },
   });
 

@@ -1,6 +1,7 @@
 import type { normalizeWorkspaceDescriptor } from "@/stores/session-store";
 import type { AgentAttachment } from "@getpaseo/protocol/messages";
 import type { WorkspaceTabTarget } from "@/workspace-tabs/model";
+import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import {
   profileTakesPrompt,
   substitutePrompt,
@@ -9,6 +10,34 @@ import {
 
 export interface CreatedTerminal {
   terminalId: string;
+}
+
+interface CreateScriptWorkspaceInput extends Pick<
+  CreateTerminalWorkspaceInput,
+  "cwd" | "ensureWorkspace" | "serverId" | "navigate"
+> {
+  scriptName: string;
+  startScript: DaemonClient["startWorkspaceScript"];
+  startFailedMessage: string;
+}
+
+export async function runCreateScriptWorkspace(input: CreateScriptWorkspaceInput): Promise<void> {
+  const workspace = await input.ensureWorkspace({
+    cwd: input.cwd,
+    // A script launch needs no model-generated workspace metadata.
+    prompt: "",
+    attachments: [],
+    withInitialAgent: false,
+  });
+  // Let the daemon resolve the workspace's config, environment and service lifecycle.
+  const result = await input.startScript(workspace.id, input.scriptName);
+  if (result.error || !result.terminalId) {
+    throw new Error(result.error ?? input.startFailedMessage);
+  }
+  input.navigate(input.serverId, workspace.id, {
+    kind: "terminal",
+    terminalId: result.terminalId,
+  });
 }
 
 export interface CreateTerminalWorkspaceInput {

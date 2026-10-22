@@ -524,6 +524,11 @@ The workspace Run menu reads `scripts` from `paseo.json` in the workspace direct
 the workspace has configured scripts. These are terminal commands, independent of agents;
 commit the file to keep the same commands across app restarts and checkouts.
 
+On **New workspace**, select **Terminal**, then use **Run** beside the project controls.
+Choosing a script creates the workspace and opens its script terminal without a chat agent.
+**Local** uses the source checkout; **New worktree** runs the config from the selected base
+branch, so commit `paseo.json` there before creating a worktree.
+
 For a repository whose Flutter app lives in `flutter/`, keep the workspace at the repository
 root and add this command to its `paseo.json`:
 

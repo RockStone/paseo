@@ -1,10 +1,14 @@
 import { expect, test, type Page } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
+import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import {
   expectNewWorkspaceDraft,
   fillNewWorkspaceDraft,
   openNewWorkspaceComposer,
+  selectWorkspaceIsolation,
+  selectNewWorkspaceProject,
+  loadSessionMessageReaders,
 } from "../support/helpers/new-workspace";
 import {
   composerLocator,
@@ -56,15 +60,200 @@ test.use({
   e2eDaemonConfig: { version: 1, daemon: { terminalProfiles: [PROMPT_PROFILE, BARE_PROFILE] } },
 });
 
+async function failFirstScriptRequests(page: Page, repoRoot: string): Promise<string[]> {
+  const frames = await loadSessionMessageReaders();
+  let readFailures = 1;
+  let launchFailures = 1;
+  const launchWorkspaceIds: string[] = [];
+  await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => {
+      const request = frames.client(message);
+      if (
+        request?.type === "read_project_config_request" &&
+        request.repoRoot === repoRoot &&
+        readFailures-- > 0
+      ) {
+        ws.send(
+          JSON.stringify({
+            type: "session",
+            message: {
+              type: "read_project_config_response",
+              payload: {
+                requestId: request.requestId,
+                repoRoot: request.repoRoot,
+                ok: false,
+                error: { code: "invalid_project_config" },
+              },
+            },
+          }),
+        );
+        return;
+      }
+      if (request?.type === "start_workspace_script_request") {
+        launchWorkspaceIds.push(request.workspaceId);
+        if (launchFailures-- > 0) {
+          ws.send(
+            JSON.stringify({
+              type: "session",
+              message: {
+                type: "start_workspace_script_response",
+                payload: {
+                  requestId: request.requestId,
+                  workspaceId: request.workspaceId,
+                  scriptName: request.scriptName,
+                  terminalId: null,
+                  error: "Preview launch failed; retry",
+                },
+              },
+            }),
+          );
+          return;
+        }
+      }
+      server.send(message);
+    });
+    server.onMessage((message) => ws.send(message));
+  });
+  return launchWorkspaceIds;
+}
+
 test.describe("New workspace: launching a terminal", () => {
   let workspace: SeededWorkspace;
 
   test.beforeEach(async () => {
-    workspace = await seedWorkspace({ repoPrefix: "launch-terminal-" });
+    workspace = await seedWorkspace({
+      repoPrefix: "launch-terminal-",
+      repo: {
+        paseoConfig: {
+          scripts: {
+            preview: { command: "printf 'configured-script-ready '; basename \"$PWD\"; exec cat" },
+          },
+        },
+      },
+    });
   });
 
   test.afterEach(async () => {
     await workspace?.cleanup();
+  });
+
+  for (const isolation of ["local", "worktree"] as const) {
+    test(`runs a configured script in a new ${isolation} workspace without a chat`, async ({
+      page,
+    }) => {
+      await gotoAppShell(page);
+      await waitForSidebarHydration(page);
+      await openNewWorkspaceComposer(page, {
+        projectKey: workspace.projectKey,
+        projectDisplayName: workspace.projectDisplayName,
+      });
+      await selectLaunchOption(page, "chat");
+      await expect(page.getByTestId("new-workspace-scripts-trigger")).toHaveCount(0);
+      await selectLaunchOption(page, "blank");
+      await selectWorkspaceIsolation(page, isolation);
+      await fillTerminalPrompt(page, "preserve my separate terminal draft");
+      await page.getByTestId("new-workspace-scripts-trigger").click();
+      await page.screenshot({ path: `/tmp/paseoi-r77-${isolation}-run.png` });
+      await page.getByTestId("new-workspace-script-preview").click();
+      await expectWorkspaceOpensWithTerminalTab(page);
+      await expectTerminalOutputContains(page, "configured-script-ready");
+      const { entries } = await workspace.client.fetchWorkspaces({
+        filter: { projectId: workspace.projectId },
+      });
+      const created = entries.filter((entry) => entry.id !== workspace.workspaceId);
+      expect(created).toHaveLength(1);
+      expect(created[0].workspaceDirectory === workspace.repoPath).toBe(isolation === "local");
+      const directoryName = created[0].workspaceDirectory.split("/").pop();
+      await expectTerminalOutputContains(page, `configured-script-ready ${directoryName}`);
+      const agents = await workspace.client.fetchAgents({ scope: "active" });
+      expect(
+        agents.entries.filter((entry) => entry.agent.workspaceId === created[0].id),
+      ).toHaveLength(0);
+    });
+  }
+
+  test("script config and launch failures retain the draft and retry the same workspace", async ({
+    page,
+  }) => {
+    const launchWorkspaceIds = await failFirstScriptRequests(page, workspace.repoPath);
+    await gotoAppShell(page);
+    await waitForSidebarHydration(page);
+    await openNewWorkspaceComposer(page, {
+      projectKey: workspace.projectKey,
+      projectDisplayName: workspace.projectDisplayName,
+    });
+    await selectLaunchOption(page, "blank");
+    await selectWorkspaceIsolation(page, "local");
+    const trigger = page.getByTestId("new-workspace-scripts-trigger");
+    await trigger.click();
+    await expect(page.getByText("paseo.json couldn't be parsed", { exact: true })).toBeVisible();
+    await page.getByTestId("new-workspace-scripts-retry").click();
+    await fillTerminalPrompt(page, "keep this typed command on failure");
+    await trigger.click();
+    await page.getByTestId("new-workspace-script-preview").click();
+    await expect(
+      page.getByText("Preview launch failed; retry", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(terminalPromptInput(page)).toHaveText("keep this typed command on failure");
+    await trigger.click();
+    await page.getByTestId("new-workspace-script-preview").click();
+    await expectWorkspaceOpensWithTerminalTab(page);
+    await expectTerminalOutputContains(page, "configured-script-ready");
+    expect(launchWorkspaceIds).toHaveLength(2);
+    expect(launchWorkspaceIds[1]).toBe(launchWorkspaceIds[0]);
+    const workspaces = await workspace.client.fetchWorkspaces({
+      filter: { projectId: workspace.projectId },
+    });
+    expect(workspaces.entries.filter((entry) => entry.id !== workspace.workspaceId)).toHaveLength(
+      1,
+    );
+  });
+
+  test("script choices follow the selected project and stay usable on a compact screen", async ({
+    page,
+  }) => {
+    const other = await seedWorkspace({ repoPrefix: "other-script-project-" });
+    try {
+      await gotoAppShell(page);
+      await waitForSidebarHydration(page);
+      await openNewWorkspaceComposer(page, {
+        projectKey: workspace.projectKey,
+        projectDisplayName: workspace.projectDisplayName,
+      });
+      await selectLaunchOption(page, "blank");
+      await page.getByTestId("new-workspace-scripts-trigger").click();
+      await expect(page.getByTestId("new-workspace-script-preview")).toBeVisible();
+      await page.screenshot({ path: "/tmp/paseoi-r77-desktop-run.png" });
+      await page.keyboard.press("Escape");
+      await selectNewWorkspaceProject(page, {
+        projectKey: other.projectKey,
+        projectDisplayName: other.projectDisplayName,
+      });
+      await selectLaunchOption(page, "blank");
+      await expect(page.getByTestId("new-workspace-scripts-trigger")).toHaveCount(0);
+      await selectNewWorkspaceProject(page, {
+        projectKey: workspace.projectKey,
+        projectDisplayName: workspace.projectDisplayName,
+      });
+      await selectLaunchOption(page, "blank");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await launchTrigger(page).click();
+      await page.getByRole("menuitem", { name: "Terminal", exact: true }).click();
+      const trigger = page.getByTestId("new-workspace-scripts-trigger");
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.click();
+      const option = page.getByRole("menuitem", { name: "preview", exact: true });
+      await expect(option).toBeVisible();
+      await page.screenshot({ path: "/tmp/paseoi-r77-compact-run.png" });
+      await option.click();
+      await expect(page.locator('[data-testid="terminal-surface"]:visible').first()).toBeVisible({
+        timeout: 30_000,
+      });
+      await expectTerminalOutputContains(page, "configured-script-ready");
+    } finally {
+      await other.cleanup();
+    }
   });
 
   test("a profile that takes a prompt launches with it as its trailing argument; a profile without the sentinel launches bare from Launch", async ({

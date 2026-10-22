@@ -18,6 +18,7 @@ import {
 } from "./field-trigger";
 import { branchIcon, folderIcon, ProjectIcon, pullRequestIcon } from "./icons";
 import { LaunchControl } from "./launch-control";
+import { RunScriptsControl } from "./run-scripts-control";
 import { AddProjectOption, IsolationOption, ProjectOption, RefOption } from "./options";
 
 type Isolation = "local" | "worktree";
@@ -75,6 +76,7 @@ export interface NewWorkspaceFormProps {
     onChange: (target: LaunchTarget) => void;
     profiles: readonly TerminalProfile[];
     disabled: boolean;
+    onRunScript: (name: string) => void;
   };
 }
 
@@ -157,6 +159,27 @@ function useRefRenderOption(itemById: Map<string, PickerItem>, isPending: boolea
   );
 }
 
+function NewWorkspaceScriptsControl({
+  launch,
+  base,
+  isPending,
+  variant,
+}: Pick<NewWorkspaceFormProps, "launch" | "base" | "isPending"> & {
+  variant: FieldTriggerVariant;
+}): ReactElement | null {
+  if (launch.target.kind !== "terminal" || !base.selectedSourceDirectory) return null;
+  return (
+    <RunScriptsControl
+      key={`${launch.serverId}:${base.selectedSourceDirectory}`}
+      serverId={launch.serverId}
+      repoRoot={base.selectedSourceDirectory}
+      variant={variant}
+      disabled={isPending}
+      onRun={launch.onRunScript}
+    />
+  );
+}
+
 /**
  * The New workspace setup fields, one trigger per field, each opening its picker. Compact: a stack
  * of full-width fields with the label inside. Desktop: one meta row of badges. Either way, a field
@@ -166,6 +189,14 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
   const { t } = useTranslation();
   const { isCompact, isPending, project, host, isolation, base, launch } = props;
   const variant: FieldTriggerVariant = isCompact ? "field" : "badge";
+  const scriptsField = (
+    <NewWorkspaceScriptsControl
+      launch={launch}
+      base={base}
+      isPending={isPending}
+      variant={variant}
+    />
+  );
   const projectPicker = useProjectPicker(project, isPending);
   const isolationPicker = useIsolationPicker(isolation, isPending);
   const renderRefOption = useRefRenderOption(base.itemById, isPending);
@@ -337,6 +368,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         {isolationField}
         {baseField}
         {launchField}
+        {scriptsField}
         {/* Isolation and Base come and go with the project; their rows stay reserved so the
             stack keeps one height and nothing above the composer jumps. */}
         {isolationField ? null : <View style={styles.reservedField} pointerEvents="none" />}
@@ -352,6 +384,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
       {hostField ? <View style={styles.desktopControl}>{hostField}</View> : null}
       {isolationField ? <View style={styles.desktopControl}>{isolationField}</View> : null}
       {baseField ? <View style={styles.desktopControl}>{baseField}</View> : null}
+      {scriptsField}
       <View style={styles.launchSpacer} pointerEvents="none" />
       {launchField}
       {pickers}
