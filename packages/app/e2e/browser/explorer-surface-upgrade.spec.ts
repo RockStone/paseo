@@ -10,6 +10,7 @@ import { test } from "../support/fixtures";
 import { gotoWorkspace } from "../support/helpers/launcher";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { waitForWorkspaceTabsVisible } from "../support/helpers/workspace-tabs";
+import { getServerId } from "../support/helpers/server-id";
 
 test("hidden agent sidebar previews from the left edge without pinning it", async ({ page }) => {
   const workspace = await seedWorkspace({ repoPrefix: "sidebar-edge-preview-" });
@@ -42,12 +43,22 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
   }
 });
 
-test("New workspace reveals the hidden sidebar from a non-draggable left edge", async ({
+test("New workspace sidebar preview supports navigation and dragging conversations", async ({
   page,
 }) => {
   const workspace = await seedWorkspace({ repoPrefix: "new-workspace-edge-preview-" });
   const modifier = process.platform === "darwin" ? "Meta" : "Control";
   try {
+    const agent = await workspace.client.createAgent({
+      provider: "mock",
+      cwd: workspace.repoPath,
+      workspaceId: workspace.workspaceId,
+      title: "Sidebar drag source",
+      modeId: "load-test",
+      model: "ten-second-stream",
+      initialPrompt: "emit 1 coalesced agent stream updates about preview drag context",
+    });
+    await workspace.client.waitForFinish(agent.id, 30_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoWorkspace(page, workspace.workspaceId);
     await page.getByTestId("sidebar-global-new-workspace").click();
@@ -69,6 +80,32 @@ test("New workspace reveals the hidden sidebar from a non-draggable left edge", 
       )
       .toBe("no-drag");
     await expectSidebarFooterAtBottom(page);
+    await page.getByTestId("sidebar-schedules").click();
+    await expect(page).toHaveURL(/\/schedules$/);
+    await page.mouse.move(1200, 450);
+    await edge.hover();
+    await expect(preview).toBeVisible();
+    await page.getByTestId("sidebar-global-new-workspace").click();
+    await expect(page).toHaveURL(/\/new(?:\?|$)/);
+    await page.mouse.move(1200, 450);
+    await edge.hover();
+    await expect(preview).toBeVisible();
+    const title = page.getByTestId(
+      `sidebar-session-drag-${getServerId()}:${workspace.workspaceId}`,
+    );
+    await expect(title).toHaveAttribute("draggable", "true");
+    const input = page.getByRole("textbox", { name: "Message agent..." }).first();
+    await title.dragTo(input);
+    await expect(
+      page.getByTestId("composer-chat-history-attachment-pill").filter({ visible: true }),
+    ).toBeVisible();
+    await expect(preview).toHaveCount(0);
+    await edge.hover();
+    await expect(preview).toBeVisible();
+    await page
+      .getByTestId(`sidebar-workspace-row-${getServerId()}:${workspace.workspaceId}`)
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/workspace/${workspace.workspaceId}`));
     await page.mouse.move(1200, 450);
     await expect(preview).toHaveCount(0);
     await expect(page.getByTestId("sidebar-sessions").filter({ visible: true })).toHaveCount(0);

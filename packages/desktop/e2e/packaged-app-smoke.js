@@ -840,6 +840,22 @@ async function assertMacSidebarLayout(options) {
   await assertAligned();
   await page.getByTestId("sidebar-global-new-workspace").click();
   await page.waitForURL((url) => url.pathname === "/new");
+  const backgroundDragRegions = await page.evaluate(
+    () =>
+      Array.from(document.querySelectorAll("*")).filter((node) => {
+        const rect = node.getBoundingClientRect();
+        return (
+          getComputedStyle(node).getPropertyValue("-webkit-app-region") === "drag" &&
+          rect.width > window.innerWidth / 2 &&
+          rect.height > 100
+        );
+      }).length,
+  );
+  if (backgroundDragRegions !== 0) {
+    throw new Error(
+      "New workspace background has a window-drag region underneath the sidebar preview",
+    );
+  }
   await page.keyboard.press("Meta+b");
   await edge.waitFor({ state: "visible" });
   const edgeRegion = await edge.evaluate((node) =>
@@ -851,10 +867,21 @@ async function assertMacSidebarLayout(options) {
   await edge.hover();
   await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
   await assertAligned();
+  await page.getByTestId("sidebar-schedules").click();
+  await page.waitForURL((url) => url.pathname === "/schedules");
+  await page.mouse.move(width - 40, 400);
+  await edge.hover();
+  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  await page.getByTestId("sidebar-global-new-workspace").click();
+  await page.waitForURL((url) => url.pathname === "/new");
   await page.mouse.move(width - 40, 400);
   await page.getByTestId("sidebar-edge-preview").waitFor({ state: "detached" });
+  await edge.hover();
+  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Sandbox smoke workspace", exact: true }).click();
+  await page.waitForURL((url) => url.pathname.includes("/workspace/"));
   console.log(
-    "Packaged desktop smoke: pinned and preview sidebars fill the window, reserve Mac controls, and reveal on New workspace",
+    "Packaged desktop smoke: sidebars fill the window and New workspace preview supports navigation without background drag regions",
   );
 }
 

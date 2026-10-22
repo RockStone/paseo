@@ -21,7 +21,6 @@ import {
   resolveComposerAttachmentSubmitFormat,
   splitComposerAttachmentsForSubmit,
 } from "@/composer/attachments/submit";
-import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useToast } from "@/contexts/toast-context";
@@ -1711,8 +1710,9 @@ function NewWorkspaceLayout({
       {fullscreen ? null : (
         <MenuHeader borderless rightContent={isCompact ? importSessionButton : undefined} />
       )}
+      {/* Keep Electron dragging in the header: a full-page drag region intercepts the
+          floating sidebar's native hover and pointer input despite its DOM z-index. */}
       <View style={styles.content}>
-        <TitlebarDragRegion />
         <ComposerDock centered={!isCompact} fullscreen={fullscreen}>
           {setupFields}
           <>
