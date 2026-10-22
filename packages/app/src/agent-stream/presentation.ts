@@ -58,8 +58,9 @@ export function createStreamPresentation() {
     if (
       item.kind === "assistant_message" &&
       item.text.length > 1000 &&
-      // Claude's restored instructions may start with an XML tag that Markdown hides.
-      /^(?:<system-reminder>\s*)?(?:Attribution for git commits and pull requests|This session is being continued from a previous conversation)/.test(
+      // Restored Claude instructions can lead with either attribution or a token-budget
+      // envelope; Markdown does not show the optional system-reminder wrapper.
+      /^(?:<system-reminder>\s*)?(?:Attribution for git commits and pull requests|This session is being continued from a previous conversation|<total_tokens>\s*\d+\s+tokens left\s*<\/total_tokens>)/.test(
         item.text.trimStart(),
       )
     )

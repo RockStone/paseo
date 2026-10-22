@@ -63,40 +63,46 @@ function withCompactionIntro(raw: string | Buffer, agentId: string, intro: strin
   return JSON.stringify(envelope);
 }
 
-test("folds restored compaction text after tool rows and allows expansion", async ({ page }) => {
-  const agent = await seedMockAgentWorkspace({
-    repoPrefix: "compaction-intro-",
-    title: "Compaction intro",
-    model: "ten-second-stream",
-  });
-  const intro =
-    "<system-reminder>\nAttribution for git commits and pull requests you create from here on.\n</system-reminder>\n\n" +
-    "Restored tools and context. ".repeat(2500);
-  try {
-    await agent.client.sendAgentMessage(agent.agentId, "Restore the previous context.");
-    await agent.client.waitForFinish(agent.agentId, 30_000);
-    await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
-      const server = ws.connectToServer();
-      ws.onMessage((message) => server.send(message));
-      server.onMessage((raw) => ws.send(withCompactionIntro(raw, agent.agentId, intro)));
+for (const format of ["attribution", "token-budget"] as const) {
+  test(`folds restored compaction text after tool rows and allows expansion (${format})`, async ({
+    page,
+  }) => {
+    const agent = await seedMockAgentWorkspace({
+      repoPrefix: "compaction-intro-",
+      title: "Compaction intro",
+      model: "ten-second-stream",
     });
-    await page.setViewportSize(WIDE_VIEWPORT);
-    await openAgentTimeline(page, agent);
-    const summary = page.getByRole("button", { name: "Compaction summary", exact: true }).last();
-    await expect(summary).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByText(/Restored tools and context/)).toHaveCount(0);
-    await summary.click();
-    await expect(summary).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByText(/Restored tools and context/)).toBeVisible();
-    await page.getByTestId("agent-chat-scroll").first().hover();
-    await page.mouse.wheel(0, -20_000);
-    await summary.click();
-    await expect(summary).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByText(/Restored tools and context/)).toHaveCount(0);
-  } finally {
-    await agent.cleanup();
-  }
-});
+    const intro =
+      (format === "attribution"
+        ? "<system-reminder>\nAttribution for git commits and pull requests you create from here on.\n</system-reminder>\n\n"
+        : "<total_tokens>15000000 tokens left</total_tokens>\n\nConcise output style is active.\n\n") +
+      "Restored tools and context. ".repeat(2500);
+    try {
+      await agent.client.sendAgentMessage(agent.agentId, "Restore the previous context.");
+      await agent.client.waitForFinish(agent.agentId, 30_000);
+      await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+        const server = ws.connectToServer();
+        ws.onMessage((message) => server.send(message));
+        server.onMessage((raw) => ws.send(withCompactionIntro(raw, agent.agentId, intro)));
+      });
+      await page.setViewportSize(WIDE_VIEWPORT);
+      await openAgentTimeline(page, agent);
+      const summary = page.getByRole("button", { name: "Compaction summary", exact: true }).last();
+      await expect(summary).toHaveAttribute("aria-expanded", "false");
+      await expect(page.getByText(/Restored tools and context/)).toHaveCount(0);
+      await summary.click();
+      await expect(summary).toHaveAttribute("aria-expanded", "true");
+      await expect(page.getByText(/Restored tools and context/)).toBeVisible();
+      await page.getByTestId("agent-chat-scroll").first().hover();
+      await page.mouse.wheel(0, -20_000);
+      await summary.click();
+      await expect(summary).toHaveAttribute("aria-expanded", "false");
+      await expect(page.getByText(/Restored tools and context/)).toHaveCount(0);
+    } finally {
+      await agent.cleanup();
+    }
+  });
+}
 
 function historyRowsDoNotOverlap(element: HTMLElement): boolean {
   const rows = [...element.querySelectorAll<HTMLElement>("[data-history-row-id]")]

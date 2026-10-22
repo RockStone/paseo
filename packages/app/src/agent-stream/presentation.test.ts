@@ -630,6 +630,42 @@ describe("timeline presentation", () => {
     });
     expect(result.tail).toEqual([message]);
   });
+
+  it.each(["live", "history"])("folds a restored token-budget envelope in %s", (source) => {
+    const summary = {
+      ...assistantMessage("token-intro", 2),
+      text:
+        "<total_tokens>15000000 tokens left</total_tokens>\n\n" +
+        "Concise output style is active.\n\n" +
+        "Called the Read tool with the following input: restored context.\n".repeat(100),
+    };
+    const result = createStreamPresentation()({
+      level: "detailed",
+      isTurnActive: source === "live",
+      transform: undefined,
+      tail: source === "history" ? [summary] : [],
+      head: source === "live" ? [summary] : [],
+    });
+    expect(rows(result)).toEqual([{ ...summary, isCompactionIntro: true }]);
+    expect(summary).not.toHaveProperty("isCompactionIntro");
+  });
+
+  it("keeps quoted token budgets, short envelopes and user messages visible", () => {
+    const envelope = "<total_tokens>15000000 tokens left</total_tokens>\n";
+    const items = [
+      { ...assistantMessage("quoted", 1), text: "Here is the example: " + envelope.repeat(30) },
+      { ...assistantMessage("short", 2), text: envelope },
+      { ...userMessage("user-envelope", 3), text: envelope + "User context. ".repeat(100) },
+    ];
+    const result = createStreamPresentation()({
+      level: "detailed",
+      isTurnActive: false,
+      transform: undefined,
+      tail: items,
+      head: [],
+    });
+    expect(result.tail).toEqual(items);
+  });
   const present = createStreamPresentation();
   function projectTimelineItems(items: StreamItem[], transform?: TimelineItemTransform) {
     return present({ ...presentationOptions, tail: items, head: [], transform }).tail;
