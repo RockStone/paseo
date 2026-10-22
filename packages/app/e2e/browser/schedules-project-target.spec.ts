@@ -9,6 +9,8 @@ import { expectNoTruncation } from "../support/helpers/no-truncation";
 import { expectSettled, expectStableHeight } from "../support/helpers/settled";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 import { buildSchedulesRoute } from "../../src/utils/host-routes";
+import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 
 const MOBILE_SHEET_VIEWPORT = { width: 390, height: 844 };
 
@@ -141,6 +143,55 @@ async function findScheduleIdByName(workspace: SeededWorkspace, name: string): P
   return schedule.id;
 }
 
+async function rejectFirstAgentSchedule(page: Page, agentId: string): Promise<void> {
+  let reject = true;
+  await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((raw) => {
+      const envelope = JSON.parse(raw.toString());
+      const request = envelope.message;
+      if (request?.type === "schedule/create" && request.target?.agentId === agentId && reject) {
+        reject = false;
+        ws.send(
+          JSON.stringify({
+            type: "session",
+            message: {
+              type: "schedule/create/response",
+              payload: {
+                requestId: request.requestId,
+                schedule: null,
+                error: "Schedule creation rejected for this check",
+              },
+            },
+          }),
+        );
+        return;
+      }
+      server.send(raw);
+    });
+    server.onMessage((raw) => ws.send(raw));
+  });
+}
+
+async function expectAgentScheduleExecuted(
+  client: DaemonClient,
+  scheduleId: string,
+  agentId: string,
+): Promise<void> {
+  const run = await client.scheduleRunOnce({ id: scheduleId });
+  expect(run.error).toBeNull();
+  // Schedule fires are system-injected turns, so they do not add a human prompt row.
+  await expect
+    .poll(
+      async () => {
+        const result = await client.scheduleLogs({ id: scheduleId });
+        return result.runs.map((entry) => ({ agentId: entry.agentId, status: entry.status }));
+      },
+      { timeout: 30_000 },
+    )
+    .toContainEqual({ agentId, status: "succeeded" });
+}
+
 test.describe("Schedules project target", () => {
   const cleanupTasks: Array<() => Promise<void>> = [];
 
@@ -150,6 +201,91 @@ test.describe("Schedules project target", () => {
     }
     cleanupTasks.length = 0;
   });
+
+  for (const layout of ["desktop", "compact"] as const) {
+    test(`creates an existing-agent watchdog with failure and retry (${layout})`, async ({
+      page,
+    }) => {
+      const workspace = await seedWorkspace({ repoPrefix: "schedule-existing-agent-", git: false });
+      cleanupTasks.push(() => workspace.cleanup());
+      const other = await seedWorkspace({ repoPrefix: "schedule-other-project-", git: false });
+      cleanupTasks.push(() => other.cleanup());
+      const create = (target: SeededWorkspace, title: string) =>
+        target.client.createAgent({
+          provider: "mock",
+          cwd: target.repoPath,
+          workspaceId: target.workspaceId,
+          title,
+          model: "ten-second-stream",
+          modeId: "load-test",
+        });
+      const agent = await create(workspace, "Project coordinator");
+      const archived = await create(workspace, "Archived agent");
+      await workspace.client.archiveAgent(archived.id);
+      const foreign = await create(other, "Another project's agent");
+      const scheduleName = `Existing watchdog ${layout} ${Date.now()}`;
+      cleanupTasks.push(() => deleteScheduleByName(workspace, scheduleName));
+      await rejectFirstAgentSchedule(page, agent.id);
+      await page.setViewportSize(
+        layout === "compact" ? MOBILE_SHEET_VIEWPORT : { width: 1440, height: 1000 },
+      );
+      await gotoAppShell(page);
+      await page.goto(buildSchedulesRoute());
+      await expect(page.getByTestId("schedules-empty-new")).toBeVisible();
+      await openNewScheduleSheet(page);
+      await page.getByTestId("schedule-project-trigger").click();
+      await page
+        .getByTestId(`schedule-project-option-${projectEquivalenceViewKey(workspace.projectKey)}`)
+        .click();
+      await expect(page.getByTestId("schedule-agent-trigger")).toContainText("New agent each run");
+      await page.getByTestId("schedule-agent-trigger").click();
+      await expect(page.getByTestId(`schedule-agent-option-${archived.id}`)).toHaveCount(0);
+      await expect(page.getByTestId(`schedule-agent-option-${foreign.id}`)).toHaveCount(0);
+      await page.getByTestId(`schedule-agent-option-${agent.id}`).click();
+      const selectedAgent = await page.getByTestId("schedule-agent-trigger").textContent();
+      await expect(page.getByTestId("schedule-model-trigger")).toHaveCount(0);
+      await expect(page.getByTestId("schedule-isolation-trigger")).toHaveCount(0);
+      await page.getByTestId("schedule-watchdog-prompt").click();
+      const promptInput = page.getByTestId("schedule-prompt-input");
+      const prompt = await promptInput.inputValue();
+      expect(prompt).toContain(workspace.repoPath);
+      expect(prompt).toContain("unarchived agents");
+      await page.getByTestId("schedule-name-input").fill(scheduleName);
+      await page.getByTestId("schedule-max-runs-input").fill("1");
+      await page.getByTestId("schedule-agent-trigger").click();
+      await page.getByTestId("schedule-agent-option-new").click();
+      await expect(page.getByTestId("schedule-model-trigger")).toBeVisible();
+      await expect(promptInput).toHaveValue(prompt);
+      await page.getByTestId("schedule-agent-trigger").click();
+      await page.getByTestId(`schedule-agent-option-${agent.id}`).click();
+      await page.getByTestId("schedule-form-submit").click({ trial: true });
+      await page.screenshot({ path: `/tmp/paseoi-r84-watchdog-form-${layout}.png` });
+      await page.getByTestId("schedule-form-submit").click();
+      await expect(
+        page.getByText("Schedule creation rejected for this check", { exact: true }),
+      ).toBeVisible();
+      await expect(promptInput).toHaveValue(prompt);
+      await expect(page.getByTestId("schedule-agent-trigger")).toHaveText(selectedAgent!);
+      await page.getByTestId("schedule-form-submit").click();
+      await expect(page.getByTestId("schedule-form-sheet")).toHaveCount(0);
+      const client = workspace.client as unknown as DaemonClient;
+      const result = await client.scheduleList();
+      const scheduled = result.schedules.find((entry) => entry.name === scheduleName);
+      expect(scheduled).toMatchObject({
+        prompt,
+        target: { type: "agent", agentId: agent.id },
+        maxRuns: 1,
+      });
+      await page.screenshot({ path: `/tmp/paseoi-r84-existing-watchdog-${layout}.png` });
+      if (layout === "desktop") {
+        await expectAgentScheduleExecuted(client, scheduled!.id, agent.id);
+        await workspace.client.waitForFinish(agent.id, 30_000);
+        const restored = await workspace.client.fetchAgent({ agentId: agent.id });
+        expect(restored).toMatchObject({ agent: { id: agent.id } });
+        expect(restored?.agent.archivedAt ?? null).toBeNull();
+      }
+    });
+  }
 
   test("dismisses the new schedule sheet without reopening", async ({ page }) => {
     const workspace = await seedWorkspace({ repoPrefix: "schedule-sheet-dismiss-", git: false });

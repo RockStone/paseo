@@ -4,6 +4,7 @@ import {
   buildProjectNameByCwd,
   buildScheduleProjectTargets,
   describeScheduleCwd,
+  buildScheduleAgentTargets,
 } from "./schedule-project-targets";
 
 function makeProject(overrides: Partial<ProjectSummary>): ProjectSummary {
@@ -34,6 +35,56 @@ function makeHost(overrides: Partial<ProjectSummary["hosts"][number]>) {
 }
 
 describe("buildScheduleProjectTargets", () => {
+  it("lists only unarchived agents in active workspaces of each host project, including worktrees", () => {
+    const projects = [
+      makeProject({
+        hosts: [
+          makeHost({
+            workspaces: [
+              {
+                id: "main",
+                name: "Main",
+                workspaceKind: "local_checkout",
+                status: "done",
+                currentBranch: null,
+                changeRequestNumber: null,
+                statusEnteredAt: null,
+              },
+              {
+                id: "worktree",
+                name: "Isolated task",
+                workspaceKind: "worktree",
+                status: "done",
+                currentBranch: null,
+                changeRequestNumber: null,
+                statusEnteredAt: null,
+              },
+            ],
+          }),
+        ],
+      }),
+    ];
+    const base = {
+      serverId: "host-1",
+      workspaceId: "main",
+      archivedAt: null,
+      title: "Coordinator",
+    };
+    const result = buildScheduleAgentTargets(projects, [
+      { ...base, id: "root" },
+      { ...base, id: "child", workspaceId: "worktree", title: "Child" },
+      { ...base, id: "archived", archivedAt: new Date() },
+      { ...base, id: "other-workspace", workspaceId: "other" },
+      { ...base, id: "other-host", serverId: "host-2" },
+    ]);
+    expect(result.map((entry) => entry.agentId)).toEqual(["root", "child"]);
+    expect(result[1]).toMatchObject({
+      serverId: "host-1",
+      projectOptionId: "project:host-1:proj",
+      label: "Child",
+      description: expect.stringContaining("Isolated task"),
+    });
+  });
   it("emits one target per online host with a repo root", () => {
     const targets = buildScheduleProjectTargets([
       makeProject({

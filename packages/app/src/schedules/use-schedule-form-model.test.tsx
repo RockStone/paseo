@@ -41,6 +41,47 @@ describe("useScheduleFormModel", () => {
     cleanup();
   });
 
+  it("retains the selected delivery target and draft while the active-agent directory refreshes", () => {
+    const projectTargets = [
+      projectTarget({ projectKey: "project-a", projectName: "Project A", cwd: "/repo/a" }),
+    ];
+    const openedSnapshot = {
+      ...createSnapshot(projectTargets),
+      defaults: {
+        ...createSnapshot(projectTargets).defaults,
+        agentTargets: [
+          {
+            agentId: "agent-a",
+            serverId: "host-a",
+            projectOptionId: PROJECT_A_ID,
+            label: "Coordinator",
+          },
+        ],
+      },
+    };
+    const { result, rerender } = renderHook(({ snapshot }) => useScheduleFormModel(snapshot), {
+      initialProps: { snapshot: openedSnapshot },
+    });
+    const model = result.current;
+    act(() => {
+      model.setProject(PROJECT_A_ID, { label: "Project A" });
+      model.setName("Watch current work");
+      model.setPrompt("Keep this draft");
+      model.setAgent("agent-a", { label: "Coordinator" });
+    });
+    rerender({
+      snapshot: { ...openedSnapshot, defaults: { ...openedSnapshot.defaults, agentTargets: [] } },
+    });
+    expect(result.current).toBe(model);
+    expect(model.getState()).toMatchObject({
+      selectedAgentId: "agent-a",
+      selectedAgentDisplay: { label: "Coordinator" },
+      name: "Watch current work",
+      prompt: "Keep this draft",
+      canSubmit: false,
+    });
+  });
+
   it("keeps one model instance and draft state while open snapshot inputs churn", () => {
     const firstTargets = [
       projectTarget({ projectKey: "project-a", projectName: "Project A", cwd: "/repo/a" }),

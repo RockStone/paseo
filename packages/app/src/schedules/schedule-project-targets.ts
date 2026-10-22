@@ -1,5 +1,6 @@
 import type { ProjectSummary } from "@/utils/projects";
 import { shortenPath } from "@/utils/shorten-path";
+import type { AgentDirectoryEntry } from "@/types/agent-directory";
 
 export const PROJECT_OPTION_PREFIX = "project:";
 
@@ -11,6 +12,50 @@ export interface ScheduleProjectTarget {
   projectName: string;
   cwd: string;
   isGit: boolean;
+}
+
+export interface ScheduleAgentTarget {
+  agentId: string;
+  serverId: string;
+  projectOptionId: string;
+  label: string;
+  description?: string;
+}
+
+/** Workspace membership includes delegated worktrees without guessing from filesystem paths. */
+export function buildScheduleAgentTargets(
+  projects: readonly ProjectSummary[],
+  agents: readonly Pick<
+    AgentDirectoryEntry,
+    "id" | "serverId" | "workspaceId" | "archivedAt" | "title"
+  >[],
+): ScheduleAgentTarget[] {
+  const workspaces = new Map<string, { projectOptionId: string; name: string }>();
+  for (const project of projects) {
+    for (const host of project.hosts) {
+      if (!host.isOnline) continue;
+      for (const workspace of host.workspaces) {
+        if (workspace.archivingAt) continue;
+        workspaces.set(`${host.serverId}:${workspace.id}`, {
+          projectOptionId: buildProjectOptionId(host.serverId, project.viewKey),
+          name: workspace.title || workspace.name,
+        });
+      }
+    }
+  }
+  return agents.flatMap((agent) => {
+    const workspace = workspaces.get(`${agent.serverId}:${agent.workspaceId}`);
+    if (agent.archivedAt || !workspace) return [];
+    return [
+      {
+        agentId: agent.id,
+        serverId: agent.serverId,
+        projectOptionId: workspace.projectOptionId,
+        label: agent.title?.trim() || "Untitled agent",
+        description: `${workspace.name} · ${agent.id.slice(0, 7)}`,
+      },
+    ];
+  });
 }
 
 export function buildProjectOptionId(serverId: string, projectViewKey: string): string {

@@ -186,6 +186,111 @@ function applyPreferences(form: ReturnType<typeof open>, preferences: FormPrefer
 }
 
 describe("schedule form model", () => {
+  it("targets an unarchived project agent without requiring new-agent provider settings", () => {
+    const form = open({
+      mode: "create",
+      defaults: { serverId: "host-a", projectTargets: PROJECT_TARGETS },
+    });
+    const agents = [
+      {
+        agentId: "agent-a",
+        serverId: "host-a",
+        projectOptionId: PROJECT_TARGETS[0]!.optionId,
+        label: "Coordinator",
+        description: "Workspace A",
+      },
+    ];
+    form.applyAgentTargets(agents);
+    form.setProject(PROJECT_TARGETS[0]!.optionId, { label: "Project A" });
+    form.setPrompt("Check current work.");
+    form.setAgent("agent-a", { label: "Coordinator", description: "Workspace A" });
+    expect(form.getState()).toMatchObject({
+      targetKind: "agent",
+      selectedAgentId: "agent-a",
+      canSubmit: true,
+      selectedAgentDisplay: { label: "Coordinator" },
+      disclosure: {
+        showProjectField: true,
+        showAgentField: true,
+        showModelField: false,
+        showIsolationField: false,
+        showArchiveOnFinishField: false,
+      },
+    });
+    form.applyAgentTargets([]);
+    expect(form.getState()).toMatchObject({
+      canSubmit: false,
+      selectedAgentId: "agent-a",
+      selectedAgentDisplay: { label: "Coordinator" },
+      agentTargetError: "Selected agent is no longer available.",
+    });
+    form.applyAgentTargets(agents);
+    expect(form.getState().canSubmit).toBe(true);
+    form.setHost("host-b");
+    expect(form.getState()).toMatchObject({
+      targetKind: "new-agent",
+      selectedAgentId: null,
+      prompt: "Check current work.",
+    });
+  });
+
+  it("does not select agents from another project and preserves drafts when changing delivery mode", () => {
+    const form = open({
+      mode: "create",
+      defaults: { serverId: "host-a", projectTargets: PROJECT_TARGETS },
+    });
+    form.applyAgentTargets([
+      {
+        agentId: "foreign",
+        serverId: "host-b",
+        projectOptionId: PROJECT_TARGETS[1]!.optionId,
+        label: "Other coordinator",
+      },
+    ]);
+    form.setProject(PROJECT_TARGETS[0]!.optionId, { label: "Project A" });
+    form.setPrompt("My draft");
+    form.setName("Watchdog");
+    form.applyProviderSnapshot("host-a", providerSnapshot(HOST_A_MODELS));
+    form.setModel("mock", "model-a");
+    form.setAgent("foreign", { label: "Other coordinator" });
+    expect(form.getState()).toMatchObject({
+      targetKind: "new-agent",
+      selectedAgentId: null,
+      canSubmit: true,
+    });
+    form.applyAgentTargets([
+      {
+        agentId: "local",
+        serverId: "host-a",
+        projectOptionId: PROJECT_TARGETS[0]!.optionId,
+        label: "Local",
+      },
+    ]);
+    form.setAgent("local", { label: "Local" });
+    form.setAgent(null, { label: "New agent each run" });
+    expect(form.getState()).toMatchObject({
+      targetKind: "new-agent",
+      selectedAgentId: null,
+      name: "Watchdog",
+      prompt: "My draft",
+      selectedModel: "model-a",
+    });
+  });
+
+  it("offers a generic project watchdog prompt without overwriting an existing draft", () => {
+    const form = open({
+      mode: "create",
+      defaults: { serverId: "host-a", projectTargets: PROJECT_TARGETS },
+    });
+    form.setProject(PROJECT_TARGETS[0]!.optionId, { label: "Project A" });
+    form.useWatchdogPrompt();
+    expect(form.getState().prompt).toContain("/repo/a");
+    expect(form.getState().prompt).toContain("unarchived agents");
+    expect(form.getState().prompt).toContain("authorization");
+    form.setPrompt("Keep my prompt");
+    form.useWatchdogPrompt();
+    expect(form.getState().prompt).toBe("Keep my prompt");
+  });
   it("opens edit from the schedule host snapshot and completes that host resolution", () => {
     const previous = open({
       mode: "edit",
@@ -351,6 +456,7 @@ describe("schedule form model", () => {
 
     expect(form.getState().disclosure).toEqual({
       showProjectField: true,
+      showAgentField: false,
       showModelField: false,
       showThinkingField: false,
       showModeField: false,
@@ -362,6 +468,7 @@ describe("schedule form model", () => {
 
     expect(form.getState().disclosure).toEqual({
       showProjectField: true,
+      showAgentField: true,
       showModelField: true,
       showThinkingField: false,
       showModeField: false,
@@ -374,6 +481,7 @@ describe("schedule form model", () => {
 
     expect(form.getState().disclosure).toEqual({
       showProjectField: true,
+      showAgentField: true,
       showModelField: true,
       showThinkingField: true,
       showModeField: true,

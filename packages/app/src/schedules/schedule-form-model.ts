@@ -27,7 +27,11 @@ import {
 import { buildProviderDefinitions } from "@/utils/provider-definitions";
 import { shortenPath } from "@/utils/shorten-path";
 import { normalizeScheduleFormCadence } from "./schedule-cadence-options";
-import { PROJECT_OPTION_PREFIX, type ScheduleProjectTarget } from "./schedule-project-targets";
+import {
+  PROJECT_OPTION_PREFIX,
+  type ScheduleProjectTarget,
+  type ScheduleAgentTarget,
+} from "./schedule-project-targets";
 
 export interface ScheduleFormDisplay {
   label: string;
@@ -47,6 +51,7 @@ export interface ScheduleFormSnapshot {
   defaults: {
     serverId?: string | null;
     projectTargets: readonly ScheduleProjectTarget[];
+    agentTargets?: readonly ScheduleAgentTarget[];
     preferences?: FormPreferences;
     timezone?: string;
   };
@@ -58,6 +63,7 @@ export interface ScheduleFormProviderSnapshot {
 
 export interface ScheduleDisclosureState {
   showProjectField: boolean;
+  showAgentField: boolean;
   showModelField: boolean;
   showThinkingField: boolean;
   showModeField: boolean;
@@ -91,6 +97,10 @@ export interface ScheduleFormState {
   submitCadence: CronCadence | undefined;
   hosts: ScheduleFormHost[];
   projectOptions: ScheduleFormProjectOption[];
+  agentOptions: ScheduleAgentTarget[];
+  selectedAgentId: string | null;
+  selectedAgentDisplay: ScheduleFormDisplay;
+  agentTargetError: string | null;
   selectedServerId: string | null;
   selectedProvider: AgentProvider | null;
   selectedModel: string;
@@ -124,10 +134,13 @@ export interface ScheduleFormModel {
   close: () => void;
   applyHosts: (hosts: readonly ScheduleFormHost[]) => void;
   applyProjectTargets: (targets: readonly ScheduleProjectTarget[]) => void;
+  applyAgentTargets: (targets: readonly ScheduleAgentTarget[]) => void;
   applyPreferences: (preferences: FormPreferences | undefined) => void;
   applyProviderSnapshot: (serverId: string, snapshot: ScheduleFormProviderSnapshot) => void;
   setHost: (serverId: string | null) => void;
   setProject: (optionId: string, display: ScheduleFormDisplay) => void;
+  setAgent: (agentId: string | null, display: ScheduleFormDisplay) => void;
+  useWatchdogPrompt: () => void;
   setModel: (provider: AgentProvider, modelId: string) => void;
   setThinking: (thinkingOptionId: string) => void;
   setSessionMode: (modeId: string) => void;
@@ -142,6 +155,8 @@ export interface ScheduleFormModel {
 
 const DEFAULT_CADENCE: ScheduleCadence = { type: "every", everyMs: 60 * 60 * 1000 };
 const DEFAULT_TIMEZONE = "UTC";
+const EMPTY_AGENT_TARGETS: readonly ScheduleAgentTarget[] = [];
+const NEW_AGENT_DISPLAY = { label: "New agent each run" };
 
 type ThinkingOption = NonNullable<AgentModelDefinition["thinkingOptions"]>[number];
 
@@ -380,6 +395,10 @@ function resolveTargetKind(snapshot: ScheduleFormSnapshot): ScheduleFormTargetKi
   return "new-agent";
 }
 
+function initialAgentTargetId(schedule: ScheduleFormSnapshot["schedule"]): string | null {
+  return schedule?.target.type === "agent" ? schedule.target.agentId : null;
+}
+
 function buildProviderSnapshotRequest(input: {
   targetKind: ScheduleFormTargetKind;
   selectedServerId: string | null;
@@ -512,7 +531,8 @@ function resolveEffectiveIsolation(input: {
 function resolveDisclosure(state: ScheduleFormState): ScheduleDisclosureState {
   if (state.targetKind === "agent") {
     return {
-      showProjectField: false,
+      showProjectField: state.mode === "create",
+      showAgentField: state.mode === "create",
       showModelField: false,
       showThinkingField: false,
       showModeField: false,
@@ -528,6 +548,7 @@ function resolveDisclosure(state: ScheduleFormState): ScheduleDisclosureState {
   const showModelField = hasProject;
   return {
     showProjectField,
+    showAgentField: state.mode === "create" && hasProject,
     showModelField,
     showThinkingField:
       showModelField && hasSelectedModel && state.availableThinkingOptions.length > 0,
@@ -544,7 +565,12 @@ function resolveDisclosure(state: ScheduleFormState): ScheduleDisclosureState {
 
 function resolveCanSubmit(state: ScheduleFormState): boolean {
   if (state.targetKind === "agent") {
-    return state.submitCadence !== undefined;
+    return state.mode === "edit"
+      ? state.submitCadence !== undefined
+      : state.submitCadence !== undefined &&
+          state.prompt.trim().length > 0 &&
+          Boolean(state.selectedServerId && state.selectedAgentId) &&
+          state.agentTargetError === null;
   }
   if (state.prompt.trim().length === 0) {
     return false;
@@ -568,6 +594,7 @@ function updateDerivedState(input: {
   state: ScheduleFormState;
   hosts: readonly ScheduleFormHost[];
   targets: readonly ScheduleProjectTarget[];
+  agentTargets?: readonly ScheduleAgentTarget[];
   providerEntries: readonly ProviderSnapshotEntry[];
 }): ScheduleFormState {
   const modeOptions = resolveModeOptions(input.providerEntries, input.state.selectedProvider);
@@ -596,10 +623,23 @@ function updateDerivedState(input: {
     serverId: input.state.selectedServerId,
     cwd: input.state.workingDir,
   });
+  const agentOptions = (input.agentTargets ?? EMPTY_AGENT_TARGETS).filter(
+    (agent) =>
+      agent.serverId === input.state.selectedServerId &&
+      agent.projectOptionId === projectTarget?.optionId,
+  );
+  const agentTargetError =
+    input.state.mode === "create" &&
+    input.state.selectedAgentId &&
+    !agentOptions.some((agent) => agent.agentId === input.state.selectedAgentId)
+      ? "Selected agent is no longer available."
+      : null;
   const nextState: ScheduleFormState = {
     ...input.state,
     hosts: [...input.hosts],
     projectOptions: buildProjectOptions(input.targets, input.state.selectedServerId),
+    agentOptions,
+    agentTargetError,
     projectDisplay: resolveProjectDisplay({
       targets: input.targets,
       serverId: input.state.selectedServerId,
@@ -661,6 +701,10 @@ function buildInitialState(snapshot: ScheduleFormSnapshot): ScheduleFormState {
     submitCadence: resolveInitialSubmitCadence(snapshot.schedule, initialCadence),
     hosts: [...snapshot.hosts],
     projectOptions: buildProjectOptions(snapshot.defaults.projectTargets, selectedServerId),
+    agentOptions: [],
+    selectedAgentId: initialAgentTargetId(snapshot.schedule),
+    selectedAgentDisplay: NEW_AGENT_DISPLAY,
+    agentTargetError: null,
     selectedServerId,
     selectedProvider: config?.provider ?? null,
     selectedModel: initialModel,
@@ -689,6 +733,7 @@ function buildInitialState(snapshot: ScheduleFormSnapshot): ScheduleFormState {
     providerSnapshotRequest,
     disclosure: {
       showProjectField: false,
+      showAgentField: false,
       showModelField: false,
       showThinkingField: false,
       showModeField: false,
@@ -702,6 +747,7 @@ function buildInitialState(snapshot: ScheduleFormSnapshot): ScheduleFormState {
     state,
     hosts: snapshot.hosts,
     targets: snapshot.defaults.projectTargets,
+    agentTargets: snapshot.defaults.agentTargets,
     providerEntries: [],
   });
 }
@@ -843,6 +889,7 @@ export function openScheduleForm(snapshot: ScheduleFormSnapshot): ScheduleFormMo
   let closed = false;
   let hosts = snapshot.hosts;
   let projectTargets = snapshot.defaults.projectTargets;
+  let agentTargets = snapshot.defaults.agentTargets ?? EMPTY_AGENT_TARGETS;
   let preferences = snapshot.defaults.preferences ?? null;
   const thinkingDrafts = new Map<string, string>();
   seedThinkingDrafts(thinkingDrafts, preferences);
@@ -870,6 +917,7 @@ export function openScheduleForm(snapshot: ScheduleFormSnapshot): ScheduleFormMo
       state: nextState,
       hosts,
       targets: projectTargets,
+      agentTargets,
       providerEntries,
     });
     for (const listener of listeners) {
@@ -965,6 +1013,11 @@ export function openScheduleForm(snapshot: ScheduleFormSnapshot): ScheduleFormMo
       projectTargets = nextTargets;
       publish(state);
     },
+    applyAgentTargets(nextTargets) {
+      if (closed || agentTargets === nextTargets) return;
+      agentTargets = nextTargets;
+      publish(state);
+    },
     applyPreferences(nextPreferences) {
       const normalizedPreferences = nextPreferences ?? null;
       if (closed || preferences === normalizedPreferences) {
@@ -1013,6 +1066,9 @@ export function openScheduleForm(snapshot: ScheduleFormSnapshot): ScheduleFormMo
         clearProviderSelection({
           ...state,
           selectedServerId: serverId,
+          selectedAgentId: null,
+          selectedAgentDisplay: NEW_AGENT_DISPLAY,
+          targetKind: "new-agent",
           workingDir: "",
           projectDisplay: null,
           selectedProjectOptionId: "",
@@ -1039,12 +1095,34 @@ export function openScheduleForm(snapshot: ScheduleFormSnapshot): ScheduleFormMo
         workingDir: target.cwd,
         projectDisplay: display,
         selectedProjectOptionId: target.optionId,
+        selectedAgentId: null,
+        selectedAgentDisplay: NEW_AGENT_DISPLAY,
+        targetKind: "new-agent" as const,
       };
       publish(providerScopeChanged ? clearProviderSelection(nextState) : nextState);
       if (!providerScopeChanged) {
         return;
       }
       requestProviderSnapshot(target.serverId, target.cwd);
+    },
+    setAgent(agentId, display) {
+      if (closed || snapshot.mode === "edit") return;
+      if (agentId && !state.agentOptions.some((agent) => agent.agentId === agentId)) return;
+      publish({
+        ...state,
+        targetKind: agentId ? "agent" : "new-agent",
+        selectedAgentId: agentId,
+        selectedAgentDisplay: display,
+        providerSnapshotRequest: null,
+      });
+      if (!agentId) requestProviderSnapshot(state.selectedServerId, state.workingDir);
+    },
+    useWatchdogPrompt() {
+      if (closed || state.prompt.trim() || !state.workingDir.trim()) return;
+      publish({
+        ...state,
+        prompt: `Project: ${state.workingDir}\n\nCheck this project's unarchived agents, including delegated workspaces, using their current status and recent activity. Do not rely only on finish notifications. Check pending permissions and reported background work. Avoid duplicate follow-ups and do not interrupt active work. If work is blocked or an idle agent needs to continue, investigate and send a focused follow-up within the authorization already given in this conversation. Verify completion evidence and handle finished work according to the existing instructions; report anything that needs an owner decision. Preserve all permission, merge, push, deployment, and destructive-action boundaries. If nothing needs attention, reply in one short line; otherwise briefly report actions, finished work, and blockers.`,
+      });
     },
     setModel(provider, modelId) {
       if (closed) {
