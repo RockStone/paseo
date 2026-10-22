@@ -9,6 +9,7 @@ export type KeyboardFocusScope =
 export type MessageInputKeyboardActionKind =
   | "focus"
   | "send"
+  | "paste-as-file"
   | "dictation-toggle"
   | "dictation-cancel"
   | "dictation-confirm"

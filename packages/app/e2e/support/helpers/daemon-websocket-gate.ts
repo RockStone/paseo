@@ -1,3 +1,4 @@
+import type { UploadedFileAttachment } from "@getpaseo/protocol/messages";
 import type { Page, WebSocketRoute } from "@playwright/test";
 import { daemonWsRoutePattern } from "./daemon-port";
 
@@ -13,6 +14,7 @@ export interface DirectoryRequestStartCounts {
 }
 
 interface ClientRequest {
+  temporary?: unknown;
   type?: unknown;
   direction?: unknown;
   subscribe?: unknown;
@@ -31,6 +33,7 @@ interface ClientRequest {
 interface ServerMessage {
   type?: unknown;
   payload?: {
+    file?: UploadedFileAttachment | null;
     initial?: {
       path?: unknown;
     };
@@ -337,6 +340,7 @@ export async function installDaemonWebSocketGate(page: Page) {
   const subscribedFilePaths = new Set<string>();
   const fileSubscriptionWaiters = new Map<string, () => void>();
   const observedFileUpdates = new Set<string>();
+  const uploadedFiles: UploadedFileAttachment[] = [];
   const fileUpdateWaiters = new Map<string, () => void>();
   let fileReadPathToHold: string | null = null;
   let heldFileReads: Array<() => void> = [];
@@ -376,6 +380,9 @@ export async function installDaemonWebSocketGate(page: Page) {
   };
 
   const observeFileMessage = (message: ServerMessage | null): void => {
+    if (message?.type === "file.upload.response" && message.payload?.file) {
+      uploadedFiles.push(message.payload.file);
+    }
     if (
       message?.type === "fs.file.subscribe.response" &&
       typeof message.payload?.initial?.path === "string"
@@ -630,6 +637,9 @@ export async function installDaemonWebSocketGate(page: Page) {
     restoreFresh(): void {
       reconnectWithFreshClient = true;
       acceptingConnections = true;
+    },
+    getUploadedFiles(): readonly UploadedFileAttachment[] {
+      return uploadedFiles;
     },
     holdNextClientRequest(type: string): void {
       heldClientRequestType = type;

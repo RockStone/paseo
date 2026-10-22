@@ -172,6 +172,13 @@ export const ar: TranslationResources = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "جارٍ إرفاق نص الحافظة…",
+      failed: "تعذر لصق النص كملف",
+      disconnected: "اتصل بالمضيف وحاول مرة أخرى.",
+      updateHost: "حدّث المضيف للصق النص كملف مؤقت.",
+      empty: "لا يوجد نص في الحافظة.",
+    },
     placeholders: {
       desktop: "أرسل رسالة إلى الوكيل أو ضع علامة على @files أو استخدم /commands و /skills",
       mobile: "الرسالة، @files ، /commands",
@@ -2479,6 +2486,7 @@ export const ar: TranslationResources = {
         toggleSettings: "تبديل الإعدادات",
         toggleFocusMode: "تبديل وضع التركيز",
         cycleTheme: "موضوع الدورة",
+        pasteTextAsFile: "لصق النص كملف",
         focusMessageInput: "التركيز على إدخال الرسالة",
         cycleAgentMode: "تبديل وضع الوكيل",
         toggleVoiceMode: "تبديل الوضع الصوتي",

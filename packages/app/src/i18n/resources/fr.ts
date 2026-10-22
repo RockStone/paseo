@@ -174,6 +174,13 @@ export const fr: TranslationResources = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "Ajout du texte du presse-papiers…",
+      failed: "Impossible de coller le texte en fichier",
+      disconnected: "Connectez-vous à l’hôte et réessayez.",
+      updateHost: "Mettez l’hôte à jour pour coller le texte en fichier temporaire.",
+      empty: "Le presse-papiers ne contient aucun texte.",
+    },
     placeholders: {
       desktop: "Écrivez à l’agent, mentionnez des @fichiers ou utilisez les /commandes et /skills",
       mobile: "Message, @fichiers, /commandes",
@@ -2533,6 +2540,7 @@ export const fr: TranslationResources = {
         toggleSettings: "Afficher/masquer les paramètres",
         toggleFocusMode: "Activer/désactiver le mode focus",
         cycleTheme: "Parcourir les thèmes",
+        pasteTextAsFile: "Coller le texte en fichier",
         focusMessageInput: "Aller à la zone de saisie",
         cycleAgentMode: "Parcourir les modes de l’agent",
         toggleVoiceMode: "Activer/désactiver le mode vocal",

@@ -785,6 +785,97 @@ async function stopCliDaemon({ appPath, env }) {
   });
 }
 
+async function assertClipboardAttachment({ page, text, shortcut, prefix }) {
+  const input = page.getByRole("textbox", { name: "Message agent..." });
+  await input.fill(prefix);
+  await input.press(shortcut);
+  await input.locator(".composer-reference").filter({ hasText: "@File 1" }).waitFor();
+  const pill = page.getByTestId("composer-file-attachment-pill");
+  const fileName = (await pill.textContent()).match(/paste-[\da-f-]+\.txt/)?.[0];
+  assert.ok(fileName, "Pasted text has a random file name");
+  const directory = fs
+    .readdirSync(os.tmpdir())
+    .find(
+      (name) =>
+        name.startsWith("paseo-pasted-text-") &&
+        fs.existsSync(path.join(os.tmpdir(), name, fileName)),
+    );
+  assert.ok(directory, "Clipboard file is stored in the host temporary directory");
+  const uploadDirectory = path.join(os.tmpdir(), directory);
+  try {
+    assert.equal(fs.readFileSync(path.join(uploadDirectory, fileName), "utf8"), text);
+    assert.ok((await input.getAttribute("data-markdown")).startsWith(`${prefix}[@File 1]`));
+    await pill.hover();
+    await page.getByRole("button", { name: "Remove file attachment" }).click();
+    await input.fill("");
+  } finally {
+    fs.rmSync(uploadDirectory, { recursive: true, force: true });
+  }
+}
+
+async function openPasteShortcutSettings(page) {
+  await page.getByTestId("sidebar-settings").click();
+  await page.getByRole("button", { name: "Shortcuts", exact: true }).click();
+  await page.getByTestId("shortcut-actions-paste-as-file").click();
+}
+
+async function returnToNewWorkspace(page) {
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/settings"));
+  await page.getByTestId("sidebar-global-new-workspace").click();
+  await page.waitForURL((url) => url.pathname === "/new");
+}
+
+async function assertPasteTextAsFile(page) {
+  const text = "  Packaged clipboard fixture 中文 👋\r\nsecond line\n";
+  // Stub only this isolated renderer's read; keep the user's system clipboard intact.
+  await page.evaluate((value) => {
+    if (Object.hasOwn(navigator.clipboard, "readText")) {
+      throw new Error("Unexpected clipboard read override");
+    }
+    Object.defineProperty(navigator.clipboard, "readText", {
+      configurable: true,
+      value: async () => value,
+    });
+  }, text);
+  try {
+    await assertClipboardAttachment({
+      page,
+      text,
+      shortcut: "Meta+Shift+v",
+      prefix: "Inspect this ",
+    });
+    await openPasteShortcutSettings(page);
+    await page.getByTestId("shortcut-bind-paste-as-file").click();
+    await page.keyboard.press("Meta+Alt+v");
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await returnToNewWorkspace(page);
+    await assertClipboardAttachment({ page, text, shortcut: "Meta+Alt+v", prefix: "Rebound " });
+    await openPasteShortcutSettings(page);
+    await page.getByTestId("shortcut-clear-paste-as-file").click();
+    await page.waitForFunction(
+      () =>
+        JSON.parse(localStorage.getItem("@paseo:keyboard-shortcut-overrides"))[
+          "message-input-paste-as-file"
+        ] === null,
+    );
+    await returnToNewWorkspace(page);
+    const input = page.getByRole("textbox", { name: "Message agent..." });
+    await input.fill("Cleared shortcut");
+    await input.press("Meta+Alt+v");
+    assert.equal(await page.getByTestId("composer-file-attachment-pill").count(), 0);
+    assert.equal(await input.getAttribute("data-markdown"), "Cleared shortcut");
+    await input.fill("");
+    console.log(
+      "Packaged desktop smoke: Cmd+Shift+V attaches exact text as a temporary file; Settings rebind and clear work",
+    );
+  } finally {
+    await page.evaluate(() => {
+      delete navigator.clipboard.readText;
+    });
+  }
+}
+
 async function openSmokeWorkspace({ appPath, env, page, daemonHome }) {
   const projectPath = path.join(daemonHome, "sandbox-smoke-project");
   fs.mkdirSync(projectPath);
@@ -840,6 +931,7 @@ async function assertMacSidebarLayout(options) {
   await assertAligned();
   await page.getByTestId("sidebar-global-new-workspace").click();
   await page.waitForURL((url) => url.pathname === "/new");
+  await assertPasteTextAsFile(page);
   const backgroundDragRegions = await page.evaluate(
     () =>
       Array.from(document.querySelectorAll("*")).filter((node) => {

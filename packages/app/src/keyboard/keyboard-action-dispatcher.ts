@@ -6,6 +6,7 @@ export type WorkspacePanelPlacement = "supporting" | "side-pane" | "focused-pane
 export type KeyboardActionId =
   | "agent.interrupt"
   | "message-input.focus"
+  | "message-input.paste-as-file"
   | "message-input.send"
   | "message-input.dictation-toggle"
   | "message-input.dictation-cancel"
@@ -59,6 +60,7 @@ export type KeyboardActionId =
 export type KeyboardActionDefinition =
   | { id: "agent.interrupt"; scope: KeyboardActionScope }
   | { id: "message-input.focus"; scope: KeyboardActionScope }
+  | { id: "message-input.paste-as-file"; scope: KeyboardActionScope }
   | { id: "message-input.send"; scope: KeyboardActionScope }
   | { id: "message-input.dictation-toggle"; scope: KeyboardActionScope }
   | { id: "message-input.dictation-cancel"; scope: KeyboardActionScope }

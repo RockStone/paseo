@@ -170,6 +170,13 @@ export const en = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "Attaching clipboard text…",
+      failed: "Could not paste text as a file",
+      disconnected: "Connect to the host and retry.",
+      updateHost: "Update the host to paste text as a temporary file.",
+      empty: "The clipboard has no text.",
+    },
     placeholders: {
       desktop: "Message the agent, tag @files, or use /commands and /skills",
       mobile: "Message, @files, /commands",
@@ -2604,6 +2611,7 @@ export const en = {
         toggleSettings: "Toggle settings",
         toggleFocusMode: "Toggle focus mode",
         cycleTheme: "Cycle theme",
+        pasteTextAsFile: "Paste text as file",
         focusMessageInput: "Focus message input",
         cycleAgentMode: "Cycle agent mode",
         toggleVoiceMode: "Toggle voice mode",

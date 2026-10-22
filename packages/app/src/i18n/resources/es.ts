@@ -175,6 +175,13 @@ export const es: TranslationResources = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "Adjuntando texto del portapapeles…",
+      failed: "No se pudo pegar el texto como archivo",
+      disconnected: "Conéctate al host e inténtalo de nuevo.",
+      updateHost: "Actualiza el host para pegar texto como archivo temporal.",
+      empty: "El portapapeles no contiene texto.",
+    },
     placeholders: {
       desktop: "Envíe un mensaje al agente, etiquete@fileso use/commandsy/skills",
       mobile: "Mensaje,@files,/commands",
@@ -2535,6 +2542,7 @@ export const es: TranslationResources = {
         toggleSettings: "Alternar configuración",
         toggleFocusMode: "Alternar modo de enfoque",
         cycleTheme: "Tema del ciclo",
+        pasteTextAsFile: "Pegar texto como archivo",
         focusMessageInput: "Entrada de mensaje de enfoque",
         cycleAgentMode: "Alternar modo del agente",
         toggleVoiceMode: "Alternar modo de voz",

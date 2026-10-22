@@ -4,6 +4,7 @@ import {
   renumberFileReferences,
   renumberImageReferences,
 } from "./attachments/attachment-reference";
+import { PasteTextAsFileAction } from "./attachments/paste-text-action";
 import { getInlineReference, isReferenceInText } from "@/attachments/inline-reference";
 import {
   createSessionContextAttachment,
@@ -1430,7 +1431,8 @@ function ComposerContentImpl({
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFileAttachment[]>([]);
   const nextPendingFileId = useRef(0);
-  const isUploadingFile = pendingFiles.length > 0;
+  const [isPastingTextFile, setIsPastingTextFile] = useState(false);
+  const isUploadingFile = pendingFiles.length > 0 || isPastingTextFile;
   const [pendingNativeImagePastes, setPendingNativeImagePastes] = useState(0);
   const editingSession = useComposerEditingSession(inputMode, providedEditingSession);
   const isFullscreen = useComposerFullscreen(editingSession);
@@ -2710,6 +2712,19 @@ function ComposerContentImpl({
           <View style={inputAreaContentStyle}>
             {isFullscreen ? null : queueList}
             {!isFullscreen && sendErrorNode}
+            <PasteTextAsFileAction
+              key={JSON.stringify([serverId, workspaceId, agentId, cwd, inputMode])}
+              serverId={serverId}
+              client={client}
+              connected={isConnected}
+              enabled={mode.showAttachments && !readOnly}
+              blocked={
+                isProcessing || isSubmitLoading || isComposerLocked || pendingFiles.length > 0
+              }
+              addFiles={addFiles}
+              focusInput={focusMessageInputForKeyboardAction}
+              onPendingChange={setIsPastingTextFile}
+            />
 
             <View ref={messageInputContainerRef} style={messageInputContainerStyle}>
               <ComposerAutocompleteBinding

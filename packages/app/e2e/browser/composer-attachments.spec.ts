@@ -1,3 +1,6 @@
+import { readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname } from "node:path";
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { expect, test } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
@@ -629,6 +632,94 @@ test("uploaded file references insert at the caret, renumber, survive reload, an
     await expect(page.getByTestId("message-reference-details")).toContainText("config.json");
     await page.screenshot({ path: "/tmp/paseoi-r79-file-reference.png" });
   } finally {
+    await workspace.cleanup();
+  }
+});
+
+test("paste text as file keeps exact log bytes, draft selection, and one pending upload", async ({
+  page,
+  context,
+}, testInfo) => {
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "paste-text-file-",
+    title: "Paste text",
+  });
+  const gate = await installDaemonWebSocketGate(page);
+  const text = "  log start 中文 👋\r\n" + "[trace] line\tvalue\n".repeat(500) + " trailing  ";
+  try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await openAgentRoute(page, workspace);
+    const input = composerLocator(page);
+    await input.fill("Before  after");
+    await selectComposerDraftRange(page, 7, 7);
+    await page.evaluate((value) => navigator.clipboard.writeText(value), text);
+    gate.holdNextServerMessage("file.upload.response");
+    await page.keyboard.press("ControlOrMeta+Shift+v");
+    await gate.waitForHeldServerMessage("file.upload.response");
+    await expect(page.getByTestId("paste-text-pending")).toBeVisible();
+    await page.keyboard.press("ControlOrMeta+Shift+v");
+    await expect(input).toHaveAttribute("data-markdown", "Before  after");
+    expect(gate.getClientRequests("file.upload.request")).toHaveLength(1);
+    expect(gate.getClientRequests("file.upload.request")[0]?.temporary).toBe(true);
+    gate.releaseHeldServerMessage("file.upload.response");
+    await expect(input.locator(".composer-reference")).toHaveText("@File 1");
+    await expect(input).toHaveAttribute(
+      "data-markdown",
+      /^Before \[@File 1\]\(attachment:\/\/[^)]+\)  after$/,
+    );
+    await page.keyboard.press("ControlOrMeta+Shift+v");
+    await expect(input.locator(".composer-reference")).toHaveText(["@File 1", "@File 2"]);
+    const files = gate.getUploadedFiles();
+    expect(files).toHaveLength(2);
+    expect(files[0]!.fileName).not.toBe(files[1]!.fileName);
+    for (const file of files) {
+      expect(file.fileName).toMatch(/^paste-[\da-f-]+\.txt$/);
+      expect(dirname(dirname(file.path))).toBe(tmpdir());
+      expect(readFileSync(file.path, "utf8")).toBe(text);
+    }
+    await page.screenshot({ path: testInfo.outputPath("paste-text-as-file.png") });
+    await input.press("Enter");
+    await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
+    const sent = gate.getClientRequests("send_agent_message_request")[0]!;
+    expect(sent.text).not.toContain("[trace]");
+    expect(sent.attachments).toEqual(expect.arrayContaining([...files]));
+  } finally {
+    for (const file of gate.getUploadedFiles())
+      rmSync(dirname(file.path), { recursive: true, force: true });
+    await workspace.cleanup();
+  }
+});
+
+test("paste text as file retries an empty clipboard in New workspace", async ({
+  page,
+  context,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  const workspace = await seedWorkspace({ repoPrefix: "paste-text-new-" });
+  const gate = await installDaemonWebSocketGate(page);
+  try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await gotoAppShell(page);
+    await waitForSidebarHydration(page);
+    await openNewWorkspaceComposer(page, workspace);
+    const input = composerLocator(page);
+    await input.fill("Inspect this ");
+    await page.evaluate(() => navigator.clipboard.writeText(""));
+    await page.keyboard.press("ControlOrMeta+Shift+v");
+    const error = page.getByTestId("paste-text-error");
+    await expect(error).toContainText("The clipboard has no text.");
+    await expect(input).toHaveAttribute("data-markdown", "Inspect this ");
+    await page.evaluate(() => navigator.clipboard.writeText("first line\nsecond line"));
+    await error.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(error).toHaveCount(0);
+    await expect(input.locator(".composer-reference")).toHaveText("@File 1");
+    await expect(page.getByTestId("composer-file-attachment-pill")).toHaveCount(1);
+    expect(gate.getUploadedFiles()).toHaveLength(1);
+    expect(readFileSync(gate.getUploadedFiles()[0]!.path, "utf8")).toBe("first line\nsecond line");
+    await page.screenshot({ path: testInfo.outputPath("paste-text-retry.png") });
+  } finally {
+    for (const file of gate.getUploadedFiles())
+      rmSync(dirname(file.path), { recursive: true, force: true });
     await workspace.cleanup();
   }
 });

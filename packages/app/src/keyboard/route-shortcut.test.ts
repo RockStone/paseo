@@ -299,6 +299,7 @@ describe("routeKeyboardShortcut — message-input.action", () => {
   it.each([
     ["focus", "message-input.focus"],
     ["send", "message-input.send"],
+    ["paste-as-file", "message-input.paste-as-file"],
     ["dictation-toggle", "message-input.dictation-toggle"],
     ["dictation-cancel", "message-input.dictation-cancel"],
     ["dictation-confirm", "message-input.dictation-confirm"],

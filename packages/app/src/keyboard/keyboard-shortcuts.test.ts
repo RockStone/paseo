@@ -1390,3 +1390,61 @@ describe("number-group shortcut capture", () => {
     expect(normalizeCapturedShortcutCombo(tabBindingId, "Ctrl+9")).toBe("Ctrl+Digit");
   });
 });
+
+describe("paste text as file shortcut", () => {
+  it.each([true, false])("uses the platform modifier (Mac=%s)", (isMac) => {
+    expectShortcutResolution({
+      event: { key: "V", code: "KeyV", metaKey: isMac, ctrlKey: !isMac, shiftKey: true },
+      context: { isMac, focusScope: "message-input" },
+      action: "message-input.action",
+      payload: { kind: "paste-as-file" },
+    });
+  });
+
+  it.each(["terminal", "editable", "browser", "command-center"] as const)(
+    "leaves %s clipboard behavior unchanged",
+    (focusScope) => {
+      expect(
+        resolveShortcut({
+          event: { key: "V", code: "KeyV", ctrlKey: true, shiftKey: true },
+          context: { focusScope },
+        }).match,
+      ).toBeNull();
+    },
+  );
+
+  it("keeps regular paste and held-key repeats out of the shortcut", () => {
+    expect(resolveShortcut({ event: { key: "v", code: "KeyV", ctrlKey: true } }).match).toBeNull();
+    expect(
+      resolveShortcut({
+        event: { key: "V", code: "KeyV", ctrlKey: true, shiftKey: true, repeat: true },
+      }).match,
+    ).toBeNull();
+    expect(
+      resolveShortcut({
+        event: { key: "V", code: "KeyV", ctrlKey: true, shiftKey: true },
+        context: { commandCenterOpen: true },
+      }).match,
+    ).toBeNull();
+  });
+
+  it("can be rebound or unassigned in the existing settings registry", () => {
+    const bindingId = "message-input-paste-as-file";
+    const event = { key: "V", code: "KeyV", ctrlKey: true, shiftKey: true };
+    expect(
+      resolveShortcut({
+        event,
+        bindings: buildEffectiveBindings({ [bindingId]: UNASSIGNED_COMBO }),
+      }).match,
+    ).toBeNull();
+    const bindings = buildEffectiveBindings({ [bindingId]: "Ctrl+Alt+V" });
+    expect(resolveShortcut({ event, bindings }).match).toBeNull();
+    expect(
+      resolveShortcut({ event: { key: "v", code: "KeyV", ctrlKey: true, altKey: true }, bindings })
+        .match?.payload,
+    ).toEqual({ kind: "paste-as-file" });
+    expect(
+      resolveShortcutKeysForAction("paste-as-file", {}, { isMac: true, isDesktop: true }),
+    ).toEqual([["mod", "shift", "V"]]);
+  });
+});

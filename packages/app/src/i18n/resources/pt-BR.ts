@@ -175,6 +175,13 @@ export const ptBR: TranslationResources = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "Anexando texto da área de transferência…",
+      failed: "Não foi possível colar o texto como arquivo",
+      disconnected: "Conecte-se ao host e tente novamente.",
+      updateHost: "Atualize o host para colar texto como arquivo temporário.",
+      empty: "A área de transferência não contém texto.",
+    },
     placeholders: {
       desktop: "Envie uma mensagem ao agente, marque @files ou use /commands e /skills",
       mobile: "Mensagem, @files, /commands",
@@ -2516,6 +2523,7 @@ export const ptBR: TranslationResources = {
         toggleSettings: "Alternar Configurações",
         toggleFocusMode: "Alternar modo de foco",
         cycleTheme: "Alternar tema",
+        pasteTextAsFile: "Colar texto como arquivo",
         focusMessageInput: "Focar entrada de mensagem",
         cycleAgentMode: "Alternar modo do agente",
         toggleVoiceMode: "Alternar modo de voz",

@@ -43,6 +43,11 @@ the PR's persistent annotation markers or separate comment editor.
 Typing or pasting with Cmd+V/Ctrl+V in the active chat focuses its composer first.
 Pasted images use the normal attachment flow; text goes into the draft. Other
 editors, terminals, and open overlays retain their own keyboard input.
+Cmd+Shift+V/Ctrl+Shift+V attaches clipboard text as a randomly named `.txt` file
+with an `@File` reference. Rebind **Paste text as file** under Settings → Shortcuts →
+Agent input. Files live in the connected host’s OS temporary directory, outside
+the checkout; their references last only while those temporary files remain.
+Failed uploads keep the captured bytes for Retry.
 
 Drag a sidebar workspace title into the composer to attach its focused conversation,
 falling back to its latest session when no agent tab is focused. The removable

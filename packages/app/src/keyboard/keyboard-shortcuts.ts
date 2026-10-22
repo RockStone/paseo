@@ -196,6 +196,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
   layout: ["toggle-left-sidebar", "toggle-right-sidebar", "toggle-both-sidebars", "toggle-focus"],
   "agent-input": [
     "focus-message-input",
+    "paste-as-file",
     "cycle-agent-mode",
     "voice-toggle",
     "dictation-toggle",
@@ -243,6 +244,7 @@ const SHORTCUT_HELP_LABEL_KEYS: Record<string, string> = {
   "toggle-focus": "settings.shortcuts.help.toggleFocusMode",
   "cycle-theme": "settings.shortcuts.help.cycleTheme",
   "focus-message-input": "settings.shortcuts.help.focusMessageInput",
+  "paste-as-file": "settings.shortcuts.help.pasteTextAsFile",
   "cycle-agent-mode": "settings.shortcuts.help.cycleAgentMode",
   "voice-toggle": "settings.shortcuts.help.toggleVoiceMode",
   "dictation-toggle": "settings.shortcuts.help.startStopDictation",
@@ -1049,6 +1051,19 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   },
 
   // --- Message input ---
+  {
+    id: "message-input-paste-as-file",
+    action: "message-input.action",
+    combo: "Mod+Shift+V",
+    repeat: false,
+    when: { commandCenter: false, focusScope: ["message-input", "other"] },
+    payload: { type: "message-input", kind: "paste-as-file" },
+    help: {
+      id: "paste-as-file",
+      section: "agent-input",
+      label: "Paste text as file",
+    },
+  },
   {
     id: "message-input-focus-cmd-l-mac",
     action: "message-input.action",

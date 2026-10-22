@@ -1,4 +1,13 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +28,58 @@ describe("file uploads", () => {
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("stores temporary clipboard uploads outside Paseo home with private permissions", async () => {
+    const paseoHome = makePaseoHome();
+    const uploads = new FileUploadStore({ paseoHome });
+    const text = "  中文 👋\r\nlog\n";
+    uploads.beginUpload({
+      type: "file.upload.request",
+      temporary: true,
+      fileName: "paste-id.txt",
+      mimeType: "text/plain",
+      size: Buffer.byteLength(text),
+      modifiedAt: "2026-10-22T00:00:00.000Z",
+      requestId: "temporary",
+    });
+    await uploads.receiveFrame(uploadBegins("temporary"));
+    await uploads.receiveFrame(uploadChunk("temporary", text));
+    const result = await uploads.receiveFrame(uploadEnds("temporary"));
+    const file = result?.payload.file;
+    expect(file).toBeTruthy();
+    if (!file) throw new Error("Missing uploaded file");
+    tempDirs.push(dirname(file.path));
+    expect(dirname(file.path)).toMatch(/paseo-pasted-text-[\da-f-]+$/);
+    expect(dirname(dirname(file.path))).toBe(tmpdir());
+    expect(file.path.startsWith(paseoHome)).toBe(false);
+    expect(readFileSync(file.path, "utf8")).toBe(text);
+    expect(statSync(file.path).mode & 0o777).toBe(0o600);
+    expect(statSync(dirname(file.path)).mode & 0o777).toBe(0o700);
+  });
+
+  it("removes failed temporary upload directories", async () => {
+    const uploads = new FileUploadStore({ paseoHome: makePaseoHome() });
+    const fileName = `paste-failure-${randomUUID()}.txt`;
+    uploads.beginUpload({
+      type: "file.upload.request",
+      temporary: true,
+      fileName,
+      mimeType: "text/plain",
+      size: 1,
+      modifiedAt: "2026-10-22T00:00:00.000Z",
+      requestId: "temporary-failure",
+    });
+    await uploads.receiveFrame(uploadBegins("temporary-failure"));
+    const created = readdirSync(tmpdir()).filter(
+      (name) => name.startsWith("paseo-pasted-text-") && existsSync(join(tmpdir(), name, fileName)),
+    );
+    expect(created).toHaveLength(1);
+    const path = join(tmpdir(), created[0]!);
+    tempDirs.push(path);
+    const result = await uploads.receiveFrame(uploadChunk("temporary-failure", "overflow"));
+    expect(result?.payload.error).toContain("exceeded declared size");
+    expect(existsSync(path)).toBe(false);
   });
 
   it("stores chunked upload bytes and returns an uploaded-file attachment", async () => {

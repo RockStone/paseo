@@ -172,6 +172,13 @@ export const ko: TranslationResources = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "클립보드 텍스트 첨부 중…",
+      failed: "텍스트를 파일로 붙여넣을 수 없습니다",
+      disconnected: "호스트에 연결한 후 다시 시도하세요.",
+      updateHost: "텍스트를 임시 파일로 붙여넣으려면 호스트를 업데이트하세요.",
+      empty: "클립보드에 텍스트가 없습니다.",
+    },
     placeholders: {
       desktop: "에이전트에게 메시지를 보내거나 @files 태그, /commands, /skills를 사용하세요",
       mobile: "메시지, @files, /commands",
@@ -2489,6 +2496,7 @@ export const ko: TranslationResources = {
         toggleSettings: "설정 토글",
         toggleFocusMode: "집중 모드 토글",
         cycleTheme: "테마 순환",
+        pasteTextAsFile: "텍스트를 파일로 붙여넣기",
         focusMessageInput: "메시지 입력란에 포커스",
         cycleAgentMode: "에이전트 모드 전환",
         toggleVoiceMode: "음성 모드 토글",

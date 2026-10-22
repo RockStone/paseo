@@ -173,6 +173,13 @@ export const ja: TranslationResources = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "クリップボードのテキストを添付中…",
+      failed: "テキストをファイルとして貼り付けできませんでした",
+      disconnected: "ホストに接続して再試行してください。",
+      updateHost: "ホストを更新すると、テキストを一時ファイルとして貼り付けできます。",
+      empty: "クリップボードにテキストがありません。",
+    },
     placeholders: {
       desktop: "エージェントにメッセージ、@ファイル、/コマンドや/スキルを入力",
       mobile: "メッセージ、@ファイル、/コマンド",
@@ -2500,6 +2507,7 @@ export const ja: TranslationResources = {
         toggleSettings: "設定を切り替え",
         toggleFocusMode: "フォーカスモードを切り替え",
         cycleTheme: "テーマを順に切り替え",
+        pasteTextAsFile: "テキストをファイルとして貼り付け",
         focusMessageInput: "メッセージ入力にフォーカス",
         cycleAgentMode: "エージェントモードを順に切り替え",
         toggleVoiceMode: "音声モードを切り替え",

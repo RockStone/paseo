@@ -173,6 +173,13 @@ export const ru: TranslationResources = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "Прикрепление текста из буфера обмена…",
+      failed: "Не удалось вставить текст как файл",
+      disconnected: "Подключитесь к хосту и повторите попытку.",
+      updateHost: "Обновите хост, чтобы вставлять текст как временный файл.",
+      empty: "В буфере обмена нет текста.",
+    },
     placeholders: {
       desktop: "Напишите агенту сообщение, отметьте @files или используйте /commands и /skills.",
       mobile: "Сообщение,@files,/commands",
@@ -2519,6 +2526,7 @@ export const ru: TranslationResources = {
         toggleSettings: "Переключить настройки",
         toggleFocusMode: "Переключить режим фокусировки",
         cycleTheme: "Переключить тему",
+        pasteTextAsFile: "Вставить текст как файл",
         focusMessageInput: "Перейти к полю ввода сообщения",
         cycleAgentMode: "Переключить режим агента",
         toggleVoiceMode: "Переключить голосовой режим",

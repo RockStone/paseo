@@ -172,6 +172,13 @@ export const zhCN: TranslationResources = {
     },
   },
   composer: {
+    pasteText: {
+      pending: "正在附加剪贴板文本…",
+      failed: "无法将文本粘贴为文件",
+      disconnected: "请连接主机后重试。",
+      updateHost: "请更新主机以将文本粘贴为临时文件。",
+      empty: "剪贴板中没有文本。",
+    },
     placeholders: {
       desktop: "给 Agent 发消息，标记 @files，或使用 /commands 和 /skills",
       mobile: "发消息，@files，/commands",
@@ -2451,6 +2458,7 @@ export const zhCN: TranslationResources = {
         toggleSettings: "切换设置",
         toggleFocusMode: "切换专注模式",
         cycleTheme: "循环切换主题",
+        pasteTextAsFile: "将文本粘贴为文件",
         focusMessageInput: "聚焦消息输入框",
         cycleAgentMode: "循环切换代理模式",
         toggleVoiceMode: "切换语音模式",

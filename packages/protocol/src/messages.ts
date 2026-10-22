@@ -2864,6 +2864,7 @@ export const FileDownloadTokenRequestSchema = z.object({
 
 export const FileUploadRequestSchema = z.object({
   type: z.literal("file.upload.request"),
+  temporary: z.boolean().optional(),
   fileName: z.string().min(1),
   mimeType: z.string().min(1),
   size: z.number().int().nonnegative(),
@@ -3684,6 +3685,7 @@ export const ServerInfoStatusPayloadSchema = z
         recentCheckoutCommits: z.boolean().optional(),
         composerGitDetails: z.boolean().optional(),
         sharedCommands: z.boolean().optional(),
+        temporaryFileUploads: z.boolean().optional(),
         // COMPAT(agentThinkingUpdate): added in v0.2.4, remove gate after 2027-01-28.
         agentThinkingUpdate: z.boolean().optional(),
         // COMPAT(daemonDiagnostics): added in v0.1.100, remove gate after 2026-12-25 once daemon floor >= v0.1.100.

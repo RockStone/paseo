@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, dirname, extname, join } from "node:path";
 
 import { FileTransferOpcode, type FileTransferFrame } from "@getpaseo/protocol/binary-frames/index";
 import { getErrorMessage } from "@getpaseo/protocol/error-utils";
@@ -51,7 +52,9 @@ export class FileUploadStore {
     if (existingUpload) void this.cancel(existingUpload).catch(() => {});
     const fileName = sanitizeFileName(request.fileName);
     const id = `upload_${randomUUID()}`;
-    const uploadDir = join(this.paseoHome, "uploads", id);
+    const uploadDir = request.temporary
+      ? join(tmpdir(), `paseo-pasted-text-${randomUUID()}`)
+      : join(this.paseoHome, "uploads", id);
     const upload: PendingUpload = {
       requestId: request.requestId,
       id,
@@ -123,8 +126,8 @@ export class FileUploadStore {
   }
 
   private async startWriting(upload: PendingUpload): Promise<void> {
-    await mkdir(join(this.paseoHome, "uploads", upload.id), { recursive: true });
-    await writeFile(upload.path, new Uint8Array());
+    await mkdir(dirname(upload.path), { recursive: true, mode: 0o700 });
+    await writeFile(upload.path, new Uint8Array(), { mode: 0o600 });
     upload.started = true;
   }
 
@@ -196,7 +199,7 @@ export class FileUploadStore {
   }
 
   private async removeUploadDirectory(upload: PendingUpload): Promise<void> {
-    await rm(join(this.paseoHome, "uploads", upload.id), { recursive: true, force: true });
+    await rm(dirname(upload.path), { recursive: true, force: true });
   }
 }
 

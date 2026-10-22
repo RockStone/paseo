@@ -79,6 +79,7 @@ const MESSAGE_INPUT_DISPATCH: Record<
 > = {
   focus: { id: "message-input.focus", scope: "message-input" },
   send: { id: "message-input.send", scope: "message-input" },
+  "paste-as-file": { id: "message-input.paste-as-file", scope: "message-input" },
   "dictation-toggle": { id: "message-input.dictation-toggle", scope: "message-input" },
   "dictation-cancel": { id: "message-input.dictation-cancel", scope: "message-input" },
   "dictation-confirm": { id: "message-input.dictation-confirm", scope: "message-input" },

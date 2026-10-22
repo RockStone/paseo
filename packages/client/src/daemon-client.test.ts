@@ -3091,120 +3091,128 @@ test("readFile rejects a binary transfer that exceeds the announced size", async
   });
 });
 
-test("uploadFile sends metadata request and file bytes as binary chunks", async () => {
-  const logger = createMockLogger();
-  const mock = createMockTransport();
+test.each([undefined, true])(
+  "uploadFile sends metadata and binary chunks (temporary=%s)",
+  async (temporary) => {
+    const logger = createMockLogger();
+    const mock = createMockTransport();
 
-  const client = new DaemonClient({
-    url: "ws://test",
-    clientId: "clsk_unit_test",
-    logger,
-    reconnect: { enabled: false },
-    transportFactory: () => mock.transport,
-  });
-  clients.push(client);
+    const client = new DaemonClient({
+      url: "ws://test",
+      clientId: "clsk_unit_test",
+      logger,
+      reconnect: { enabled: false },
+      transportFactory: () => mock.transport,
+    });
+    clients.push(client);
 
-  const connectPromise = client.connect();
-  mock.triggerOpen();
-  await connectPromise;
+    const connectPromise = client.connect();
+    mock.triggerOpen();
+    await connectPromise;
 
-  const responsePromise = client.uploadFile({
-    fileName: "notes.txt",
-    mimeType: "text/plain",
-    bytes: new TextEncoder().encode("hello world"),
-    modifiedAt: "2026-05-02T00:00:00.000Z",
-    requestId: "req-upload",
-    chunkSize: 5,
-  });
-
-  // Other tasks must run before a multi-chunk upload has queued all its bytes.
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const framesDuringUpload = mock.sent.slice(1).map(assertUint8Array).map(decodeFileTransferFrame);
-  expect(framesDuringUpload.some((frame) => frame.opcode === FileTransferOpcode.FileEnd)).toBe(
-    false,
-  );
-  await vi.waitFor(() => {
-    const frames = mock.sent.slice(1).map(assertUint8Array).map(decodeFileTransferFrame);
-    expect(frames.at(-1)?.opcode).toBe(FileTransferOpcode.FileEnd);
-  });
-
-  expect(JSON.parse(assertStr(mock.sent[0]))).toEqual({
-    type: "session",
-    message: {
-      type: "file.upload.request",
+    const responsePromise = client.uploadFile({
+      ...(temporary === undefined ? {} : { temporary }),
       fileName: "notes.txt",
       mimeType: "text/plain",
-      size: 11,
+      bytes: new TextEncoder().encode("hello world"),
       modifiedAt: "2026-05-02T00:00:00.000Z",
       requestId: "req-upload",
-    },
-  });
-  expect(mock.sent.slice(1).map(assertUint8Array).map(decodeFileTransferFrame)).toEqual([
-    {
-      opcode: FileTransferOpcode.FileBegin,
-      requestId: "req-upload",
-      metadata: {
-        mime: "text/plain",
-        size: 11,
-        encoding: "binary",
-        modifiedAt: "2026-05-02T00:00:00.000Z",
+      chunkSize: 5,
+    });
+
+    // Other tasks must run before a multi-chunk upload has queued all its bytes.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const framesDuringUpload = mock.sent
+      .slice(1)
+      .map(assertUint8Array)
+      .map(decodeFileTransferFrame);
+    expect(framesDuringUpload.some((frame) => frame.opcode === FileTransferOpcode.FileEnd)).toBe(
+      false,
+    );
+    await vi.waitFor(() => {
+      const frames = mock.sent.slice(1).map(assertUint8Array).map(decodeFileTransferFrame);
+      expect(frames.at(-1)?.opcode).toBe(FileTransferOpcode.FileEnd);
+    });
+
+    expect(JSON.parse(assertStr(mock.sent[0]))).toEqual({
+      type: "session",
+      message: {
+        type: "file.upload.request",
+        ...(temporary === undefined ? {} : { temporary }),
         fileName: "notes.txt",
-      },
-      payload: new Uint8Array(),
-    },
-    {
-      opcode: FileTransferOpcode.FileChunk,
-      requestId: "req-upload",
-      payload: new TextEncoder().encode("hello"),
-    },
-    {
-      opcode: FileTransferOpcode.FileChunk,
-      requestId: "req-upload",
-      payload: new TextEncoder().encode(" worl"),
-    },
-    {
-      opcode: FileTransferOpcode.FileChunk,
-      requestId: "req-upload",
-      payload: new TextEncoder().encode("d"),
-    },
-    {
-      opcode: FileTransferOpcode.FileEnd,
-      requestId: "req-upload",
-      payload: new Uint8Array(),
-    },
-  ]);
-
-  mock.triggerMessage(
-    wrapSessionMessage({
-      type: "file.upload.response",
-      payload: {
+        mimeType: "text/plain",
+        size: 11,
+        modifiedAt: "2026-05-02T00:00:00.000Z",
         requestId: "req-upload",
-        file: {
-          type: "uploaded_file",
-          id: "upload_req-upload",
-          fileName: "notes.txt",
-          mimeType: "text/plain",
-          size: 11,
-          path: "/tmp/paseo-uploads/upload_req-upload/notes.txt",
-        },
-        error: null,
       },
-    }),
-  );
+    });
+    expect(mock.sent.slice(1).map(assertUint8Array).map(decodeFileTransferFrame)).toEqual([
+      {
+        opcode: FileTransferOpcode.FileBegin,
+        requestId: "req-upload",
+        metadata: {
+          mime: "text/plain",
+          size: 11,
+          encoding: "binary",
+          modifiedAt: "2026-05-02T00:00:00.000Z",
+          fileName: "notes.txt",
+        },
+        payload: new Uint8Array(),
+      },
+      {
+        opcode: FileTransferOpcode.FileChunk,
+        requestId: "req-upload",
+        payload: new TextEncoder().encode("hello"),
+      },
+      {
+        opcode: FileTransferOpcode.FileChunk,
+        requestId: "req-upload",
+        payload: new TextEncoder().encode(" worl"),
+      },
+      {
+        opcode: FileTransferOpcode.FileChunk,
+        requestId: "req-upload",
+        payload: new TextEncoder().encode("d"),
+      },
+      {
+        opcode: FileTransferOpcode.FileEnd,
+        requestId: "req-upload",
+        payload: new Uint8Array(),
+      },
+    ]);
 
-  await expect(responsePromise).resolves.toEqual({
-    requestId: "req-upload",
-    file: {
-      type: "uploaded_file",
-      id: "upload_req-upload",
-      fileName: "notes.txt",
-      mimeType: "text/plain",
-      size: 11,
-      path: "/tmp/paseo-uploads/upload_req-upload/notes.txt",
-    },
-    error: null,
-  });
-});
+    mock.triggerMessage(
+      wrapSessionMessage({
+        type: "file.upload.response",
+        payload: {
+          requestId: "req-upload",
+          file: {
+            type: "uploaded_file",
+            id: "upload_req-upload",
+            fileName: "notes.txt",
+            mimeType: "text/plain",
+            size: 11,
+            path: "/tmp/paseo-uploads/upload_req-upload/notes.txt",
+          },
+          error: null,
+        },
+      }),
+    );
+
+    await expect(responsePromise).resolves.toEqual({
+      requestId: "req-upload",
+      file: {
+        type: "uploaded_file",
+        id: "upload_req-upload",
+        fileName: "notes.txt",
+        mimeType: "text/plain",
+        size: 11,
+        path: "/tmp/paseo-uploads/upload_req-upload/notes.txt",
+      },
+      error: null,
+    });
+  },
+);
 
 test("normalizes workspace_setup_progress into a workspace-scoped daemon event", async () => {
   const logger = createMockLogger();

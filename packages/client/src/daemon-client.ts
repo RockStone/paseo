@@ -552,6 +552,7 @@ export interface FileReadResult {
   revision?: string;
 }
 export interface FileUploadInput {
+  temporary?: boolean;
   fileName: string;
   mimeType: string;
   bytes: Uint8Array | ArrayBuffer;
@@ -4946,6 +4947,7 @@ export class DaemonClient {
       requestId: resolvedRequestId,
       message: {
         type: "file.upload.request",
+        ...(input.temporary === undefined ? {} : { temporary: input.temporary }),
         fileName: input.fileName,
         mimeType: input.mimeType,
         size: bytes.byteLength,
