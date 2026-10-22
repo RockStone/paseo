@@ -185,7 +185,7 @@ These are two distinct concepts that used to be conflated:
 Closing any agent tab is **layout-only**, including root agents and running agents. It removes the
 view from that client; the agent keeps running, retains its history and parent relationship, and
 stays available from the sidebar or History. Single close, keyboard shortcuts, and bulk close use
-the same policy. Closing a terminal tab still stops its terminal process after confirmation.
+the same policy. Closing a terminal tab immediately stops its terminal process without a confirmation.
 
 To archive an agent, choose **Archive agent** from its tab menu or its sidebar agent row's
 context menu. Archiving is global, stops its runtime, and applies the child rules above. A running agent
