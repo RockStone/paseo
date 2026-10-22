@@ -210,6 +210,8 @@ export function ScriptEditModal({
         <Button
           disabled={pending || saveDisabled}
           loading={pending}
+          loadingMode="replace"
+          accessibilityLabel={t("settings.project.actions.save")}
           onPress={handleSavePress}
           variant="default"
           size="md"

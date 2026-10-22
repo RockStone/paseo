@@ -1,5 +1,7 @@
+import type { PaseoScriptEntryRaw } from "@getpaseo/protocol/messages";
+import { groupScripts } from "@/screens/workspace/scripts/script-groups";
 import { useCallback, useMemo, useState, type ReactElement } from "react";
-import { useFetchQuery } from "@/data/query";
+import { useScriptConfig } from "@/screens/workspace/scripts/script-config";
 import { useTranslation } from "react-i18next";
 import { Globe, Play, SquareTerminal } from "lucide-react-native";
 import { withUnistyles } from "react-native-unistyles";
@@ -10,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
+import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { ScriptEditButton } from "@/screens/workspace/scripts/script-edit-button";
 import { useScriptEditor } from "@/screens/workspace/scripts/script-editor";
@@ -76,35 +78,31 @@ export function RunScriptsControl({
   onRun: (name: string) => void;
 }): ReactElement | null {
   const { t } = useTranslation();
-  const client = useHostRuntimeClient(serverId);
   const connected = useHostRuntimeIsConnected(serverId);
   const [open, setOpen] = useState(false);
   const { open: editScript, editor } = useScriptEditor(serverId, repoRoot);
   const addScript = useCallback(() => editScript(null), [editScript]);
-  const config = useFetchQuery({
-    queryKey: ["project-script-options", serverId, repoRoot],
-    dataShape: "value",
-    staleTimeMs: 0,
-    enabled: Boolean(client) && connected,
-    retry: false,
-    queryFn: async () => {
-      if (!client) throw new Error(t("common.errors.daemonClientUnavailable"));
-      const project = await client.readProjectConfig(repoRoot);
-      if (!project.ok || !project.sharedScriptsRoot) return project;
-      const shared = await client.readProjectConfig(project.sharedScriptsRoot);
-      if (!shared.ok) return shared;
-      return {
-        ...project,
-        config: {
-          ...project.config,
-          scripts: { ...shared.config?.scripts, ...project.config?.scripts },
-        },
-      };
-    },
-  });
-  const scripts = useMemo(
-    () => (config.data?.ok ? Object.entries(config.data.config?.scripts ?? {}) : []),
-    [config.data],
+  const config = useScriptConfig(serverId, repoRoot);
+  const scripts = useMemo(() => {
+    const rows = config.data?.ok ? Object.entries(config.data.config?.scripts ?? {}) : [];
+    return groupScripts(
+      rows,
+      ([name]) => name,
+      config.data?.ok ? config.data.sharedScriptNames : [],
+    );
+  }, [config.data]);
+  const renderScript = useCallback(
+    ([name, entry]: [string, PaseoScriptEntryRaw]) => (
+      <ScriptItem
+        key={name}
+        name={name}
+        service={entry.type === "service"}
+        disabled={disabled || !connected || config.isFetching}
+        onRun={onRun}
+        onEdit={editScript}
+      />
+    ),
+    [disabled, connected, config.isFetching, onRun, editScript],
   );
   let readError: string | null = null;
   if (config.isError) readError = t("settings.project.readFailures.transportTitle");
@@ -152,16 +150,13 @@ export function RunScriptsControl({
               </DropdownMenuItem>
             </>
           ) : (
-            scripts.map(([name, entry]) => (
-              <ScriptItem
-                key={name}
-                name={name}
-                service={entry.type === "service"}
-                disabled={pending}
-                onRun={onRun}
-                onEdit={editScript}
-              />
-            ))
+            <>
+              {scripts.shared.map(renderScript)}
+              {scripts.shared.length > 0 && scripts.workspace.length > 0 ? (
+                <DropdownMenuSeparator testID="workspace-scripts-scope-divider" />
+              ) : null}
+              {scripts.workspace.map(renderScript)}
+            </>
           )}
           {!readError ? (
             <>

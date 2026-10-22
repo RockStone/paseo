@@ -1,3 +1,4 @@
+import { ScriptScopeRows } from "./script-scope-rows";
 import { useCallback, useMemo, type ReactElement } from "react";
 import type { GestureResponderEvent } from "react-native";
 import { Pressable, Text, View } from "react-native";
@@ -476,6 +477,21 @@ export function WorkspaceScriptsButton({
   });
   const liveTerminalIdSet = useMemo(() => new Set(liveTerminalIds), [liveTerminalIds]);
 
+  const renderScript = useCallback(
+    (script: WorkspaceDescriptor["scripts"][number]) => (
+      <ScriptRow
+        key={script.scriptName}
+        script={script}
+        onEdit={editScript}
+        liveTerminalIdSet={liveTerminalIdSet}
+        actions={actions}
+        onViewTerminal={onViewTerminal}
+        onOpenUrlInBrowserTab={onOpenUrlInBrowserTab}
+      />
+    ),
+    [editScript, liveTerminalIdSet, actions, onViewTerminal, onOpenUrlInBrowserTab],
+  );
+
   const triggerStyle = useCallback(
     ({ hovered, pressed, open }: { hovered: boolean; pressed: boolean; open: boolean }) => [
       styles.splitButtonPrimary,
@@ -512,17 +528,9 @@ export function WorkspaceScriptsButton({
             maxWidth={280}
             testID="workspace-scripts-menu"
           >
-            {scripts.map((script) => (
-              <ScriptRow
-                key={script.scriptName}
-                script={script}
-                onEdit={editScript}
-                liveTerminalIdSet={liveTerminalIdSet}
-                actions={actions}
-                onViewTerminal={onViewTerminal}
-                onOpenUrlInBrowserTab={onOpenUrlInBrowserTab}
-              />
-            ))}
+            <ScriptScopeRows serverId={serverId} configRoot={configRoot} scripts={scripts}>
+              {renderScript}
+            </ScriptScopeRows>
             <DropdownMenuSeparator />
             <DropdownMenuItem testID="workspace-scripts-add" onSelect={addScript}>
               {t("settings.project.scripts.actions.add")}

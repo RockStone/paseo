@@ -98,6 +98,22 @@ const styles = StyleSheet.create((theme) => {
       borderWidth: 1,
       borderColor: "transparent",
     },
+    content: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing[2],
+    },
+    hiddenContent: { opacity: 0 },
+    loadingOverlay: {
+      position: "absolute",
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     md: {
       ...geometry.buttonMd,
     },
@@ -159,6 +175,38 @@ const styles = StyleSheet.create((theme) => {
   };
 });
 
+function ButtonLoadingContent({
+  loading,
+  replace,
+  iconSize,
+  iconMapping,
+  children,
+}: PropsWithChildren<{
+  loading: boolean;
+  replace: boolean;
+  iconSize: number;
+  iconMapping: typeof foregroundIconMapping;
+}>) {
+  if (!replace) return children;
+  return (
+    <>
+      <View
+        style={[styles.content, loading && styles.hiddenContent]}
+        aria-hidden={loading}
+        accessibilityElementsHidden={loading}
+        importantForAccessibility={loading ? "no-hide-descendants" : "auto"}
+      >
+        {children}
+      </View>
+      {loading ? (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ThemedButtonIcon loading iconSize={iconSize} uniProps={iconMapping} />
+        </View>
+      ) : null}
+    </>
+  );
+}
+
 export function Button({
   children,
   variant = "secondary",
@@ -169,6 +217,7 @@ export function Button({
   textStyle,
   disabled,
   loading = false,
+  loadingMode = "prepend",
   accessibilityRole,
   accessibilityState: accessibilityStateProp,
   ...props
@@ -182,6 +231,8 @@ export function Button({
     style?: StyleProp<ViewStyle>;
     textStyle?: StyleProp<TextStyle>;
     loading?: boolean;
+    /** Replace content visually while retaining its resting dimensions. */
+    loadingMode?: "prepend" | "replace";
   }
 >) {
   const [hovered, setHovered] = useState(false);
@@ -258,6 +309,18 @@ export function Button({
     return foregroundIconMapping;
   }
 
+  const content = (
+    <>
+      <ThemedButtonIcon
+        loading={loading && loadingMode === "prepend"}
+        leftIcon={leftIcon}
+        iconSize={buttonIconSize[size]}
+        uniProps={resolveIconMapping()}
+      />
+      {children != null ? <Text style={resolvedTextStyle}>{children}</Text> : null}
+      {trailing}
+    </>
+  );
   return (
     <Pressable
       {...props}
@@ -268,14 +331,14 @@ export function Button({
       onHoverOut={handleHoverOut}
       style={pressableStyle}
     >
-      <ThemedButtonIcon
+      <ButtonLoadingContent
         loading={loading}
-        leftIcon={leftIcon}
+        replace={loadingMode === "replace"}
         iconSize={buttonIconSize[size]}
-        uniProps={resolveIconMapping()}
-      />
-      {children != null ? <Text style={resolvedTextStyle}>{children}</Text> : null}
-      {trailing}
+        iconMapping={resolveIconMapping()}
+      >
+        {content}
+      </ButtonLoadingContent>
     </Pressable>
   );
 }

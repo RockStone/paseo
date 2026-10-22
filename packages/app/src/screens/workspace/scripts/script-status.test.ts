@@ -1,3 +1,4 @@
+import { groupScripts } from "./script-groups";
 import { describe, expect, it } from "vitest";
 import type { WorkspaceScriptPayload } from "@getpaseo/protocol/messages";
 import { scriptStatus, summarizeScripts } from "./script-status";
@@ -84,6 +85,25 @@ describe("summarizeScripts", () => {
     expect(summarizeScripts([script("lint", "running")])).toEqual({
       tone: "running",
       running: ["lint"],
+    });
+  });
+});
+
+describe("script scope groups", () => {
+  it("keeps shared commands first, retaining command order within each scope", () => {
+    expect(
+      groupScripts(["app", "Android Screenshot", "daemon", "iPhone Screenshot"], (name) => name, [
+        "Android Screenshot",
+        "iPhone Screenshot",
+      ]),
+    ).toEqual({
+      shared: ["Android Screenshot", "iPhone Screenshot"],
+      workspace: ["app", "daemon"],
+    });
+    expect(groupScripts(["app"], (name) => name, [])).toEqual({ shared: [], workspace: ["app"] });
+    expect(groupScripts(["capture"], (name) => name, ["capture"])).toEqual({
+      shared: ["capture"],
+      workspace: [],
     });
   });
 });

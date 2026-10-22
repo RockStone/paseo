@@ -11,6 +11,15 @@ import { createRoot } from "react-dom/client";
 import { WorkspaceScriptsButton } from "./workspace-scripts-button";
 
 void testI18n;
+vi.mock("./script-scope-rows", () => ({
+  ScriptScopeRows: ({
+    scripts,
+    children,
+  }: {
+    scripts: WorkspaceScriptPayload[];
+    children: (script: WorkspaceScriptPayload) => React.ReactNode;
+  }) => scripts.map(children),
+}));
 
 vi.mock("./script-editor", () => ({ useScriptEditor: () => ({ open: vi.fn(), editor: null }) }));
 vi.mock("./script-edit-button", () => ({

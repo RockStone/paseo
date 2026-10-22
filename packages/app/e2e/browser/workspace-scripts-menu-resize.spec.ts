@@ -1,3 +1,10 @@
+import { gotoAppShell } from "../support/helpers/app";
+import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
+import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
+import { loadSessionMessageReaders } from "../support/helpers/new-workspace";
+import { openNewWorkspaceComposer } from "../support/helpers/new-workspace";
+import { launchTrigger } from "../support/helpers/new-workspace-launch";
+import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { test, expect } from "../support/fixtures";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -297,5 +304,210 @@ test("shared commands span projects and sequential commands share one terminal w
     }
     await first.cleanup();
     await second.cleanup();
+  }
+});
+
+test("Save replaces its label with a spinner without moving the script dialog footer", async ({
+  page,
+}) => {
+  const seeded = await seedWorkspace({ repoPrefix: "script-save-geometry-" });
+  const gate = await installDaemonWebSocketGate(page);
+  try {
+    await page.goto(buildHostWorkspaceRoute(getServerId(), seeded.workspaceId));
+    await waitForWorkspaceTabsVisible(page);
+    await openWorkspaceScriptsMenu(page);
+    await page.getByTestId("workspace-scripts-add").click();
+    await page.getByTestId("script-edit-name").fill("geometry-check");
+    await page.getByTestId("script-edit-command").fill("echo done");
+    const save = page.getByTestId("script-edit-save");
+    const cancel = page.getByTestId("script-edit-cancel");
+    const saveRect = await save.boundingBox();
+    const cancelRect = await cancel.boundingBox();
+    if (!saveRect || !cancelRect) throw new Error("Missing script footer geometry");
+    const checkPending = async (phase: string) => {
+      await gate.waitForHeldClientRequest();
+      await expect(save.getByRole("progressbar")).toBeVisible();
+      await expect(save.locator('[aria-hidden="true"]')).toHaveCSS("opacity", "0");
+      await expect(save).toHaveAccessibleName("Save");
+      await expect(save).toBeDisabled();
+      expect(await save.boundingBox()).toEqual(saveRect);
+      expect(await cancel.boundingBox()).toEqual(cancelRect);
+      await page.screenshot({ path: `/tmp/paseoi-r86-save-${phase}.png` });
+      gate.releaseHeldClientRequest();
+      await expect(save.getByRole("progressbar")).toHaveCount(0);
+    };
+    gate.holdNextClientRequest("read_project_config_request");
+    await page.getByTestId("script-edit-shared-toggle").click();
+    await checkPending("scope");
+    await expect(save).toBeEnabled();
+    await page.getByTestId("script-edit-shared-toggle").click();
+    await expect(save).toBeEnabled();
+    gate.holdNextClientRequest("write_project_config_request");
+    await save.click();
+    await checkPending("writing");
+    await expect(page.getByTestId("script-edit-modal")).toHaveCount(0);
+    const written = await seeded.client.readProjectConfig(seeded.repoPath);
+    expect(written).toMatchObject({
+      ok: true,
+      config: { scripts: { "geometry-check": { command: "echo done" } } },
+    });
+  } finally {
+    await seeded.cleanup();
+  }
+});
+
+function scriptEditNames(elements: Element[]) {
+  return elements.map((element) =>
+    element.getAttribute("data-testid")?.replace("script-edit-trigger-", ""),
+  );
+}
+
+for (const layout of ["desktop", "compact"] as const) {
+  for (const surface of ["workspace", "new-workspace"] as const) {
+    test(`groups shared commands above workspace commands (${surface}, ${layout})`, async ({
+      page,
+    }) => {
+      const seeded = await seedWorkspace({
+        repoPrefix: "script-scope-order-",
+        repo: {
+          paseoConfig: {
+            scripts: {
+              app: { command: "echo local app" },
+              daemon: { command: "echo local daemon" },
+            },
+          },
+        },
+      });
+      const project = await seeded.client.readProjectConfig(seeded.repoPath);
+      if (!project.ok || !project.sharedScriptsRoot) throw new Error("Missing shared command root");
+      const sharedRoot = project.sharedScriptsRoot;
+      const original = await seeded.client.readProjectConfig(sharedRoot);
+      if (!original.ok) throw new Error("Cannot read shared commands");
+      try {
+        const saved = await seeded.client.writeProjectConfig({
+          repoRoot: sharedRoot,
+          expectedRevision: original.revision,
+          config: {
+            ...original.config,
+            scripts: {
+              ...original.config?.scripts,
+              "Android Screenshot": { command: "echo android" },
+              "iPhone Screenshot": { command: "echo iphone" },
+              app: { command: "echo shared app shadowed by project" },
+            },
+          },
+        });
+        expect(saved.ok).toBe(true);
+        if (layout === "compact" && surface === "workspace")
+          await page.setViewportSize({ width: 430, height: 932 });
+        if (surface === "workspace") {
+          await page.goto(buildHostWorkspaceRoute(getServerId(), seeded.workspaceId));
+          if (layout === "desktop") {
+            await waitForWorkspaceTabsVisible(page);
+            await openWorkspaceScriptsMenu(page);
+          } else {
+            await page.getByTestId("workspace-header-menu-trigger").click();
+            await page.getByTestId("workspace-header-scripts").click();
+          }
+        } else {
+          await gotoAppShell(page);
+          await waitForSidebarHydration(page);
+          await openNewWorkspaceComposer(page, {
+            projectKey: seeded.projectKey,
+            projectDisplayName: seeded.projectDisplayName,
+          });
+          if (layout === "compact") await page.setViewportSize({ width: 430, height: 932 });
+          await launchTrigger(page).click();
+          await page.getByRole("menuitem", { name: "Terminal", exact: true }).click();
+          await page.getByTestId("new-workspace-scripts-trigger").click();
+        }
+        const rows = page
+          .locator('[data-testid^="script-edit-trigger-"]')
+          .filter({ visible: true });
+        await expect
+          .poll(() => rows.evaluateAll(scriptEditNames))
+          .toEqual(["Android Screenshot", "iPhone Screenshot", "app", "daemon"]);
+        const divider = page
+          .getByTestId("workspace-scripts-scope-divider")
+          .filter({ visible: true });
+        await expect(divider).toHaveCount(1);
+        const shared = await page
+          .getByTestId("script-edit-trigger-iPhone Screenshot")
+          .filter({ visible: true })
+          .boundingBox();
+        const local = await page
+          .getByTestId("script-edit-trigger-app")
+          .filter({ visible: true })
+          .boundingBox();
+        const split = await divider.boundingBox();
+        if (!shared || !local || !split) throw new Error("Missing scope group geometry");
+        expect(split.y).toBeGreaterThan(shared.y);
+        expect(split.y).toBeLessThan(local.y);
+        await page.screenshot({ path: `/tmp/paseoi-r86-grouped-${surface}-${layout}.png` });
+      } finally {
+        const current = await seeded.client.readProjectConfig(sharedRoot);
+        if (current.ok)
+          await seeded.client.writeProjectConfig({
+            repoRoot: sharedRoot,
+            expectedRevision: current.revision,
+            config: original.config ?? {},
+          });
+        await seeded.cleanup();
+      }
+    });
+  }
+}
+
+test("Run menu retries a failed scope read without closing", async ({ page }) => {
+  const seeded = await seedWorkspace({
+    repoPrefix: "script-scope-retry-",
+    repo: { paseoConfig: { scripts: { recovered: { command: "echo recovered" } } } },
+  });
+  const project = await seeded.client.readProjectConfig(seeded.repoPath);
+  if (!project.ok || !project.sharedScriptsRoot) throw new Error("Missing shared command root");
+  const sharedRoot = project.sharedScriptsRoot;
+  const frames = await loadSessionMessageReaders();
+  let fail = true;
+  await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((raw) => {
+      const request = frames.client(raw);
+      if (
+        fail &&
+        request?.type === "read_project_config_request" &&
+        request.repoRoot === sharedRoot
+      ) {
+        fail = false;
+        ws.send(
+          JSON.stringify({
+            type: "session",
+            message: {
+              type: "read_project_config_response",
+              payload: {
+                requestId: request.requestId,
+                repoRoot: request.repoRoot,
+                ok: false,
+                error: { code: "read_failed" },
+              },
+            },
+          }),
+        );
+        return;
+      }
+      server.send(raw);
+    });
+    server.onMessage((raw) => ws.send(raw));
+  });
+  try {
+    await page.goto(buildHostWorkspaceRoute(getServerId(), seeded.workspaceId));
+    await waitForWorkspaceTabsVisible(page);
+    await openWorkspaceScriptsMenu(page);
+    await expect(page.getByTestId("workspace-script-groups-retry")).toBeVisible();
+    await page.getByTestId("workspace-script-groups-retry").click();
+    await expect(page.getByTestId("script-edit-trigger-recovered")).toBeVisible();
+    await expect(page.getByTestId("workspace-script-groups-retry")).toHaveCount(0);
+    await expect(page.getByTestId("workspace-scripts-scope-divider")).toHaveCount(0);
+  } finally {
+    await seeded.cleanup();
   }
 });

@@ -1,3 +1,4 @@
+import { ScriptScopeRows } from "./script-scope-rows";
 import { useCallback, useMemo, type ReactElement } from "react";
 import { View } from "react-native";
 import { Copy, Eye, Play, RotateCw, Square, SquareTerminal } from "lucide-react-native";
@@ -115,7 +116,15 @@ export function useWorkspaceScriptsMenuPages({
       {
         id: SCRIPTS_PAGE_ID,
         title: t("workspace.scripts.title"),
-        content: <ScriptsPage scripts={scripts} actions={actions} onEdit={editScript} />,
+        content: (
+          <ScriptsPage
+            serverId={serverId}
+            configRoot={configRoot}
+            scripts={scripts}
+            actions={actions}
+            onEdit={editScript}
+          />
+        ),
       },
       ...scripts.map((script) => ({
         id: scriptPageId(script.scriptName),
@@ -135,7 +144,17 @@ export function useWorkspaceScriptsMenuPages({
         ),
       })),
     ];
-  }, [actions, editScript, liveTerminalIds, onOpenUrlInBrowserTab, onViewTerminal, scripts, t]);
+  }, [
+    actions,
+    editScript,
+    liveTerminalIds,
+    onOpenUrlInBrowserTab,
+    onViewTerminal,
+    scripts,
+    t,
+    serverId,
+    configRoot,
+  ]);
 
   return { trigger, pages, editor, needsAttention: summary.tone === "unhealthy" };
 }
@@ -171,30 +190,39 @@ function ScriptsMenuTrigger({ summary }: { summary: ScriptsSummary }): ReactElem
 }
 
 function ScriptsPage({
+  serverId,
+  configRoot,
   scripts,
   actions,
   onEdit,
 }: {
+  serverId: string;
+  configRoot: string;
   scripts: WorkspaceDescriptor["scripts"];
   actions: WorkspaceScriptActions;
   onEdit: (name: string | null, shared?: boolean) => void;
 }): ReactElement {
   const { t } = useTranslation();
   const add = useCallback(() => onEdit(null), [onEdit]);
+  const renderScript = useCallback(
+    (script: WorkspaceScript) =>
+      script.lifecycle === "running" ? (
+        <RunningScriptRow key={script.scriptName} script={script} onEdit={onEdit} />
+      ) : (
+        <StoppedScriptRow
+          key={script.scriptName}
+          script={script}
+          actions={actions}
+          onEdit={onEdit}
+        />
+      ),
+    [actions, onEdit],
+  );
   return (
     <>
-      {scripts.map((script) =>
-        script.lifecycle === "running" ? (
-          <RunningScriptRow key={script.scriptName} script={script} onEdit={onEdit} />
-        ) : (
-          <StoppedScriptRow
-            key={script.scriptName}
-            script={script}
-            actions={actions}
-            onEdit={onEdit}
-          />
-        ),
-      )}
+      <ScriptScopeRows serverId={serverId} configRoot={configRoot} scripts={scripts}>
+        {renderScript}
+      </ScriptScopeRows>
       <DropdownMenuSeparator />
       <DropdownMenuItem testID="workspace-scripts-add" onSelect={add}>
         {t("settings.project.scripts.actions.add")}

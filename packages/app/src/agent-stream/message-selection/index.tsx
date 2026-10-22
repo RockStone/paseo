@@ -166,7 +166,16 @@ export function MessageSelectionError({ target }: { target: string }) {
 const styles = StyleSheet.create((theme) => ({
   controls: { flexDirection: "row", alignItems: "center", gap: theme.spacing[1] },
   row: { flexDirection: "row", alignItems: "flex-start" },
-  checkboxHitbox: { width: 32, minHeight: 36, alignItems: "center", justifyContent: "center" },
+  checkboxHitbox: {
+    width: 32,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    transform: [
+      { translateX: -theme.spacing[2] - theme.spacing[0.5] },
+      { translateY: theme.spacing[1] },
+    ],
+  },
   checkboxHover: { backgroundColor: theme.colors.interactionHighlight },
   checkbox: {
     width: 18,
