@@ -22,6 +22,26 @@ Install and sign in to the Claude Code CLI on the machine running Paseo. Paseo u
 
 If your Claude login expires, re-authenticate with the Claude Code CLI, then start a new Claude Code session in Paseo. Existing Paseo sessions keep the authentication they started with, so re-authenticating does not update a session that is already running.
 
+## Unattended sessions in Paseoi
+
+On macOS, the custom Paseoi build can use a long-lived subscription token from
+`claude setup-token`. Complete the browser authorization yourself. Paste the result into
+**Settings → your host → Providers → Claude → Authentication**, or run
+`python3 scripts/store-claude-token.py` on the host. Both store the token in macOS Keychain
+(service `sh.paseoi.claude-oauth`, account `default`), outside your repository and agent instructions.
+The setup command prints the token but does not save it for you.
+
+The stored token applies when the default Claude provider launches its next process. Saving or
+removing it does not interrupt running agents. Explicit credential environment variables,
+profiles, custom configuration directories, third-party endpoints, and derived providers retain
+their own authentication. Restoring authentication alone does not replay failed work.
+
+Set the renewal reminder to the token's issue date plus one year. The default assumes you generated
+it today; this is a reminder date, not a server-verified expiry. Paseoi checks every 30 seconds while
+the app is active and warns seven days before that date. It also reports authentication errors
+observed in open Claude agents. A local status check cannot prove that Anthropic will accept a
+credential or predict revocation. These checks make no model requests and do not renew tokens.
+
 ## Use Claude Code in the Paseo terminal
 
 Claude Code also works great inside the Paseo terminal. If you prefer the standard CLI experience, open a terminal in your workspace and run `claude` as usual.

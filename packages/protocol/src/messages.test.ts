@@ -548,3 +548,46 @@ test("agent messages are an optional semantic payload on existing tool rows", ()
     }).success,
   ).toBe(false);
 });
+
+describe("Claude authentication protocol", () => {
+  test("accepts credential writes and metadata-only status responses", () => {
+    const request = SessionInboundMessageSchema.parse({
+      type: "provider.claude.authentication.set.request",
+      requestId: "save-token",
+      credential: {
+        action: "save",
+        token: "sk-ant-oat01-SYNTHETIC",
+        renewBy: "2027-10-23T00:00:00Z",
+      },
+    });
+    expect(request.type).toBe("provider.claude.authentication.set.request");
+    const response = SessionOutboundMessageSchema.parse({
+      type: "provider.claude.authentication.get.response",
+      payload: {
+        requestId: "read-status",
+        tokenStored: true,
+        renewBy: "2027-10-23T00:00:00Z",
+        warning: null,
+        affectedAgents: 0,
+        token: "MUST_NOT_BE_RETURNED",
+      },
+    });
+    expect(JSON.stringify(response)).not.toContain("MUST_NOT_BE_RETURNED");
+  });
+  test("rejects ambiguous credential operations", () => {
+    expect(
+      SessionInboundMessageSchema.safeParse({
+        type: "provider.claude.authentication.set.request",
+        requestId: "bad",
+        credential: { action: "save" },
+      }).success,
+    ).toBe(false);
+    expect(
+      SessionInboundMessageSchema.safeParse({
+        type: "provider.claude.authentication.set.request",
+        requestId: "remove",
+        credential: { action: "remove" },
+      }).success,
+    ).toBe(true);
+  });
+});

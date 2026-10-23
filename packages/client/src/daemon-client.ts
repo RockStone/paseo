@@ -5314,6 +5314,27 @@ export class DaemonClient {
     });
   }
 
+  async getClaudeAuthentication() {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.claude.authentication.get.response">(
+      {
+        message: { type: "provider.claude.authentication.get.request" },
+      },
+    );
+  }
+
+  async setClaudeAuthentication(
+    credential: Extract<
+      SessionInboundMessage,
+      { type: "provider.claude.authentication.set.request" }
+    >["credential"],
+  ) {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.claude.authentication.set.response">(
+      {
+        message: { type: "provider.claude.authentication.set.request", credential },
+      },
+    );
+  }
+
   async getProviderDiagnostic(
     provider: AgentProvider,
     options?: { requestId?: string },

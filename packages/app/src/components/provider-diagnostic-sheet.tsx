@@ -1,3 +1,4 @@
+import { ClaudeAuthenticationSettings } from "@/claude-authentication/settings";
 import * as Clipboard from "expo-clipboard";
 import { AlertTriangle, Copy, FileText, Plus, RotateCw, Trash2 } from "lucide-react-native";
 import type { TFunction } from "i18next";
@@ -697,6 +698,9 @@ export function ProviderDiagnosticSheet({
         })}
         snapPoints={MAIN_SNAP_POINTS}
       >
+        {provider === "claude" && visible ? (
+          <ClaudeAuthenticationSettings key={serverId} serverId={serverId} />
+        ) : null}
         <ProviderModalBody
           discoveredCount={discoveredModels.length}
           additionalCount={additionalModels.length}

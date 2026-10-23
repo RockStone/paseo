@@ -1800,6 +1800,35 @@ export const RefreshProvidersSnapshotRequestMessageSchema = z.object({
   requestId: z.string(),
 });
 
+export const ClaudeAuthenticationStatusSchema = z.object({
+  tokenStored: z.boolean(),
+  renewBy: z.string().nullable(),
+  warning: z.enum(["authentication_failed", "renew_soon", "renewal_due"]).nullable(),
+  affectedAgents: z.number(),
+});
+export type ClaudeAuthenticationStatus = z.infer<typeof ClaudeAuthenticationStatusSchema>;
+
+export const ClaudeAuthenticationGetRequestSchema = z.object({
+  type: z.literal("provider.claude.authentication.get.request"),
+  requestId: z.string(),
+});
+export const ClaudeAuthenticationSetRequestSchema = z.object({
+  type: z.literal("provider.claude.authentication.set.request"),
+  requestId: z.string(),
+  credential: z.discriminatedUnion("action", [
+    z.object({ action: z.literal("save"), token: z.string().max(8192), renewBy: z.iso.datetime() }),
+    z.object({ action: z.literal("remove") }),
+  ]),
+});
+export const ClaudeAuthenticationGetResponseSchema = z.object({
+  type: z.literal("provider.claude.authentication.get.response"),
+  payload: ClaudeAuthenticationStatusSchema.extend({ requestId: z.string() }),
+});
+export const ClaudeAuthenticationSetResponseSchema = z.object({
+  type: z.literal("provider.claude.authentication.set.response"),
+  payload: z.object({ requestId: z.string(), acknowledged: z.boolean() }),
+});
+
 export const ProviderDiagnosticRequestMessageSchema = z.object({
   type: z.literal("provider_diagnostic_request"),
   provider: AgentProviderSchema,
@@ -3282,6 +3311,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ListAvailableProvidersRequestMessageSchema,
   GetProvidersSnapshotRequestMessageSchema,
   RefreshProvidersSnapshotRequestMessageSchema,
+  ClaudeAuthenticationGetRequestSchema,
+  ClaudeAuthenticationSetRequestSchema,
   ProviderDiagnosticRequestMessageSchema,
   ProviderUsageListRequestMessageSchema,
   UsageListReportsRequestMessageSchema,
@@ -3593,6 +3624,7 @@ export const ServerInfoStatusPayloadSchema = z
         backgroundWorkspaces: z.boolean().optional(),
         providersSnapshot: z.boolean().optional(),
         usageSources: z.boolean().optional(),
+        claudeAuthentication: z.boolean().optional(),
         // COMPAT(providersSnapshotCwd): added in v0.3.2, remove gate after 2027-02-10.
         providersSnapshotCwd: z.boolean().optional(),
         // COMPAT(directorySync): added in v0.3.x, remove gate after 2027-02-12.
@@ -7065,6 +7097,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   GetProvidersSnapshotResponseMessageSchema,
   ProvidersSnapshotUpdateMessageSchema,
   RefreshProvidersSnapshotResponseMessageSchema,
+  ClaudeAuthenticationGetResponseSchema,
+  ClaudeAuthenticationSetResponseSchema,
   ProviderDiagnosticResponseMessageSchema,
   ProviderUsageListResponseMessageSchema,
   UsageListReportsUpdateMessageSchema,

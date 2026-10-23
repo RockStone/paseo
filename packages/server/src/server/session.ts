@@ -1,3 +1,4 @@
+import { handleClaudeAuthenticationRequest } from "./session/provider/claude-authentication.js";
 import { sharedScriptsRoot } from "../utils/shared-scripts.js";
 import { AgentDirectory } from "./agent/directory.js";
 import { searchTimeline } from "./agent/chat-search/index.js";
@@ -3046,6 +3047,11 @@ export class Session {
         return this.providerCatalogSession.handleGetProvidersSnapshotRequest(msg);
       case "refresh_providers_snapshot_request":
         return this.providerCatalogSession.handleRefreshProvidersSnapshotRequest(msg);
+      case "provider.claude.authentication.get.request":
+      case "provider.claude.authentication.set.request":
+        return handleClaudeAuthenticationRequest(msg, this.agentManager, (message) =>
+          this.emit(message),
+        );
       case "provider_diagnostic_request":
         return this.providerCatalogSession.handleProviderDiagnosticRequest(msg);
       case "provider.usage.list.request":

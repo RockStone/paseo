@@ -1,3 +1,4 @@
+import { ClaudeAuthenticationWarnings } from "@/claude-authentication/warnings";
 import { router } from "expo-router";
 import {
   CircleGauge,
@@ -268,6 +269,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
             handleOpenHostSettings={handleOpenHostSettingsMobile}
           />
         </RetainedPanelActivity>
+        <ClaudeAuthenticationWarnings />
         {importSessionSheet}
       </>
     );
@@ -287,6 +289,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
           handleOpenHostSettings={handleOpenHostSettingsDesktop}
         />
       </RetainedPanelActivity>
+      <ClaudeAuthenticationWarnings />
       {importSessionSheet}
     </>
   );

@@ -1,3 +1,4 @@
+import { claudeTokenCanSupplyEnvironment } from "./authentication.js";
 import { extractUserImageSources } from "../provider-image-output.js";
 import { validateProviderOptions } from "../../provider-options.js";
 import type { ChildProcess } from "node:child_process";
@@ -467,6 +468,7 @@ interface ClaudeAgentClientOptions {
   resolveBinary?: () => Promise<string>;
   resolveVersion?: (signal?: AbortSignal) => Promise<string>;
   rewindSdk?: ClaudeRewindSdk;
+  loadOAuthToken?: () => Promise<string | null>;
 }
 
 interface ClaudeAgentSessionOptions {
@@ -480,6 +482,7 @@ interface ClaudeAgentSessionOptions {
   queryFactory?: ClaudeQueryFactory;
   resolveBinary: () => Promise<string>;
   rewindSdk?: ClaudeRewindSdk;
+  loadOAuthToken?: () => Promise<string | null>;
 }
 
 type ClaudeThinkingEffort = "low" | "medium" | "high" | "xhigh" | "max";
@@ -1573,6 +1576,7 @@ export class ClaudeAgentClient implements AgentClient {
   private readonly resolveBinary: () => Promise<string>;
   private readonly resolveVersion: (signal?: AbortSignal) => Promise<string>;
   private readonly rewindSdk: ClaudeRewindSdk;
+  private readonly loadOAuthToken?: () => Promise<string | null>;
 
   constructor(options: ClaudeAgentClientOptions) {
     this.discoverModels = options.discoverModels ?? discoverClaudeModels;
@@ -1585,6 +1589,7 @@ export class ClaudeAgentClient implements AgentClient {
       options.resolveVersion ??
       ((signal) => resolveClaudeCodeVersion(this.runtimeSettings, signal));
     this.rewindSdk = options.rewindSdk ?? realClaudeRewindSdk;
+    this.loadOAuthToken = options.loadOAuthToken;
   }
 
   resolveConfiguredModel(model: AgentModelDefinition): AgentModelDefinition {
@@ -1607,6 +1612,7 @@ export class ClaudeAgentClient implements AgentClient {
       queryFactory: this.queryFactory,
       resolveBinary: this.resolveBinary,
       rewindSdk: this.rewindSdk,
+      loadOAuthToken: this.loadOAuthToken,
     });
   }
 
@@ -1636,6 +1642,7 @@ export class ClaudeAgentClient implements AgentClient {
       queryFactory: this.queryFactory,
       resolveBinary: this.resolveBinary,
       rewindSdk: this.rewindSdk,
+      loadOAuthToken: this.loadOAuthToken,
     });
   }
 
@@ -2307,6 +2314,7 @@ class ClaudeAgentSession implements AgentSession {
   private mainTurnInFlight = false;
   private foregroundHasVisibleActivity = false;
   private activeTurnHasAssistantText = false;
+  private authenticationFailure: string | null = null;
   private readonly contextUsage: ClaudeContextUsageState;
   private refreshCompactionWindow = false;
   private activeCompactionCommand = false;
@@ -2314,6 +2322,7 @@ class ClaudeAgentSession implements AgentSession {
   private readonly emittedUserMessageIds = new Set<string>();
   private readonly rewindTurnAnchors: ClaudeRewindTurnAnchor[] = [];
   private readonly rewindSdk: ClaudeRewindSdk;
+  private readonly loadOAuthToken?: () => Promise<string | null>;
   private pendingFreshSessionId: string | null = null;
   private recentStderr = "";
   private closed = false;
@@ -2331,6 +2340,7 @@ class ClaudeAgentSession implements AgentSession {
     this.queryFactory = options.queryFactory;
     this.resolveBinary = options.resolveBinary;
     this.rewindSdk = options.rewindSdk ?? realClaudeRewindSdk;
+    this.loadOAuthToken = options.loadOAuthToken;
     this.contextUsage = new ClaudeContextUsageState(
       getClaudeContextWindowMaxTokens(this.config.model),
     );
@@ -2450,6 +2460,7 @@ class ClaudeAgentSession implements AgentSession {
     this.activeForegroundTurnId = turnId;
     this.foregroundHasVisibleActivity = false;
     this.activeTurnHasAssistantText = false;
+    this.authenticationFailure = null;
     this.contextUsage.beginTurn();
     this.activeCompactionCommand =
       typeof prompt === "string" && /^\/autocompact(?:\s|$)/i.test(prompt.trimStart());
@@ -3524,6 +3535,14 @@ class ClaudeAgentSession implements AgentSession {
     });
   }
 
+  private async buildAuthenticatedSdkEnv(): Promise<Record<string, string>> {
+    const env = { ...this.harnessEnvironment };
+    if (!this.loadOAuthToken || !claudeTokenCanSupplyEnvironment(env)) return env;
+    const token = await this.loadOAuthToken();
+    if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
+    return env;
+  }
+
   private async buildOptions(permissionMode: PermissionMode): Promise<ClaudeOptions> {
     const { thinking, effort, ultracode } = this.resolveThinkingConfig();
     const appendedSystemPrompt = this.buildAppendedSystemPrompt();
@@ -3532,7 +3551,7 @@ class ClaudeAgentSession implements AgentSession {
       this.config.toolPolicy,
     );
     const settingsOptions = this.buildSettingsOptions(providerOptions, { ultracode });
-    const sdkEnv = this.harnessEnvironment;
+    const sdkEnv = await this.buildAuthenticatedSdkEnv();
     assertClaudeModeCanRun(permissionMode, sdkEnv);
 
     const claudeBinary = await this.resolveBinary();
@@ -3873,6 +3892,7 @@ class ClaudeAgentSession implements AgentSession {
     this.activeForegroundInput = null;
     this.cancelCurrentTurn = null;
     this.activeTurnHasAssistantText = false;
+    this.authenticationFailure = null;
     this.compactionMarkerOpen = false;
     this.syncTurnState("foreground turn terminal");
   }
@@ -3892,12 +3912,14 @@ class ClaudeAgentSession implements AgentSession {
         this.activeForegroundInput = null;
         this.cancelCurrentTurn = null;
         this.activeTurnHasAssistantText = false;
+        this.authenticationFailure = null;
         this.syncTurnState("foreground turn terminal");
       } else if (this.autonomousTurn) {
         this.autonomousTurn = null;
         this.activeForegroundQuery = null;
         this.activeForegroundInput = null;
         this.activeTurnHasAssistantText = false;
+        this.authenticationFailure = null;
         this.syncTurnState("autonomous turn terminal");
       }
     }
@@ -3913,6 +3935,7 @@ class ClaudeAgentSession implements AgentSession {
     this.activeForegroundQuery = this.query;
     this.activeForegroundInput = this.input;
     this.activeTurnHasAssistantText = false;
+    this.authenticationFailure = null;
     this.contextUsage.beginTurn();
     this.notifySubscribers({ type: "turn_started", provider: "claude" });
     this.syncTurnState("autonomous turn started");
@@ -3927,6 +3950,7 @@ class ClaudeAgentSession implements AgentSession {
     this.activeForegroundQuery = null;
     this.activeForegroundInput = null;
     this.activeTurnHasAssistantText = false;
+    this.authenticationFailure = null;
     this.compactionMarkerOpen = false;
     this.syncTurnState("autonomous turn completed");
   }
@@ -4415,6 +4439,13 @@ class ClaudeAgentSession implements AgentSession {
     return withdrewAll;
   }
 
+  private captureAuthenticationFailure(message: Extract<SDKMessage, { type: "assistant" }>): void {
+    if (message.error === "authentication_failed" || message.error === "oauth_org_not_allowed") {
+      this.authenticationFailure =
+        "Failed to authenticate with Claude. Sign in again or replace the stored subscription token.";
+    }
+  }
+
   private translateMessageToEvents(
     message: SDKMessage,
     options?: {
@@ -4473,6 +4504,7 @@ class ClaudeAgentSession implements AgentSession {
         this.appendSidechainResultEvents(message, events);
         break;
       case "assistant": {
+        this.captureAuthenticationFailure(message);
         const timelineItems = this.mapBlocksToTimeline(message.message.content, {
           suppressAssistantText: options?.suppressAssistantText ?? false,
           suppressReasoning: options?.suppressReasoning ?? false,
@@ -4834,6 +4866,13 @@ class ClaudeAgentSession implements AgentSession {
     events: AgentStreamEvent[],
   ): void {
     const usage = this.convertUsage(message);
+    const authenticationFailure = this.authenticationFailure;
+    this.authenticationFailure = null;
+    if (authenticationFailure) {
+      events.push(...this.sidechainTracker.finishAll("failed"));
+      events.push(this.buildTurnFailedEvent(authenticationFailure));
+      return;
+    }
     if (message.subtype === "success") {
       events.push(...this.sidechainTracker.finishAll("completed"));
       // Built-in slash commands (e.g. /voice, /usage, "Unknown command: …")

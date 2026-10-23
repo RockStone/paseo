@@ -2060,3 +2060,92 @@ test("does not use stream_event uuid as assistant message identity when message_
 
   await session.close();
 });
+
+test("host OAuth credentials reach the SDK without entering persistence or overriding explicit auth", async () => {
+  const hostToken = "sk-ant-oat01-SYNTHETIC_HOST_TOKEN";
+  const loadOAuthToken = vi.fn(async () => hostToken);
+  const queryMock = createBaseQueryMock(vi.fn(async () => ({ done: true, value: undefined })));
+  sdkQueryFactory.mockImplementation(() => queryMock);
+  const client = new ClaudeAgentClient({
+    logger: createTestLogger(),
+    queryFactory: sdkQueryFactory,
+    resolveBinary: async () => "/test/claude/bin",
+    loadOAuthToken,
+  });
+  const session = await client.createSession({ provider: "claude", cwd: process.cwd() });
+  try {
+    await session.startTurn("test credential delivery");
+    expect(loadOAuthToken).toHaveBeenCalledTimes(1);
+    expect(sdkQueryFactory.mock.calls[0]?.[0]?.options?.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe(
+      hostToken,
+    );
+    expect(JSON.stringify(session.describePersistence())).not.toContain(hostToken);
+  } finally {
+    await session.close();
+  }
+  sdkQueryFactory.mockClear();
+  loadOAuthToken.mockClear();
+  const explicit = await client.createSession(
+    { provider: "claude", cwd: process.cwd() },
+    { env: { ANTHROPIC_BASE_URL: "https://example.invalid" } },
+  );
+  try {
+    await explicit.startTurn("test custom endpoint");
+    expect(loadOAuthToken).not.toHaveBeenCalled();
+    expect(
+      sdkQueryFactory.mock.calls[0]?.[0]?.options?.env?.CLAUDE_CODE_OAUTH_TOKEN,
+    ).toBeUndefined();
+  } finally {
+    await explicit.close();
+  }
+});
+
+test("Claude's structured OAuth failure remains visible when its terminal result is generic", async () => {
+  const queryMock = createPendingQueryMock();
+  sdkQueryFactory.mockImplementation(() => queryMock);
+  const session = await createSession();
+  const internal = asInternals(session);
+  const events: AgentStreamEvent[] = [];
+  session.subscribe((event) => events.push(event));
+  try {
+    await session.startTurn("hello");
+    await internal.routeSdkMessageFromPump({
+      type: "assistant",
+      error: "authentication_failed",
+      uuid: "auth-error",
+      message: {
+        content: [
+          {
+            type: "text",
+            text: "Failed to authenticate: OAuth session expired and could not be refreshed",
+          },
+        ],
+      },
+    });
+    await internal.routeSdkMessageFromPump({
+      type: "result",
+      subtype: "error_during_execution",
+      errors: [],
+      usage: buildUsage(),
+      total_cost_usd: 0,
+    });
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "turn_failed",
+        error: expect.stringContaining("Failed to authenticate"),
+      }),
+    );
+    events.length = 0;
+    await session.startTurn("retry after sign-in");
+    await internal.routeSdkMessageFromPump({
+      type: "result",
+      subtype: "success",
+      result: "Recovered",
+      usage: buildUsage(),
+      total_cost_usd: 0,
+    });
+    expect(events.some((event) => event.type === "turn_failed")).toBe(false);
+  } finally {
+    await session.close();
+  }
+});
