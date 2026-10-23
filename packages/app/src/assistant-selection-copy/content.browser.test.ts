@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createAssistantSelectionClipboardContent, createSelectionReplyText } from "./content.web";
+import {
+  createAssistantSelectionClipboardContent,
+  createTranscriptSelectionClipboardContent,
+} from "./content.web";
 
 const fixture = `
   <div data-testid="assistant-message">
@@ -824,24 +827,42 @@ describe("selection replies across transcript text", () => {
     document.body.append(transcript);
     const thinking = fixtureElement(transcript, "p");
     const output = fixtureElement(transcript, "pre");
-    expect(createSelectionReplyText(selectText(thinking, 8, 17), transcript)).toBe("check the");
-    expect(createSelectionReplyText(selectNodeContents(output), transcript)).toBe(
-      '  $ cat config.json\n    {"port": 8787}\n  done',
+    expect(
+      createTranscriptSelectionClipboardContent(selectText(thinking, 8, 17), transcript)?.plainText,
+    ).toBe("check the");
+    const code = createTranscriptSelectionClipboardContent(selectNodeContents(output), transcript);
+    expect(code?.plainText).toBe('  $ cat config.json\n    {"port": 8787}\n  done');
+    expect(code?.html).toContain(
+      "<pre><code>  $ cat config.json\n    {&quot;port&quot;: 8787}\n  done</code></pre>",
     );
     const selection = selectRange(thinking, 8, output, 20);
-    expect(createSelectionReplyText(selection, transcript)).toBe(selection.toString());
+    expect(createTranscriptSelectionClipboardContent(selection, transcript)?.plainText).toBe(
+      selection.toString(),
+    );
   });
 
   it("keeps assistant Markdown formatting and rejects selections outside its transcript", () => {
     const message = mountFixture();
     const strong = fixtureElement(message, '[data-paseo-markdown-tag="strong"]');
-    expect(createSelectionReplyText(selectNodeContents(strong), message)).toBe("**bold text**");
+    expect(
+      createTranscriptSelectionClipboardContent(selectNodeContents(strong), message)?.plainText,
+    ).toBe("**bold text**");
     const outside = document.createElement("p");
     outside.textContent = "Other workspace";
     document.body.append(outside);
-    expect(createSelectionReplyText(selectNodeContents(outside), message)).toBeNull();
-    expect(createSelectionReplyText(selectRange(strong, 0, outside, 5), message)).toBeNull();
-    expect(createSelectionReplyText(selectText(strong, 0, 0), message)).toBeNull();
-    expect(createSelectionReplyText(null, message)).toBeNull();
+    expect(
+      createTranscriptSelectionClipboardContent(selectNodeContents(outside), message),
+    ).toBeNull();
+    expect(
+      createTranscriptSelectionClipboardContent(selectRange(strong, 0, outside, 5), message),
+    ).toBeNull();
+    expect(createTranscriptSelectionClipboardContent(selectText(strong, 0, 0), message)).toBeNull();
+    expect(createTranscriptSelectionClipboardContent(null, message)).toBeNull();
+    const whitespace = document.createElement("pre");
+    whitespace.textContent = "  \n ";
+    message.append(whitespace);
+    expect(
+      createTranscriptSelectionClipboardContent(selectNodeContents(whitespace), message),
+    ).toBeNull();
   });
 });

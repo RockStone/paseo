@@ -90,17 +90,19 @@ turndown.addRule("compactListItem", {
   },
 });
 
-/** Reply can quote any visible transcript text; clipboard Markdown remains assistant-only. */
-export function createSelectionReplyText(
+/** Thinking and tool output retain their visible whitespace rather than being parsed as Markdown. */
+export function createTranscriptSelectionClipboardContent(
   selection: Selection | null,
   surface: Element,
-): string | null {
+): MarkdownClipboardContent | null {
   if (!selection || selection.rangeCount !== 1 || selection.isCollapsed) return null;
   const range = selection.getRangeAt(0);
   if (!surface.contains(range.startContainer) || !surface.contains(range.endContainer)) return null;
-  const text =
-    createAssistantSelectionClipboardContent(selection)?.plainText ?? selection.toString();
-  return text.trim() ? text : null;
+  const content = createAssistantSelectionClipboardContent(selection);
+  if (content) return content.plainText.trim() ? content : null;
+  const text = selection.toString();
+  if (!text.trim()) return null;
+  return createCodeClipboardContent(text, { block: text.includes("\n") });
 }
 
 export function createAssistantSelectionClipboardContent(

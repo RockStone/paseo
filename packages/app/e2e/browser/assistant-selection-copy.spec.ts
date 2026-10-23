@@ -361,13 +361,43 @@ async function selectAssistantAcrossCodeLines(
   );
 }
 
+async function clickSelectionCopy(page: Page): Promise<void> {
+  const button = page.getByTestId("copy-selection");
+  await button.click();
+  await expect(page.getByTestId("selection-actions")).toHaveCount(0);
+}
+
 async function copySelection(page: Page): Promise<void> {
   await page.keyboard.press("ControlOrMeta+c");
 }
 
-/** The Copy button writes text/plain only, so the rich reader would throw on it. */
+/** Some older copy controls write only text/plain. */
 async function readPlainClipboard(page: Page): Promise<string> {
   return page.evaluate(() => navigator.clipboard.readText());
+}
+
+async function denyClipboardUntilAllowed(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    let denied = true;
+    window.addEventListener("allow-test-clipboard", () => {
+      denied = false;
+    });
+    for (const method of ["write", "writeText"] as const) {
+      const original = navigator.clipboard[method].bind(navigator.clipboard);
+      Object.defineProperty(navigator.clipboard, method, {
+        configurable: true,
+        value: (...args: unknown[]) => {
+          if (denied) return Promise.reject(new DOMException("Denied", "NotAllowedError"));
+          return Reflect.apply(original, navigator.clipboard, args);
+        },
+      });
+    }
+    const original = document.execCommand.bind(document);
+    document.execCommand = (...args: Parameters<typeof document.execCommand>) => {
+      if (denied && args[0] === "copy") throw new DOMException("Denied", "NotAllowedError");
+      return original(...args);
+    };
+  });
 }
 
 async function readRichClipboard(page: Page): Promise<ClipboardContent> {
@@ -728,6 +758,7 @@ test("copying a selection across an assistant image keeps its Markdown source an
 
 test("replying to selected assistant text preserves the draft and focuses the composer", async ({
   page,
+  context,
 }, testInfo) => {
   const agent = await seedMockAgentWorkspace({
     repoPrefix: "assistant-selection-reply-",
@@ -739,6 +770,7 @@ test("replying to selected assistant text preserves the draft and focuses the co
     },
   });
   try {
+    await allowRichClipboard(context);
     await agent.client.waitForAgentUpsert(
       agent.agentId,
       (snapshot) => snapshot.status === "idle",
@@ -749,8 +781,16 @@ test("replying to selected assistant text preserves the draft and focuses the co
     await composer.fill("My existing draft");
     await selectAssistantText(page, "PostgreSQL databases");
     const reply = page.getByTestId("reply-to-selection");
+    const copy = page.getByTestId("copy-selection");
     await expect(reply).toBeVisible();
+    await expect(copy).toBeVisible();
+    await expect(page.getByTestId("selection-actions-divider")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("selection-reply-action.png") });
+    await clickSelectionCopy(page);
+    expect((await readRichClipboard(page)).plainText).toBe("PostgreSQL databases");
+    await expect(composer).toHaveAttribute("data-markdown", "My existing draft");
+    await selectAssistantText(page, "PostgreSQL databases");
+    await expect(reply).toBeVisible();
     await agent.client.sendAgentMessage(agent.agentId, "Add another streamed reply.");
     await agent.client.waitForFinish(agent.agentId, 30_000);
     // Markdown replacement can collapse the DOM selection; the captured excerpt survives.
@@ -760,6 +800,15 @@ test("replying to selected assistant text preserves the draft and focuses the co
       window.dispatchEvent(new Event("scroll"));
     });
     await expect(reply).toBeVisible();
+    await denyClipboardUntilAllowed(page);
+    await copy.click();
+    await expect(page.getByText("Unable to copy", { exact: true })).toBeVisible();
+    await expect(copy).toBeEnabled();
+    await expect(composer).toHaveAttribute("data-markdown", "My existing draft");
+    await page.evaluate(() => window.dispatchEvent(new Event("allow-test-clipboard")));
+    await clickSelectionCopy(page);
+    expect((await readRichClipboard(page)).plainText).toBe("PostgreSQL databases");
+    await selectAssistantText(page, "PostgreSQL databases");
     await reply.click();
     await expect(composer).toHaveAttribute(
       "data-markdown",
@@ -858,6 +907,7 @@ test("Reply follows the active end of wrapped text selections", async ({ page },
           { start: selectionCase.start, end: selectionCase.end },
         );
         const reply = page.getByTestId("reply-to-selection");
+        const toolbar = page.getByTestId("selection-actions");
         await expect(reply).toBeVisible();
         const focus = await page.evaluate(() => {
           const selection = window.getSelection();
@@ -871,12 +921,12 @@ test("Reply follows the active end of wrapped text selections", async ({ page },
         });
         await expect
           .poll(async () => {
-            const rect = await reply.boundingBox();
+            const rect = await toolbar.boundingBox();
             if (!rect) throw new Error("Expected Reply action");
             return Math.abs(rect.x + rect.width / 2 - focus.x);
           })
           .toBeLessThan(2);
-        const rect = await reply.boundingBox();
+        const rect = await toolbar.boundingBox();
         if (!rect) throw new Error("Expected Reply action");
         expect(Math.abs(rect.y + rect.height + 8 - focus.top)).toBeLessThan(2);
         await page.screenshot({ path: testInfo.outputPath(`${selectionCase.name}.png`) });
@@ -938,6 +988,7 @@ async function selectTranscriptExcerpt(page: Page, start: string, end: string): 
 
 test("Reply quotes Thinking, shell output, and selections spanning both", async ({
   page,
+  context,
 }, testInfo) => {
   await page.addInitScript(() => {
     localStorage.setItem("@paseo:app-settings", JSON.stringify({ autoExpandReasoning: true }));
@@ -949,6 +1000,7 @@ test("Reply quotes Thinking, shell output, and selections spanning both", async 
     initialPrompt: "Show reasoning and shell output.",
   });
   try {
+    await allowRichClipboard(context);
     await agent.client.waitForFinish(agent.agentId, 20_000);
     await openAgentRoute(page, agent);
     const composer = composerLocator(page);
@@ -957,12 +1009,13 @@ test("Reply quotes Thinking, shell output, and selections spanning both", async 
       .getByTestId("tool-call-badge")
       .filter({ hasText: "node scripts/simulate-stream-burst.mjs" })
       .last();
-    await shell
-      .getByRole("button")
-      .first()
-      .click({ position: { x: 8, y: 8 } });
+    const feed = page.getByTestId("agent-chat-scroll").filter({ visible: true });
+    await feed.hover({ position: { x: 20, y: 40 } });
+    await page.mouse.wheel(0, -700);
+    await waitForTimelineGeometryToSettle(page);
+    await shell.getByRole("button").first().click();
     const output = page.locator("[data-pmono]").filter({ hasText: "[burst] tick 1" }).last();
-    await expect(output).toBeVisible();
+    await expect(output).toBeVisible({ timeout: 30_000 });
 
     for (const excerpt of [
       { start: "Need to find the scroll container", end: "watches for new messages" },
@@ -973,6 +1026,9 @@ test("Reply quotes Thinking, shell output, and selections spanning both", async 
       const selected = await selectTranscriptExcerpt(page, excerpt.start, excerpt.end);
       const reply = page.getByTestId("reply-to-selection");
       await expect(reply).toBeVisible();
+      await clickSelectionCopy(page);
+      expect((await readRichClipboard(page)).plainText).toBe(selected);
+      await selectTranscriptExcerpt(page, excerpt.start, excerpt.end);
       await reply.click();
       const quote = selected
         .trimEnd()
@@ -1058,27 +1114,7 @@ test("keeps message checkboxes selected after clipboard denial and allows Copy t
     await allowRichClipboard(context);
     await agent.client.waitForFinish(agent.agentId, 15_000);
     await openAgentRoute(page, agent);
-    await page.evaluate(() => {
-      let denied = true;
-      window.addEventListener("allow-test-clipboard", () => {
-        denied = false;
-      });
-      for (const method of ["write", "writeText"] as const) {
-        const original = navigator.clipboard[method].bind(navigator.clipboard);
-        Object.defineProperty(navigator.clipboard, method, {
-          configurable: true,
-          value: (...args: unknown[]) => {
-            if (denied) return Promise.reject(new DOMException("Denied", "NotAllowedError"));
-            return Reflect.apply(original, navigator.clipboard, args);
-          },
-        });
-      }
-      const original = document.execCommand.bind(document);
-      document.execCommand = (...args: Parameters<typeof document.execCommand>) => {
-        if (denied && args[0] === "copy") throw new DOMException("Denied", "NotAllowedError");
-        return original(...args);
-      };
-    });
+    await denyClipboardUntilAllowed(page);
     await page.getByTestId("message-selection-start").click();
     const checkbox = page.getByRole("checkbox", { name: "Select user message", exact: true });
     await checkbox.click();
@@ -1181,6 +1217,68 @@ test("keeps an expanded compaction summary open when entering and leaving messag
     await expect(page.getByTestId("message-selection-start")).toBeVisible();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
     expect(await readPlainClipboard(page)).toBe(`### Assistant\n\n${intro}`);
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("selection toolbar copies command lists and raw multi-line code", async ({
+  page,
+  context,
+}, testInfo) => {
+  const markdown =
+    "- `supabase --project alpha`\n- `supabase --project beta`\n\n```bash\n  # comment\n  echo value\n```";
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "selection-toolbar-copy-",
+    title: "Selection Copy",
+    initialPrompt: "Show commands.",
+    featureValues: { mockAssistantResponse: markdown },
+  });
+  try {
+    await allowRichClipboard(context);
+    await agent.client.waitForFinish(agent.agentId, 15_000);
+    await openAgentRoute(page, agent);
+    const composer = composerLocator(page);
+    await composer.fill("Keep this draft");
+    await selectAssistantElement(page, "ul");
+    const copy = page.getByTestId("copy-selection");
+    await expect(copy).toBeVisible();
+    const replyRect = await page.getByTestId("reply-to-selection").boundingBox();
+    const copyRect = await copy.boundingBox();
+    const dividerRect = await page.getByTestId("selection-actions-divider").boundingBox();
+    if (!replyRect || !copyRect || !dividerRect) throw new Error("Expected selection toolbar");
+    expect(replyRect.x + replyRect.width).toBeLessThanOrEqual(dividerRect.x);
+    expect(dividerRect.x + dividerRect.width).toBeLessThanOrEqual(copyRect.x);
+    const dividerColors = await page
+      .getByTestId("selection-actions-divider")
+      .evaluate((element) => ({
+        divider: getComputedStyle(element).backgroundColor,
+        toolbar: getComputedStyle(element.parentElement!).backgroundColor,
+      }));
+    expect(dividerColors.divider).not.toBe(dividerColors.toolbar);
+    const padding = await page.getByTestId("selection-actions").evaluate((toolbar) => {
+      return Array.from(toolbar.querySelectorAll('[role="button"]'), (button) => {
+        const style = getComputedStyle(button);
+        return [style.paddingLeft, style.paddingRight];
+      });
+    });
+    expect(padding).toHaveLength(2);
+    expect(padding[0]).toEqual(padding[1]);
+    expect(padding[0]?.[0]).toBe(padding[0]?.[1]);
+    await page.screenshot({ path: testInfo.outputPath("selection-reply-copy-toolbar.png") });
+    await clickSelectionCopy(page);
+    const list = await readRichClipboard(page);
+    await expect(page.getByText("Copied", { exact: true })).toHaveCount(0);
+    expect(list.plainText).toBe("- `supabase --project alpha`\n- `supabase --project beta`");
+    expect(list.html).toContain("<div>- <code>supabase --project alpha</code></div>");
+    expect(list.html).toContain("<code>supabase --project alpha</code>");
+    await selectAssistantAcrossCodeLines(page, "# comment", "value");
+    await clickSelectionCopy(page);
+    const code = await readRichClipboard(page);
+    expect(code.plainText).toBe("# comment\n  echo value");
+    expect(code.html).toContain("<pre><code");
+    expect(code.html).not.toContain("<h1>");
+    await expect(composer).toHaveAttribute("data-markdown", "Keep this draft");
   } finally {
     await agent.cleanup();
   }

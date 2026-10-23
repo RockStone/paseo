@@ -69,8 +69,16 @@ export async function writeMarkdownToRichClipboard(
   markdown: string,
   environment: MarkdownClipboardEnvironment,
 ): Promise<void> {
+  return writeRichClipboardContent(markdown, environment);
+}
+
+export async function writeRichClipboardContent(
+  input: string | MarkdownClipboardContent,
+  environment: MarkdownClipboardEnvironment,
+): Promise<void> {
+  const plainText = typeof input === "string" ? input : input.plainText;
   if (environment.richWriter?.supportsHtml()) {
-    const content = createMarkdownClipboardContent(markdown);
+    const content = typeof input === "string" ? createMarkdownClipboardContent(input) : input;
     try {
       await environment.richWriter.write({
         "text/plain": new Blob([content.plainText], { type: "text/plain" }),
@@ -83,7 +91,7 @@ export async function writeMarkdownToRichClipboard(
     }
   }
 
-  const written = await environment.writePlainText(markdown);
+  const written = await environment.writePlainText(plainText);
   // Expo's web fallback reports a denied legacy write as false instead of rejecting.
   if (written === false) throw new Error("Clipboard write failed");
 }

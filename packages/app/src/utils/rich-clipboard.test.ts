@@ -5,6 +5,7 @@ import {
   type MarkdownClipboardEnvironment,
   type RichClipboardWriter,
   writeMarkdownToRichClipboard,
+  writeRichClipboardContent,
 } from "./rich-clipboard";
 
 interface RecordingClipboard {
@@ -127,6 +128,25 @@ describe("createCodeClipboardContent", () => {
 });
 
 describe("writeMarkdownToRichClipboard", () => {
+  it("writes prepared code without interpreting its Markdown characters", async () => {
+    const clipboard = createRecordingClipboard();
+    const code = createCodeClipboardContent("# comment\n  * literal", { block: true });
+    await writeRichClipboardContent(code, clipboard.environment);
+    const written = clipboard.richWrites[0]!;
+    await expect(written["text/plain"].text()).resolves.toBe("# comment\n  * literal");
+    await expect(written["text/html"].text()).resolves.toBe(code.html);
+    expect(clipboard.plainTexts).toEqual([]);
+  });
+
+  it("keeps prepared code whitespace in the plain-text fallback and reports denial", async () => {
+    const clipboard = createRecordingClipboard({ richWriteFails: true });
+    const code = createCodeClipboardContent("  # comment\n  * literal", { block: true });
+    await writeRichClipboardContent(code, clipboard.environment);
+    expect(clipboard.plainTexts).toEqual([code.plainText]);
+    await expect(
+      writeRichClipboardContent(code, { writePlainText: async () => false }),
+    ).rejects.toThrow("Clipboard write failed");
+  });
   it("rejects a failed plain-text fallback so callers can keep their selection and retry", async () => {
     await expect(
       writeMarkdownToRichClipboard("keep this", { writePlainText: async () => false }),
