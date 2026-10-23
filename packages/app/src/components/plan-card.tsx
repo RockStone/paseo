@@ -1,8 +1,9 @@
+import { useTranscriptSectionExpanded } from "@/agent-stream/section-expansion";
 import { MarkdownRenderer } from "@/components/markdown/renderer";
 import { isWeb } from "@/constants/platform";
 import type { Theme } from "@/styles/theme";
 import { ChevronRight } from "lucide-react-native";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -37,7 +38,10 @@ function PlanCardContent({
   testID,
 }: PlanCardProps) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(outcome !== "rejected" && outcome !== "canceled");
+  const [expanded, setExpanded] = useTranscriptSectionExpanded(
+    outcome !== "rejected" && outcome !== "canceled",
+    `plan:${outcome ?? "proposed"}`,
+  );
   const labels = {
     pending: title ?? t("agentStream.permission.plan"),
     rejected: t("agentStream.permission.rejectedPlan"),
@@ -50,7 +54,7 @@ function PlanCardContent({
     () => (isWeb ? ({ "aria-expanded": expanded } as const) : null),
     [expanded],
   );
-  const toggleExpanded = useCallback(() => setExpanded((value) => !value), []);
+  const toggleExpanded = useCallback(() => setExpanded((value) => !value), [setExpanded]);
   const containerStyle = useMemo(
     () => [styles.container, disableOuterSpacing && styles.containerCompact],
     [disableOuterSpacing],

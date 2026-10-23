@@ -282,6 +282,17 @@ test("keeps overview tool calls inline on desktop", async ({ page }) => {
     gate.release(1);
     await expect.poll(() => group.getByTestId("tool-call-badge").count()).toBeGreaterThanOrEqual(2);
     await expect(page.getByTestId("tool-call-group-sheet")).toHaveCount(0);
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await page
+      .getByTestId("workspace-tabs-row")
+      .getByRole("button", { name: "Desktop overview tool calls", exact: true })
+      .hover();
+    const toggle = page.getByTestId(`workspace-tab-sections-${agent.agentId}`);
+    await toggle.click();
+    await expect(group.getByTestId("tool-call-badge")).toHaveCount(0);
+    await expect(toggle).toHaveAttribute("aria-label", "Expand thinking");
+    await toggle.click();
+    await expect(group.getByTestId("tool-call-badge")).toHaveCount(0);
   } finally {
     await agent.cleanup();
   }

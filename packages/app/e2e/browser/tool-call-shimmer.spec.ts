@@ -345,6 +345,35 @@ test("tool labels and expanded shell output stay muted while agent messages stay
     await shell.getByRole("button").first().click();
     await expect(shell.getByText(/\[burst\] tick 1/).first()).toHaveCSS("color", muted);
     await expect(shell.getByText("Shell", { exact: true })).toHaveCSS("color", muted);
+    await page
+      .getByTestId("workspace-tabs-row")
+      .getByRole("button", { name: "Tool tones", exact: true })
+      .hover();
+    const collapse = page.getByTestId(`workspace-tab-sections-${agent.agentId}`);
+    await expect(collapse).toHaveAttribute("aria-label", "Collapse all sections");
+    await collapse.click();
+    await expect(shell.getByRole("button").first()).toHaveAttribute("aria-expanded", "false");
+    await expect(notification.getByRole("button").first()).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await expect(thinking.getByRole("button").first()).toHaveAttribute("aria-expanded", "false");
+    await shell.getByRole("button").first().click();
+    await page
+      .getByTestId("workspace-tabs-row")
+      .getByRole("button", { name: "Tool tones", exact: true })
+      .hover();
+    await expect(collapse).toHaveAttribute("aria-label", "Collapse all sections");
+    await collapse.click();
+    await expect(shell.getByRole("button").first()).toHaveAttribute("aria-expanded", "false");
+    await expect(collapse).toHaveAttribute("aria-label", "Expand thinking");
+    await collapse.click();
+    await expect(thinking.getByRole("button").first()).toHaveAttribute("aria-expanded", "true");
+    await expect(shell.getByRole("button").first()).toHaveAttribute("aria-expanded", "false");
+    await expect(notification.getByRole("button").first()).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   } finally {
     await agent.cleanup();
   }

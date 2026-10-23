@@ -1,3 +1,4 @@
+import { useTranscriptSectionExpanded } from "./section-expansion";
 import { memo, useCallback, useMemo, useState } from "react";
 import { View, Text } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -57,9 +58,9 @@ function ChangedFileRow({
 }) {
   const compact = useIsCompactFormFactor();
   const displayPath = compact ? fileNameForPath(file.path) : file.path;
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useTranscriptSectionExpanded(false, `changed-file:${file.path}`);
   const accessibilityState = useMemo(() => ({ expanded }), [expanded]);
-  const toggle = useCallback(() => setExpanded((value) => !value), []);
+  const toggle = useCallback(() => setExpanded((value) => !value), [setExpanded]);
   const openFile = useCallback(() => onOpenFile(file.path), [onOpenFile, file.path]);
   const { t } = useTranslation();
   const row = useMemo(
@@ -108,9 +109,9 @@ export const ChangedFilesCard = memo(function ChangedFilesCard({
   summary: ResponseFileChanges;
   onOpenFile: (path: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useTranscriptSectionExpanded(true, "changed-files");
   const accessibilityState = useMemo(() => ({ expanded }), [expanded]);
-  const toggle = useCallback(() => setExpanded((value) => !value), []);
+  const toggle = useCallback(() => setExpanded((value) => !value), [setExpanded]);
   const [showAll, setShowAll] = useState(false);
   const toggleFiles = useCallback(() => setShowAll((value) => !value), []);
   const { t } = useTranslation();

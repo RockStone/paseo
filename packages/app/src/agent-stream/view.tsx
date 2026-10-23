@@ -7,7 +7,11 @@ import {
 import { messageSelectionTarget } from "./message-selection/model";
 import { ChangedFilesCard } from "./changed-files-card";
 import { CompactionIntro } from "./compaction-intro";
-import { thinkingDisplayKey, useThinkingDisplayStore } from "./thinking-display";
+import {
+  transcriptDisplayKey,
+  useSectionExpansionStore,
+  TranscriptExpansionScope,
+} from "./section-expansion";
 import { collectResponseFileChanges } from "./response-file-changes";
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -371,6 +375,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     // Get serverId (fallback to agent's serverId if not provided)
     const resolvedServerId = serverId ?? context.serverId ?? "";
+    const displayKey = transcriptDisplayKey(resolvedServerId, agentId);
+    const expansionRevision = useSectionExpansionStore((state) => state.revision[displayKey] ?? 0);
     const selectionTarget = messageSelectionTarget(resolvedServerId, agentId);
     const messageSelection = useMessageSelection();
     const selectionActive = useMessageSelectionActive(selectionTarget);
@@ -688,17 +694,27 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       [streamRenderStrategy],
     );
 
-    const setToolCallGroupExpanded = useCallback((groupId: string, expanded: boolean) => {
-      setExpandedToolCallGroupIds((previous) => {
-        const next = new Set(previous);
-        if (expanded) {
-          next.add(groupId);
-        } else {
-          next.delete(groupId);
-        }
-        return next;
-      });
-    }, []);
+    const setToolCallGroupExpanded = useCallback(
+      (groupId: string, expanded: boolean) => {
+        useSectionExpansionStore
+          .getState()
+          .setSection(displayKey, `group:${groupId}`, false, expanded);
+        setExpandedToolCallGroupIds((previous) => {
+          const next = new Set(previous);
+          if (expanded) {
+            next.add(groupId);
+          } else {
+            next.delete(groupId);
+          }
+          return next;
+        });
+      },
+      [displayKey],
+    );
+
+    useEffect(() => {
+      setExpandedToolCallGroupIds(new Set());
+    }, [expansionRevision, displayKey]);
 
     const renderUserMessageItem = useCallback(
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "user_message" }>) => {
@@ -791,7 +807,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "thought" }>) => {
         return (
           <ThoughtSlot
-            displayKey={thinkingDisplayKey(resolvedServerId, agentId)}
+            displayKey={transcriptDisplayKey(resolvedServerId, agentId)}
             itemId={item.id}
             onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
             text={item.text}
@@ -958,8 +974,12 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     const renderStreamItem = useCallback(
       (layoutItem: StreamLayoutItem) => {
-        const content = renderStreamItemContent(layoutItem);
         const item = layoutItem.item;
+        const content = (
+          <TranscriptExpansionScope displayKey={displayKey} itemId={item.id}>
+            {renderStreamItemContent(layoutItem)}
+          </TranscriptExpansionScope>
+        );
         const selectableContent =
           item.kind === "user_message" || item.kind === "assistant_message" ? (
             <MessageSelectionRow target={selectionTarget} item={item}>
@@ -980,6 +1000,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         handleForkAssistantTurn,
         readOnly,
         renderStreamItemContent,
+        displayKey,
         selectionTarget,
         streamRenderStrategy,
         supportsAgentForkContextCursor,
@@ -1377,11 +1398,10 @@ function ThoughtSlot({
   isLastInSequence,
   defaultExpanded,
 }: ThoughtSlotProps) {
-  const expanded = useThinkingDisplayStore((state) => state.expanded[displayKey]);
+  const expanded = useSectionExpansionStore((state) => state.thinkingExpanded[displayKey]);
   const revealedText = useRevealedText(text, status === "ready" ? "complete" : "streaming");
   return (
     <ToolCallSlot
-      key={String(expanded)}
       itemId={itemId}
       onInlineDetailsExpandedChangeByItemId={onInlineDetailsExpandedChangeByItemId}
       toolName="thinking"
@@ -1403,7 +1423,9 @@ function ToolCallSlot({
     (expanded: boolean) => onInlineDetailsExpandedChangeByItemId(itemId, expanded),
     [onInlineDetailsExpandedChangeByItemId, itemId],
   );
-  return <ToolCall {...rest} onInlineDetailsExpandedChange={handleExpandedChange} />;
+  return (
+    <ToolCall {...rest} expansionId={itemId} onInlineDetailsExpandedChange={handleExpandedChange} />
+  );
 }
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);

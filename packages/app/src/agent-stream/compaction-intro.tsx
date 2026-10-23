@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useCallback, type ReactNode } from "react";
+import { useTranscriptSectionExpanded } from "./section-expansion";
+import React, { useMemo, useCallback, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { ChevronDown, ChevronRight } from "lucide-react-native";
@@ -18,10 +19,10 @@ export function CompactionIntro({
   forceExpanded: boolean;
   children: ReactNode;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useTranscriptSectionExpanded(false, "compaction", enabled);
   const visible = expanded || forceExpanded;
   const accessibilityState = useMemo(() => ({ expanded: visible }), [visible]);
-  const toggle = useCallback(() => setExpanded((previous) => !previous), []);
+  const toggle = useCallback(() => setExpanded((previous) => !previous), [setExpanded]);
   if (!enabled) return children;
   const Chevron = visible ? Down : Right;
   return (

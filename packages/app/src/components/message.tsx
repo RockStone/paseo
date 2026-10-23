@@ -1,3 +1,4 @@
+import { useTranscriptSectionExpanded } from "@/agent-stream/section-expansion";
 import { messageReferenceDetails } from "@/attachments/reference-details";
 import { MarkdownReferenceContext } from "@/components/markdown/reference-context";
 import { AssistantFileLinkResolverProvider, type InlinePathTarget } from "@/assistant-file-links";
@@ -1535,7 +1536,7 @@ export const TodoListCard = memo(function TodoListCard({
   disableOuterSpacing,
 }: TodoListCardProps) {
   const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useTranscriptSectionExpanded(false, "todo");
   const activityDisplay = useMemo(() => {
     if (activity.type === "created") {
       return {
@@ -1551,7 +1552,7 @@ export const TodoListCard = memo(function TodoListCard({
 
   const handleToggle = useCallback(() => {
     setIsExpanded((prev) => !prev);
-  }, []);
+  }, [setIsExpanded]);
 
   const renderDetails = useCallback(() => {
     return (
@@ -2217,6 +2218,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
         onPressIn: handlePressIn,
         onPressOut: handlePressOut,
         accessibilityRole: "button" as const,
+        "aria-expanded": isExpanded,
       }
     : {};
 
@@ -2313,6 +2315,7 @@ interface ToolCallProps {
   onInlineDetailsHoverChange?: (hovered: boolean) => void;
   onInlineDetailsExpandedChange?: (expanded: boolean) => void;
   onOpenFilePath?: (filePath: string) => void;
+  expansionId?: string;
   defaultExpanded?: boolean;
   forceInline?: boolean;
   maxDetailHeight?: number;
@@ -2334,12 +2337,12 @@ export const ToolCall = memo(function ToolCall({
   onInlineDetailsHoverChange,
   onInlineDetailsExpandedChange,
   onOpenFilePath,
+  expansionId,
   defaultExpanded,
   forceInline = false,
   maxDetailHeight = 400,
 }: ToolCallProps) {
   const { openToolCall } = useToolCallSheet();
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? false);
 
   const isMobile = useIsCompactFormFactor();
   const shouldRenderInline = !isMobile || forceInline;
@@ -2374,6 +2377,12 @@ export const ToolCall = memo(function ToolCall({
       }),
     [toolName, status, error, effectiveDetail, metadata, cwd, agentMessage, targetAgentTitle],
   );
+  const [isExpanded, setIsExpanded] = useTranscriptSectionExpanded(
+    defaultExpanded ?? false,
+    `tool:${expansionId ?? toolName}`,
+    !presentation.isPlan,
+    toolName === "thinking",
+  );
   const handleOpenFile = useMemo(() => {
     const openFilePath = presentation.openFilePath;
     if (!openFilePath || !onOpenFilePath) {
@@ -2398,6 +2407,7 @@ export const ToolCall = memo(function ToolCall({
       setIsExpanded((prev) => !prev);
     }
   }, [
+    setIsExpanded,
     shouldRenderInline,
     openToolCall,
     toolName,
@@ -2506,6 +2516,7 @@ function areToolCallPropsEqual(previous: ToolCallProps, next: ToolCallProps) {
   if (previous.isLastInSequence !== next.isLastInSequence) return false;
   if (previous.disableOuterSpacing !== next.disableOuterSpacing) return false;
   if (previous.onOpenFilePath !== next.onOpenFilePath) return false;
+  if (previous.expansionId !== next.expansionId) return false;
   if (previous.defaultExpanded !== next.defaultExpanded) return false;
   if (previous.forceInline !== next.forceInline) return false;
   if (previous.maxDetailHeight !== next.maxDetailHeight) return false;

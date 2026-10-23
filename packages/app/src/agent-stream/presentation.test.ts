@@ -15,7 +15,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { buildAgentStreamRenderModel } from "./model";
 import { createStreamPresentation, getStreamItemMessageId } from "./presentation";
-import { thinkingDisplayKey, useThinkingDisplayStore } from "./thinking-display";
+import { transcriptDisplayKey, useSectionExpansionStore } from "./section-expansion";
 
 const runtime = {
   paseo: {},
@@ -649,20 +649,57 @@ function assistantMessage(
 }
 
 describe("timeline presentation", () => {
-  it("scopes thinking expansion to its host and conversation", () => {
-    useThinkingDisplayStore.setState({ expanded: {} });
-    const key = thinkingDisplayKey("host", "agent");
-    useThinkingDisplayStore.getState().toggle(key, true);
-    expect(useThinkingDisplayStore.getState().expanded[key]).toBe(false);
+  it("scopes section expansion to its host and conversation", () => {
+    useSectionExpansionStore.setState({ thinkingExpanded: {}, sections: {}, revision: {} });
+    const key = transcriptDisplayKey("host", "agent");
+    useSectionExpansionStore.getState().toggle(key, true);
+    expect(useSectionExpansionStore.getState().thinkingExpanded[key]).toBe(false);
     expect(
-      useThinkingDisplayStore.getState().expanded[thinkingDisplayKey("other", "agent")],
+      useSectionExpansionStore.getState().thinkingExpanded[transcriptDisplayKey("other", "agent")],
     ).toBeUndefined();
     expect(
-      useThinkingDisplayStore.getState().expanded[thinkingDisplayKey("host", "other")],
+      useSectionExpansionStore.getState().thinkingExpanded[transcriptDisplayKey("host", "other")],
     ).toBeUndefined();
-    useThinkingDisplayStore.getState().toggle(key, true);
-    expect(useThinkingDisplayStore.getState().expanded[key]).toBe(true);
-    useThinkingDisplayStore.setState({ expanded: {} });
+    useSectionExpansionStore.getState().toggle(key, true);
+    expect(useSectionExpansionStore.getState().thinkingExpanded[key]).toBe(true);
+    useSectionExpansionStore.setState({ thinkingExpanded: {}, sections: {}, revision: {} });
+  });
+
+  it("collapses individually reopened sections again and keeps other agents unchanged", () => {
+    useSectionExpansionStore.setState({ thinkingExpanded: {}, sections: {}, revision: {} });
+    const key = transcriptDisplayKey("host", "agent");
+    const other = transcriptDisplayKey("host", "other");
+    const store = useSectionExpansionStore.getState();
+    store.register(key, "shell", false);
+    store.register(key, "notification", false);
+    store.register(other, "thinking", true, true);
+    store.setSection(key, "shell", false, true);
+    store.setSection(key, "notification", false, true);
+    store.toggle(key, true);
+    expect(useSectionExpansionStore.getState().sections[key]).toEqual({
+      shell: { expanded: false, thinking: false },
+      notification: { expanded: false, thinking: false },
+    });
+    store.setSection(key, "shell", false, true);
+    store.toggle(key, true);
+    expect(useSectionExpansionStore.getState().sections[key]).toEqual({
+      shell: { expanded: false, thinking: false },
+      notification: { expanded: false, thinking: false },
+    });
+    expect(useSectionExpansionStore.getState().revision[key]).toBe(2);
+    expect(useSectionExpansionStore.getState().sections[other]).toEqual({
+      thinking: { expanded: true, thinking: true },
+    });
+    store.toggle(key, true);
+    store.register(key, "later-tool", false);
+    store.register(key, "later-thinking", false, true);
+    expect(useSectionExpansionStore.getState().sections[key]).toEqual({
+      shell: { expanded: false, thinking: false },
+      notification: { expanded: false, thinking: false },
+      "later-tool": { expanded: false, thinking: false },
+      "later-thinking": { expanded: true, thinking: true },
+    });
+    useSectionExpansionStore.setState({ thinkingExpanded: {}, sections: {}, revision: {} });
   });
 
   it("folds recognized long assistant continuations and preserves ordinary replies", () => {

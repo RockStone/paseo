@@ -63,7 +63,11 @@ import type { WorkspaceTabLaunchPurpose } from "@/workspace-tabs/launcher";
 import type { SurfaceBackdrop } from "@/styles/surface-backdrop";
 import type { Theme } from "@/styles/theme";
 import { RenderProfile } from "@/utils/render-profiler";
-import { thinkingDisplayKey, useThinkingDisplayStore } from "@/agent-stream/thinking-display";
+import {
+  transcriptDisplayKey,
+  useSectionExpansionStore,
+  hasExpandedSections,
+} from "@/agent-stream/section-expansion";
 import { useSettings } from "@/hooks/use-settings";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
@@ -650,7 +654,7 @@ function TabHandleContent({
     <View style={styles.tabHandle} dataSet={tabHandleDataSet}>
       <View style={styles.tabIcon}>
         {thinkingAgentId && showThinkingAction ? (
-          <AgentThinkingToggle serverId={serverId} agentId={thinkingAgentId} />
+          <AgentTranscriptToggle serverId={serverId} agentId={thinkingAgentId} />
         ) : (
           <WorkspaceTabIcon
             presentation={presentation}
@@ -680,10 +684,12 @@ function TabHandleContent({
   );
 }
 
-function AgentThinkingToggle({ serverId, agentId }: { serverId: string; agentId: string }) {
-  const key = thinkingDisplayKey(serverId, agentId);
+function AgentTranscriptToggle({ serverId, agentId }: { serverId: string; agentId: string }) {
+  const key = transcriptDisplayKey(serverId, agentId);
   const defaultExpanded = useSettings((settings) => settings.autoExpandReasoning);
-  const expanded = useThinkingDisplayStore((state) => state.expanded[key] ?? defaultExpanded);
+  const expanded = useSectionExpansionStore((state) =>
+    hasExpandedSections(state, key, defaultExpanded),
+  );
   const Chevron = expanded ? ChevronDown : ChevronRight;
   const stop = useCallback(
     (event: { stopPropagation?: () => void }) => event.stopPropagation?.(),
@@ -693,17 +699,17 @@ function AgentThinkingToggle({ serverId, agentId }: { serverId: string; agentId:
   const toggle = useCallback(
     (event: { stopPropagation(): void }) => {
       event.stopPropagation();
-      useThinkingDisplayStore.getState().toggle(key, defaultExpanded);
+      useSectionExpansionStore.getState().toggle(key, defaultExpanded);
     },
     [key, defaultExpanded],
   );
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={expanded ? "Collapse thinking" : "Expand thinking"}
+      accessibilityLabel={expanded ? "Collapse all sections" : "Expand thinking"}
       accessibilityState={accessibilityState}
       aria-expanded={expanded}
-      testID={`workspace-tab-thinking-${agentId}`}
+      testID={`workspace-tab-sections-${agentId}`}
       onPressIn={stop}
       {...(isWeb ? { onPointerDown: stop, onMouseDown: stop } : {})}
       onPress={toggle}

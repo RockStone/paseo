@@ -10,6 +10,7 @@ import { RetainedPanelActivity } from "@/components/retained-panel";
 import type { StreamItem } from "@/types/stream";
 import type { StreamRenderInput, StreamSegmentRenderers, StreamViewportHandle } from "./strategy";
 import { createWebStreamStrategy } from "./strategy-web";
+import { TranscriptExpansionScope, useSectionExpansionStore } from "./section-expansion";
 import { CompactionIntro } from "./compaction-intro";
 
 vi.hoisted(() => {
@@ -132,6 +133,33 @@ describe("createWebStreamStrategy", () => {
     }
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("folds compaction summaries with the conversation control and preserves manual reopening", () => {
+    useSectionExpansionStore.setState({ thinkingExpanded: {}, sections: {}, revision: {} });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() =>
+      root?.render(
+        <TranscriptExpansionScope displayKey="test-agent" itemId="summary">
+          <CompactionIntro enabled forceExpanded={false}>
+            <span>Long summary</span>
+          </CompactionIntro>
+        </TranscriptExpansionScope>,
+      ),
+    );
+    const button = container.querySelector("[role=button]") as HTMLElement;
+    act(() => button.click());
+    expect(container.textContent).toContain("Long summary");
+    act(() => useSectionExpansionStore.getState().toggle("test-agent", false));
+    expect(container.textContent).not.toContain("Long summary");
+    act(() => button.click());
+    expect(container.textContent).toContain("Long summary");
+    act(() => useSectionExpansionStore.getState().toggle("test-agent", false));
+    expect(container.textContent).not.toContain("Long summary");
+    act(() => useSectionExpansionStore.getState().toggle("test-agent", false));
+    expect(container.textContent).not.toContain("Long summary");
   });
 
   it("keeps a compaction intro collapsed until opened and supports closing it again", () => {
