@@ -34,7 +34,7 @@ function BranchCopyMenu({
   return (
     <ContextMenu>
       <ContextMenuTrigger contextOnly>{children}</ContextMenuTrigger>
-      <ContextMenuContent testID="branch-copy-context-menu">
+      <ContextMenuContent testID="branch-copy-context-menu" minWidth={0}>
         <ContextMenuItem onSelect={handleCopy}>
           {t("sidebar.workspace.actions.copyBranchName")}
         </ContextMenuItem>
