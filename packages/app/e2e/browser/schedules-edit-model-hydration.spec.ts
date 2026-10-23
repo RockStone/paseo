@@ -67,6 +67,69 @@ test.describe("Schedules", () => {
     cleanupTasks.length = 0;
   });
 
+  test("pauses and resumes a heartbeat without losing its details across reload", async ({
+    page,
+  }, testInfo) => {
+    const workspace = await seedWorkspace({ repoPrefix: "heartbeat-pause-" });
+    cleanupTasks.push(() => workspace.cleanup());
+    const agent = await workspace.client.createAgent({
+      provider: "mock",
+      cwd: workspace.repoPath,
+      workspaceId: workspace.workspaceId,
+      title: "Pausable heartbeat target",
+      modeId: "load-test",
+      model: "e2e-fast-stream",
+    });
+    const client = workspace.client as unknown as ScheduleSeedClient;
+    const details = {
+      name: "Pausable watcher",
+      prompt: "Check ongoing work and report changes.",
+      cadence: { type: "cron" as const, expression: "0 0 1 1 *", timezone: "UTC" },
+      target: { type: "agent" as const, agentId: agent.id },
+      maxRuns: 5,
+    };
+    const created = await client.scheduleCreate({ ...details, runOnCreate: false });
+    if (!created.schedule) throw new Error(created.error ?? "Could not create heartbeat");
+    const id = created.schedule.id;
+    cleanupTasks.push(() => deleteSeededSchedule(workspace, id));
+    await page.goto(buildSchedulesRoute());
+    const row = page.getByTestId(`schedule-row-${id}`);
+    await expect(row).toContainText("Active");
+    await page.getByTestId(`schedule-kebab-${id}`).click();
+    await expect(page.getByTestId(`schedule-menu-run-${id}`)).toHaveCount(0);
+    await page.getByRole("menuitem", { name: "Pause heartbeat", exact: true }).click();
+    await expect
+      .poll(() => readSeededSchedule(client, id))
+      .toMatchObject({ ...details, status: "paused", nextRunAt: null });
+    await expect(row).toContainText("Paused");
+    await expect(row).not.toContainText("Next run");
+    await page.reload({ waitUntil: "commit" });
+    await expect(row).toContainText("Paused");
+    await page.getByTestId(`schedule-kebab-${id}`).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Resume heartbeat", exact: true }),
+    ).toBeEnabled();
+    await page.waitForTimeout(250); // Capture the menu after its entry animation.
+    await page.screenshot({ path: testInfo.outputPath("heartbeat-paused-menu.png") });
+    await page.getByRole("menuitem", { name: "Resume heartbeat", exact: true }).click();
+    await expect
+      .poll(() => readSeededSchedule(client, id))
+      .toMatchObject({
+        ...details,
+        status: "active",
+        pausedAt: null,
+        nextRunAt: expect.any(String),
+      });
+    await expect(row).toContainText("Active");
+    await expect(row).toContainText("Next run");
+    await page.reload({ waitUntil: "commit" });
+    await expect(row).toContainText("Active");
+    await page.getByTestId(`schedule-kebab-${id}`).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Pause heartbeat", exact: true }),
+    ).toBeEnabled();
+  });
+
   test("edits heartbeat details and restores the saved prompt on reopen", async ({
     page,
   }, testInfo) => {

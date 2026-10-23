@@ -192,7 +192,7 @@ export function ScheduleRow({
   const title = resolveScheduleTitle(schedule);
   const productName = scheduleProductName(schedule);
   const badge = stateBadge(state);
-  const canRun = schedule.target.type === "new-agent" && (state === "active" || state === "paused");
+  const canRun = state === "active" || state === "paused";
 
   const rowStyle = useCallback(
     ({ pressed }: PressableStateCallbackType) => [
@@ -272,35 +272,33 @@ function ScheduleExecutionMenuItems({
 }: Pick<ScheduleRowProps, "schedule" | "pending" | "onPause" | "onResume" | "onRunNow"> & {
   canRun: boolean;
 }): ReactElement | null {
-  if (schedule.target.type === "agent") {
-    return null;
-  }
-
+  const productName = scheduleProductName(schedule).toLowerCase();
+  const cadencePending = Boolean(pending?.pause || pending?.resume);
   let cadenceAction: ReactElement;
   if (schedule.status === "paused") {
     cadenceAction = (
       <DropdownMenuItem
         leading={resumeLeading}
-        disabled={!canRun}
+        disabled={!canRun || cadencePending}
         status={pending?.resume ? "pending" : "idle"}
         pendingLabel="Resuming..."
         onSelect={onResume}
         testID={`schedule-menu-resume-${schedule.id}`}
       >
-        Resume schedule
+        Resume {productName}
       </DropdownMenuItem>
     );
   } else {
     cadenceAction = (
       <DropdownMenuItem
         leading={pauseLeading}
-        disabled={schedule.status === "completed" || !canRun}
+        disabled={!canRun || cadencePending}
         status={pending?.pause ? "pending" : "idle"}
         pendingLabel="Pausing..."
         onSelect={onPause}
         testID={`schedule-menu-pause-${schedule.id}`}
       >
-        Pause schedule
+        Pause {productName}
       </DropdownMenuItem>
     );
   }
@@ -308,16 +306,18 @@ function ScheduleExecutionMenuItems({
   return (
     <>
       {cadenceAction}
-      <DropdownMenuItem
-        leading={runLeading}
-        disabled={!canRun}
-        status={pending?.runNow ? "pending" : "idle"}
-        pendingLabel="Starting..."
-        onSelect={onRunNow}
-        testID={`schedule-menu-run-${schedule.id}`}
-      >
-        Run now
-      </DropdownMenuItem>
+      {schedule.target.type === "new-agent" ? (
+        <DropdownMenuItem
+          leading={runLeading}
+          disabled={!canRun}
+          status={pending?.runNow ? "pending" : "idle"}
+          pendingLabel="Starting..."
+          onSelect={onRunNow}
+          testID={`schedule-menu-run-${schedule.id}`}
+        >
+          Run now
+        </DropdownMenuItem>
+      ) : null}
     </>
   );
 }
