@@ -670,7 +670,7 @@ describe("schedule form model", () => {
     });
   });
 
-  it("requires a cron choice before updating a legacy heartbeat", () => {
+  it("preserves the cadence when editing a legacy heartbeat's details", () => {
     const form = open({
       mode: "edit",
       schedule: heartbeatOnHost({ type: "every", everyMs: 90 * 60_000 }),
@@ -682,13 +682,53 @@ describe("schedule form model", () => {
       },
     });
 
-    expect(form.getState()).toMatchObject({ targetKind: "agent", canSubmit: false });
+    expect(form.getState()).toMatchObject({
+      targetKind: "agent",
+      submitCadence: undefined,
+      canSubmit: true,
+    });
+
+    form.setPrompt("Check progress and report blockers.");
+    expect(form.getState()).toMatchObject({ submitCadence: undefined, canSubmit: true });
 
     form.setCadence({ type: "cron", expression: "0 9 * * *", timezone: "Europe/Madrid" });
 
     expect(form.getState()).toMatchObject({
       submitCadence: { type: "cron", expression: "0 9 * * *", timezone: "Europe/Madrid" },
       canSubmit: true,
+    });
+  });
+
+  it("seeds heartbeat details and requires a nonblank prompt when editing them", () => {
+    const form = open({
+      mode: "edit",
+      schedule: {
+        ...heartbeatOnHost({ type: "cron", expression: "0 * * * *", timezone: "UTC" }),
+        prompt: "Check current activity.\nReport blockers.",
+        maxRuns: 5,
+      },
+      defaults: { serverId: null, projectTargets: PROJECT_TARGETS, preferences: {} },
+    });
+    expect(form.getState()).toMatchObject({
+      name: "Babysit",
+      prompt: "Check current activity.\nReport blockers.",
+      maxRuns: "5",
+      targetKind: "agent",
+      selectedAgentId: "agent-1",
+      canSubmit: true,
+    });
+    form.setPrompt(" \n ");
+    expect(form.getState().canSubmit).toBe(false);
+    form.setName("Updated watcher");
+    form.setMaxRuns("8");
+    form.setPrompt("Check status and report only changes.");
+    expect(form.getState()).toMatchObject({
+      name: "Updated watcher",
+      prompt: "Check status and report only changes.",
+      maxRuns: "8",
+      selectedAgentId: "agent-1",
+      canSubmit: true,
+      disclosure: { showModelField: false, showAgentField: false },
     });
   });
 

@@ -326,12 +326,18 @@ function OpenScheduleFormSheet({
   ]);
 
   const submitAgentTarget = useCallback(async (): Promise<boolean> => {
+    if (mode === "edit" && schedule) {
+      await updateSchedule({
+        id: schedule.id,
+        name: state.name.trim() || null,
+        prompt: state.prompt.trim(),
+        ...(state.submitCadence ? { cadence: state.submitCadence } : {}),
+        maxRuns: parseMaxRuns(state.maxRuns),
+      });
+      return true;
+    }
     if (!state.submitCadence) {
       return false;
-    }
-    if (mode === "edit" && schedule) {
-      await updateSchedule({ id: schedule.id, cadence: state.submitCadence });
-      return true;
     }
     if (!state.selectedAgentId) return false;
     const maxRuns = parseMaxRuns(state.maxRuns);
@@ -494,20 +500,7 @@ function ScheduleFormFields({
   cadenceError,
   mutationServerId,
 }: ScheduleFormFieldsProps): ReactElement {
-  if (state.mode === "edit" && state.targetKind === "agent") {
-    return (
-      <>
-        <ScheduleAgentTargetField label={agentTargetLabel} size={controlSize} />
-        <CadenceEditor
-          value={state.cadence}
-          onChange={model.setCadence}
-          error={cadenceError ?? undefined}
-          size={controlSize}
-        />
-        {state.submitError ? <Text style={styles.submitError}>{state.submitError}</Text> : null}
-      </>
-    );
-  }
+  const isHeartbeatEdit = state.mode === "edit" && state.targetKind === "agent";
 
   return (
     <>
@@ -526,13 +519,17 @@ function ScheduleFormFields({
 
       <SchedulePromptField model={model} state={state} size={controlSize} />
 
-      <ScheduleTargetFields
-        model={model}
-        state={state}
-        providerSnapshot={providerSnapshot}
-        controlSize={controlSize}
-        mutationServerId={mutationServerId}
-      />
+      {isHeartbeatEdit ? (
+        <ScheduleAgentTargetField label={agentTargetLabel} size={controlSize} />
+      ) : (
+        <ScheduleTargetFields
+          model={model}
+          state={state}
+          providerSnapshot={providerSnapshot}
+          controlSize={controlSize}
+          mutationServerId={mutationServerId}
+        />
+      )}
 
       <CadenceEditor
         value={state.cadence}
@@ -574,6 +571,7 @@ function SchedulePromptField({
     input.current?.focus();
   }, [model]);
   const canUseWatchdog = !state.prompt.trim() && Boolean(state.workingDir);
+  const showWatchdogPreset = state.mode === "create" || Boolean(state.workingDir);
   const presetAction = useMemo(
     () => (
       <Button
@@ -589,7 +587,7 @@ function SchedulePromptField({
     [canUseWatchdog, useWatchdog],
   );
   return (
-    <Field label="Prompt" trailing={presetAction}>
+    <Field label="Prompt" trailing={showWatchdogPreset ? presetAction : undefined}>
       <FormTextInput
         ref={input}
         size={size}

@@ -10,26 +10,9 @@ import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-cli
 import { expectSettled, expectStableHeight } from "../support/helpers/settled";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
 import { buildSchedulesRoute } from "../../src/utils/host-routes";
+import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 
-interface ScheduleSeedClient {
-  scheduleCreate(input: {
-    prompt: string;
-    name?: string;
-    cadence: { type: "cron"; expression: string };
-    target: {
-      type: "new-agent";
-      config: {
-        provider: "mock";
-        cwd: string;
-        model: string;
-        modeId: string;
-        title: string;
-      };
-    };
-    runOnCreate: boolean;
-  }): Promise<{ schedule: { id: string } | null; error: string | null }>;
-  scheduleDelete(input: { id: string }): Promise<{ error: string | null }>;
-}
+type ScheduleSeedClient = Pick<DaemonClient, "scheduleCreate" | "scheduleDelete" | "scheduleList">;
 
 async function seedMockSchedule(
   workspace: SeededWorkspace,
@@ -69,6 +52,11 @@ async function deleteSeededSchedule(workspace: SeededWorkspace, id: string): Pro
     .catch(ignoreScheduleDeleteError);
 }
 
+async function readSeededSchedule(client: ScheduleSeedClient, id: string) {
+  const list = await client.scheduleList();
+  return list.schedules.find((schedule) => schedule.id === id);
+}
+
 test.describe("Schedules", () => {
   const cleanupTasks: Array<() => Promise<void>> = [];
 
@@ -77,6 +65,82 @@ test.describe("Schedules", () => {
       await cleanup();
     }
     cleanupTasks.length = 0;
+  });
+
+  test("edits heartbeat details and restores the saved prompt on reopen", async ({
+    page,
+  }, testInfo) => {
+    const workspace = await seedWorkspace({ repoPrefix: "heartbeat-edit-details-" });
+    cleanupTasks.push(() => workspace.cleanup());
+    const agent = await workspace.client.createAgent({
+      provider: "mock",
+      cwd: workspace.repoPath,
+      workspaceId: workspace.workspaceId,
+      title: "Heartbeat delivery target",
+      modeId: "load-test",
+      model: "e2e-fast-stream",
+    });
+    const client = workspace.client as unknown as ScheduleSeedClient;
+    const cadence = { type: "cron" as const, expression: "0 0 1 1 *", timezone: "UTC" };
+    const originalPrompt = "Check current agent activity.\nReport only changes and blockers.";
+    const created = await client.scheduleCreate({
+      name: "Original watcher",
+      prompt: originalPrompt,
+      cadence,
+      target: { type: "agent", agentId: agent.id },
+      maxRuns: 5,
+      runOnCreate: false,
+    });
+    if (!created.schedule) throw new Error(created.error ?? "Could not create test heartbeat");
+    const id = created.schedule.id;
+    cleanupTasks.push(() => deleteSeededSchedule(workspace, id));
+    await page.goto(buildSchedulesRoute());
+    const row = page.getByTestId(`schedule-row-${id}`);
+    await expect(row).toBeVisible({ timeout: 30_000 });
+    await row.click();
+    const sheet = page.getByTestId("schedule-form-sheet");
+    await expect(sheet.getByText("Edit heartbeat", { exact: true })).toBeVisible();
+    const prompt = page.getByTestId("schedule-prompt-input");
+    await expect(prompt).toHaveValue(originalPrompt);
+    await expect(page.getByTestId("schedule-name-input")).toHaveValue("Original watcher");
+    await expect(page.getByTestId("schedule-max-runs-input")).toHaveValue("5");
+    await expect(sheet).toContainText("Heartbeat delivery target");
+    await expect(page.getByTestId("schedule-model-trigger")).toHaveCount(0);
+    await expect(page.getByTestId("schedule-watchdog-prompt")).toHaveCount(0);
+    await prompt.fill(" \n ");
+    await expect(page.getByTestId("schedule-form-submit")).toBeDisabled();
+    const updatedPrompt =
+      "Inspect unarchived agents and delegated work.\nReport blockers without interrupting active work.";
+    await prompt.fill(updatedPrompt);
+    await page.getByTestId("schedule-name-input").fill("Updated watcher");
+    await page.getByTestId("schedule-max-runs-input").fill("8");
+    await sheet.screenshot({ path: testInfo.outputPath("heartbeat-edit-details.png") });
+    await page.getByTestId("schedule-form-submit").click();
+    await expect(sheet).toHaveCount(0);
+    await expect
+      .poll(() => readSeededSchedule(client, id))
+      .toMatchObject({
+        name: "Updated watcher",
+        prompt: updatedPrompt,
+        maxRuns: 8,
+        cadence,
+        nextRunAt: created.schedule.nextRunAt,
+        target: { type: "agent", agentId: agent.id },
+      });
+    await row.click();
+    await expect(prompt).toHaveValue(updatedPrompt);
+    await expect(page.getByTestId("schedule-name-input")).toHaveValue("Updated watcher");
+    await expect(page.getByTestId("schedule-max-runs-input")).toHaveValue("8");
+    await prompt.fill("Discard this unsaved change.");
+    await sheet.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(sheet).toHaveCount(0);
+    await row.click();
+    await expect(prompt).toHaveValue(updatedPrompt);
+    await sheet.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.reload({ waitUntil: "commit" });
+    await row.click();
+    await expect(prompt).toHaveValue(updatedPrompt);
+    await sheet.screenshot({ path: testInfo.outputPath("heartbeat-details-restored.png") });
   });
 
   test("edit form hydrates the scheduled model selection", async ({ page }) => {

@@ -564,16 +564,16 @@ function resolveDisclosure(state: ScheduleFormState): ScheduleDisclosureState {
 }
 
 function resolveCanSubmit(state: ScheduleFormState): boolean {
-  if (state.targetKind === "agent") {
-    return state.mode === "edit"
-      ? state.submitCadence !== undefined
-      : state.submitCadence !== undefined &&
-          state.prompt.trim().length > 0 &&
-          Boolean(state.selectedServerId && state.selectedAgentId) &&
-          state.agentTargetError === null;
-  }
   if (state.prompt.trim().length === 0) {
     return false;
+  }
+  if (state.targetKind === "agent") {
+    if (state.mode === "edit") return true;
+    return (
+      state.submitCadence !== undefined &&
+      Boolean(state.selectedServerId && state.selectedAgentId) &&
+      state.agentTargetError === null
+    );
   }
   const hasWorkingDir = state.workingDir.trim().length > 0;
   const hasMatchedProject = state.selectedProjectOptionId.trim().length > 0;
