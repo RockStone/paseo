@@ -1,3 +1,4 @@
+import { isProviderAuthenticationFailure } from "@getpaseo/protocol/authentication-failure";
 import { spawn } from "node:child_process";
 import { z } from "zod";
 import type { ManagedAgent } from "../../agent-manager.js";
@@ -96,15 +97,6 @@ export async function removeClaudeToken(): Promise<void> {
   ]);
 }
 
-export function isClaudeAuthenticationFailure(error: string | undefined): boolean {
-  return (
-    error !== undefined &&
-    /OAuth session expired|OAuth token.*(?:expired|revoked)|Login expired|Failed to authenticate|authentication_error|Invalid authentication credentials/i.test(
-      error,
-    )
-  );
-}
-
 export function claudeTokenCanSupplyEnvironment(env: NodeJS.ProcessEnv): boolean {
   const overrides = [
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -128,7 +120,7 @@ export async function claudeAuthenticationStatus(
     (agent) =>
       agent.provider === "claude" &&
       agent.lifecycle !== "closed" &&
-      isClaudeAuthenticationFailure(agent.lastError),
+      isProviderAuthenticationFailure("claude", agent.lastError),
   ).length;
   let warning: "authentication_failed" | "renew_soon" | "renewal_due" | null = null;
   if (record && Date.parse(record.renewBy) <= Date.now()) warning = "renewal_due";

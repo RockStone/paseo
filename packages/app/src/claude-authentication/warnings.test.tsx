@@ -5,7 +5,7 @@ import { expect, test, vi } from "vitest";
 import { ClaudeAuthenticationWarnings } from "./warnings";
 
 const state = vi.hoisted(() => ({
-  warning: "authentication_failed" as string | null,
+  warning: "renew_soon" as string | null,
   unregister: vi.fn(),
   show: vi.fn(),
   open: vi.fn(),
@@ -14,7 +14,10 @@ vi.mock("./use-status", () => ({
   useClaudeAuthentication: () => ({
     supported: true,
     connected: true,
-    status: { isError: false, data: { warning: state.warning, affectedAgents: 2, renewBy: null } },
+    status: {
+      isError: false,
+      data: { warning: state.warning, affectedAgents: 0, renewBy: "2027-10-23T00:00:00Z" },
+    },
   }),
 }));
 vi.mock("@/runtime/host-runtime", () => ({
@@ -29,7 +32,7 @@ vi.mock("@/stores/provider-settings-store", () => ({
 }));
 Object.assign(globalThis, { React });
 
-test("host failures expose one warning with the right settings target and clear on recovery", () => {
+test("renewal reminders expose one warning with the right settings target and clear on recovery", () => {
   state.show.mockReturnValue(state.unregister);
   const container = document.createElement("div");
   document.body.append(container);
@@ -39,11 +42,11 @@ test("host failures expose one warning with the right settings target and clear 
     expect(state.show).toHaveBeenCalledTimes(1);
     const warning = state.show.mock.calls[0]?.[0];
     expect(warning).toMatchObject({
-      id: "claude-authentication:affected-host",
-      title: "Claude authentication failed",
+      id: "claude-authentication-reminder:affected-host",
+      title: "Claude authentication needs attention",
       dismissible: false,
     });
-    expect(warning.description).toContain("2 agent(s)");
+    expect(warning.description).toContain("Renew the stored token by 2027-10-23");
     warning.actions[0].onPress();
     expect(state.open).toHaveBeenCalledWith({ serverId: "affected-host", provider: "claude" });
     state.warning = null;

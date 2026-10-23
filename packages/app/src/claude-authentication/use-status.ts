@@ -18,8 +18,8 @@ export function useClaudeAuthentication(serverId: string, active = true) {
       if (!client) throw new Error("Host disconnected");
       return client.getClaudeAuthentication();
     },
-    refetchInterval: 30_000,
-    staleTimeMs: 15_000,
+    refetchInterval: 3_600_000,
+    staleTimeMs: 3_600_000,
     retry: false,
   });
   return { status, client, supported, connected };

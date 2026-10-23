@@ -49,6 +49,9 @@ codex
 ```
 
 Paseo uses this installation and its existing authentication when you start a Codex agent.
+Codex manages ChatGPT token refresh itself.
+Paseoi also shows [authentication failure warnings](/docs/claude-code#unattended-sessions-in-paseoi)
+for Codex agents. If refresh fails, run `codex login` on the host and retry affected conversations.
 
 ## Codex is missing in Paseo
 

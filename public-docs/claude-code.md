@@ -37,10 +37,10 @@ profiles, custom configuration directories, third-party endpoints, and derived p
 their own authentication. Restoring authentication alone does not replay failed work.
 
 Set the renewal reminder to the token's issue date plus one year. The default assumes you generated
-it today; this is a reminder date, not a server-verified expiry. Paseoi checks every 30 seconds while
-the app is active and warns seven days before that date. It also reports authentication errors
-observed in open Claude agents. A local status check cannot prove that Anthropic will accept a
-credential or predict revocation. These checks make no model requests and do not renew tokens.
+it today; this is a reminder date, not a server-verified expiry. Paseoi checks once per hour while
+the app is active and warns seven days before that date. Authentication failures in open Claude
+and Codex agents use existing agent updates, so they do not wait for the hourly check. A local
+status check cannot prove that Anthropic will accept a credential or predict revocation. These checks make no model requests and do not renew tokens.
 
 ## Use Claude Code in the Paseo terminal
 

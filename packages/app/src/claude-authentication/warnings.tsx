@@ -9,19 +9,16 @@ function HostAuthenticationWarning({ serverId, label }: { serverId: string; labe
   const { show } = useSidebarCallouts();
   const open = useProviderSettingsStore((state) => state.open);
   const warning = status.data?.warning;
-  const affected = status.data?.affectedAgents ?? 0;
   const renewBy = status.data?.renewBy?.slice(0, 10);
   useEffect(() => {
-    if (!supported || !connected || (!warning && !status.isError)) return;
-    const failed = warning === "authentication_failed";
+    const reminderDue = warning === "renew_soon" || warning === "renewal_due";
+    if (!supported || !connected || (!reminderDue && !status.isError)) return;
     let description = `${label} · Renew the stored token by ${renewBy}`;
-    if (failed)
-      description = `${label} · ${affected} agent(s) reported an authentication failure. Restore authentication, then retry affected conversations.`;
-    else if (status.isError)
+    if (status.isError)
       description = `${label} · Unable to check macOS Keychain. Unlock the host’s login keychain and retry.`;
     return show({
-      id: `claude-authentication:${serverId}`,
-      title: failed ? "Claude authentication failed" : "Claude authentication needs attention",
+      id: `claude-authentication-reminder:${serverId}`,
+      title: "Claude authentication needs attention",
       description,
       variant: "error",
       priority: 100,
@@ -31,18 +28,7 @@ function HostAuthenticationWarning({ serverId, label }: { serverId: string; labe
       ],
       testID: "claude-authentication-warning",
     });
-  }, [
-    affected,
-    connected,
-    label,
-    open,
-    renewBy,
-    serverId,
-    show,
-    status.isError,
-    supported,
-    warning,
-  ]);
+  }, [connected, label, open, renewBy, serverId, show, status.isError, supported, warning]);
   return null;
 }
 

@@ -1,3 +1,4 @@
+import { AgentAuthenticationWarnings } from "@/provider-authentication/failure-warnings";
 import { ClaudeAuthenticationWarnings } from "@/claude-authentication/warnings";
 import { router } from "expo-router";
 import {
@@ -269,6 +270,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
             handleOpenHostSettings={handleOpenHostSettingsMobile}
           />
         </RetainedPanelActivity>
+        <AgentAuthenticationWarnings />
         <ClaudeAuthenticationWarnings />
         {importSessionSheet}
       </>
@@ -289,6 +291,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
           handleOpenHostSettings={handleOpenHostSettingsDesktop}
         />
       </RetainedPanelActivity>
+      <AgentAuthenticationWarnings />
       <ClaudeAuthenticationWarnings />
       {importSessionSheet}
     </>

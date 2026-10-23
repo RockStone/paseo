@@ -4265,7 +4265,7 @@ class HeldTurnAgentClient implements AgentClient {
 
   constructor(
     readonly provider: AgentProvider,
-    private readonly holdTurns: boolean,
+    private readonly holdTurns: boolean | (() => boolean),
     private readonly options: HeldTurnOptions = {},
   ) {}
 
@@ -4274,7 +4274,9 @@ class HeldTurnAgentClient implements AgentClient {
   }
 
   async createSession(): Promise<AgentSession> {
-    const session = new HeldTurnAgentSession(this.provider, this.holdTurns, this.options);
+    let holdTurns = this.holdTurns;
+    if (typeof holdTurns === "function") holdTurns = holdTurns();
+    const session = new HeldTurnAgentSession(this.provider, holdTurns, this.options);
     this.sessions.push(session);
     return session;
   }
@@ -4999,82 +5001,96 @@ describe("send_agent_prompt MCP tool", () => {
     }
   });
 
-  it("notifies the parent after provider-started continuations while the child remains unread", async () => {
-    const workdir = await mkdtemp(join(tmpdir(), "mcp-autonomous-finish-"));
-    const storage = new AgentStorage(join(workdir, "agents"), logger);
-    const parentClient = new HeldTurnAgentClient("claude", false);
-    const childClient = new HeldTurnAgentClient("codex", true);
-    const attentionEvents: string[] = [];
-    const manager = new AgentManager({
-      clients: { claude: parentClient, codex: childClient },
-      registry: storage,
-      logger,
-      onAgentAttention: ({ agentId }) => attentionEvents.push(agentId),
-    });
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-10-23T09:00:00Z"));
-    try {
-      const parent = await manager.createAgent(
-        { provider: "claude", cwd: existingCwd },
-        undefined,
-        { workspaceId: "wks_parent" },
+  it.each([
+    { parentProvider: "claude", childProvider: "claude" },
+    { parentProvider: "claude", childProvider: "codex" },
+    { parentProvider: "codex", childProvider: "claude" },
+    { parentProvider: "codex", childProvider: "codex" },
+  ])(
+    "notifies $parentProvider parent after $childProvider provider-started continuations while unread",
+    async ({ parentProvider, childProvider }) => {
+      const workdir = await mkdtemp(join(tmpdir(), "mcp-autonomous-finish-"));
+      const storage = new AgentStorage(join(workdir, "agents"), logger);
+      const parentClient = new HeldTurnAgentClient(
+        parentProvider,
+        () => parentClient.sessions.length > 0,
       );
-      const server = await createAgentMcpServer({
-        agentManager: manager,
-        agentStorage: storage,
-        callerAgentId: parent.id,
-        providerSnapshotManager: createOpenCodeManager().manager,
+      const childClient =
+        childProvider === parentProvider
+          ? parentClient
+          : new HeldTurnAgentClient(childProvider, true);
+      const attentionEvents: string[] = [];
+      const manager = new AgentManager({
+        clients: { [parentProvider]: parentClient, [childProvider]: childClient },
+        registry: storage,
         logger,
+        onAgentAttention: ({ agentId }) => attentionEvents.push(agentId),
       });
-      const created = await invokeToolWithParsedInput(registeredTool(server, "create_agent"), {
-        relationship: { kind: "subagent" },
-        workspace: { kind: "current" },
-        title: "Background child",
-        provider: "codex/gpt-5.4",
-        initialPrompt: "Start a background task",
-      });
-      const childId = z.object({ agentId: z.string() }).parse(created.structuredContent).agentId;
-      await vi.waitFor(() => expect(manager.getAgent(childId)?.lifecycle).toBe("running"));
-      const child = childClient.sessions[0]!;
-      child.finishTurn("Waiting on the background task.");
-      await vi.waitFor(() => expect(parentClient.sessions[0]!.prompts).toHaveLength(1));
-      const firstAttention = manager.getAgent(childId)!.attention;
-      assert(firstAttention.requiresAttention);
-      await vi.waitFor(() => expect(manager.getAgent(parent.id)?.lifecycle).toBe("idle"));
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-23T09:00:00Z"));
+      try {
+        const parent = await manager.createAgent(
+          { provider: parentProvider, cwd: existingCwd },
+          undefined,
+          { workspaceId: "wks_parent" },
+        );
+        const server = await createAgentMcpServer({
+          agentManager: manager,
+          agentStorage: storage,
+          callerAgentId: parent.id,
+          providerSnapshotManager: createOpenCodeManager().manager,
+          logger,
+        });
+        const created = await invokeToolWithParsedInput(registeredTool(server, "create_agent"), {
+          relationship: { kind: "subagent" },
+          workspace: { kind: "current" },
+          title: "Background child",
+          provider: childProvider === "codex" ? "codex/gpt-5.4" : "claude/claude-sonnet-4-20250514",
+          initialPrompt: "Start a background task",
+        });
+        const childId = z.object({ agentId: z.string() }).parse(created.structuredContent).agentId;
+        await vi.waitFor(() => expect(manager.getAgent(childId)?.lifecycle).toBe("running"));
+        const child = childClient.sessions.at(-1)!;
+        child.finishTurn("Waiting on the background task.");
+        await vi.waitFor(() => expect(parentClient.sessions[0]!.prompts).toHaveLength(1));
+        const firstAttention = manager.getAgent(childId)!.attention;
+        assert(firstAttention.requiresAttention);
+        await vi.waitFor(() => expect(manager.getAgent(parent.id)?.lifecycle).toBe("idle"));
 
-      vi.setSystemTime(new Date("2026-10-23T10:00:00Z"));
-      child.startAutonomousTurn();
-      await vi.waitFor(() => expect(manager.getAgent(childId)?.lifecycle).toBe("running"));
-      child.finishTurn("Final report: committed and checked.");
-      await vi.waitFor(() => expect(parentClient.sessions[0]!.prompts).toHaveLength(2));
-      expect(
-        parentClient.sessions[0]!.prompts.map((prompt) => parseAgentMessage(prompt)?.text),
-      ).toEqual([
-        `Agent ${childId} (Background child) finished.\n\n<agent-response>\nWaiting on the background task.\n</agent-response>`,
-        `Agent ${childId} (Background child) finished.\n\n<agent-response>\nFinal report: committed and checked.\n</agent-response>`,
-      ]);
-      const attention = manager.getAgent(childId)!.attention;
-      assert(attention.requiresAttention);
-      expect(attention).toMatchObject({ requiresAttention: true, attentionReason: "finished" });
-      expect(attention.attentionTimestamp!.getTime()).toBeGreaterThan(
-        firstAttention.attentionTimestamp!.getTime(),
-      );
-      expect(child.prompts).toHaveLength(1);
-      expect(attentionEvents.filter((id) => id === childId)).toEqual([]);
-      await manager.flush();
-      expect((await storage.get(childId))?.attentionTimestamp).toBe(
-        attention.attentionTimestamp!.toISOString(),
-      );
-      await vi.waitFor(() => expect(manager.getAgent(parent.id)?.lifecycle).toBe("idle"));
-      await manager.archiveAgent(childId);
-      await manager.flush();
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(parentClient.sessions[0]!.prompts).toHaveLength(2);
-    } finally {
-      vi.useRealTimers();
-      await removeAgentStateDir(manager, storage, workdir);
-    }
-  });
+        vi.setSystemTime(new Date("2026-10-23T10:00:00Z"));
+        child.startAutonomousTurn();
+        await vi.waitFor(() => expect(manager.getAgent(childId)?.lifecycle).toBe("running"));
+        child.finishTurn("Final report: committed and checked.");
+        await vi.waitFor(() => expect(parentClient.sessions[0]!.prompts).toHaveLength(2));
+        expect(
+          parentClient.sessions[0]!.prompts.map((prompt) => parseAgentMessage(prompt)?.text),
+        ).toEqual([
+          `Agent ${childId} (Background child) finished.\n\n<agent-response>\nWaiting on the background task.\n</agent-response>`,
+          `Agent ${childId} (Background child) finished.\n\n<agent-response>\nFinal report: committed and checked.\n</agent-response>`,
+        ]);
+        const attention = manager.getAgent(childId)!.attention;
+        assert(attention.requiresAttention);
+        expect(attention).toMatchObject({ requiresAttention: true, attentionReason: "finished" });
+        expect(attention.attentionTimestamp!.getTime()).toBeGreaterThan(
+          firstAttention.attentionTimestamp!.getTime(),
+        );
+        expect(child.prompts).toHaveLength(1);
+        expect(attentionEvents.filter((id) => id === childId)).toEqual([]);
+        await manager.flush();
+        expect((await storage.get(childId))?.attentionTimestamp).toBe(
+          attention.attentionTimestamp!.toISOString(),
+        );
+        await vi.waitFor(() => expect(manager.getAgent(parent.id)?.lifecycle).toBe("idle"));
+        await manager.archiveAgent(childId);
+        await manager.flush();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(parentClient.sessions[0]!.prompts).toHaveLength(2);
+      } finally {
+        vi.useRealTimers();
+        await removeAgentStateDir(manager, storage, workdir);
+      }
+    },
+  );
 
   it.each([false, true])(
     "notify-on-finish opt-out replaces a parent watch only after acceptance (rejected: %s)",
