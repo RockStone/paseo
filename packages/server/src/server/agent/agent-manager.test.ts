@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
   prepareAgentMessage,
   formatAgentMessage,
@@ -7043,6 +7044,63 @@ test("applies live autonomous events and preserves usage omitted from completion
   });
   expect(lifecycleUpdates).toContain("running");
   expect(lifecycleUpdates).toContain("idle");
+});
+
+test("refreshes unread attention for every autonomous outcome without repeating desktop alerts", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-unread-outcome-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const client = new SessionRecordingAgentClient();
+  const notifications: string[] = [];
+  const manager = new AgentManager({
+    clients: { codex: client },
+    registry: storage,
+    logger,
+    onAgentAttention: ({ reason }) => notifications.push(reason),
+  });
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-23T09:00:00Z"));
+  try {
+    const agent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    const session = client.sessions[0]!;
+    for (const [turnId, hour, terminal] of [
+      ["first", 9, "turn_completed"],
+      ["second", 10, "turn_completed"],
+      ["third", 11, "turn_failed"],
+    ] as const) {
+      vi.setSystemTime(new Date(`2026-10-23T${hour.toString().padStart(2, "0")}:00:00Z`));
+      const startedAt = Date.now();
+      session.pushEvent({ type: "turn_started", provider: "codex", turnId });
+      await vi.waitFor(() => expect(manager.getAgent(agent.id)?.lifecycle).toBe("running"));
+      session.pushEvent(
+        terminal === "turn_failed"
+          ? { type: terminal, provider: "codex", turnId, error: "Autonomous failure" }
+          : { type: terminal, provider: "codex", turnId },
+      );
+      await vi.waitFor(() => {
+        const attention = manager.getAgent(agent.id)?.attention;
+        assert(attention?.requiresAttention);
+        expect(attention.attentionTimestamp.getTime()).toBeGreaterThanOrEqual(startedAt);
+      });
+      const attention = manager.getAgent(agent.id)!.attention;
+      assert(attention.requiresAttention);
+      expect(attention).toMatchObject({
+        requiresAttention: true,
+        attentionReason: terminal === "turn_failed" ? "error" : "finished",
+      });
+      await manager.flush();
+      expect((await storage.get(agent.id))?.attentionTimestamp).toBe(
+        attention.attentionTimestamp!.toISOString(),
+      );
+    }
+    expect(notifications).toEqual(["finished"]);
+  } finally {
+    vi.useRealTimers();
+    await manager.flush();
+    await storage.flush();
+    rmSync(workdir, { recursive: true, force: true });
+  }
 });
 
 test("ignores stale autonomous terminals without lowering the active turn lifecycle", async () => {

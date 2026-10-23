@@ -79,7 +79,14 @@ Runtime ownership is resolved from explicit workspace ID and caller context, nev
 Users can also detach an existing subagent from the subagents track. Detach is deliberately a manual lifecycle gesture, not an agent-facing MCP tool. It removes the parent and open-tab lifecycle labels: it does not stop, archive, move, or restart the agent. The agent keeps its current `cwd` and `workspaceId`, leaves the former parent's track, and behaves like a root agent for tab close, workspace activity, and future parent archive.
 
 `notifyOnFinish` defaults to `true` for agent-scoped creation and prompt follow-ups because most delegated work needs to report back to the creating agent. Set it to `false` only for truly fire-and-forget agents or prompts.
-Permission requests are notification checkpoints, not the end of that subscription. The caller is notified again after a permission response when the child finishes, errors, or requests another permission.
+A parent keeps watching its child after a completion, including later turns started by the provider
+when background work completes. The watch ends when the child closes or detaches, the parent is
+archived, or an accepted follow-up sets `notifyOnFinish: false`. A rejected follow-up leaves the
+existing watch intact. Notifications requested by an unrelated caller remain scoped to one task;
+keeping reciprocal watches would turn replies into notification loops.
+Permission requests are notification checkpoints, not the end of the subscription. The caller is
+notified again after a permission response when the child finishes, errors, or requests another
+permission.
 The permission notification includes the normalized request plus the child and request IDs, so the caller can inspect it and respond without fetching agent status.
 A watched child that closes before its finish event also notifies the caller so delegated work cannot disappear silently during archive or workspace teardown.
 
@@ -215,9 +222,11 @@ A finished workspace can be marked unread after it has been reviewed. The daemon
 notification. Opening the workspace clears that attention through the normal focus flow.
 
 Attention is set by the agent finishing or failing and cleared by the client's
-`workspace.clear_attention`, which fires when the user reads the chat. Loading an agent's runtime is
-neither, so resuming carries the stored attention and the stored last-activity time through
-untouched. Forging either makes a background resume look like the user read a workspace and like the
+`workspace.clear_attention`, which fires when the user reads the chat. While unread, the reason and
+timestamp track the latest finished or failed turn; desktop attention alerts fire only on the first
+unread transition. Parent finish notifications are independent of that unread flag.
+Loading an agent's runtime changes neither attention nor activity timestamps, so resuming carries
+their stored values through untouched. Forging either makes a background resume look like the user read a workspace and like the
 agent worked in it just now, which rewrites the sidebar timestamp permanently — persisted
 `updatedAt` is what workspace `statusEnteredAt` is re-derived from on the next daemon start.
 

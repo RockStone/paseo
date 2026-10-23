@@ -463,6 +463,8 @@ function formatFinishNotificationBody(params: FinishNotificationBodyInput): stri
   return sections.join("\n\n");
 }
 
+type CapturedFinishResponse = { text: string | null } | { error: unknown };
+
 interface NotifySafelyOptions {
   terminal?: boolean;
   permissionRequest?: AgentPermissionRequest;
@@ -480,6 +482,23 @@ const armedFinishNotifications = new WeakMap<
   Map<string, Set<ArmedFinishNotification>>
 >();
 
+/** Explicit opt-out takes effect only if the follow-up is accepted. */
+export function stopFinishNotificationsAfterDispatch(params: {
+  agentManager: AgentManager;
+  childAgentId: string;
+  callerAgentId: string;
+  dispatchResult: Promise<PromptDispatchDisposition | false>;
+}): void {
+  const key = JSON.stringify([params.childAgentId, params.callerAgentId]);
+  const registrations = [...(armedFinishNotifications.get(params.agentManager)?.get(key) ?? [])];
+  const accepted = params.dispatchResult.then((result) => result !== false);
+  for (const registration of registrations) registration.supersedeWhen(accepted);
+  void accepted.then((success) => {
+    if (success) for (const registration of registrations) registration.stop();
+    return undefined;
+  });
+}
+
 export function setupFinishNotification(params: SetupFinishNotificationParams): () => void {
   const {
     agentManager,
@@ -490,8 +509,14 @@ export function setupFinishNotification(params: SetupFinishNotificationParams): 
     waitForTurnStart = false,
     logger,
   } = params;
+  // A parent watches its delegated conversation, including provider-started continuations.
+  // Ad-hoc callers still observe one task, so reciprocal messages cannot form a notification loop.
+  const parentOwned =
+    requireParentOwnership ||
+    getParentAgentIdFromLabels(agentManager.getAgent(childAgentId)?.labels) === callerAgentId;
   let hasSeenRunning = false;
   let hasSeenTurn = false;
+  let hasReportedOutcome = false;
   let stopped = false;
   const notifiedPermissionRequestIds = new Set<string>();
   let unsubscribe: (() => void) | null = null;
@@ -548,7 +573,8 @@ export function setupFinishNotification(params: SetupFinishNotificationParams): 
 
   async function notify(
     reason: FinishNotificationReason,
-    permissionRequest?: AgentPermissionRequest,
+    permissionRequest: AgentPermissionRequest | undefined,
+    response: Promise<CapturedFinishResponse>,
   ): Promise<void> {
     if (params.dispatchResult) {
       const result = await params.dispatchResult;
@@ -557,20 +583,23 @@ export function setupFinishNotification(params: SetupFinishNotificationParams): 
     if (await superseded) return;
     const callerRecord = await agentStorage.get(callerAgentId);
     if (callerRecord?.archivedAt) {
+      stop();
       return;
     }
 
     const record = await agentStorage.get(childAgentId);
-    if (requireParentOwnership && getParentAgentIdFromLabels(record?.labels) !== callerAgentId) {
+    if (parentOwned && getParentAgentIdFromLabels(record?.labels) !== callerAgentId) {
+      stop();
       return;
     }
+    const result = await response;
+    if ("error" in result) throw result.error;
     const title = record?.title ?? childAgentId;
-    const lastAssistantMessage = await agentManager.getLastAssistantMessage(childAgentId);
     const body = formatFinishNotificationBody({
       childAgentId,
       title,
       reason,
-      lastAssistantMessage,
+      lastAssistantMessage: result.text,
       permissionRequest,
     });
 
@@ -592,9 +621,21 @@ export function setupFinishNotification(params: SetupFinishNotificationParams): 
 
   function notifySafely(reason: FinishNotificationReason, options: NotifySafelyOptions = {}): void {
     if (stopped) return;
-    if (options.terminal ?? true) stop();
+    if (options.terminal ?? true) {
+      hasReportedOutcome = true;
+      if (parentOwned && reason !== "was closed") {
+        hasSeenRunning = false;
+        hasSeenTurn = false;
+        notifiedPermissionRequestIds.clear();
+      } else stop();
+    }
+    // Capture this outcome before another autonomous turn can change the last response.
+    const response = agentManager.getLastAssistantMessage(childAgentId).then(
+      (text) => ({ text }),
+      (error: unknown) => ({ error }),
+    );
     notificationQueue = notificationQueue
-      .then(() => notify(reason, options.permissionRequest))
+      .then(() => notify(reason, options.permissionRequest, response))
       .catch((error) => {
         logger.error(
           { err: error, childAgentId, callerAgentId, reason },
@@ -626,7 +667,8 @@ export function setupFinishNotification(params: SetupFinishNotificationParams): 
     // Idle is published before the terminal stream event for both completion
     // and cancellation. Let that event identify the outcome instead.
     if (agent.lifecycle === "closed") {
-      notifySafely("was closed");
+      if (parentOwned && hasReportedOutcome && !hasSeenTurn) stop();
+      else notifySafely("was closed");
       return;
     }
     return;

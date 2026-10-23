@@ -5032,7 +5032,7 @@ export class AgentManager {
   }
 
   private emitState(agent: ManagedAgent, options?: { persist?: boolean }): void {
-    // Keep attention as an edge-triggered unread signal, not a level signal.
+    // Refresh outcome metadata each turn; desktop notifications stay on the unread edge.
     this.checkAndSetAttention(agent);
     if (options?.persist !== false) {
       this.enqueueBackgroundPersist(agent);
@@ -5078,10 +5078,7 @@ export class AgentManager {
       return;
     }
 
-    // Skip if already requires attention
-    if (agent.attention.requiresAttention) {
-      return;
-    }
+    const wasUnread = agent.attention.requiresAttention;
 
     // Check if agent transitioned from running to idle (finished)
     if (previousStatus === "running" && currentStatus === "idle") {
@@ -5090,7 +5087,7 @@ export class AgentManager {
         attentionReason: "finished",
         attentionTimestamp: new Date(),
       };
-      this.broadcastAgentAttention(agent, "finished");
+      if (!wasUnread) this.broadcastAgentAttention(agent, "finished");
       return;
     }
 
@@ -5101,7 +5098,7 @@ export class AgentManager {
         attentionReason: "error",
         attentionTimestamp: new Date(),
       };
-      this.broadcastAgentAttention(agent, "error");
+      if (!wasUnread) this.broadcastAgentAttention(agent, "error");
       return;
     }
   }

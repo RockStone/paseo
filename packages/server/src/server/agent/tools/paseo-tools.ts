@@ -72,6 +72,7 @@ import {
   type PromptDispatchDisposition,
   sendPromptToAgent,
   setupFinishNotification,
+  stopFinishNotificationsAfterDispatch,
   waitForAgentRunStartWithTimeout,
 } from "../agent-prompt.js";
 import { respondToAgentPermission } from "../permission-response.js";
@@ -1994,6 +1995,14 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           waitForTurnStart: false,
           dispatchResult,
           logger: childLogger,
+        });
+      }
+      if (callerAgentId && !notifyOnFinish) {
+        stopFinishNotificationsAfterDispatch({
+          agentManager,
+          childAgentId: agentId,
+          callerAgentId,
+          dispatchResult,
         });
       }
       function confirmDispatch(disposition: PromptDispatchDisposition): void {

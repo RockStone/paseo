@@ -293,6 +293,23 @@ test("finish notifications tell the parent the child's last assistant message", 
   expect(scenario.steerAttemptCount()).toBe(1);
 });
 
+test("parent notifications retain each response across consecutive provider turns", async () => {
+  const options = {
+    requireParentOwnership: true,
+    childLastAssistantMessage: "Waiting on background work.",
+  };
+  const scenario = createFinishNotificationScenario(options);
+  scenario.startWatchingChild();
+  scenario.finishChild();
+  options.childLastAssistantMessage = "Final committed report.";
+  scenario.finishChild();
+  await vi.waitFor(() => expect(scenario.parentPrompts()).toHaveLength(2));
+  expect(scenario.parentPrompts().map((prompt) => parseAgentMessage(prompt)?.text)).toEqual([
+    "Agent child-agent (Child Agent) finished.\n\n<agent-response>\nWaiting on background work.\n</agent-response>",
+    "Agent child-agent (Child Agent) finished.\n\n<agent-response>\nFinal committed report.\n</agent-response>",
+  ]);
+});
+
 test("finish notifications truncate oversized child responses", async () => {
   const included = "x".repeat(4000);
   const omitted = "TAIL-MARKER".repeat(50);
