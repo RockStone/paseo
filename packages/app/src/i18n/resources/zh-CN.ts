@@ -1374,6 +1374,7 @@ export const zhCN: TranslationResources = {
         createWorkspaceFor: "为 {{projectName}} 新建 workspace",
         copyPath: "复制路径",
         copyBranchName: "复制分支名称",
+        copyWorkspaceId: "复制工作区 ID",
         rename: "重命名 workspace",
         pin: "置顶",
         unpin: "取消置顶",

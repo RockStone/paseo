@@ -1,4 +1,10 @@
-import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
+import {
+  useCallback,
+  useMemo,
+  type ComponentProps,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -14,6 +20,10 @@ import {
   Tag,
 } from "lucide-react-native";
 import { isWeb } from "@/constants/platform";
+import { useSessionStore } from "@/stores/session-store";
+import { sidebarWorkspaceTarget } from "@/subagents/sidebar-tree";
+import { useAgentMenuActions } from "@/screens/workspace/use-agent-menu-actions";
+import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import { useAppSettings } from "@/hooks/use-settings";
@@ -127,6 +137,55 @@ function WorkspaceMenuItem({
   return <DropdownMenuItem {...props}>{children}</DropdownMenuItem>;
 }
 
+function WorkspaceIdentityMenuItems({
+  surface,
+  workspaceKey,
+  serverId,
+  workspaceId,
+}: {
+  surface: MenuSurface;
+  workspaceKey: string;
+  serverId: string;
+  workspaceId: string;
+}) {
+  const { t } = useTranslation();
+  const agents = useSessionStore((state) => state.sessions[serverId]?.agents);
+  const agentId = useMemo(
+    () => (agents ? sidebarWorkspaceTarget(agents, workspaceId)?.agentId : undefined),
+    [agents, workspaceId],
+  );
+  const { handleCopyAgentId } = useAgentMenuActions(serverId);
+  const { copyWorkspaceId } = useWorkspaceClipboardActions();
+  const copyAgent = useCallback(() => {
+    if (agentId) void handleCopyAgentId(agentId);
+  }, [agentId, handleCopyAgentId]);
+  const copyWorkspace = useCallback(() => {
+    void copyWorkspaceId(workspaceId);
+  }, [copyWorkspaceId, workspaceId]);
+  return (
+    <>
+      {agentId ? (
+        <WorkspaceMenuItem
+          surface={surface}
+          testID={`sidebar-workspace-menu-copy-agent-id-${workspaceKey}`}
+          leading={copyLeadingIcon}
+          onSelect={copyAgent}
+        >
+          {t("workspace.tabs.menu.copyAgentId")}
+        </WorkspaceMenuItem>
+      ) : null}
+      <WorkspaceMenuItem
+        surface={surface}
+        testID={`sidebar-workspace-menu-copy-workspace-id-${workspaceKey}`}
+        leading={copyLeadingIcon}
+        onSelect={copyWorkspace}
+      >
+        {t("sidebar.workspace.actions.copyWorkspaceId")}
+      </WorkspaceMenuItem>
+    </>
+  );
+}
+
 function SidebarWorkspaceMenuItems({
   surface,
   workspaceKey,
@@ -177,6 +236,14 @@ function SidebarWorkspaceMenuItems({
         >
           {t("sidebar.workspace.actions.copyBranchName")}
         </WorkspaceMenuItem>
+      ) : null}
+      {serverId && workspaceId ? (
+        <WorkspaceIdentityMenuItems
+          surface={surface}
+          workspaceKey={workspaceKey}
+          serverId={serverId}
+          workspaceId={workspaceId}
+        />
       ) : null}
       {onRename ? (
         <WorkspaceMenuItem

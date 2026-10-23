@@ -1413,6 +1413,7 @@ export const fr: TranslationResources = {
         createWorkspaceFor: "Créer un espace de travail pour {{projectName}}",
         copyPath: "Copier le chemin",
         copyBranchName: "Copier le nom de la branche",
+        copyWorkspaceId: "Copier l’ID de l’espace de travail",
         rename: "Renommer l’espace de travail",
         pin: "Épingler en haut",
         unpin: "Désépingler",

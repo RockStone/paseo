@@ -1398,6 +1398,7 @@ export const ja: TranslationResources = {
         createWorkspaceFor: "{{projectName}}の新しいワークスペースを作成",
         copyPath: "パスをコピー",
         copyBranchName: "ブランチ名をコピー",
+        copyWorkspaceId: "ワークスペース ID をコピー",
         rename: "ワークスペースの名前を変更",
         pin: "上部に固定",
         unpin: "固定解除",

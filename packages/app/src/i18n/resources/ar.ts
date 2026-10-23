@@ -1384,6 +1384,7 @@ export const ar: TranslationResources = {
         createWorkspaceFor: "قم بإنشاء مساحة عمل جديدة لـ{{projectName}}",
         copyPath: "نسخ المسار",
         copyBranchName: "انسخ اسم الفرع",
+        copyWorkspaceId: "نسخ معرّف مساحة العمل",
         rename: "إعادة تسمية مساحة العمل",
         pin: "تثبيت في الأعلى",
         unpin: "إلغاء التثبيت",

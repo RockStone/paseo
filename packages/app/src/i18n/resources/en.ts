@@ -1394,6 +1394,7 @@ export const en = {
         createWorkspaceFor: "Create a new workspace for {{projectName}}",
         copyPath: "Copy path",
         copyBranchName: "Copy branch name",
+        copyWorkspaceId: "Copy workspace id",
         rename: "Rename workspace",
         pin: "Pin to top",
         unpin: "Unpin",

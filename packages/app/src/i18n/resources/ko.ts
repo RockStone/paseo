@@ -1391,6 +1391,7 @@ export const ko: TranslationResources = {
         createWorkspaceFor: "{{projectName}}을(를) 위한 새 워크스페이스 생성",
         copyPath: "경로 복사",
         copyBranchName: "브랜치 이름 복사",
+        copyWorkspaceId: "워크스페이스 ID 복사",
         rename: "워크스페이스 이름 변경",
         pin: "상단에 고정",
         unpin: "고정 해제",
