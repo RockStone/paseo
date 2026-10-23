@@ -42,6 +42,9 @@ preserved. Native clients do not have this action. This adapts the selection int
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
 the PR's persistent annotation markers or separate comment editor.
 
+Answered inline Claude questions show the quoted questions and your responses
+together in a user bubble, including when you reopen the conversation.
+
 Typing or pasting with Cmd+V/Ctrl+V in the active chat focuses its composer first.
 Pasted images use the normal attachment flow; text goes into the draft. Other
 editors, terminals, and open overlays retain their own keyboard input.

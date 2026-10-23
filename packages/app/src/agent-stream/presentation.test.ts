@@ -99,6 +99,163 @@ function pluginData(items: StreamItem[]): unknown[] {
 
 const presentationOptions = { level: "overview" as const, isTurnActive: true };
 
+function answeredQuestion(): ToolCallItem {
+  const item = toolCall("question-1", "AskUserQuestion");
+  if (item.payload.source !== "agent") throw new Error("Expected agent tool");
+  item.turnId = "turn-1";
+  item.timelineCursor = { epoch: "epoch-1", seq: 7 };
+  item.payload.data.provider = "claude";
+  item.payload.data.detail = {
+    type: "unknown",
+    input: {
+      questions: [
+        { question: 'Which "profile" should open?', header: "Profile", options: [] },
+        { question: "Which fields?\nList them.", header: "Fields", options: [] },
+      ],
+    },
+    output: {
+      output:
+        'The user answered: "Which "profile" should open?"="New scenes, always", "Which fields?\nList them."="Social name, languages, **level**.\nLeave out "XP" and streaks.". Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.',
+    },
+  };
+  return item;
+}
+
+describe("answered inline questions", () => {
+  it.each(["overview", "detailed"] as const)(
+    "shows answered questions as one user bubble in %s history and live rows",
+    (level) => {
+      const item = answeredQuestion();
+      for (const source of ["tail", "head"] as const) {
+        const result = createStreamPresentation()({
+          ...presentationOptions,
+          level,
+          tail: source === "tail" ? [item] : [],
+          head: source === "head" ? [item] : [],
+          transform: undefined,
+        });
+        expect(rows(result)).toEqual([
+          {
+            kind: "user_message",
+            id: item.id,
+            timestamp: item.timestamp,
+            turnId: item.turnId,
+            timelineCursor: item.timelineCursor,
+            text: '> Which "profile" should open?\n\nNew scenes, always\n\n> Which fields?\n> List them.\n\nSocial name, languages, **level**.\nLeave out "XP" and streaks.',
+          },
+        ]);
+        expect(item.kind).toBe("tool_call");
+      }
+    },
+  );
+
+  it("recognizes the earlier Claude answer envelope", () => {
+    const item = answeredQuestion();
+    if (item.payload.source !== "agent" || item.payload.data.detail.type !== "unknown")
+      throw new Error("Expected question detail");
+    item.payload.data.detail.output = {
+      output:
+        'User has answered your questions: "Which "profile" should open?"="New scenes", "Which fields?\nList them."="Name, languages". You can now continue with the user\'s answers in mind.',
+    };
+    const result = createStreamPresentation()({
+      ...presentationOptions,
+      tail: [item],
+      head: [],
+      transform: undefined,
+    });
+    expect(rows(result)).toMatchObject([
+      { kind: "user_message", text: expect.stringContaining("Name, languages") },
+    ]);
+  });
+
+  it("shows a single question with the custom answer rather than an option label", () => {
+    const item = answeredQuestion();
+    if (item.payload.source !== "agent" || item.payload.data.detail.type !== "unknown")
+      throw new Error("Expected question detail");
+    item.payload.data.detail = {
+      type: "unknown",
+      input: {
+        questions: [
+          { question: "Which scenes?", header: "Scenes", options: [{ label: "All scenes" }] },
+        ],
+      },
+      output: {
+        output:
+          'The user answered: "Which scenes?"="New scenes, but **always** show the creator.\nLeave out XP.". Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.',
+      },
+    };
+    const result = createStreamPresentation()({
+      ...presentationOptions,
+      tail: [item],
+      head: [],
+      transform: undefined,
+    });
+    expect(rows(result)).toMatchObject([
+      {
+        kind: "user_message",
+        text: "> Which scenes?\n\nNew scenes, but **always** show the creator.\nLeave out XP.",
+      },
+    ]);
+    expect(rows(result)[0]).not.toHaveProperty("messageId");
+  });
+
+  it.each(["running", "failed", "canceled"] as const)(
+    "keeps %s questions as tool calls",
+    (status) => {
+      const item = answeredQuestion();
+      if (item.payload.source !== "agent") throw new Error("Expected agent tool");
+      item.payload.data.status = status;
+      const result = createStreamPresentation()({
+        ...presentationOptions,
+        level: "detailed",
+        tail: [item],
+        head: [],
+        transform: undefined,
+      });
+      expect(rows(result)).toEqual([item]);
+    },
+  );
+
+  it.each([
+    { output: "Dismissed by user" },
+    {
+      output:
+        'The user answered: "An unrelated question?"="Yes". Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.',
+    },
+    {
+      output:
+        'The user answered: "Which "profile" should open?"="Yes". Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.',
+    },
+    {
+      output:
+        'The user answered: "Which "profile" should open?"="New scenes", "Which fields?\nList them."="". Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.',
+    },
+  ])("leaves unrecognized or incomplete answers readable as tool details: %j", (output) => {
+    const item = answeredQuestion();
+    if (item.payload.source !== "agent" || item.payload.data.detail.type !== "unknown")
+      throw new Error("Expected question detail");
+    item.payload.data.detail.output = output;
+    const result = createStreamPresentation()({
+      ...presentationOptions,
+      level: "detailed",
+      tail: [item],
+      head: [],
+      transform: undefined,
+    });
+    expect(rows(result)).toEqual([item]);
+  });
+
+  it("lets an installed plugin own the original question tool", () => {
+    const result = createStreamPresentation()({
+      ...presentationOptions,
+      tail: [answeredQuestion()],
+      head: [],
+      transform: installedTransform(installProbe("tool_call")),
+    });
+    expect(rows(result)).toMatchObject([{ kind: "plugin" }]);
+  });
+});
+
 function streamHarness(transform?: TimelineItemTransform) {
   let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
   const present = createStreamPresentation();

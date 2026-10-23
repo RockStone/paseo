@@ -7,6 +7,7 @@ import {
   type ToolCallDetailLevel,
 } from "@/tool-calls/detail-level/projection";
 import type { StreamItem, UserMessageItem } from "@/types/stream";
+import { presentAnsweredQuestion } from "./answered-question";
 
 interface PresentationInput {
   tail: StreamItem[];
@@ -49,6 +50,10 @@ export function createStreamPresentation() {
   let preparedHistory: PreparedToolCallHistory | null = null;
 
   function presentRows(item: StreamItem): StreamItem[] {
+    if (item.kind === "tool_call") {
+      const answer = presentAnsweredQuestion(item);
+      if (answer) return [answer];
+    }
     if (
       item.kind === "tool_call" &&
       item.payload.source === "agent" &&

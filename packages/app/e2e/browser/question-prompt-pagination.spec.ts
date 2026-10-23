@@ -299,7 +299,23 @@ retryTest(
         },
       },
     });
+    const answerBubble = page.getByTestId("user-message-bubble").filter({
+      hasText: "Preserve my answers after a failed submission.",
+    });
+    await expect(answerBubble).toHaveCount(1);
+    await expect(answerBubble.locator("blockquote")).toHaveCount(3);
+    await expect(answerBubble).toContainText(SURFACE_QUESTION);
+    await expect(answerBubble).toContainText("App");
+    await expect(answerBubble).toContainText("Behind feature flag");
+    await expect(
+      page.getByTestId("tool-call-badge").filter({ hasText: "Askuserquestion" }),
+    ).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("submission-retried.png") });
+    await page.reload({ waitUntil: "commit" });
+    await expect(answerBubble).toHaveCount(1);
+    await expect(answerBubble.locator("blockquote")).toHaveCount(3);
+    await expect(answerBubble).toContainText("Preserve my answers after a failed submission.");
+    await page.screenshot({ path: testInfo.outputPath("answered-question-restored.png") });
   },
 );
 

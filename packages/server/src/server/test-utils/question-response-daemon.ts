@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import type { AgentStreamEvent } from "../agent/agent-sdk-types.js";
 import {
   MockLoadTestAgentClient,
   MockLoadTestAgentSession,
@@ -7,8 +9,84 @@ import { createTestPaseoDaemon } from "./paseo-daemon.js";
 
 const firstResponse = Promise.withResolvers<void>();
 
+const questionInput = z.object({
+  questions: z.array(z.object({ question: z.string(), header: z.string() })),
+});
+const questionAnswers = z.record(z.string(), z.string());
+
+/** Replay the native Claude question tool alongside the permission interaction. */
+function questionTranscript() {
+  const requests = new Map<string, Extract<AgentStreamEvent, { type: "permission_requested" }>>();
+  return (event: AgentStreamEvent): AgentStreamEvent[] => {
+    if (event.type === "permission_requested" && event.request.kind === "question") {
+      requests.set(event.request.id, event);
+      return [
+        {
+          type: "timeline",
+          provider: event.provider,
+          turnId: event.turnId,
+          item: {
+            type: "tool_call",
+            callId: event.request.id,
+            name: "AskUserQuestion",
+            status: "running",
+            error: null,
+            detail: { type: "unknown", input: event.request.input ?? null, output: null },
+          },
+        },
+        event,
+      ];
+    }
+    if (event.type !== "permission_resolved") return [event];
+    const pending = requests.get(event.requestId);
+    if (!pending || !event.resolution) return [event];
+    requests.delete(event.requestId);
+    let text: string | null = null;
+    if (event.resolution.behavior === "allow") {
+      const questions = questionInput.parse(pending.request.input).questions;
+      const answers = questionAnswers.parse(event.resolution.updatedInput?.answers);
+      const pairs = questions.map(
+        (question) => `"${question.question}"="${answers[question.header]}"`,
+      );
+      text = `The user answered: ${pairs.join(", ")}. Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.`;
+    }
+    return [
+      {
+        type: "timeline",
+        provider: event.provider,
+        turnId: event.turnId,
+        item: {
+          type: "tool_call",
+          callId: event.requestId,
+          name: "AskUserQuestion",
+          status: text === null ? "canceled" : "completed",
+          error: null,
+          detail: {
+            type: "unknown",
+            input: pending.request.input ?? null,
+            output: text === null ? null : { output: text },
+          },
+        },
+      },
+      event,
+    ];
+  };
+}
+
 class RetryQuestionSession extends MockLoadTestAgentSession {
   private attempts = 0;
+
+  override subscribe(callback: (event: AgentStreamEvent) => void): () => void {
+    const transcript = questionTranscript();
+    return super.subscribe((event) => {
+      for (const item of transcript(event)) callback(item);
+    });
+  }
+
+  override async *streamHistory(): AsyncGenerator<AgentStreamEvent> {
+    const transcript = questionTranscript();
+    for await (const event of super.streamHistory()) yield* transcript(event);
+  }
 
   override async respondToPermission(
     requestId: string,
