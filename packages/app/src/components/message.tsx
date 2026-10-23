@@ -311,6 +311,8 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
   content: {
     alignItems: "flex-end",
     maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
     cursor: "auto",
   },
   containerSpacing: {
@@ -328,6 +330,7 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     borderTopRightRadius: theme.borderRadius.sm,
     paddingHorizontal: theme.spacing[4],
     paddingVertical: theme.spacing[4],
+    maxWidth: "100%",
     minWidth: 0,
     flexShrink: 1,
   },
