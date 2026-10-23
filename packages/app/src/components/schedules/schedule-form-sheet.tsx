@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { CombinedModelSelector } from "@/components/combined-model-selector";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { HostStatusDotSlot } from "@/components/hosts/host-picker";
-import { createControlGeometry, type FieldControlSize } from "@/components/ui/control-geometry";
+import { type FieldControlSize } from "@/components/ui/control-geometry";
 import { Field, FormTextInput } from "@/components/ui/form-field";
 import { Switch } from "@/components/ui/switch";
 import { useProviderIcon } from "@/components/provider-icons";
@@ -125,6 +125,9 @@ function selectScheduleHosts(
       label: host.label,
       supportsWorkspaceMultiplicity:
         state.sessions[host.serverId]?.serverInfo?.features?.workspaceMultiplicity === true,
+      // COMPAT(scheduleAgentRetarget): added in v0.12.0-paseoi.94, remove after 2027-04-23.
+      supportsScheduleAgentRetarget:
+        state.sessions[host.serverId]?.serverInfo?.features?.scheduleAgentRetarget === true,
     }));
 }
 
@@ -287,19 +290,6 @@ function OpenScheduleFormSheet({
   const cadenceError =
     state.cadence.type === "cron" ? validateCron(state.cadence.expression) : null;
   const canSubmit = state.canSubmit && cadenceError === null && !isSubmitting;
-  const agentTargetLabel = useMemo(() => {
-    if (!schedule || schedule.target.type !== "agent") {
-      return null;
-    }
-    const { agentId } = schedule.target;
-    const agent = agents.find(
-      (entry) => entry.serverId === (state.selectedServerId ?? serverId) && entry.id === agentId,
-    );
-    if (!agent) {
-      return "Agent unavailable";
-    }
-    return agent.title?.trim() || "Untitled agent";
-  }, [agents, schedule, serverId, state.selectedServerId]);
 
   const persistPreferences = useCallback(async () => {
     const provider = state.selectedProvider;
@@ -329,6 +319,11 @@ function OpenScheduleFormSheet({
     if (mode === "edit" && schedule) {
       await updateSchedule({
         id: schedule.id,
+        ...(state.selectedAgentId &&
+        schedule.target.type === "agent" &&
+        state.selectedAgentId !== schedule.target.agentId
+          ? { targetAgentId: state.selectedAgentId }
+          : {}),
         name: state.name.trim() || null,
         prompt: state.prompt.trim(),
         ...(state.submitCadence ? { cadence: state.submitCadence } : {}),
@@ -472,7 +467,6 @@ function OpenScheduleFormSheet({
         model={model}
         state={state}
         providerSnapshot={providerSnapshot}
-        agentTargetLabel={agentTargetLabel}
         controlSize={controlSize}
         cadenceError={cadenceError}
         mutationServerId={mutationServerId}
@@ -485,7 +479,6 @@ interface ScheduleFormFieldsProps {
   model: ScheduleFormModel;
   state: ScheduleFormState;
   providerSnapshot: ReturnType<typeof useScheduleFormProviderSnapshot>;
-  agentTargetLabel: string | null;
   controlSize: FieldControlSize;
   cadenceError: string | null;
   mutationServerId: string;
@@ -495,7 +488,6 @@ function ScheduleFormFields({
   model,
   state,
   providerSnapshot,
-  agentTargetLabel,
   controlSize,
   cadenceError,
   mutationServerId,
@@ -520,7 +512,7 @@ function ScheduleFormFields({
       <SchedulePromptField model={model} state={state} size={controlSize} />
 
       {isHeartbeatEdit ? (
-        <ScheduleAgentTargetField label={agentTargetLabel} size={controlSize} />
+        <ScheduleAgentTargetField model={model} state={state} size={controlSize} />
       ) : (
         <ScheduleTargetFields
           model={model}
@@ -977,29 +969,54 @@ function ScheduleIsolationField({
 }
 
 function ScheduleAgentTargetField({
-  label,
+  model,
+  state,
   size,
 }: {
-  label: string | null;
+  model: ScheduleFormModel;
+  state: ScheduleFormState;
   size: FieldControlSize;
 }): ReactElement {
-  const fieldStyle = useMemo(
-    () => [styles.readonlyField, size === "sm" ? styles.readonlyFieldSm : styles.readonlyFieldMd],
-    [size],
+  const options = useMemo<SelectFieldOption<string>[]>(
+    () =>
+      state.agentOptions.map((agent) => ({
+        id: agent.agentId,
+        value: agent.agentId,
+        label: agent.label,
+        description: agent.description,
+        testID: `schedule-agent-option-${agent.agentId}`,
+      })),
+    [state.agentOptions],
   );
-  const textStyle = useMemo(
-    () => [styles.readonlyText, size === "sm" ? styles.readonlyTextSm : styles.readonlyTextMd],
-    [size],
+  const selectAgent = useCallback(
+    (agentId: string, display: ScheduleFormDisplay) => model.setAgent(agentId, display),
+    [model],
   );
-
+  const canRetarget =
+    state.hosts.find((host) => host.serverId === state.selectedServerId)
+      ?.supportsScheduleAgentRetarget === true;
+  const selectedDisplay = useMemo(
+    () => (canRetarget ? state.selectedAgentDisplay : { label: state.selectedAgentDisplay.label }),
+    [canRetarget, state.selectedAgentDisplay],
+  );
   return (
-    <Field label="Target">
-      <View style={fieldStyle} testID="schedule-agent-target">
-        <Text style={textStyle} numberOfLines={1}>
-          {label}
-        </Text>
-      </View>
-    </Field>
+    <SelectField
+      label="Target"
+      value={state.selectedAgentId}
+      selectedDisplay={selectedDisplay}
+      options={options}
+      onChange={selectAgent}
+      disabled={!canRetarget}
+      hint={!canRetarget ? "Update and restart the host to change the delivery target." : undefined}
+      error={state.agentTargetError}
+      searchable
+      searchPlaceholder="Search agents..."
+      placeholder="Select agent"
+      emptyText="No agents found"
+      title="Delivery target"
+      size={size}
+      triggerTestID="schedule-agent-target"
+    />
   );
 }
 
@@ -1123,35 +1140,9 @@ function ProviderGlyph({
 }
 
 const styles = StyleSheet.create((theme) => {
-  const geometry = createControlGeometry(theme);
-
   return {
     multilineInput: {
       minHeight: 96,
-    },
-    readonlyField: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.surface2,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    readonlyFieldSm: {
-      ...geometry.formTextInputSm,
-    },
-    readonlyFieldMd: {
-      ...geometry.formTextInputMd,
-    },
-    readonlyText: {
-      flex: 1,
-      minWidth: 0,
-      color: theme.colors.foreground,
-    },
-    readonlyTextSm: {
-      fontSize: theme.fontSize.base,
-    },
-    readonlyTextMd: {
-      fontSize: theme.fontSize.base,
     },
     optionIconBox: {
       width: 18,

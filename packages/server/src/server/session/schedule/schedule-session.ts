@@ -226,6 +226,7 @@ export class ScheduleSession {
     try {
       const schedule = await this.scheduleService.update({
         id: request.scheduleId,
+        ...(request.targetAgentId !== undefined ? { targetAgentId: request.targetAgentId } : {}),
         ...(request.name !== undefined ? { name: request.name } : {}),
         ...(request.prompt !== undefined ? { prompt: request.prompt } : {}),
         ...(request.cadence !== undefined ? { cadence: request.cadence } : {}),

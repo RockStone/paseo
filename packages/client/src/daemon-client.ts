@@ -890,6 +890,7 @@ export interface UpdateScheduleNewAgentConfig {
 }
 export interface UpdateScheduleOptions {
   id: string;
+  targetAgentId?: string;
   name?: string | null;
   prompt?: string;
   cadence?: {
@@ -6209,6 +6210,7 @@ export class DaemonClient {
       message: {
         type: "schedule/update",
         scheduleId: options.id,
+        ...(options.targetAgentId !== undefined ? { targetAgentId: options.targetAgentId } : {}),
         ...(options.name !== undefined ? { name: options.name } : {}),
         ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
         ...(options.cadence !== undefined ? { cadence: options.cadence } : {}),

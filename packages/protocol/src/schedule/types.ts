@@ -100,6 +100,7 @@ export interface UpdateScheduleNewAgentConfig {
 
 export interface UpdateScheduleInput {
   id: string;
+  targetAgentId?: string;
   name?: string | null;
   prompt?: string;
   cadence?: ScheduleCadence;

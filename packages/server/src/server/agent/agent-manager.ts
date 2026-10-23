@@ -4899,10 +4899,13 @@ export class AgentManager {
     options?: { messageId?: string; providerMessageId?: string; turnId?: string },
   ): void {
     const imageSources = extractUserImageSources(prompt);
+    const attachments =
+      typeof prompt === "string" ? [] : prompt.filter((block) => block.type === "uploaded_file");
     const item = projectAgentMessage({
       type: "user_message",
       text: submittedPromptText(prompt),
       ...(imageSources.length ? { imageSources } : {}),
+      ...(attachments.length ? { attachments } : {}),
       clientMessageId,
       ...(options?.messageId ? { messageId: options.messageId } : {}),
     });

@@ -611,6 +611,158 @@ describe("ScheduleService", () => {
     },
   );
 
+  test("retargets a heartbeat in place and sends future runs to the new agent", async () => {
+    for (const id of [
+      "00000000-0000-0000-0000-000000000001",
+      "00000000-0000-0000-0000-000000000002",
+    ]) {
+      await agentStorage.upsert(buildAgentRecord({ id, cwd: tempDir, iso: now.toISOString() }));
+    }
+    const delivered: string[] = [];
+    const options: TestScheduleServiceOptions = {
+      paseoHome: tempDir,
+      logger: createTestLogger(),
+      agentManager: new AgentManager({ logger: createTestLogger() }),
+      agentStorage,
+      providerSnapshotManager: NO_UNATTENDED_SCHEDULE_POLICY,
+      now: () => now,
+      runner: async (schedule) => {
+        if (schedule.target.type !== "agent") throw new Error("Expected heartbeat");
+        delivered.push(schedule.target.agentId);
+        return { agentId: schedule.target.agentId, output: "ok" };
+      },
+    };
+    const service = createScheduleService(options);
+    const created = await service.create({
+      name: "Watcher",
+      prompt: "Keep watching",
+      cadence: { type: "every", everyMs: 60_000 },
+      target: { type: "agent", agentId: "00000000-0000-0000-0000-000000000001" },
+      maxRuns: 5,
+    });
+    now = new Date("2026-01-01T00:01:00.000Z");
+    await service.tick();
+    await service.pause(created.id);
+    const previous = await service.inspect(created.id);
+    now = new Date("2026-01-01T00:02:00.000Z");
+    const updated = await service.update({
+      id: created.id,
+      targetAgentId: "00000000-0000-0000-0000-000000000002",
+    });
+    expect(updated).toEqual({
+      ...previous,
+      target: { type: "agent", agentId: "00000000-0000-0000-0000-000000000002" },
+      updatedAt: now.toISOString(),
+    });
+    expect(await createScheduleService(options).inspect(created.id)).toEqual(updated);
+    await service.resume(created.id);
+    now = new Date("2026-01-01T00:03:00.000Z");
+    await service.tick();
+    expect(delivered).toEqual([
+      "00000000-0000-0000-0000-000000000001",
+      "00000000-0000-0000-0000-000000000002",
+    ]);
+    expect((await service.inspect(created.id)).runs).toHaveLength(2);
+  });
+
+  test("rejects invalid heartbeat retargeting without partially saving other edits", async () => {
+    await agentStorage.upsert(
+      buildAgentRecord({
+        id: "00000000-0000-0000-0000-000000000001",
+        cwd: tempDir,
+        iso: now.toISOString(),
+      }),
+    );
+    await agentStorage.upsert(
+      buildAgentRecord({
+        id: "00000000-0000-0000-0000-000000000003",
+        cwd: tempDir,
+        iso: now.toISOString(),
+        archivedAt: now.toISOString(),
+      }),
+    );
+    const service = createScheduleService({
+      paseoHome: tempDir,
+      logger: createTestLogger(),
+      agentManager: new AgentManager({ logger: createTestLogger() }),
+      agentStorage,
+      providerSnapshotManager: NO_UNATTENDED_SCHEDULE_POLICY,
+      now: () => now,
+    });
+    const created = await service.create({
+      prompt: "Original prompt",
+      cadence: { type: "every", everyMs: 60_000 },
+      target: { type: "agent", agentId: "00000000-0000-0000-0000-000000000001" },
+    });
+    for (const targetAgentId of [
+      "00000000-0000-0000-0000-000000000004",
+      "00000000-0000-0000-0000-000000000003",
+      " ",
+    ]) {
+      await expect(
+        service.update({ id: created.id, targetAgentId, prompt: "Do not save" }),
+      ).rejects.toThrow("existing, unarchived");
+      expect(await service.inspect(created.id)).toEqual(created);
+    }
+    const fresh = await service.create({
+      prompt: "Fresh run",
+      cadence: { type: "every", everyMs: 60_000 },
+      target: { type: "new-agent", config: { provider: "claude", cwd: tempDir } },
+    });
+    await expect(
+      service.update({ id: fresh.id, targetAgentId: "00000000-0000-0000-0000-000000000001" }),
+    ).rejects.toThrow("Only heartbeats");
+  });
+
+  test("rejects heartbeat retargeting while its current run is active", async () => {
+    for (const id of [
+      "00000000-0000-0000-0000-000000000001",
+      "00000000-0000-0000-0000-000000000002",
+    ])
+      await agentStorage.upsert(buildAgentRecord({ id, cwd: tempDir, iso: now.toISOString() }));
+    let release!: () => void;
+    let notifyStarted!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve;
+    });
+    const service = createScheduleService({
+      paseoHome: tempDir,
+      logger: createTestLogger(),
+      agentManager: new AgentManager({ logger: createTestLogger() }),
+      agentStorage,
+      providerSnapshotManager: NO_UNATTENDED_SCHEDULE_POLICY,
+      now: () => now,
+      runner: async () => {
+        notifyStarted();
+        await blocked;
+        return { agentId: "00000000-0000-0000-0000-000000000001", output: "ok" };
+      },
+    });
+    const created = await service.create({
+      prompt: "Watcher",
+      cadence: { type: "every", everyMs: 60_000 },
+      target: { type: "agent", agentId: "00000000-0000-0000-0000-000000000001" },
+    });
+    now = new Date("2026-01-01T00:01:00.000Z");
+    const tick = service.tick();
+    try {
+      await started;
+      await expect(
+        service.update({ id: created.id, targetAgentId: "00000000-0000-0000-0000-000000000002" }),
+      ).rejects.toThrow("current heartbeat run");
+    } finally {
+      release();
+      await tick;
+    }
+    expect((await service.inspect(created.id)).target).toEqual({
+      type: "agent",
+      agentId: "00000000-0000-0000-0000-000000000001",
+    });
+  });
+
   test("pause and resume update persisted schedule state", async () => {
     const service = createScheduleService({
       paseoHome: tempDir,

@@ -232,6 +232,21 @@ interface UserMessageProductionResult {
   matched: boolean;
 }
 
+function mergeUserMessage(
+  presentation: UserMessageItem,
+  incoming: UserMessageItem,
+  existing: UserMessageItem,
+): UserMessageItem {
+  return createUserMessage({
+    ...presentation,
+    clientMessageId: incoming.clientMessageId ?? existing.clientMessageId,
+    messageId: incoming.messageId ?? existing.messageId,
+    timelineCursor: incoming.timelineCursor ?? existing.timelineCursor,
+    imageSources: incoming.imageSources ?? existing.imageSources,
+    attachments: presentation.attachments ?? incoming.attachments ?? existing.attachments,
+  });
+}
+
 function produceUserMessage(
   items: StreamItem[],
   incoming: UserMessageItem,
@@ -259,13 +274,7 @@ function produceUserMessage(
     throw new Error("User message upsert matched a non-user row");
   }
   const presentation = presentationPolicy === "incoming" ? incoming : existing;
-  const merged = createUserMessage({
-    ...presentation,
-    clientMessageId: incoming.clientMessageId ?? existing.clientMessageId,
-    messageId: incoming.messageId ?? existing.messageId,
-    timelineCursor: incoming.timelineCursor ?? existing.timelineCursor,
-    imageSources: incoming.imageSources ?? existing.imageSources,
-  });
+  const merged = mergeUserMessage(presentation, incoming, existing);
   if (
     existing.id === merged.id &&
     existing.clientMessageId === merged.clientMessageId &&
@@ -899,6 +908,7 @@ function appendUserMessage(
   timelineCursor?: TimelinePosition,
   turnId?: string,
   imageSources?: string[],
+  attachments?: AgentAttachment[],
 ): StreamItem[] {
   const { chunk, hasContent } = normalizeChunk(text);
   if (!hasContent && !imageSources?.length) {
@@ -915,6 +925,7 @@ function appendUserMessage(
     text: chunk,
     timestamp,
     imageSources,
+    attachments,
   });
   return upsertUserMessage(state, nextItem);
 }
@@ -1524,6 +1535,7 @@ function reduceTimelineEvent(
           timelineCursor,
           event.turnId,
           item.imageSources,
+          item.attachments,
         ),
       );
     case "assistant_message":
@@ -1902,6 +1914,7 @@ function applyCanonicalUserMessageEvent(params: {
     timelineCursor,
     text: normalized.chunk,
     imageSources: event.item.imageSources,
+    attachments: event.item.attachments,
     timestamp,
   });
   if (unmatchedInsert === "head") {

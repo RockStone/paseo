@@ -91,6 +91,7 @@ export const ScheduleUpdateRequestSchema = z.object({
   type: z.literal("schedule/update"),
   requestId: z.string(),
   scheduleId: z.string(),
+  targetAgentId: z.string().min(1).optional(),
   name: z.string().nullable().optional(),
   prompt: z.string().min(1).optional(),
   cadence: ScheduleCadenceSchema.optional(),

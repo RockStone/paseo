@@ -459,6 +459,23 @@ export class ScheduleService {
       const now = this.now();
       let updated: StoredSchedule = schedule;
 
+      if (input.targetAgentId !== undefined) {
+        if (schedule.target.type !== "agent") {
+          throw new Error("Only heartbeats can change their target agent");
+        }
+        const agentId = input.targetAgentId.trim();
+        const agent = agentId ? await this.agentStorage.get(agentId) : null;
+        if (!agent || agent.archivedAt) {
+          throw new Error("Select an existing, unarchived target agent");
+        }
+        if (this.runningScheduleIds.has(schedule.id)) {
+          throw new Error(
+            "Wait for the current heartbeat run to finish before changing its target",
+          );
+        }
+        updated = { ...updated, target: { type: "agent", agentId } };
+      }
+
       if (input.prompt !== undefined) {
         updated = { ...updated, prompt: normalizePrompt(input.prompt) };
       }

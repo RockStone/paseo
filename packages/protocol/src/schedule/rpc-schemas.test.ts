@@ -61,4 +61,20 @@ describe("schedule RPC schemas", () => {
       },
     });
   });
+  it("accepts optional heartbeat retargeting while keeping older update payloads valid", () => {
+    const legacy = {
+      type: "schedule/update",
+      requestId: "r",
+      scheduleId: "s",
+      prompt: "Updated prompt",
+    };
+    expect(ScheduleUpdateRequestSchema.parse(legacy)).toEqual(legacy);
+    expect(ScheduleUpdateRequestSchema.parse({ ...legacy, targetAgentId: "agent-new" })).toEqual({
+      ...legacy,
+      targetAgentId: "agent-new",
+    });
+    expect(ScheduleUpdateRequestSchema.safeParse({ ...legacy, targetAgentId: "" }).success).toBe(
+      false,
+    );
+  });
 });

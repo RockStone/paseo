@@ -1329,6 +1329,8 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     <RewindComposerRestoreProvider
       textSource={agentInputDraft.textSource}
       setText={agentInputDraft.replaceText}
+      attachments={agentInputDraft.attachments}
+      setAttachments={agentInputDraft.setAttachments}
       onRewindComplete={handleRewindComplete}
     >
       <View style={styles.root}>

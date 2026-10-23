@@ -42,6 +42,7 @@ export interface ScheduleFormHost {
   serverId: string;
   label: string;
   supportsWorkspaceMultiplicity?: boolean;
+  supportsScheduleAgentRetarget?: boolean;
 }
 
 export interface ScheduleFormSnapshot {
@@ -99,6 +100,8 @@ export interface ScheduleFormState {
   projectOptions: ScheduleFormProjectOption[];
   agentOptions: ScheduleAgentTarget[];
   selectedAgentId: string | null;
+  originalAgentId: string | null;
+  selectedAgentDisplayResolved: boolean;
   selectedAgentDisplay: ScheduleFormDisplay;
   agentTargetError: string | null;
   selectedServerId: string | null;
@@ -568,7 +571,10 @@ function resolveCanSubmit(state: ScheduleFormState): boolean {
     return false;
   }
   if (state.targetKind === "agent") {
-    if (state.mode === "edit") return true;
+    if (state.mode === "edit")
+      return (
+        Boolean(state.selectedServerId && state.selectedAgentId) && state.agentTargetError === null
+      );
     return (
       state.submitCadence !== undefined &&
       Boolean(state.selectedServerId && state.selectedAgentId) &&
@@ -626,10 +632,12 @@ function updateDerivedState(input: {
   const agentOptions = (input.agentTargets ?? EMPTY_AGENT_TARGETS).filter(
     (agent) =>
       agent.serverId === input.state.selectedServerId &&
-      agent.projectOptionId === projectTarget?.optionId,
+      ((input.state.mode === "edit" && input.state.targetKind === "agent") ||
+        agent.projectOptionId === projectTarget?.optionId),
   );
   const agentTargetError =
-    input.state.mode === "create" &&
+    (input.state.mode === "create" ||
+      input.state.selectedAgentId !== input.state.originalAgentId) &&
     input.state.selectedAgentId &&
     !agentOptions.some((agent) => agent.agentId === input.state.selectedAgentId)
       ? "Selected agent is no longer available."
@@ -669,6 +677,34 @@ function updateDerivedState(input: {
   return { ...nextState, disclosure, canSubmit: resolveCanSubmit({ ...nextState, disclosure }) };
 }
 
+function buildInitialAgentSelection(
+  snapshot: ScheduleFormSnapshot,
+  serverId: string | null,
+): Pick<
+  ScheduleFormState,
+  "selectedAgentId" | "originalAgentId" | "selectedAgentDisplay" | "selectedAgentDisplayResolved"
+> {
+  const agentId = initialAgentTargetId(snapshot.schedule);
+  if (!agentId)
+    return {
+      selectedAgentId: null,
+      originalAgentId: null,
+      selectedAgentDisplay: NEW_AGENT_DISPLAY,
+      selectedAgentDisplayResolved: true,
+    };
+  const agent = (snapshot.defaults.agentTargets ?? EMPTY_AGENT_TARGETS).find(
+    (entry) => entry.serverId === serverId && entry.agentId === agentId,
+  );
+  return {
+    selectedAgentId: agentId,
+    originalAgentId: agentId,
+    selectedAgentDisplayResolved: Boolean(agent),
+    selectedAgentDisplay: agent
+      ? { label: agent.label, description: agent.description }
+      : { label: "Agent unavailable" },
+  };
+}
+
 function buildInitialState(snapshot: ScheduleFormSnapshot): ScheduleFormState {
   const selectedServerId = resolveInitialServerId(snapshot);
   const config = newAgentConfig(snapshot.schedule);
@@ -702,8 +738,7 @@ function buildInitialState(snapshot: ScheduleFormSnapshot): ScheduleFormState {
     hosts: [...snapshot.hosts],
     projectOptions: buildProjectOptions(snapshot.defaults.projectTargets, selectedServerId),
     agentOptions: [],
-    selectedAgentId: initialAgentTargetId(snapshot.schedule),
-    selectedAgentDisplay: NEW_AGENT_DISPLAY,
+    ...buildInitialAgentSelection(snapshot, selectedServerId),
     agentTargetError: null,
     selectedServerId,
     selectedProvider: config?.provider ?? null,
@@ -1016,7 +1051,21 @@ export function openScheduleForm(snapshot: ScheduleFormSnapshot): ScheduleFormMo
     applyAgentTargets(nextTargets) {
       if (closed || agentTargets === nextTargets) return;
       agentTargets = nextTargets;
-      publish(state);
+      const selected = !state.selectedAgentDisplayResolved
+        ? nextTargets.find(
+            (agent) =>
+              agent.serverId === state.selectedServerId && agent.agentId === state.selectedAgentId,
+          )
+        : undefined;
+      publish(
+        selected
+          ? {
+              ...state,
+              selectedAgentDisplay: { label: selected.label, description: selected.description },
+              selectedAgentDisplayResolved: true,
+            }
+          : state,
+      );
     },
     applyPreferences(nextPreferences) {
       const normalizedPreferences = nextPreferences ?? null;
@@ -1106,13 +1155,15 @@ export function openScheduleForm(snapshot: ScheduleFormSnapshot): ScheduleFormMo
       requestProviderSnapshot(target.serverId, target.cwd);
     },
     setAgent(agentId, display) {
-      if (closed || snapshot.mode === "edit") return;
+      if (closed || (snapshot.mode === "edit" && (state.targetKind !== "agent" || !agentId)))
+        return;
       if (agentId && !state.agentOptions.some((agent) => agent.agentId === agentId)) return;
       publish({
         ...state,
         targetKind: agentId ? "agent" : "new-agent",
         selectedAgentId: agentId,
         selectedAgentDisplay: display,
+        selectedAgentDisplayResolved: true,
         providerSnapshotRequest: null,
       });
       if (!agentId) requestProviderSnapshot(state.selectedServerId, state.workingDir);

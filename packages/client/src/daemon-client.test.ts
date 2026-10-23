@@ -1177,6 +1177,20 @@ test("sends new-agent run options when updating schedules", async () => {
     schedule: null,
     error: null,
   });
+  const retargetPromise = client.scheduleUpdate({
+    id: "heartbeat-1",
+    requestId: "request-2",
+    targetAgentId: "agent-next",
+  });
+  const retargetRequest = parseSentFrame(mock.sent.at(-1)!);
+  expect(retargetRequest).toEqual({
+    type: "schedule/update",
+    requestId: "request-2",
+    scheduleId: "heartbeat-1",
+    targetAgentId: "agent-next",
+  });
+  respondToScheduleRequest(mock, retargetRequest);
+  await expect(retargetPromise).resolves.toMatchObject({ error: null });
 });
 
 test("sends typed browser automation execute responses", async () => {

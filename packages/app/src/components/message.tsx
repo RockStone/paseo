@@ -1,3 +1,5 @@
+import { buildRewoundComposerMessage } from "@/components/rewind/attachments";
+import { useToast } from "@/contexts/toast-context";
 import { useTranscriptSectionExpanded } from "@/agent-stream/section-expansion";
 import { messageReferenceDetails } from "@/attachments/reference-details";
 import { MarkdownReferenceContext } from "@/components/markdown/reference-context";
@@ -509,6 +511,7 @@ const UserMessageContent = memo(function UserMessageContent({
   );
   const showTrailingRow = showUserMessageActions(isPending, hasText, isCompact, isHovered);
   const timestampDate = useMemo(() => new Date(timestamp), [timestamp]);
+  const toast = useToast();
   const rewindMutation = useRewindAgentMutation({ serverId, agentId, client, messageId });
 
   const handlePointerEnter = useCallback(() => setIsHovered(true), []);
@@ -516,9 +519,27 @@ const UserMessageContent = memo(function UserMessageContent({
   const getMessageContent = useCallback(() => message, [message]);
   const handleRewind = useCallback(
     (input: { mode: RewindMode; rewoundText: string }) => {
-      return rewindMutation.rewindAgent(input);
+      if (imageRecoveryStatus && input.mode !== "files") {
+        const recoveryError = t(
+          imageRecoveryStatus === "unavailable"
+            ? "message.attachments.imageLoadFailed"
+            : "common.loading",
+        );
+        toast.error(recoveryError);
+        return Promise.reject(new Error(recoveryError));
+      }
+      const restored = buildRewoundComposerMessage({
+        text: input.rewoundText,
+        images,
+        attachments,
+      });
+      return rewindMutation.rewindAgent({
+        ...input,
+        rewoundText: restored.text,
+        rewoundAttachments: restored.attachments,
+      });
     },
-    [rewindMutation],
+    [rewindMutation, imageRecoveryStatus, t, toast, images, attachments],
   );
 
   const containerStyle = useMemo(

@@ -1,3 +1,4 @@
+import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { Locator } from "@playwright/test";
 import { expect, test, type Page } from "../support/fixtures";
 import { expectAgentIdle, expectAgentReadyToInterrupt } from "../support/helpers/agent-stream";
@@ -7,8 +8,16 @@ import {
   expectComposerDraft,
   expectComposerVisible,
   submitMessage,
+  attachFileFromMenu,
+  pasteComposerTestImage,
+  sendComposerWithButton,
+  composerLocator,
 } from "../support/helpers/composer";
-import { expectNearBottom, scrollChatAwayFromBottom } from "../support/helpers/agent-bottom-anchor";
+import {
+  expectNearBottom,
+  scrollChatAwayFromBottom,
+  scrollAgentChatToBottom,
+} from "../support/helpers/agent-bottom-anchor";
 import { holdRewindCompletion } from "../support/helpers/agent-timeline-gate";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 
@@ -21,6 +30,8 @@ async function completeSubmittedTurn(
   const userMessage = page.getByTestId("user-message").filter({ hasText: prompt });
   await expect(userMessage).toBeVisible();
 
+  // Observe this run starting so a cached idle snapshot from the previous turn cannot satisfy the wait.
+  await expectAgentReadyToInterrupt(page);
   const finish = await agent.client.waitForFinish(agent.agentId, 30_000);
   expect(finish.status).toBe("idle");
   await expect(page.getByText("(end of synthetic stream)", { exact: true }).last()).toBeVisible();
@@ -29,7 +40,7 @@ async function completeSubmittedTurn(
 }
 
 async function rewindConversation(page: Page, userMessage: Locator, prompt: string): Promise<void> {
-  await userMessage.getByText(prompt, { exact: true }).hover();
+  await userMessage.getByText(prompt, { exact: false }).first().hover();
   await userMessage.getByRole("button", { name: "Rewind to this message", exact: true }).click();
   await page.getByRole("menuitem", { name: "Rewind conversation", exact: true }).click();
 }
@@ -38,6 +49,8 @@ async function expectTurnCompletesNormally(
   page: Page,
   agent: Awaited<ReturnType<typeof seedMockAgentWorkspace>>,
 ): Promise<void> {
+  // Observe this run starting so a cached idle snapshot from the previous turn cannot satisfy the wait.
+  await expectAgentReadyToInterrupt(page);
   const finish = await agent.client.waitForFinish(agent.agentId, 30_000);
   expect(finish.status).toBe("idle");
   await expect(page.getByText("(end of synthetic stream)", { exact: true }).last()).toBeVisible();
@@ -69,6 +82,15 @@ test.describe("Agent message rewind", () => {
         minDistanceFromBottom: 300,
       });
       await fillComposerDraft(page, preservedDraft);
+      await attachFileFromMenu(page, {
+        name: "current-draft.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("Keep this current draft file."),
+      });
+      await expect(page.getByTestId("composer-file-attachment-pill")).toContainText(
+        "current-draft.txt",
+      );
+      await fillComposerDraft(page, preservedDraft);
       rewindCompletion.clearTimelineStreamCount();
 
       const rewind = rewindConversation(page, userMessage, rewoundPrompt);
@@ -82,7 +104,89 @@ test.describe("Agent message rewind", () => {
         0,
       );
       await expectComposerDraft(page, preservedDraft);
+      await expect(page.getByTestId("composer-file-attachment-pill")).toContainText(
+        "current-draft.txt",
+      );
       await expectNearBottom(page);
+    } finally {
+      await agent.cleanup();
+    }
+  });
+
+  test("rewinds replayed images and uploaded files into the composer and sends them again", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    const agent = await seedMockAgentWorkspace({
+      repoPrefix: "rewind-attachments-",
+      title: "Attachment rewind",
+      model: "ten-second-stream",
+    });
+    const prompt = "Keep this image and log after rewind.";
+    try {
+      await openAgentRoute(page, agent);
+      await expectComposerVisible(page);
+      await completeSubmittedTurn(page, agent, "Retain this earlier message.");
+      await fillComposerDraft(page, prompt);
+      await pasteComposerTestImage(page);
+      await attachFileFromMenu(page, {
+        name: "rewind-log.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("Rewind attachment proof."),
+      });
+      await expect(page.getByTestId("composer-image-attachment-pill")).toBeVisible();
+      await expect(page.getByTestId("composer-file-attachment-pill")).toContainText(
+        "rewind-log.txt",
+      );
+      await sendComposerWithButton(page);
+      await expectTurnCompletesNormally(page, agent);
+      const timelineClient = agent.client as typeof agent.client &
+        Pick<DaemonClient, "fetchAgentTimeline">;
+      const saved = await timelineClient.fetchAgentTimeline(agent.agentId, {
+        direction: "tail",
+        limit: 0,
+        projection: "projected",
+      });
+      expect(
+        saved.entries.find(
+          (entry) => entry.item.type === "user_message" && entry.item.text.includes(prompt),
+        )?.item,
+      ).toMatchObject({
+        attachments: [
+          expect.objectContaining({ type: "uploaded_file", fileName: "rewind-log.txt" }),
+        ],
+      });
+      await page.reload({ waitUntil: "commit" });
+      await expectComposerVisible(page);
+      await scrollAgentChatToBottom(page);
+      const userMessage = page.getByTestId("user-message").filter({ hasText: prompt });
+      await userMessage.scrollIntoViewIfNeeded();
+      await expect(userMessage.locator("img").first()).toBeVisible({ timeout: 30_000 });
+      await rewindConversation(page, userMessage, prompt);
+      await expect(page.getByTestId("composer-image-attachment-pill")).toBeVisible();
+      await expect(page.getByTestId("composer-file-attachment-pill")).toContainText(
+        "rewind-log.txt",
+      );
+      await expect(composerLocator(page)).toHaveAttribute(
+        "data-markdown",
+        /Keep this image and log.*@Image 1.*@File 1/s,
+      );
+      const rewoundHistory = await timelineClient.fetchAgentTimeline(agent.agentId, {
+        direction: "tail",
+        limit: 0,
+        projection: "projected",
+      });
+      expect(
+        rewoundHistory.entries.filter((entry) => entry.item.type === "user_message"),
+      ).toMatchObject([{ item: { type: "user_message", text: "Retain this earlier message." } }]);
+      await expect(userMessage).toHaveCount(0);
+      await page.screenshot({ path: testInfo.outputPath("rewound-attachments.png") });
+      await sendComposerWithButton(page);
+      await expectTurnCompletesNormally(page, agent);
+      const restored = page.getByTestId("user-message").filter({ hasText: prompt });
+      await expect(restored).toHaveCount(1);
+      await expect(restored.locator("img").first()).toBeVisible();
+      await expect(restored).toContainText("rewind-log.txt");
     } finally {
       await agent.cleanup();
     }

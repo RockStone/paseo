@@ -1,49 +1,52 @@
+import type { UserComposerAttachment } from "@/attachments/types";
+import type { RewoundComposerMessage } from "./attachments";
+import { useStableEvent } from "@/hooks/use-stable-event";
 import type { ComposerTextSource } from "@/composer/text-source";
-import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 
 interface RewindComposerRestoreContextValue {
-  completeRewind: (text: string) => void;
+  completeRewind: (message: RewoundComposerMessage) => void;
 }
 
 interface RewindComposerRestoreProviderProps {
   textSource: ComposerTextSource;
   setText: (text: string) => void;
+  attachments: UserComposerAttachment[];
+  setAttachments: (attachments: UserComposerAttachment[]) => void;
   onRewindComplete: () => void;
   children: ReactNode;
 }
 
 const RewindComposerRestoreContext = createContext<RewindComposerRestoreContextValue | null>(null);
 
-export function restoreComposerTextIfEmpty(input: {
+export function restoreComposerDraftIfEmpty(input: {
   currentText: string;
-  rewoundText: string;
-}): string {
-  if (input.currentText.length > 0) {
-    return input.currentText;
-  }
-  return input.rewoundText;
+  currentAttachments: readonly UserComposerAttachment[];
+  rewound: RewoundComposerMessage;
+}): RewoundComposerMessage | null {
+  return input.currentText.length > 0 || input.currentAttachments.length > 0 ? null : input.rewound;
 }
 
 export function RewindComposerRestoreProvider({
   textSource,
   setText,
+  attachments,
+  setAttachments,
   onRewindComplete,
   children,
 }: RewindComposerRestoreProviderProps) {
-  const completeRewind = useCallback(
-    (rewoundText: string) => {
-      const currentText = textSource.getSnapshot();
-      const nextText = restoreComposerTextIfEmpty({
-        currentText: currentText,
-        rewoundText,
-      });
-      if (nextText !== currentText) {
-        setText(nextText);
-      }
-      onRewindComplete();
-    },
-    [onRewindComplete, setText, textSource],
-  );
+  const completeRewind = useStableEvent((message: RewoundComposerMessage) => {
+    const restored = restoreComposerDraftIfEmpty({
+      currentText: textSource.getSnapshot(),
+      currentAttachments: attachments,
+      rewound: message,
+    });
+    if (restored) {
+      if (restored.attachments.length > 0) setAttachments(restored.attachments);
+      setText(restored.text);
+    }
+    onRewindComplete();
+  });
 
   const value = useMemo(() => ({ completeRewind }), [completeRewind]);
 

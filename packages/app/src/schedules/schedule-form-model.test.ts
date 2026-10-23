@@ -699,6 +699,63 @@ describe("schedule form model", () => {
     });
   });
 
+  it("changes an existing heartbeat's delivery agent on the same host and preserves its draft", () => {
+    const agentTargets = [
+      { agentId: "agent-1", serverId: "host-a", projectOptionId: "project-a", label: "Original" },
+      {
+        agentId: "agent-2",
+        serverId: "host-a",
+        projectOptionId: "project-b",
+        label: "Coordinator",
+      },
+      { agentId: "foreign", serverId: "host-b", projectOptionId: "project-c", label: "Other host" },
+    ];
+    const form = open({
+      mode: "edit",
+      schedule: heartbeatOnHost({ type: "cron", expression: "0 * * * *", timezone: "UTC" }),
+      defaults: { serverId: null, projectTargets: PROJECT_TARGETS, agentTargets, preferences: {} },
+    });
+    expect(form.getState().selectedAgentDisplay).toMatchObject({ label: "Original" });
+    form.setPrompt("Keep this edited prompt.");
+    form.setAgent("foreign", { label: "Other host" });
+    expect(form.getState().selectedAgentId).toBe("agent-1");
+    form.setAgent("agent-2", { label: "Coordinator" });
+    form.setAgent(null, { label: "New agent each run" });
+    expect(form.getState()).toMatchObject({
+      targetKind: "agent",
+      selectedAgentId: "agent-2",
+      prompt: "Keep this edited prompt.",
+      canSubmit: true,
+    });
+    form.applyAgentTargets(agentTargets.slice(0, 1));
+    expect(form.getState()).toMatchObject({
+      selectedAgentId: "agent-2",
+      selectedAgentDisplay: { label: "Coordinator" },
+      canSubmit: false,
+      agentTargetError: "Selected agent is no longer available.",
+    });
+  });
+
+  it("seeds a late heartbeat target label once without replacing later selections", () => {
+    const form = open({
+      mode: "edit",
+      schedule: heartbeatOnHost({ type: "every", everyMs: 60_000 }),
+      defaults: { serverId: null, projectTargets: PROJECT_TARGETS, preferences: {} },
+    });
+    const targets = [
+      {
+        agentId: "agent-1",
+        serverId: "host-a",
+        projectOptionId: "project-a",
+        label: "Coordinator",
+      },
+    ];
+    form.applyAgentTargets(targets);
+    expect(form.getState().selectedAgentDisplay).toMatchObject({ label: "Coordinator" });
+    form.applyAgentTargets([{ ...targets[0]!, label: "Changed in the background" }]);
+    expect(form.getState().selectedAgentDisplay).toMatchObject({ label: "Coordinator" });
+  });
+
   it("seeds heartbeat details and requires a nonblank prompt when editing them", () => {
     const form = open({
       mode: "edit",

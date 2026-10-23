@@ -2331,30 +2331,46 @@ it("retains agent-message provenance through live delivery and repeated history"
   expect(replay[0]).toMatchObject({ payload: { data: { agentMessage } } });
 });
 
-it("restores saved image sources into a fresh timeline, including image-only messages", () => {
+it("restores saved image sources and uploaded files into a fresh timeline", () => {
+  const attachments = [
+    {
+      type: "uploaded_file" as const,
+      id: "saved-file",
+      fileName: "log.txt",
+      path: "/tmp/log.txt",
+      mimeType: "text/plain",
+      size: 5,
+    },
+  ];
   const timestamp = new Date("2026-10-17T00:00:00Z");
   for (const text of ["Saved image message", ""]) {
-    const result = applyStreamEvent({
-      tail: [],
-      head: [],
-      timestamp,
-      source: "canonical",
-      event: {
-        type: "timeline",
-        provider: "codex",
-        item: {
-          type: "user_message",
-          text,
-          messageId: "saved-image",
-          imageSources: ["file:///tmp/saved.png", "file:///tmp/second.png"],
-        },
+    const event = {
+      type: "timeline",
+      provider: "codex",
+      item: {
+        type: "user_message",
+        text,
+        messageId: "saved-image",
+        attachments,
+        imageSources: ["file:///tmp/saved.png", "file:///tmp/second.png"],
       },
-    });
+    } satisfies AgentStreamEventPayload;
+    const result = applyStreamEvent({ tail: [], head: [], timestamp, source: "canonical", event });
     expect(result.tail).toHaveLength(1);
     expect(result.tail[0]).toMatchObject({
       kind: "user_message",
       text,
+      attachments,
       imageSources: ["file:///tmp/saved.png", "file:///tmp/second.png"],
     });
+    expect(reduceStreamUpdate([], event, timestamp)[0]).toMatchObject(result.tail[0]);
+    const hydrated = applyStreamEvent({
+      tail: [createUserMessage({ messageId: "saved-image", text, timestamp })],
+      head: [],
+      timestamp,
+      source: "canonical",
+      event,
+    });
+    expect(hydrated.tail[0]).toMatchObject(result.tail[0]);
   }
 });

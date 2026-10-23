@@ -397,6 +397,7 @@ export type AgentTimelineItem =
       messageId?: string;
       clientMessageId?: string;
       imageSources?: string[];
+      attachments?: Extract<AgentAttachment, { type: "uploaded_file" }>[];
     }
   | { type: "assistant_message"; text: string; messageId?: string }
   | { type: "reasoning"; text: string }

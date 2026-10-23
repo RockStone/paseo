@@ -10801,6 +10801,14 @@ test("canonical submitted prompt keeps wire identity while rewind resolves provi
   const storagePath = join(workdir, "agents");
   const storage = new AgentStorage(storagePath, logger);
   const allowProviderEcho = deferred<void>();
+  const attachment = {
+    type: "uploaded_file" as const,
+    id: "rewind-file",
+    fileName: "log.txt",
+    mimeType: "text/plain",
+    size: 5,
+    path: "/tmp/log.txt",
+  };
 
   class SubmittedUserMessageSession extends TestAgentSession {
     override readonly capabilities = {
@@ -10815,7 +10823,10 @@ test("canonical submitted prompt keeps wire identity while rewind resolves provi
       options?: AgentRunOptions,
     ): Promise<{ turnId: string }> {
       const turnId = "turn-submitted-user-message";
-      const text = typeof prompt === "string" ? prompt : "";
+      const text =
+        typeof prompt === "string"
+          ? prompt
+          : prompt.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("\n");
       setTimeout(async () => {
         this.pushEvent({ type: "turn_started", provider: this.provider, turnId });
         this.pushEvent({
@@ -10898,9 +10909,13 @@ test("canonical submitted prompt keeps wire identity while rewind resolves provi
       workspaceId: undefined,
     });
 
-    const run = manager.runAgent(snapshot.id, "hello from composer", {
-      clientMessageId: "msg-client-1",
-    });
+    const run = manager.runAgent(
+      snapshot.id,
+      [{ type: "text", text: "hello from composer" }, attachment],
+      {
+        clientMessageId: "msg-client-1",
+      },
+    );
     await manager.waitForAgentRunStart(snapshot.id);
 
     await expect(manager.rewind(snapshot.id, "msg-client-1", "files")).rejects.toThrow(
@@ -10934,6 +10949,7 @@ test("canonical submitted prompt keeps wire identity while rewind resolves provi
         item: {
           type: "user_message",
           text: "hello from composer",
+          attachments: [attachment],
           messageId: "msg-client-1",
           clientMessageId: "msg-client-1",
         },
