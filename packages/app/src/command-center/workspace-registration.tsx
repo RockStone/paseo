@@ -222,11 +222,7 @@ export function useWorkspaceCommandCenterActions(): void {
 
   const copyBranchName = useCallback(() => {
     if (!fields) return;
-    clipboard.copyBranchName({
-      workspaceId: fields.id,
-      workspaceDirectory: fields.workspaceDirectory,
-      currentBranch: fields.currentBranch,
-    });
+    void clipboard.copyBranchName({ currentBranch: fields.currentBranch });
   }, [clipboard, fields]);
 
   const { labelCatalog, toggleLabel } = useWorkspaceLabelCatalog(serverId, fields);

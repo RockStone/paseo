@@ -15,8 +15,16 @@ export interface CopyableWorkspace {
 
 export interface WorkspaceClipboardActions {
   copyPath: (workspace: CopyableWorkspace) => void;
-  copyBranchName: (workspace: CopyableWorkspace) => void;
+  copyBranchName: (workspace: Pick<CopyableWorkspace, "currentBranch">) => Promise<void>;
   copyWorkspaceId: (workspaceId: string) => Promise<void>;
+}
+
+async function copyText(text: string): Promise<void> {
+  if (isWeb) {
+    await navigator.clipboard.writeText(text);
+  } else if (!(await Clipboard.setStringAsync(text))) {
+    throw new Error("Clipboard copy failed");
+  }
 }
 
 export function useWorkspaceClipboardActions(): WorkspaceClipboardActions {
@@ -46,12 +54,14 @@ export function useWorkspaceClipboardActions(): WorkspaceClipboardActions {
   );
 
   const copyBranchName = useCallback(
-    (workspace: CopyableWorkspace) => {
-      if (!workspace.currentBranch) {
-        return;
+    async (workspace: Pick<CopyableWorkspace, "currentBranch">) => {
+      if (!workspace.currentBranch) return;
+      try {
+        await copyText(workspace.currentBranch);
+        toast.copied();
+      } catch {
+        toast.error(t("workspace.tabs.toasts.copyFailed"));
       }
-      void Clipboard.setStringAsync(workspace.currentBranch);
-      toast.copied(t("sidebar.workspace.toasts.branchNameCopied"));
     },
     [t, toast],
   );
@@ -59,11 +69,7 @@ export function useWorkspaceClipboardActions(): WorkspaceClipboardActions {
   const copyWorkspaceId = useCallback(
     async (workspaceId: string) => {
       try {
-        if (isWeb) {
-          await navigator.clipboard.writeText(workspaceId);
-        } else if (!(await Clipboard.setStringAsync(workspaceId))) {
-          throw new Error("Clipboard copy failed");
-        }
+        await copyText(workspaceId);
         toast.copied();
       } catch {
         toast.error(t("workspace.tabs.toasts.copyFailed"));

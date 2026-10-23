@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, type PropsWithChildren } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, GitBranch } from "lucide-react-native";
+import { ChevronDown, Copy, GitBranch } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import type { Theme } from "@/styles/theme";
@@ -12,6 +12,36 @@ import { useToast } from "@/contexts/toast-context";
 import { useBranchSwitcher } from "@/hooks/use-branch-switcher";
 import { ToolbarLabelSelectTrigger } from "@/components/ui/toolbar-label-trigger";
 import { composerPillStyles } from "@/composer/pill-styles";
+import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
+import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
+
+function BranchCopyMenu({
+  branchName,
+  onCopy,
+  children,
+}: PropsWithChildren<{
+  branchName: string;
+  onCopy: (branchName: string) => void;
+}>) {
+  const { t } = useTranslation();
+  const handleCopy = useCallback(() => onCopy(branchName), [branchName, onCopy]);
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger contextOnly>{children}</ContextMenuTrigger>
+      <ContextMenuContent testID="branch-copy-context-menu">
+        <ContextMenuItem onSelect={handleCopy}>
+          {t("sidebar.workspace.actions.copyBranchName")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
 
 interface BranchSwitcherProps {
   currentBranchName: string | null;
@@ -46,6 +76,7 @@ export function BranchSwitcher({
   const isConnected = useHostRuntimeIsConnected(serverId);
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { copyBranchName } = useWorkspaceClipboardActions();
 
   const { branchOptions, isOpen, setIsOpen, handleBranchSelect } = useBranchSwitcher({
     client,
@@ -59,6 +90,17 @@ export function BranchSwitcher({
     queryClient,
   });
 
+  const handleCopyBranch = useCallback(
+    (branchName: string) => {
+      setIsOpen(false);
+      void copyBranchName({ currentBranch: branchName });
+    },
+    [copyBranchName, setIsOpen],
+  );
+  const handleCopyCurrentBranch = useCallback(() => {
+    if (currentBranchName) handleCopyBranch(currentBranchName);
+  }, [currentBranchName, handleCopyBranch]);
+
   const handleOpen = useCallback(() => setIsOpen(true), [setIsOpen]);
 
   const branchLeadingSlot = useMemo(
@@ -68,23 +110,41 @@ export function BranchSwitcher({
 
   const renderBranchOption = useCallback<NonNullable<ComboboxProps["renderOption"]>>(
     ({ option, selected, active, onPress }) => (
-      <ComboboxItem
-        label={option.label}
-        selected={selected}
-        active={active}
-        onPress={onPress}
-        leadingSlot={branchLeadingSlot}
-      />
+      <BranchCopyMenu branchName={option.id} onCopy={handleCopyBranch}>
+        <ComboboxItem
+          label={option.label}
+          selected={selected}
+          active={active}
+          onPress={onPress}
+          leadingSlot={branchLeadingSlot}
+          testID={`branch-option-${option.id}`}
+        />
+      </BranchCopyMenu>
     ),
-    [branchLeadingSlot],
+    [branchLeadingSlot, handleCopyBranch],
   );
 
   const checkoutFooter = useMemo(
-    () =>
-      checkoutPath ? (
-        <Text style={[styles.tooltipText, styles.checkoutPath]}>{checkoutPath}</Text>
-      ) : undefined,
-    [checkoutPath],
+    () => (
+      <View>
+        {currentBranchName ? (
+          <Button
+            testID="branch-copy-current"
+            variant="ghost"
+            size="sm"
+            leftIcon={Copy}
+            onPress={handleCopyCurrentBranch}
+            style={styles.copyAction}
+          >
+            {t("sidebar.workspace.actions.copyBranchName")}
+          </Button>
+        ) : null}
+        {checkoutPath ? (
+          <Text style={[styles.tooltipText, styles.checkoutPath]}>{checkoutPath}</Text>
+        ) : null}
+      </View>
+    ),
+    [checkoutPath, currentBranchName, handleCopyCurrentBranch, t],
   );
 
   if (!currentBranchName && variant !== "composer") {
@@ -171,6 +231,7 @@ const styles = StyleSheet.create((theme) => ({
   pill: { maxWidth: 240 },
   branchLabel: { flexShrink: 1 },
   checkoutPath: { padding: theme.spacing[3] },
+  copyAction: { alignSelf: "flex-start", margin: theme.spacing[1] },
   tooltipText: {
     color: theme.colors.popoverForeground,
     fontSize: theme.fontSize.sm,

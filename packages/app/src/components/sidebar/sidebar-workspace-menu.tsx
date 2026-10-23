@@ -43,7 +43,6 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Shortcut } from "@/components/ui/shortcut";
-import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu-item";
 import { resolveSidebarWorkspaceAccessibilityLabel } from "@/components/sidebar/sidebar-workspace-title";
 import {
   workspaceServiceLabelKey,
@@ -94,8 +93,6 @@ export interface SidebarWorkspaceMenuProps {
   serverId?: string;
   workspaceId?: string;
   workspaceLabels?: readonly string[];
-  onCopyPath?: () => void;
-  onCopyBranchName?: () => void;
   onRename?: () => void;
   onMarkAsRead?: () => void;
   onMarkAsUnread?: () => void;
@@ -106,7 +103,6 @@ export interface SidebarWorkspaceMenuProps {
   archiveShortcutKeys?: ShortcutKey[][] | null;
   isPinned?: boolean;
   onTogglePin?: () => void;
-  openInFileManagerPath?: string | null;
   /**
    * Lifted so the row that reveals the kebab can keep it mounted while its menu is up. See
    * `useOpenKebabMenuVisibility`.
@@ -164,6 +160,14 @@ function WorkspaceIdentityMenuItems({
   }, [copyWorkspaceId, workspaceId]);
   return (
     <>
+      <WorkspaceMenuItem
+        surface={surface}
+        testID={`sidebar-workspace-menu-copy-workspace-id-${workspaceKey}`}
+        leading={copyLeadingIcon}
+        onSelect={copyWorkspace}
+      >
+        {t("sidebar.workspace.actions.copyWorkspaceId")}
+      </WorkspaceMenuItem>
       {agentId ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -174,14 +178,6 @@ function WorkspaceIdentityMenuItems({
           {t("workspace.tabs.menu.copyAgentId")}
         </WorkspaceMenuItem>
       ) : null}
-      <WorkspaceMenuItem
-        surface={surface}
-        testID={`sidebar-workspace-menu-copy-workspace-id-${workspaceKey}`}
-        leading={copyLeadingIcon}
-        onSelect={copyWorkspace}
-      >
-        {t("sidebar.workspace.actions.copyWorkspaceId")}
-      </WorkspaceMenuItem>
     </>
   );
 }
@@ -191,8 +187,6 @@ function SidebarWorkspaceMenuItems({
   workspaceKey,
   serverId,
   workspaceId,
-  onCopyPath,
-  onCopyBranchName,
   onRename,
   onMarkAsRead,
   onMarkAsUnread,
@@ -203,7 +197,6 @@ function SidebarWorkspaceMenuItems({
   archiveShortcutKeys,
   isPinned,
   onTogglePin,
-  openInFileManagerPath,
 }: SidebarWorkspaceMenuItemsProps & { surface: MenuSurface }): ReactNode {
   const { t } = useTranslation();
   const archiveTrailing = useMemo(
@@ -217,26 +210,6 @@ function SidebarWorkspaceMenuItems({
 
   return (
     <>
-      {onCopyPath ? (
-        <WorkspaceMenuItem
-          surface={surface}
-          testID={`sidebar-workspace-menu-copy-path-${workspaceKey}`}
-          leading={copyLeadingIcon}
-          onSelect={onCopyPath}
-        >
-          {t("sidebar.workspace.actions.copyPath")}
-        </WorkspaceMenuItem>
-      ) : null}
-      {onCopyBranchName ? (
-        <WorkspaceMenuItem
-          surface={surface}
-          testID={`sidebar-workspace-menu-copy-branch-name-${workspaceKey}`}
-          leading={copyLeadingIcon}
-          onSelect={onCopyBranchName}
-        >
-          {t("sidebar.workspace.actions.copyBranchName")}
-        </WorkspaceMenuItem>
-      ) : null}
       {serverId && workspaceId ? (
         <WorkspaceIdentityMenuItems
           surface={surface}
@@ -294,11 +267,6 @@ function SidebarWorkspaceMenuItems({
           {t("workspaceLabels.title")}
         </DropdownMenuSubTrigger>
       ) : null}
-      <OpenInFileManagerMenuItem
-        surface={surface}
-        path={openInFileManagerPath}
-        testID={`sidebar-workspace-menu-open-folder-${workspaceKey}`}
-      />
       {onArchive ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -321,8 +289,6 @@ export function SidebarWorkspaceMenu({
   serverId,
   workspaceId,
   workspaceLabels,
-  onCopyPath,
-  onCopyBranchName,
   onRename,
   onMarkAsRead,
   onMarkAsUnread,
@@ -333,7 +299,6 @@ export function SidebarWorkspaceMenu({
   archiveShortcutKeys,
   isPinned,
   onTogglePin,
-  openInFileManagerPath,
   open,
   onOpenChange,
 }: SidebarWorkspaceMenuProps) {
@@ -367,8 +332,6 @@ export function SidebarWorkspaceMenu({
           serverId={serverId}
           workspaceId={workspaceId}
           workspaceLabels={workspaceLabels}
-          onCopyPath={onCopyPath}
-          onCopyBranchName={onCopyBranchName}
           onRename={onRename}
           onMarkAsRead={onMarkAsRead}
           onMarkAsUnread={onMarkAsUnread}
@@ -379,7 +342,6 @@ export function SidebarWorkspaceMenu({
           archiveShortcutKeys={archiveShortcutKeys}
           isPinned={isPinned}
           onTogglePin={onTogglePin}
-          openInFileManagerPath={openInFileManagerPath}
         />
       </DropdownMenuContent>
     </DropdownMenu>
@@ -400,8 +362,6 @@ export function SidebarWorkspaceContextMenu({
   hostBadgeLabel,
   serviceSummary,
   workspaceKey,
-  onCopyPath,
-  onCopyBranchName,
   onRename,
   onMarkAsRead,
   onMarkAsUnread,
@@ -412,7 +372,6 @@ export function SidebarWorkspaceContextMenu({
   archiveShortcutKeys,
   isPinned,
   onTogglePin,
-  openInFileManagerPath,
   accessibilityLabel,
   highlightStyle,
   ...triggerProps
@@ -481,8 +440,6 @@ export function SidebarWorkspaceContextMenu({
           serverId={workspaceTarget.serverId}
           workspaceId={workspaceTarget.workspaceId}
           workspaceLabels={workspaceTarget.labels}
-          onCopyPath={onCopyPath}
-          onCopyBranchName={onCopyBranchName}
           onRename={onRename}
           onMarkAsRead={onMarkAsRead}
           onMarkAsUnread={onMarkAsUnread}
@@ -493,7 +450,6 @@ export function SidebarWorkspaceContextMenu({
           archiveShortcutKeys={archiveShortcutKeys}
           isPinned={isPinned}
           onTogglePin={onTogglePin}
-          openInFileManagerPath={openInFileManagerPath}
         />
       </ContextMenuContent>
     </ContextMenu>

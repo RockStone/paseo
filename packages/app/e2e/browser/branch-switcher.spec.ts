@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "../support/fixtures";
+import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { gotoAppShell } from "../support/helpers/app";
 import {
   expectNoBranchSwitcherInWorkspaceHeader,
@@ -39,6 +40,10 @@ async function renameWorkspaceViaSidebar(
   await renameInput.fill(input.title);
   await page.getByTestId(`${modalPrefix}-submit`).click();
   await expect(renameInput).toHaveCount(0, { timeout: 15_000 });
+}
+
+function readClipboard(page: Page) {
+  return page.evaluate(() => navigator.clipboard.readText());
 }
 
 test.describe("Branch switcher", () => {
@@ -93,6 +98,47 @@ test.describe("Branch switcher", () => {
           async () =>
             (await readWorktreeBranchInfo({ worktreePath: workspace.repoPath })).currentBranch,
           { timeout: 30_000 },
+        )
+        .toBe("dev");
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+  test("composer branch picker copies the current or right-clicked branch without checking it out", async ({
+    page,
+  }, testInfo) => {
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "branch-copy-",
+      title: "Branch copy",
+      repo: { branches: ["main", "dev"] },
+    });
+    try {
+      await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+      await openAgentRoute(page, workspace);
+      const pill = page.getByTestId("composer-branch-pill");
+      await expect(pill).toContainText("main");
+      await pill.click();
+      await page.getByTestId("branch-copy-current").click();
+      await expect.poll(() => readClipboard(page)).toBe("main");
+      await expect(page.getByTestId("combobox-desktop-container")).toBeHidden();
+      await pill.click();
+      await page.getByTestId("branch-option-dev").click({ button: "right" });
+      const menu = page.getByTestId("branch-copy-context-menu");
+      await expect(menu).toBeVisible();
+      await page.waitForTimeout(250); // Capture the context menu after its entry animation.
+      await page.screenshot({ path: testInfo.outputPath("branch-copy-context.png") });
+      await menu.getByRole("menuitem", { name: "Copy branch name" }).click();
+      await expect.poll(() => readClipboard(page)).toBe("dev");
+      await expect(pill).toContainText("main");
+      await pill.click();
+      await page.getByTestId("branch-option-dev").click();
+      await expect(pill).toContainText("dev");
+      await pill.click();
+      await page.getByTestId("branch-copy-current").click();
+      await expect.poll(() => readClipboard(page)).toBe("dev");
+      await expect
+        .poll(
+          async () => (await readWorktreeBranchInfo({ worktreePath: workspace.cwd })).currentBranch,
         )
         .toBe("dev");
     } finally {

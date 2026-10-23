@@ -9,7 +9,6 @@ import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import type { DraggableListDragHandleProps } from "@/components/draggable-list.types";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
-import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
 import { useToast } from "@/contexts/toast-context";
 import { toWorktreeArchiveRisk } from "@/git/worktree-archive-warning";
 import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
@@ -48,7 +47,6 @@ interface SidebarWorkspaceRowProps {
   selected: boolean;
   shortcutNumber: number | null;
   showShortcutBadge: boolean;
-  canCopyBranchName: boolean;
   onPress: () => void;
   /** The host pill after the title. Absent → the sidebar spans one host, or this one is hidden. */
   hostBadge?: HostBadgeModel | null;
@@ -65,7 +63,6 @@ export function SidebarWorkspaceRow({
   selected,
   shortcutNumber,
   showShortcutBadge,
-  canCopyBranchName,
   onPress,
   hostBadge,
   isCreating = false,
@@ -105,15 +102,6 @@ export function SidebarWorkspaceRow({
     }
     archiveController.archive();
   }, [archiveController, isArchiving]);
-
-  const clipboard = useWorkspaceClipboardActions();
-  const handleCopyPath = useCallback(() => {
-    clipboard.copyPath(workspace);
-  }, [clipboard, workspace]);
-
-  const handleCopyBranchName = useCallback(() => {
-    clipboard.copyBranchName(workspace);
-  }, [clipboard, workspace]);
 
   const handleOpenRename = useCallback(() => {
     setIsRenameOpen(true);
@@ -169,8 +157,6 @@ export function SidebarWorkspaceRow({
         archiveStatus={isArchiving ? "pending" : "idle"}
         archivePendingLabel={t("sidebar.workspace.actions.archiving")}
         onArchive={handleArchive}
-        onCopyBranchName={canCopyBranchName ? handleCopyBranchName : undefined}
-        onCopyPath={handleCopyPath}
         onRename={handleOpenRename}
         onMarkAsRead={hasClearableAttention ? handleMarkAsRead : undefined}
         onMarkAsUnread={canMarkUnread ? handleMarkAsUnread : undefined}
@@ -202,8 +188,6 @@ interface WorkspaceRowBodyProps {
   archiveStatus?: "idle" | "pending" | "success";
   archivePendingLabel?: string;
   onArchive?: () => void;
-  onCopyBranchName?: () => void;
-  onCopyPath?: () => void;
   onRename?: () => void;
   onMarkAsRead?: () => void;
   onMarkAsUnread?: () => void;
@@ -226,8 +210,6 @@ function WorkspaceRowBody({
   archiveStatus = "idle",
   archivePendingLabel,
   onArchive,
-  onCopyBranchName,
-  onCopyPath,
   onRename,
   onMarkAsRead,
   onMarkAsUnread,
@@ -299,8 +281,6 @@ function WorkspaceRowBody({
               hostBadgeLabel={hostBadge?.label}
               serviceSummary={serviceSummary}
               workspaceKey={workspace.workspaceKey}
-              onCopyPath={onCopyPath}
-              onCopyBranchName={onCopyBranchName}
               onRename={onRename}
               onMarkAsRead={onMarkAsRead}
               onMarkAsUnread={onMarkAsUnread}
@@ -309,7 +289,6 @@ function WorkspaceRowBody({
               archiveStatus={archiveStatus}
               archivePendingLabel={archivePendingLabel}
               archiveShortcutKeys={archiveShortcutKeys}
-              openInFileManagerPath={workspace.workspaceDirectory}
               disabled={isArchiving}
               aria-selected={selected}
               accessibilityRole="button"
@@ -347,8 +326,6 @@ function WorkspaceRowBody({
                   archivePendingLabel={archivePendingLabel}
                   archiveShortcutKeys={archiveShortcutKeys}
                   onArchive={onArchive}
-                  onCopyBranchName={onCopyBranchName}
-                  onCopyPath={onCopyPath}
                   onRename={onRename}
                   onMarkAsRead={onMarkAsRead}
                   onMarkAsUnread={onMarkAsUnread}
@@ -378,8 +355,6 @@ function WorkspaceRowTrailingActions({
   onArchive,
   onMarkAsRead,
   onMarkAsUnread,
-  onCopyBranchName,
-  onCopyPath,
   onRename,
 }: {
   workspace: SidebarWorkspaceEntry;
@@ -397,8 +372,6 @@ function WorkspaceRowTrailingActions({
   onArchive?: () => void;
   onMarkAsRead?: () => void;
   onMarkAsUnread?: () => void;
-  onCopyBranchName?: () => void;
-  onCopyPath?: () => void;
   onRename?: () => void;
 }) {
   const { t } = useTranslation();
@@ -440,8 +413,6 @@ function WorkspaceRowTrailingActions({
                 serverId={workspace.serverId}
                 workspaceId={workspace.workspaceId}
                 workspaceLabels={workspace.labels}
-                onCopyPath={onCopyPath}
-                onCopyBranchName={onCopyBranchName}
                 onRename={onRename}
                 onMarkAsRead={onMarkAsRead}
                 onMarkAsUnread={onMarkAsUnread}

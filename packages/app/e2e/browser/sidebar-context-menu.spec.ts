@@ -100,7 +100,11 @@ test.describe("Sidebar context menus", () => {
         if (grouping === "status") await selectSidebarStatusGrouping(page);
         for (const surface of ["context", "dropdown"] as const) {
           await openIdentityMenu({ page, workspaceId: workspace.workspaceId, surface });
-          await expect(page.getByRole("menuitem", { name: "Copy agent id" })).toBeVisible();
+          await expect(page.getByRole("menuitem").nth(0)).toHaveText("Copy workspace id");
+          await expect(page.getByRole("menuitem").nth(1)).toHaveText("Copy agent id");
+          await expect(page.getByRole("menuitem", { name: "Copy path" })).toHaveCount(0);
+          await expect(page.getByRole("menuitem", { name: "Copy branch name" })).toHaveCount(0);
+          await expect(page.getByRole("menuitem", { name: "Open in file manager" })).toHaveCount(0);
           await page.screenshot({ path: testInfo.outputPath(`${grouping}-${surface}-ids.png`) });
           await page.getByRole("menuitem", { name: "Copy workspace id" }).click();
           await expect.poll(() => readClipboard(page)).toBe(workspace.workspaceId);
