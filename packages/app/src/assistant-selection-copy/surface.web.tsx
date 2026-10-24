@@ -53,6 +53,7 @@ export function AssistantSelectionCopySurface({
   const actionRef = useRef<HTMLDivElement>(null);
   const [reply, setReply] = useState<SelectionReply | null>(null);
   const [pointerSelecting, setPointerSelecting] = useState(false);
+  const pointerOrigin = useRef<{ x: number; y: number } | null>(null);
   const copyInFlight = useRef(false);
   const selectionRevision = useRef(0);
   const selectionEndpoints = useRef<{
@@ -99,13 +100,24 @@ export function AssistantSelectionCopySurface({
       setReply({ content, anchor, copying: copyInFlight.current });
     }
     function onPointerDown(event: PointerEvent) {
+      pointerOrigin.current = null;
       if (event.target instanceof Node && actionRef.current?.contains(event.target)) return;
+      if (event.button === 0) pointerOrigin.current = { x: event.clientX, y: event.clientY };
       setPointerSelecting(
         event.button === 0 &&
           event.target instanceof Node &&
           Boolean(surfaceRef.current?.contains(event.target)),
       );
       dismiss();
+    }
+    function onClick(event: MouseEvent) {
+      const origin = pointerOrigin.current;
+      pointerOrigin.current = null;
+      if (!origin || event.detail !== 1 || event.shiftKey) return;
+      // Pointer-up can recapture the old range before a plain click clears it.
+      // Drags and repeated clicks create selections and must keep their toolbar.
+      if (Math.abs(event.clientX - origin.x) <= 3 && Math.abs(event.clientY - origin.y) <= 3)
+        dismiss();
     }
     function finishPointerSelection() {
       setPointerSelecting(false);
@@ -116,6 +128,7 @@ export function AssistantSelectionCopySurface({
     document.addEventListener("pointercancel", finishPointerSelection);
     window.addEventListener("blur", finishPointerSelection);
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("click", onClick, true);
     // Layout-driven scrolling and DOM replacement must not erase a captured excerpt.
     window.addEventListener("scroll", readSelection, true);
     window.addEventListener("wheel", dismiss, { capture: true, passive: true });
@@ -128,6 +141,8 @@ export function AssistantSelectionCopySurface({
       window.removeEventListener("blur", finishPointerSelection);
       setPointerSelecting(false);
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("click", onClick, true);
+      pointerOrigin.current = null;
       window.removeEventListener("scroll", readSelection, true);
       window.removeEventListener("wheel", dismiss, true);
       window.removeEventListener("touchmove", dismiss, true);

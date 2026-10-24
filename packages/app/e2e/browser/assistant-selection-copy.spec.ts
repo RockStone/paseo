@@ -937,6 +937,41 @@ test("replying to selected assistant text preserves the draft and focuses the co
   }
 });
 
+test("clicking selected text dismisses the toolbar without breaking word or line selection", async ({
+  page,
+}) => {
+  const text =
+    "Clicking this selected sentence should dismiss the toolbar while keeping fresh selections usable.";
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "selection-click-dismiss-",
+    title: "Click clears the selection toolbar",
+    initialPrompt: "Show a selectable sentence.",
+    featureValues: { mockAssistantResponse: text },
+  });
+  try {
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await openAgentRoute(page, agent);
+    const sentence = assistantMessageBlocks(page).locator("p").first();
+    const toolbar = page.getByTestId("selection-actions");
+    await expect(sentence).toHaveText(text);
+    await sentence.click({ clickCount: 3, position: { x: 40, y: 10 } });
+    await expect(toolbar).toBeVisible();
+    await sentence.click({ position: { x: 40, y: 10 } });
+    await expect(toolbar).toHaveCount(0);
+    await sentence.dblclick({ position: { x: 40, y: 10 } });
+    await expect(toolbar).toBeVisible();
+    await page
+      .getByTestId("agent-chat-scroll")
+      .filter({ visible: true })
+      .click({ position: { x: 2, y: 2 } });
+    await expect(toolbar).toHaveCount(0);
+    await sentence.click({ clickCount: 3, position: { x: 40, y: 10 } });
+    await expect(toolbar).toBeVisible();
+  } finally {
+    await agent.cleanup();
+  }
+});
+
 test("the selection toolbar stays out of a drag and becomes clickable after release", async ({
   page,
   context,
