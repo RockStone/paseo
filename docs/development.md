@@ -33,7 +33,7 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 Paseoi branches are named `paseoi/<name>`; `paseoi/v0.12.0` is the current base. The build adds desktop/browser selection replies. Select
 chat text, including Thinking, commands, tool output, or assistant messages, and
-choose **Reply** to append an editable Markdown quote to the current draft, then
+release the drag to show **Copy | Reply**. Choose **Reply** to append an editable Markdown quote to the current draft, then
 type your comment. **Copy**, beside Reply with a divider, writes the selected excerpt
 to the clipboard with its Markdown and code spacing, then dismisses the toolbar.
 Selecting transcript text pauses automatic scrolling until you scroll back to the

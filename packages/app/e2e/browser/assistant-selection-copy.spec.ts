@@ -937,6 +937,80 @@ test("replying to selected assistant text preserves the draft and focuses the co
   }
 });
 
+test("the selection toolbar stays out of a drag and becomes clickable after release", async ({
+  page,
+  context,
+}, testInfo) => {
+  const paragraphs = [
+    "Start here and keep selecting this sentence.",
+    "Crossing this line must keep selection inside the reply.",
+    "End here after dragging through the toolbar position.",
+  ];
+  const source = paragraphs.join("\n\n");
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "selection-toolbar-drag-",
+    title: "Toolbar does not intercept selection",
+    initialPrompt: "Show a selection fixture.",
+    featureValues: { mockAssistantResponse: source },
+  });
+  try {
+    await allowRichClipboard(context);
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await openAgentRoute(page, agent);
+    await expect(assistantMessageBlocks(page).locator("p").last()).toHaveText(paragraphs[2]!);
+    await selectAssistantTextRange(page, paragraphs[0]!, paragraphs[2]!);
+    const toolbar = page.getByTestId("selection-actions");
+    await expect(toolbar).toBeVisible();
+    const previousToolbar = await toolbar.boundingBox();
+    if (!previousToolbar) throw new Error("Expected selection toolbar geometry");
+    await page.keyboard.press("Escape");
+    await expect(toolbar).toHaveCount(0);
+    await page.evaluate(() => window.getSelection()?.removeAllRanges());
+    const points = await assistantMessageBlocks(page).evaluate((message) => {
+      const paragraphNodes = message.querySelectorAll("p");
+      const first = document.createRange();
+      first.selectNodeContents(paragraphNodes[0]!);
+      const last = document.createRange();
+      last.selectNodeContents(paragraphNodes[paragraphNodes.length - 1]!);
+      const a = first.getBoundingClientRect();
+      const b = last.getBoundingClientRect();
+      return {
+        x1: a.left + 1,
+        y1: a.top + a.height / 2,
+        x2: b.right - 1,
+        y2: b.top + b.height / 2,
+      };
+    });
+    await page.mouse.move(points.x2, points.y2);
+    await page.mouse.down();
+    await page.mouse.move(points.x1, points.y1, { steps: 12 });
+    await expect(toolbar).toHaveCount(0);
+    await page.mouse.move(
+      previousToolbar.x + previousToolbar.width / 2,
+      previousToolbar.y + previousToolbar.height / 2,
+      { steps: 6 },
+    );
+    await expect(toolbar).toHaveCount(0);
+    await page.mouse.move(points.x1, points.y1, { steps: 6 });
+    await page.mouse.up();
+    await expect(toolbar).toBeVisible();
+    await expect(toolbar).toHaveCSS("user-select", "none");
+    await page.screenshot({ path: testInfo.outputPath("toolbar-after-selection-drag.png") });
+    await clickSelectionCopy(page);
+    expect(await readPlainClipboard(page)).toBe(source);
+    await expect(toolbar).toHaveCount(0);
+    await selectAssistantTextRange(page, paragraphs[0]!, paragraphs[2]!);
+    await page.getByTestId("reply-to-selection").click();
+    await expect(composerLocator(page)).toHaveAttribute(
+      "data-markdown",
+      paragraphs.map((paragraph) => `> ${paragraph}`).join("\n> \n") + "\n\n",
+    );
+  } finally {
+    await page.mouse.up();
+    await agent.cleanup();
+  }
+});
+
 test("Reply follows the active end of wrapped text selections", async ({ page }, testInfo) => {
   const paragraph =
     "Existing subscriber prices are preserved. Apple remains unsubmitted; Google changes are saved. I updated the completion report and kept the existing configuration. ".repeat(

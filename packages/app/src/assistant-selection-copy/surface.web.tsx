@@ -52,6 +52,7 @@ export function AssistantSelectionCopySurface({
   const surfaceRef = useRef<HTMLDivElement>(null);
   const actionRef = useRef<HTMLDivElement>(null);
   const [reply, setReply] = useState<SelectionReply | null>(null);
+  const [pointerSelecting, setPointerSelecting] = useState(false);
   const copyInFlight = useRef(false);
   const selectionRevision = useRef(0);
   const selectionEndpoints = useRef<{
@@ -99,10 +100,21 @@ export function AssistantSelectionCopySurface({
     }
     function onPointerDown(event: PointerEvent) {
       if (event.target instanceof Node && actionRef.current?.contains(event.target)) return;
+      setPointerSelecting(
+        event.button === 0 &&
+          event.target instanceof Node &&
+          Boolean(surfaceRef.current?.contains(event.target)),
+      );
       dismiss();
     }
+    function finishPointerSelection() {
+      setPointerSelecting(false);
+      readSelection();
+    }
     document.addEventListener("selectionchange", readSelection);
-    document.addEventListener("pointerup", readSelection);
+    document.addEventListener("pointerup", finishPointerSelection);
+    document.addEventListener("pointercancel", finishPointerSelection);
+    window.addEventListener("blur", finishPointerSelection);
     document.addEventListener("pointerdown", onPointerDown, true);
     // Layout-driven scrolling and DOM replacement must not erase a captured excerpt.
     window.addEventListener("scroll", readSelection, true);
@@ -111,7 +123,10 @@ export function AssistantSelectionCopySurface({
     window.addEventListener("resize", dismiss);
     return () => {
       document.removeEventListener("selectionchange", readSelection);
-      document.removeEventListener("pointerup", readSelection);
+      document.removeEventListener("pointerup", finishPointerSelection);
+      document.removeEventListener("pointercancel", finishPointerSelection);
+      window.removeEventListener("blur", finishPointerSelection);
+      setPointerSelecting(false);
       document.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener("scroll", readSelection, true);
       window.removeEventListener("wheel", dismiss, true);
@@ -121,7 +136,8 @@ export function AssistantSelectionCopySurface({
   }, [onReply, active, selectionReplyEnabled, dismiss]);
 
   const overlay = useWebOverlayRegistration({
-    active: reply !== null && active && selectionReplyEnabled && onReply !== null,
+    active:
+      reply !== null && !pointerSelecting && active && selectionReplyEnabled && onReply !== null,
     layer,
     manageFocus: false,
     onKeyDown: (event) => {
@@ -169,7 +185,13 @@ export function AssistantSelectionCopySurface({
     }
   }, [reply, toast, t, dismiss]);
   const actionStyle = useMemo<CSSProperties>(
-    () => ({ position: "fixed", zIndex: layer, pointerEvents: "auto", visibility: "hidden" }),
+    () => ({
+      position: "fixed",
+      zIndex: layer,
+      pointerEvents: "auto",
+      visibility: "hidden",
+      userSelect: "none",
+    }),
     [layer],
   );
   useLayoutEffect(() => {
@@ -191,7 +213,7 @@ export function AssistantSelectionCopySurface({
     const observer = new ResizeObserver(placeAction);
     observer.observe(action);
     return () => observer.disconnect();
-  }, [reply, active, onReply, selectionReplyEnabled]);
+  }, [reply, pointerSelecting, active, onReply, selectionReplyEnabled]);
 
   const handleCopy = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
     const content = createAssistantSelectionClipboardContent(window.getSelection());
@@ -204,7 +226,8 @@ export function AssistantSelectionCopySurface({
   return (
     <div ref={surfaceRef} onCopy={handleCopy} style={DISPLAY_CONTENTS}>
       <View style={style}>{children}</View>
-      {reply && active && selectionReplyEnabled && onReply
+      {/* A portal in the drag path can pull the browser selection outside the transcript. */}
+      {reply && !pointerSelecting && active && selectionReplyEnabled && onReply
         ? createPortal(
             <div
               ref={setActionScope}
