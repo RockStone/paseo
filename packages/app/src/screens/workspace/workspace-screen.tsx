@@ -1937,16 +1937,19 @@ function WorkspaceScreenContent({
     [navigateToTabId],
   );
 
-  // The new pane opens empty and the user picks what goes in it from the launcher.
-  // Seeding a draft here guessed for them, and guessed "new agent" every time.
-  const handleCreateEmptySplit = useCallback(
+  const handleCreateSplit = useCallback(
     (input: { targetPaneId: string; position: "left" | "right" | "top" | "bottom" }) => {
-      if (!persistenceKey) {
+      if (!persistenceKey || !workspaceLayout) {
+        return;
+      }
+      const pane = findPaneById(workspaceLayout.root, input.targetPaneId);
+      if (pane && pane.tabIds.length > 1 && pane.focusedTabId) {
+        splitWorkspacePane(persistenceKey, { ...input, tabId: pane.focusedTabId });
         return;
       }
       splitWorkspacePaneEmpty(persistenceKey, input);
     },
-    [persistenceKey, splitWorkspacePaneEmpty],
+    [persistenceKey, workspaceLayout, splitWorkspacePane, splitWorkspacePaneEmpty],
   );
 
   const killTerminalAsync = killTerminalMutation.mutateAsync;
@@ -2594,7 +2597,7 @@ function WorkspaceScreenContent({
       }
 
       if (action.id === "workspace.pane.split.right") {
-        handleCreateEmptySplit({
+        handleCreateSplit({
           targetPaneId: focusedPane.id,
           position: "right",
         });
@@ -2602,7 +2605,7 @@ function WorkspaceScreenContent({
       }
 
       if (action.id === "workspace.pane.split.down") {
-        handleCreateEmptySplit({
+        handleCreateSplit({
           targetPaneId: focusedPane.id,
           position: "bottom",
         });
@@ -2646,7 +2649,7 @@ function WorkspaceScreenContent({
     [
       focusWorkspacePane,
       handleClosePane,
-      handleCreateEmptySplit,
+      handleCreateSplit,
       moveWorkspaceTabToPane,
       persistenceKey,
       focusedPaneTabState.activeTabId,
@@ -3416,7 +3419,7 @@ function WorkspaceScreenContent({
         buildPaneContentModel={buildDesktopPaneContentModel}
         onFocusPane={handleFocusPane}
         onSplitPane={handleSplitPane}
-        onSplitPaneEmpty={handleCreateEmptySplit}
+        onCreateSplit={handleCreateSplit}
         onMoveTabToPane={handleMoveTabToPane}
         onSelectTabInPane={selectTabInPane}
         onResizeSplit={handleResizePaneSplit}
@@ -3453,7 +3456,7 @@ function WorkspaceScreenContent({
     buildDesktopPaneContentModel,
     handleFocusPane,
     handleSplitPane,
-    handleCreateEmptySplit,
+    handleCreateSplit,
     handleMoveTabToPane,
     selectTabInPane,
     handleResizePaneSplit,

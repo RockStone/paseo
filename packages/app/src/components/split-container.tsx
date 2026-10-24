@@ -129,7 +129,7 @@ interface SplitContainerProps {
     targetPaneId: string;
     position: "left" | "right" | "top" | "bottom";
   }) => void;
-  onSplitPaneEmpty: (input: {
+  onCreateSplit: (input: {
     targetPaneId: string;
     position: "left" | "right" | "top" | "bottom";
   }) => void;
@@ -336,7 +336,7 @@ export function SplitContainer({
   buildPaneContentModel,
   onFocusPane,
   onSplitPane,
-  onSplitPaneEmpty,
+  onCreateSplit,
   onMoveTabToPane,
   onSelectTabInPane,
   onResizeSplit,
@@ -678,7 +678,7 @@ export function SplitContainer({
                   buildPaneContentModel={buildPaneContentModel}
                   onFocusPane={onFocusPane}
                   onSplitPane={onSplitPane}
-                  onSplitPaneEmpty={onSplitPaneEmpty}
+                  onCreateSplit={onCreateSplit}
                   onResizeSplit={onResizeSplit}
                   onReorderTabsInPane={onReorderTabsInPane}
                   activeDragTabId={activeDragTabId}
@@ -953,7 +953,7 @@ function SplitNodeView({
   buildPaneContentModel,
   onFocusPane,
   onSplitPane,
-  onSplitPaneEmpty,
+  onCreateSplit,
   onResizeSplit,
   onReorderTabsInPane,
   activeDragTabId,
@@ -1042,7 +1042,7 @@ function SplitNodeView({
             buildPaneContentModel={buildPaneContentModel}
             onFocusPane={onFocusPane}
             onSplitPane={onSplitPane}
-            onSplitPaneEmpty={onSplitPaneEmpty}
+            onCreateSplit={onCreateSplit}
             onReorderTabsInPane={onReorderTabsInPane}
             activeDragTabId={activeDragTabId}
             showDropZones={showDropZones}
@@ -1095,7 +1095,7 @@ function SplitNodeView({
               buildPaneContentModel={buildPaneContentModel}
               onFocusPane={onFocusPane}
               onSplitPane={onSplitPane}
-              onSplitPaneEmpty={onSplitPaneEmpty}
+              onCreateSplit={onCreateSplit}
               onResizeSplit={onResizeSplit}
               onReorderTabsInPane={onReorderTabsInPane}
               activeDragTabId={activeDragTabId}
@@ -1156,7 +1156,7 @@ const SplitPaneView = memo(function SplitPaneView({
   buildPaneContentModel,
   onFocusPane,
   onSplitPane: _onSplitPane,
-  onSplitPaneEmpty,
+  onCreateSplit,
   onReorderTabsInPane,
   activeDragTabId,
   showDropZones,
@@ -1249,12 +1249,12 @@ const SplitPaneView = memo(function SplitPaneView({
     [onReorderTabsInPane, paneId],
   );
   const handleSplitRight = useCallback(
-    () => onSplitPaneEmpty({ targetPaneId: paneId, position: "right" }),
-    [onSplitPaneEmpty, paneId],
+    () => onCreateSplit({ targetPaneId: paneId, position: "right" }),
+    [onCreateSplit, paneId],
   );
   const handleSplitDown = useCallback(
-    () => onSplitPaneEmpty({ targetPaneId: paneId, position: "bottom" }),
-    [onSplitPaneEmpty, paneId],
+    () => onCreateSplit({ targetPaneId: paneId, position: "bottom" }),
+    [onCreateSplit, paneId],
   );
   const handleTogglePaneMaximized = useCallback(
     () => onTogglePaneMaximized(paneId),
