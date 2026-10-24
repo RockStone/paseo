@@ -1,6 +1,6 @@
 import { fork } from "node:child_process";
 import path from "node:path";
-import { expect } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { z } from "zod";
 import { test } from "../support/fixtures";
 import { expectVisibleAgentSurfacesIdle } from "../support/helpers/agent-stream";
@@ -35,7 +35,80 @@ const SUCCESS_QUESTION = "What success criteria should we use?";
 const REPO_URL_QUESTION = "What is the GitHub private repo URL to push to?";
 const COMMIT_MESSAGE_QUESTION = "What should the first commit message be?";
 
+async function dragSelectText(page: Page, locator: Locator): Promise<void> {
+  const bounds = await locator.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const first = walker.nextNode();
+    if (!first) throw new Error("Expected visible question text");
+    let last = first;
+    while (walker.nextNode()) last = walker.currentNode;
+    const start = document.createRange();
+    start.setStart(first, 0);
+    start.setEnd(first, 1);
+    const end = document.createRange();
+    end.setStart(last, (last.textContent?.length ?? 1) - 1);
+    end.setEnd(last, last.textContent?.length ?? 1);
+    const a = start.getBoundingClientRect();
+    const b = end.getBoundingClientRect();
+    return { x1: a.left, y1: a.top + a.height / 2, x2: b.right, y2: b.top + b.height / 2 };
+  });
+  await page.mouse.move(bounds.x1, bounds.y1);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x2, bounds.y2, { steps: 12 });
+  await page.mouse.up();
+}
+
+async function expectSelectedText(page: Page, text: string): Promise<void> {
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString().trim())).toBe(text);
+}
+
+async function expectClipboardText(page: Page, text: string): Promise<void> {
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(text);
+}
+
 test.describe("Question prompt pagination", () => {
+  test("selects and copies question text without answering the question", async ({
+    page,
+    context,
+  }) => {
+    const session = await seedMockAgentWorkspace({
+      repoPrefix: "question-copy-",
+      title: "Question selection e2e",
+      initialPrompt: "Emit synthetic questions.",
+    });
+    try {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+      await openAgentRoute(page, session);
+      await waitForQuestionPrompt(page, 120_000);
+      const card = page.getByTestId("question-form-card").first();
+      const question = card.getByTestId("question-form-current-question");
+      await dragSelectText(page, question);
+      await expectSelectedText(page, SURFACE_QUESTION);
+      await question.click({ button: "right" });
+      await expectSelectedText(page, SURFACE_QUESTION);
+      await page.keyboard.press("ControlOrMeta+c");
+      await expectClipboardText(page, SURFACE_QUESTION);
+
+      const option = card.getByRole("radio", { name: "Desktop", exact: true });
+      await dragSelectText(page, option.getByText("Desktop", { exact: true }));
+      await expectSelectedText(page, "Desktop");
+      await expect(option).toHaveAttribute("aria-checked", "false");
+      await expect(question).toHaveText(SURFACE_QUESTION);
+      await chooseQuestionOption(page, "Desktop");
+      await expect(question).toHaveText(ROLLOUT_QUESTION);
+      const preview = card
+        .getByTestId("question-form-option-preview")
+        .getByText('if (flags.enabled("new-surface")) {', { exact: true });
+      await dragSelectText(page, preview);
+      await expectSelectedText(page, 'if (flags.enabled("new-surface")) {');
+      await page.keyboard.press("ControlOrMeta+c");
+      await expectClipboardText(page, 'if (flags.enabled("new-surface")) {');
+      await expect(question).toHaveText(ROLLOUT_QUESTION);
+    } finally {
+      await session.cleanup();
+    }
+  });
+
   test("shows one question at a time with numbered navigation", async ({ page }) => {
     test.setTimeout(180_000);
 

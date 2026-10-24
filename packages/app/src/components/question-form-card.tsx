@@ -1,7 +1,13 @@
 import { Alert } from "@/components/ui/alert";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useState, useCallback, useMemo, useRef, type RefObject } from "react";
-import { View, Text, Pressable, type PressableStateCallbackType } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  type GestureResponderEvent,
+  type PressableStateCallbackType,
+} from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { Check, X } from "lucide-react-native";
@@ -70,10 +76,27 @@ function QuestionOptionRow({
   onToggle,
 }: QuestionOptionRowProps) {
   const { theme } = useUnistyles();
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
 
-  const handlePress = useCallback(() => {
-    onToggle(qIndex, optIndex, multiSelect);
-  }, [onToggle, qIndex, optIndex, multiSelect]);
+  const handlePressIn = useCallback((event: GestureResponderEvent) => {
+    pressStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+  }, []);
+  const handlePress = useCallback(
+    (event: GestureResponderEvent) => {
+      // A drag selects the option's text without choosing an answer or advancing the card.
+      const start = pressStart.current;
+      if (
+        isWeb &&
+        start &&
+        window.getSelection()?.toString() &&
+        (Math.abs(event.nativeEvent.pageX - start.x) > 3 ||
+          Math.abs(event.nativeEvent.pageY - start.y) > 3)
+      )
+        return;
+      onToggle(qIndex, optIndex, multiSelect);
+    },
+    [onToggle, qIndex, optIndex, multiSelect],
+  );
 
   const pressableStyle = useCallback(
     ({ pressed, hovered }: PressableStateCallbackType & { hovered?: boolean }) => [
@@ -120,6 +143,7 @@ function QuestionOptionRow({
   return (
     <Pressable
       style={pressableStyle}
+      onPressIn={handlePressIn}
       onPress={handlePress}
       disabled={isResponding}
       accessibilityRole={multiSelect ? "checkbox" : "radio"}
@@ -135,9 +159,13 @@ function QuestionOptionRow({
           {isSelected && !multiSelect ? <View style={radioDotStyle} /> : null}
         </View>
         <View style={styles.optionTextBlock}>
-          <Text style={optionLabelStyle}>{option.label}</Text>
+          <Text selectable style={optionLabelStyle}>
+            {option.label}
+          </Text>
           {option.description ? (
-            <Text style={optionDescriptionStyle}>{option.description}</Text>
+            <Text selectable style={optionDescriptionStyle}>
+              {option.description}
+            </Text>
           ) : null}
           {option.preview ? (
             // Shown for every option at once so they can be compared before picking.
@@ -146,7 +174,7 @@ function QuestionOptionRow({
               tone="surface0"
               maxHeight={OPTION_PREVIEW_MAX_HEIGHT}
               horizontal={false}
-              selectable={false}
+              selectable
               textStyle={styles.optionPreviewText}
               testID="question-form-option-preview"
             >
@@ -570,7 +598,7 @@ export function QuestionFormCard({
         onSelect={handleSelectQuestion}
       />
       <View style={styles.questionHeader}>
-        <Text testID="question-form-current-question" style={questionTextStyle}>
+        <Text selectable testID="question-form-current-question" style={questionTextStyle}>
           {activeQuestion?.question}
         </Text>
       </View>
