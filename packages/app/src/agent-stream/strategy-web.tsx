@@ -1123,6 +1123,28 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     const handleTouchEnd = () => {
       lastTouchClientYRef.current = null;
     };
+    const handleSelectionChange = () => {
+      const selection = document.getSelection();
+      const content = contentRef.current;
+      if (
+        !followOutputRef.current ||
+        !content ||
+        !selection ||
+        selection.isCollapsed ||
+        selection.rangeCount !== 1
+      )
+        return;
+      const range = selection.getRangeAt(0);
+      if (
+        !content.contains(range.startContainer) ||
+        !content.contains(range.endContainer) ||
+        isEditableEventTarget(range.startContainer.parentElement)
+      )
+        return;
+      // Selecting transcript text is reading intent. Copy/Reply may outlive the DOM
+      // range during streaming, so only an explicit return to the bottom resumes follow.
+      stopFollowingOutputFromUserIntent();
+    };
 
     // Read user movement before the virtualizer's bubbling listener flushes a
     // layout correction. Scroll events reuse the last committed row geometry.
@@ -1138,6 +1160,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     scrollContainer.addEventListener("touchmove", handleTouchMove, { passive: true });
     scrollContainer.addEventListener("touchend", handleTouchEnd, { passive: true });
     scrollContainer.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+    document.addEventListener("selectionchange", handleSelectionChange);
 
     return () => {
       scrollContainer.removeEventListener("scroll", handleDomScroll, true);
@@ -1152,6 +1175,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       scrollContainer.removeEventListener("touchmove", handleTouchMove);
       scrollContainer.removeEventListener("touchend", handleTouchEnd);
       scrollContainer.removeEventListener("touchcancel", handleTouchEnd);
+      document.removeEventListener("selectionchange", handleSelectionChange);
       clearUpwardInputEvidence();
     };
   }, [
@@ -1161,6 +1185,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     isActive,
     markUpwardInputEvidence,
     rearmHistoryStartFromUserIntent,
+    stopFollowingOutputFromUserIntent,
   ]);
 
   useEffect(() => {

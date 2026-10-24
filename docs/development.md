@@ -36,7 +36,9 @@ chat text, including Thinking, commands, tool output, or assistant messages, and
 choose **Reply** to append an editable Markdown quote to the current draft, then
 type your comment. **Copy**, beside Reply with a divider, writes the selected excerpt
 to the clipboard with its Markdown and code spacing, then dismisses the toolbar.
-Both actions keep the captured excerpt if streaming replaces the selected DOM.
+Selecting transcript text pauses automatic scrolling until you scroll back to the
+bottom or use the down-arrow button. Copy and Reply keep the captured excerpt if
+streaming replaces the selected DOM.
 Selections can span sections; code indentation and existing draft text are
 preserved. Native clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry

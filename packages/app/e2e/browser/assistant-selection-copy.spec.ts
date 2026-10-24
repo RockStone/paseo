@@ -3,6 +3,11 @@ import { composerLocator } from "../support/helpers/composer";
 import type { BrowserContext, Locator } from "@playwright/test";
 import { expect, test, type Page } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+import {
+  expectNearBottom,
+  readScrollMetrics,
+  waitForScrollableChat,
+} from "../support/helpers/agent-bottom-anchor";
 
 const CROSS_STRUCTURE_MARKDOWN = [
   "# P1 — High-value UI behavior",
@@ -114,6 +119,104 @@ function assistantMessageBlocks(page: Page): Locator {
 async function selectStructuredClipboardFixture(page: Page): Promise<void> {
   await selectAssistantTextRange(page, "Direct matches:", "ready");
 }
+
+async function dragSelectVisiblePassage(page: Page): Promise<string> {
+  const points = await page
+    .getByTestId("agent-chat-scroll")
+    .filter({ visible: true })
+    .evaluate((feed) => {
+      const viewport = feed.getBoundingClientRect();
+      const paragraph = Array.from(feed.querySelectorAll("p")).find((element) => {
+        const rect = element.getBoundingClientRect();
+        return (
+          element.textContent?.startsWith("Passage ") &&
+          rect.top > viewport.top + 40 &&
+          rect.bottom < viewport.bottom - 40
+        );
+      });
+      if (!paragraph) throw new Error("Expected a visible streamed passage");
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      const rects = Array.from(range.getClientRects());
+      const first = rects[0];
+      const last = rects.at(-1);
+      if (!first || !last) throw new Error("Expected passage text geometry");
+      return {
+        x1: first.left + 1,
+        y1: first.top + first.height / 2,
+        x2: last.right - 1,
+        y2: last.top + last.height / 2,
+      };
+    });
+  await page.mouse.move(points.x1, points.y1);
+  await page.mouse.down();
+  await page.mouse.move(points.x2, points.y2, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.getByTestId("copy-selection")).toBeVisible();
+  return page.evaluate(() => {
+    const selected = window.getSelection()?.toString().trim();
+    if (!selected) throw new Error("Expected the dragged transcript selection");
+    return selected;
+  });
+}
+
+async function expectStreamGrewWithoutScrolling(
+  page: Page,
+  before: Awaited<ReturnType<typeof readScrollMetrics>>,
+): Promise<void> {
+  await expect
+    .poll(async () => (await readScrollMetrics(page)).contentHeight)
+    .toBeGreaterThan(before.contentHeight + 100);
+  const after = await readScrollMetrics(page);
+  expect(Math.abs(after.offsetY - before.offsetY)).toBeLessThan(2);
+}
+
+test("holds the reading position while selecting streamed text and using Copy or Reply", async ({
+  page,
+  context,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "selection-pause-follow-",
+    title: "Selection pauses streaming scroll",
+    featureValues: {
+      mockStreamingAssistantResponse: Array.from(
+        { length: 240 },
+        (_, i) => `Passage ${i + 1} stays readable while more output arrives.`,
+      ).join("\n\n"),
+      mockStreamingAssistantIntervalMs: 20,
+    },
+  });
+  try {
+    await allowRichClipboard(context);
+    await openAgentRoute(page, agent);
+    await expect(composerLocator(page)).toBeVisible();
+    await agent.client.sendAgentMessage(agent.agentId, "Stream passages for text selection.");
+    await waitForScrollableChat(page, { minScrollableDistance: 400, timeout: 30_000 });
+    await expectNearBottom(page);
+    const selected = await dragSelectVisiblePassage(page);
+    const before = await readScrollMetrics(page);
+    await expectStreamGrewWithoutScrolling(page, before);
+    await page.screenshot({ path: testInfo.outputPath("selection-pauses-auto-scroll.png") });
+    await clickSelectionCopy(page);
+    expect(await readPlainClipboard(page)).toBe(selected);
+    await expectStreamGrewWithoutScrolling(page, await readScrollMetrics(page));
+    await page.getByTestId("scroll-to-bottom-button").click();
+    await expectNearBottom(page);
+    const resumed = await readScrollMetrics(page);
+    await expect
+      .poll(async () => (await readScrollMetrics(page)).contentHeight)
+      .toBeGreaterThan(resumed.contentHeight + 100);
+    await expectNearBottom(page);
+    const replyText = await dragSelectVisiblePassage(page);
+    await expectStreamGrewWithoutScrolling(page, await readScrollMetrics(page));
+    await page.getByTestId("reply-to-selection").click();
+    await expect(composerLocator(page)).toHaveAttribute("data-markdown", `> ${replyText}\n\n`);
+    await expectStreamGrewWithoutScrolling(page, await readScrollMetrics(page));
+  } finally {
+    await agent.cleanup();
+  }
+});
 
 async function selectAssistantElement(page: Page, selector: string): Promise<void> {
   const assistantMessage = assistantMessageBlocks(page);
