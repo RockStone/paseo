@@ -2,79 +2,71 @@ import {
   createContext,
   type ReactElement,
   type ReactNode,
+  type RefObject,
+  useCallback,
   useContext,
-  useEffect,
+  useId,
+  useMemo,
   useRef,
+  useState,
 } from "react";
 import { StyleSheet, View } from "react-native";
 import { PortalHost } from "@gorhom/portal";
 
 export const DEFAULT_FLOATING_PANEL_PORTAL_HOST = "content-floating-panels";
 
-const FloatingPanelPortalHostNameContext = createContext(DEFAULT_FLOATING_PANEL_PORTAL_HOST);
-
-interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+interface FloatingPanelPortalContextValue {
+  hostName: string;
+  hostRef: RefObject<View | null>;
+  layoutRevision: number;
+  onHostLayout: () => void;
 }
 
-const portalHostElements = new Map<string, View>();
+const FloatingPanelPortalContext = createContext<FloatingPanelPortalContextValue | null>(null);
 
-function measureElement(element: View): Promise<Rect> {
-  return new Promise((resolve) => {
-    element.measureInWindow((x, y, width, height) => {
-      resolve({ x, y, width, height });
-    });
-  });
-}
-
-export function measureFloatingPanelPortalHost(name: string): Promise<Rect | null> {
-  const element = portalHostElements.get(name);
-  if (!element) return Promise.resolve(null);
-  return measureElement(element);
-}
-
-export function FloatingPanelPortalHostNameProvider({
-  hostName,
+export function FloatingPanelPortalProvider({
+  name = DEFAULT_FLOATING_PANEL_PORTAL_HOST,
   children,
 }: {
-  hostName: string;
+  name?: string;
   children: ReactNode;
 }): ReactElement {
+  const instanceId = useId();
+  const hostName = `${name}:${instanceId}`;
+  const hostRef = useRef<View>(null);
+  const [layoutRevision, setLayoutRevision] = useState(0);
+  const onHostLayout = useCallback(() => setLayoutRevision((revision) => revision + 1), []);
+  // A retained route can mount the same workspace more than once. Its popovers
+  // must measure and render into this instance, never a hidden sibling's host.
+  const value = useMemo(
+    () => ({ hostName, hostRef, layoutRevision, onHostLayout }),
+    [hostName, hostRef, layoutRevision, onHostLayout],
+  );
   return (
-    <FloatingPanelPortalHostNameContext.Provider value={hostName}>
+    <FloatingPanelPortalContext.Provider value={value}>
       {children}
-    </FloatingPanelPortalHostNameContext.Provider>
+    </FloatingPanelPortalContext.Provider>
   );
 }
 
-export function useFloatingPanelPortalHostName(): string {
-  return useContext(FloatingPanelPortalHostNameContext);
+export function useFloatingPanelPortal(): FloatingPanelPortalContextValue {
+  const value = useContext(FloatingPanelPortalContext);
+  if (!value) throw new Error("Floating panels require FloatingPanelPortalProvider");
+  return value;
 }
 
-export function FloatingPanelPortalHost({
-  name = DEFAULT_FLOATING_PANEL_PORTAL_HOST,
-}: {
-  name?: string;
-}): ReactElement {
-  const hostRef = useRef<View>(null);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return undefined;
-    portalHostElements.set(name, host);
-    return () => {
-      if (portalHostElements.get(name) === host) {
-        portalHostElements.delete(name);
-      }
-    };
-  }, [name]);
-
+export function FloatingPanelPortalHost(): ReactElement {
+  const { hostName, hostRef, onHostLayout } = useFloatingPanelPortal();
   return (
-    <View ref={hostRef} collapsable={false} pointerEvents="box-none" style={styles.host}>
-      <PortalHost name={name} />
+    <View
+      ref={hostRef}
+      testID="floating-panel-portal-host"
+      collapsable={false}
+      pointerEvents="box-none"
+      style={styles.host}
+      onLayout={onHostLayout}
+    >
+      <PortalHost key={hostName} name={hostName} />
     </View>
   );
 }

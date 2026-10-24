@@ -136,8 +136,11 @@ quietly relying on:
   use the current `FloatingPanelPortalHost`.
 - **Coordinate systems.** `measureInWindow` gives window coordinates. A Portal
   renders inside its host, not necessarily at window origin. Position anchored
-  content relative to the host: `anchorRect - hostRect`. This is what
-  `measureFloatingPanelPortalHost()` is for.
+  content relative to the host: `anchorRect - hostRect`. Use the host ref from
+  `FloatingPanelPortalProvider`. Retained routes can mount the same workspace
+  more than once; a workspace-name registry can select a hidden instance. Each
+  provider owns a distinct portal name and host ref. Ignore zero-size anchor or
+  host measurements and remeasure when the host lays out after becoming visible.
 - **React context.** `@gorhom/portal` is not a React portal — a real one keeps
   context, this one does not. It stores the element and the host renders it, so
   context resolves at the _host's_ position. Everything provided between
@@ -285,7 +288,7 @@ not be required to repair the offset.
 The generic anchored-overlay rule is:
 
 1. Measure the anchor with `measureInWindow`.
-2. Measure the Portal host with `measureFloatingPanelPortalHost(hostName)`.
+2. Measure the Portal host ref supplied by `useFloatingPanelPortal()`.
 3. Position with anchor coordinates relative to the host:
 
 ```ts

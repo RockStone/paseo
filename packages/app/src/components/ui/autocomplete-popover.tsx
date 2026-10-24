@@ -19,10 +19,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet } from "react-native-unistyles";
 import { Autocomplete, type AutocompleteOption } from "@/components/ui/autocomplete";
-import {
-  measureFloatingPanelPortalHost,
-  useFloatingPanelPortalHostName,
-} from "@/components/ui/floating-panel-portal";
+import { useFloatingPanelPortal } from "@/components/ui/floating-panel-portal";
 import { useKeyboardShift } from "@/keyboard/shift";
 import { SPACING } from "@/styles/theme";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
@@ -81,7 +78,7 @@ export function AutocompletePopover({
   const [relativeAnchorRect, setRelativeAnchorRect] = useState<RelativeAnchorRect | null>(null);
   const windowDimensions = useWindowDimensions();
   const safeAreaInsets = useSafeAreaInsets();
-  const portalHostName = useFloatingPanelPortalHostName();
+  const { hostName: portalHostName, hostRef, layoutRevision } = useFloatingPanelPortal();
   const { shift, isMoving } = useKeyboardShift();
   const measuredShift = useSharedValue(0);
   const measurementGeneration = useRef(0);
@@ -90,23 +87,30 @@ export function AutocompletePopover({
   const remeasure = useCallback(() => {
     if (!canMeasure) return;
     const anchorElement = anchorRef.current;
-    if (!anchorElement) return;
+    const hostElement = hostRef.current;
+    if (!anchorElement || !hostElement) return;
     const generation = measurementGeneration.current;
-    void Promise.all([
-      measureElement(anchorElement),
-      measureFloatingPanelPortalHost(portalHostName),
-    ]).then(([anchorRect, hostRect]) => {
-      if (generation !== measurementGeneration.current || !hostRect) return undefined;
-      setRelativeAnchorRect({
-        x: anchorRect.x - hostRect.x,
-        y: anchorRect.y - hostRect.y,
-        width: anchorRect.width,
-        hostHeight: hostRect.height,
-      });
-      measuredShift.value = shift.value;
-      return undefined;
-    });
-  }, [anchorRef, canMeasure, measuredShift, portalHostName, shift]);
+    void Promise.all([measureElement(anchorElement), measureElement(hostElement)]).then(
+      ([anchorRect, hostRect]) => {
+        if (
+          generation !== measurementGeneration.current ||
+          anchorRect.width <= 0 ||
+          anchorRect.height <= 0 ||
+          hostRect.width <= 0 ||
+          hostRect.height <= 0
+        )
+          return undefined;
+        setRelativeAnchorRect({
+          x: anchorRect.x - hostRect.x,
+          y: anchorRect.y - hostRect.y,
+          width: anchorRect.width,
+          hostHeight: hostRect.height,
+        });
+        measuredShift.value = shift.value;
+        return undefined;
+      },
+    );
+  }, [anchorRef, canMeasure, hostRef, measuredShift, shift]);
 
   useEffect(() => {
     measurementGeneration.current += 1;
@@ -122,7 +126,7 @@ export function AutocompletePopover({
       measurementGeneration.current += 1;
       cancelAnimationFrame(raf);
     };
-  }, [canMeasure, remeasure, windowDimensions.width, windowDimensions.height]);
+  }, [canMeasure, remeasure, layoutRevision, windowDimensions.width, windowDimensions.height]);
 
   useAnimatedReaction(
     () => isMoving.value,
@@ -159,7 +163,7 @@ export function AutocompletePopover({
   if (options.length > 0 && selectedIndex < 0) return null;
 
   return (
-    <Portal hostName={portalHostName}>
+    <Portal key={portalHostName} hostName={portalHostName}>
       <View style={styles.overlay} pointerEvents="box-none">
         <Animated.View
           testID="composer-autocomplete-popover"

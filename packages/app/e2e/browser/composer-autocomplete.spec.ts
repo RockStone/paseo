@@ -14,10 +14,15 @@ import {
   seedMockAgentWorkspace,
   type MockAgentWorkspace,
 } from "../support/helpers/mock-agent";
-import { expectWorkspaceTabVisible, openSessions } from "../support/helpers/archive-tab";
+import {
+  clickSessionRow,
+  expectWorkspaceTabVisible,
+  openSessions,
+} from "../support/helpers/archive-tab";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { getServerId } from "../support/helpers/server-id";
 import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
+import { runWorkspaceActionFromCommandCenter } from "../support/helpers/command-center-workspace-actions";
 import {
   closeMobileAgentSidebar,
   expectMobileAgentSidebarHidden,
@@ -1330,6 +1335,124 @@ test("Escape dismisses every suggestion trigger without clearing the draft or lo
       await input.press("Escape");
       await input.fill("");
     }
+  } finally {
+    await session.cleanup();
+  }
+});
+
+test("suggestion popovers remain usable when animation frames stall", async ({ page }) => {
+  await installListCommandsStub(page);
+  const session = await openReadyMockAgent(page);
+  try {
+    const input = composerLocator(page);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            window.requestAnimationFrame = () => 0;
+            resolve();
+          });
+        }),
+    );
+    for (const trigger of ["/he", "@READ", "@@", "##"]) {
+      await input.fill(trigger);
+      await expectComposerDraft(page, trigger);
+      const popover = page.getByTestId("composer-autocomplete-popover");
+      await expect(popover).toBeInViewport();
+      await input.fill("");
+      await expect(popover).toBeHidden();
+    }
+  } finally {
+    await session.cleanup();
+  }
+});
+
+test("suggestions survive splitting panes and closing an archived agent tab", async ({ page }) => {
+  await installListCommandsStub(page);
+  const first = await seedMockAgentWorkspace({
+    repoPrefix: "suggestion-split-",
+    title: "Split suggestions",
+  });
+  const second = await seedMockAgentWorkspace({
+    repoPrefix: "suggestion-survivor-",
+    title: "Surviving suggestions",
+  });
+  try {
+    await openAgentRoute(page, first);
+    await expectComposerVisible(page);
+    await runWorkspaceActionFromCommandCenter(page, "Split pane right");
+    await expect(page.getByTestId("workspace-new-tab-panel")).toBeVisible();
+    for (const trigger of ["/he", "@READ", "@@", "##"]) {
+      await composerLocator(page).click();
+      await composerLocator(page).fill(trigger);
+      await expect(page.getByTestId("composer-autocomplete-popover")).toBeInViewport();
+      await composerLocator(page).fill("");
+    }
+    await first.client.archiveAgent(first.agentId);
+    await openSessions(page);
+    await clickSessionRow(page, "Split suggestions");
+    await expectWorkspaceTabVisible(page, first.agentId);
+    await page.getByTestId(`workspace-tab-agent_${first.agentId}`).click({ button: "right" });
+    await page.getByTestId(`workspace-tab-context-agent_${first.agentId}-close`).click();
+    await switchWorkspaceViaSidebar({
+      page,
+      serverId: getServerId(),
+      workspaceId: second.workspaceId,
+    });
+    for (const trigger of ["/he", "@READ", "@@", "##"]) {
+      await composerLocator(page).fill(trigger);
+      await expect(page.getByTestId("composer-autocomplete-popover")).toBeInViewport();
+      await composerLocator(page).fill("");
+    }
+  } finally {
+    await Promise.allSettled([first.cleanup(), second.cleanup()]);
+  }
+});
+
+test("suggestions recover when their portal host becomes visible after a zero-size measurement", async ({
+  page,
+}, testInfo) => {
+  await installListCommandsStub(page);
+  const session = await seedMockAgentWorkspace({
+    repoPrefix: "autocomplete-zero-host-",
+    title: "Autocomplete host recovery",
+  });
+  try {
+    await openAgentRoute(page, session);
+    await expectComposerVisible(page);
+    const host = page
+      .getByTestId(`workspace-deck-entry-${getServerId()}:${session.workspaceId}`)
+      .getByTestId("floating-panel-portal-host");
+    await host.evaluate((element) => {
+      element.style.display = "none";
+    });
+    await page.evaluate(async () => {
+      await new Promise<number>((resolve) => requestAnimationFrame(resolve));
+      await new Promise<number>((resolve) => requestAnimationFrame(resolve));
+    });
+    await host.evaluate((element) => {
+      const measuredHost = element as HTMLElement & { zeroSizeReads?: number };
+      const measure = measuredHost.getBoundingClientRect.bind(measuredHost);
+      measuredHost.zeroSizeReads = 0;
+      measuredHost.getBoundingClientRect = () => {
+        const result = measure();
+        if (result.height === 0) measuredHost.zeroSizeReads = (measuredHost.zeroSizeReads ?? 0) + 1;
+        return result;
+      };
+    });
+    await composerLocator(page).fill("/he");
+    await expect
+      .poll(() =>
+        host.evaluate(
+          (element) => (element as HTMLElement & { zeroSizeReads?: number }).zeroSizeReads ?? 0,
+        ),
+      )
+      .toBeGreaterThan(0);
+    await host.evaluate((element) => {
+      element.style.removeProperty("display");
+    });
+    await expect(page.getByTestId("composer-autocomplete-popover")).toBeInViewport();
+    await page.screenshot({ path: testInfo.outputPath("autocomplete-host-recovered.png") });
   } finally {
     await session.cleanup();
   }

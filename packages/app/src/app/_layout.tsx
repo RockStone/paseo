@@ -45,7 +45,10 @@ import { CompactExplorerSidebarHost } from "@/components/compact-explorer-sideba
 import { ProviderSettingsHost } from "@/components/provider-settings-host";
 import { WorkspaceSetupDialog } from "@/components/workspace-setup-dialog";
 import { WorkspaceShortcutTargetsSubscriber } from "@/components/workspace-shortcut-targets-subscriber";
-import { FloatingPanelPortalHost } from "@/components/ui/floating-panel-portal";
+import {
+  FloatingPanelPortalHost,
+  FloatingPanelPortalProvider,
+} from "@/components/ui/floating-panel-portal";
 import { HostChooserModal, useHostChooser } from "@/hosts/host-chooser";
 import { HostConfirmationSheet } from "@/hosts/host-confirmation-sheet";
 import {
@@ -1056,17 +1059,19 @@ function RootProviders({ children }: { children: ReactNode }) {
 
 function RootAppTree() {
   return (
-    <GestureHandlerRootView style={flexStyle}>
-      <View style={layoutStyles.surfaceFill}>
-        <LucideProvider strokeWidth={ICON_STROKE_WIDTH}>
-          <RootProviders>
-            <RuntimeProviders>
-              <AppShell />
-            </RuntimeProviders>
-          </RootProviders>
-        </LucideProvider>
-      </View>
-    </GestureHandlerRootView>
+    <FloatingPanelPortalProvider>
+      <GestureHandlerRootView style={flexStyle}>
+        <View style={layoutStyles.surfaceFill}>
+          <LucideProvider strokeWidth={ICON_STROKE_WIDTH}>
+            <RootProviders>
+              <RuntimeProviders>
+                <AppShell />
+              </RuntimeProviders>
+            </RootProviders>
+          </LucideProvider>
+        </View>
+      </GestureHandlerRootView>
+    </FloatingPanelPortalProvider>
   );
 }
 

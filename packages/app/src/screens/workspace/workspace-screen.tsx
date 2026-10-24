@@ -51,7 +51,7 @@ import { WorkspaceHeaderProjectRow } from "@/screens/workspace/workspace-header-
 import { ScreenTitle } from "@/components/headers/screen-title";
 import {
   FloatingPanelPortalHost,
-  FloatingPanelPortalHostNameProvider,
+  FloatingPanelPortalProvider,
 } from "@/components/ui/floating-panel-portal";
 import { SplitContainer } from "@/components/split-container";
 import { RetainedPanel } from "@/components/retained-panel";
@@ -3597,10 +3597,10 @@ function WorkspaceScreenContent({
           isRouteFocused={isRouteFocused}
         />
         <View style={styles.threePaneRow}>
-          <FloatingPanelPortalHostNameProvider hostName={workspaceFloatingPanelPortalHostName}>
+          <FloatingPanelPortalProvider name={workspaceFloatingPanelPortalHostName}>
             {workspaceCenterColumn}
-          </FloatingPanelPortalHostNameProvider>
-          <FloatingPanelPortalHost name={workspaceFloatingPanelPortalHostName} />
+            <FloatingPanelPortalHost />
+          </FloatingPanelPortalProvider>
         </View>
         <ImportSessionSheet
           visible={isRouteFocused && isImportSheetVisible}
