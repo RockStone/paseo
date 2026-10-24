@@ -111,6 +111,76 @@ test.afterEach(async () => {
   await workspace?.cleanup();
 });
 
+test("copies file paths from search results and tree rows and labels tab paths accurately", async ({
+  context,
+  page,
+}, testInfo) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const relativePath = "docs/path sample.md";
+  await mkdir(path.join(workspace.repoPath, "docs"));
+  await writeFile(path.join(workspace.repoPath, relativePath), "# Path example\n");
+  await gotoWorkspace(page, workspace.workspaceId);
+  await openFileExplorer(page);
+  await page.getByTestId("files-filter-input").fill("path sample");
+  const result = page.getByTestId(`files-filter-result-${relativePath}`);
+  await expect(result).toBeVisible();
+
+  for (const [label, expected] of [
+    ["Copy full path", path.join(workspace.repoPath, relativePath)],
+    ["Copy relative path", relativePath],
+  ]) {
+    await result.click({ button: "right" });
+    const action = page.getByRole("menuitem", { name: label, exact: true });
+    await expect(action).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`${label.replaceAll(" ", "-")}.png`) });
+    await action.click();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(expected);
+  }
+
+  await result.click();
+  const fileTab = page.getByTestId(`workspace-tab-file_${relativePath}`);
+  await expect(fileTab).toBeVisible();
+  await fileTab.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Copy relative path", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(relativePath);
+
+  await page.getByTestId("files-filter-clear").click();
+  const tree = page.getByTestId("file-explorer-tree-scroll");
+  await tree.getByText("docs", { exact: true }).click();
+  const entry = tree.getByText("path sample.md", { exact: true });
+  for (const [label, expected] of [
+    ["Copy full path", path.join(workspace.repoPath, relativePath)],
+    ["Copy relative path", relativePath],
+  ]) {
+    await entry.click({ button: "right" });
+    await page.getByRole("menuitem", { name: label, exact: true }).click();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(expected);
+  }
+
+  await page.getByTestId("files-filter-input").fill("path sample");
+  await expect(result).toBeVisible();
+  await page.evaluate(() => {
+    const writeText = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = async () => {
+      navigator.clipboard.writeText = writeText;
+      throw new Error("Clipboard unavailable");
+    };
+    const execCommand = document.execCommand.bind(document);
+    document.execCommand = () => {
+      document.execCommand = execCommand;
+      throw new Error("Clipboard unavailable");
+    };
+  });
+  await result.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Copy full path", exact: true }).click();
+  await expect(page.getByText("Copy failed", { exact: true })).toBeVisible();
+  await result.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Copy full path", exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(path.join(workspace.repoPath, relativePath));
+});
+
 test("creates, renames, copies, and deletes entries through the file explorer", async ({
   context,
   page,

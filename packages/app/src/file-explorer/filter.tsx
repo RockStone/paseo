@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   FlatList,
-  Pressable,
   Text,
   View,
   type ListRenderItemInfo,
@@ -12,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import { SearchField } from "@/components/ui/search-field";
 import { Button } from "@/components/ui/button";
 import { MaterialFileIcon } from "@/components/material-file-icon";
+import { FileActionsContextMenuContent } from "@/components/file-actions-menu";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { useFetchQuery } from "@/data/query";
@@ -28,6 +29,8 @@ interface FileExplorerFilterProps {
   workspaceRoot: string;
   showHiddenFiles: boolean;
   onOpenFile?: (path: string) => void;
+  onCopyPath: (path: string) => Promise<void>;
+  onCopyRelativePath: (path: string) => Promise<void>;
   children: ReactNode;
 }
 
@@ -41,31 +44,48 @@ function resultStyle({ hovered, pressed }: PressableStateCallbackType & { hovere
 function FileFilterRow({
   entry,
   onOpenFile,
+  onCopyPath,
+  onCopyRelativePath,
 }: {
   entry: FileFilterEntry;
   onOpenFile?: (path: string) => void;
+  onCopyPath: (path: string) => Promise<void>;
+  onCopyRelativePath: (path: string) => Promise<void>;
 }) {
   const open = useCallback(() => onOpenFile?.(entry.path), [onOpenFile, entry.path]);
+  const copyPath = useCallback(() => void onCopyPath(entry.path), [onCopyPath, entry.path]);
+  const copyRelativePath = useCallback(
+    () => void onCopyRelativePath(entry.path),
+    [onCopyRelativePath, entry.path],
+  );
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={entry.path}
-      onPress={open}
-      style={resultStyle}
-      testID={`files-filter-result-${entry.path}`}
-    >
-      <MaterialFileIcon fileName={entry.name} size={16} />
-      <View style={styles.resultText}>
-        <Text numberOfLines={1} style={styles.name}>
-          {entry.name}
-        </Text>
-        {entry.directory ? (
-          <Text numberOfLines={1} style={styles.directory}>
-            {entry.directory}
+    <ContextMenu>
+      <ContextMenuTrigger
+        accessibilityRole="button"
+        accessibilityLabel={entry.path}
+        onPress={open}
+        style={resultStyle}
+        testID={`files-filter-result-${entry.path}`}
+      >
+        <MaterialFileIcon fileName={entry.name} size={16} />
+        <View style={styles.resultText}>
+          <Text numberOfLines={1} style={styles.name}>
+            {entry.name}
           </Text>
-        ) : null}
-      </View>
-    </Pressable>
+          {entry.directory ? (
+            <Text numberOfLines={1} style={styles.directory}>
+              {entry.directory}
+            </Text>
+          ) : null}
+        </View>
+      </ContextMenuTrigger>
+      <FileActionsContextMenuContent
+        fileKind="file"
+        onCopyPath={copyPath}
+        onCopyRelativePath={copyRelativePath}
+        testIDPrefix={`files-filter-result-${entry.path}`}
+      />
+    </ContextMenu>
   );
 }
 
@@ -84,6 +104,8 @@ export function FileExplorerFilter({
   workspaceRoot,
   showHiddenFiles,
   onOpenFile,
+  onCopyPath,
+  onCopyRelativePath,
   children,
 }: FileExplorerFilterProps) {
   const { t } = useTranslation();
@@ -120,9 +142,14 @@ export function FileExplorerFilter({
   const entries = describeVisibleFileMatches({ entries: search.data ?? [], showHiddenFiles });
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<FileFilterEntry>) => (
-      <FileFilterRow entry={item} onOpenFile={onOpenFile} />
+      <FileFilterRow
+        entry={item}
+        onOpenFile={onOpenFile}
+        onCopyPath={onCopyPath}
+        onCopyRelativePath={onCopyRelativePath}
+      />
     ),
-    [onOpenFile],
+    [onOpenFile, onCopyPath, onCopyRelativePath],
   );
   const { refetch } = search;
   const retry = useCallback(() => {

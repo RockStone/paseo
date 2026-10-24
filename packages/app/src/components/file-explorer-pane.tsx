@@ -585,21 +585,32 @@ export function FileExplorerPane({
     [setExpandedPathsForWorkspace, workspaceStateKey],
   );
 
+  const copyPathToClipboard = useCallback(
+    async (path: string) => {
+      try {
+        const copied = await Clipboard.setStringAsync(path);
+        if (copied) toast.copied(t("workspace.tabs.toasts.filePathCopiedLabel"));
+        else toast.error(t("workspace.tabs.toasts.copyFailed"));
+      } catch {
+        toast.error(t("workspace.tabs.toasts.copyFailed"));
+      }
+    },
+    [toast, t],
+  );
+
   const handleCopyPath = useCallback(
     async (path: string) => {
-      await Clipboard.setStringAsync(
+      await copyPathToClipboard(
         buildAbsoluteExplorerPath({
           workspaceRoot: normalizedWorkspaceRoot,
           entryPath: path,
         }),
       );
     },
-    [normalizedWorkspaceRoot],
+    [normalizedWorkspaceRoot, copyPathToClipboard],
   );
 
-  const handleCopyRelativePath = useCallback(async (path: string) => {
-    await Clipboard.setStringAsync(path);
-  }, []);
+  const handleCopyRelativePath = copyPathToClipboard;
 
   const handleRevealEntry = useCallback(
     async (entry: ExplorerEntry) => {
@@ -1062,6 +1073,8 @@ export function FileExplorerPane({
         serverId={serverId}
         workspaceRoot={normalizedWorkspaceRoot}
         onOpenFile={onOpenFile}
+        onCopyPath={handleCopyPath}
+        onCopyRelativePath={handleCopyRelativePath}
         error={error}
         isCompact={isCompact}
         showInitialLoading={showInitialLoading}
@@ -1139,6 +1152,8 @@ interface FileExplorerPaneContentProps {
   serverId: string;
   workspaceRoot: string;
   onOpenFile?: (path: string) => void;
+  onCopyPath: (path: string) => Promise<void>;
+  onCopyRelativePath: (path: string) => Promise<void>;
   error: string | null;
   isCompact: boolean;
   showInitialLoading: boolean;
@@ -1326,6 +1341,8 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
         workspaceRoot={props.workspaceRoot}
         showHiddenFiles={showHiddenFiles}
         onOpenFile={props.onOpenFile}
+        onCopyPath={props.onCopyPath}
+        onCopyRelativePath={props.onCopyRelativePath}
       >
         <ContextMenu>
           <RootCreationContextTarget enabled={Boolean(onNewEntryAtRoot)}>

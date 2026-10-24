@@ -308,7 +308,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
     expect(labels[1]).toBe("Rename");
     expect(labels).not.toContain("Copy resume command");
     expect(labels).not.toContain("Copy agent id");
-    expect(labels).not.toContain("Copy file path");
+    expect(labels).not.toContain("Copy relative path");
     expect(labels).not.toContain("Reload agent");
 
     const copyTerminalIdEntry = entries.find(
@@ -328,7 +328,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
     expect(onRenameTab).toHaveBeenCalledWith(terminalTab);
   });
 
-  it("includes copy file path for file tabs", () => {
+  it("includes copy relative path for file tabs", () => {
     const onCopyFilePath = vi.fn();
     const fileTab: WorkspaceTabDescriptor = {
       key: "file_abc",
@@ -356,7 +356,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
     });
 
     const labels = entries.filter((entry) => entry.kind === "item").map((entry) => entry.label);
-    expect(labels[0]).toBe("Copy file path");
+    expect(labels[0]).toBe("Copy relative path");
     expect(labels).not.toContain("Copy resume command");
     expect(labels).not.toContain("Copy agent id");
     expect(labels).not.toContain("Rename");
