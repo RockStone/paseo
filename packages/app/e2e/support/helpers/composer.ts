@@ -472,7 +472,7 @@ export async function recordVisibleComposerGeometry(page: Page): Promise<void> {
         const input = root.querySelector("[data-composer-input]");
         if (input)
           frames.push({
-            input: input.getBoundingClientRect().height,
+            input: (input.closest(".cm-scroller") ?? input).getBoundingClientRect().height,
             root: root.getBoundingClientRect().height,
           });
       }

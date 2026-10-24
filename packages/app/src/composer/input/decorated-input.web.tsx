@@ -1,12 +1,5 @@
-import React, {
-  forwardRef,
-  useEffect,
-  useLayoutEffect,
-  useImperativeHandle,
-  useRef,
-  useMemo,
-} from "react";
-import { View, StyleSheet as NativeStyleSheet } from "react-native";
+import React, { forwardRef, useEffect, useLayoutEffect, useImperativeHandle, useRef } from "react";
+import { View, type StyleProp, type ViewStyle } from "react-native";
 import { withUnistyles } from "react-native-unistyles";
 import { Compartment, EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
@@ -33,7 +26,7 @@ interface DecoratedInputProps extends Omit<
   quoteBorder?: string;
 }
 
-const HOST_STYLE = { height: "100%", minWidth: 0 };
+const HOST_STYLE = { height: "100%", minWidth: 0, minHeight: 0 };
 const configuration = new Compartment();
 const externalEdit = Transaction.userEvent.of("input.complete");
 
@@ -266,19 +259,11 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
       props.quoteBorder,
     ]);
 
-    const hostStyle = useMemo(() => {
-      const { cursor: _cursor, ...style } = NativeStyleSheet.flatten(props.style) ?? {};
-      return style;
-    }, [props.style]);
-    return (
-      <View style={hostStyle}>
-        <div ref={host} style={HOST_STYLE} />
-      </View>
-    );
+    return <div ref={host} style={HOST_STYLE} />;
   },
 );
 
-export const EditingTextInput = withUnistyles(DecoratedInput, (theme) => ({
+const ThemedDecoratedInput = withUnistyles(DecoratedInput, (theme) => ({
   referenceColor: theme.colors.accent,
   codeBackground: theme.colors.surface2,
   codeBorder: theme.colors.borderAccent,
@@ -286,3 +271,15 @@ export const EditingTextInput = withUnistyles(DecoratedInput, (theme) => ({
   quoteColor: theme.colors.foregroundMuted,
   quoteBorder: theme.colors.foregroundExtraMuted,
 }));
+
+export const EditingTextInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
+  function EditingTextInput({ style, ...props }, ref) {
+    // The measured height belongs to a layout box, outside withUnistyles'
+    // display:contents wrapper. Otherwise CodeMirror grows into the controls.
+    return (
+      <View style={style as StyleProp<ViewStyle>}>
+        <ThemedDecoratedInput {...props} ref={ref} />
+      </View>
+    );
+  },
+);

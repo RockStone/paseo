@@ -41,7 +41,9 @@ import {
 } from "../support/helpers/sidebar";
 
 async function composerHeight(page: Page): Promise<number> {
-  return composerLocator(page).evaluate((element) => element.getBoundingClientRect().height);
+  return composerLocator(page).evaluate(
+    (element) => (element.closest(".cm-scroller") ?? element).getBoundingClientRect().height,
+  );
 }
 
 async function expectComposerHeight(page: Page, expected: number): Promise<void> {
@@ -64,19 +66,19 @@ async function typeComposerTextAndMeasureNextPaint(page: Page, text: string): Pr
 
 async function installNextComposerPaintProbe(page: Page): Promise<void> {
   await composerLocator(page).evaluate((element) => {
-    Reflect.set(
-      globalThis,
-      "__composerNextPaintHeight",
-      new Promise<number>((resolve) => {
-        element.addEventListener(
-          "input",
-          () => {
-            requestAnimationFrame(() => resolve(element.getBoundingClientRect().height));
-          },
-          { once: true },
-        );
-      }),
-    );
+    const nextPaint = Promise.withResolvers<number>();
+    const previousText = element.getAttribute("data-markdown");
+    const measure = () =>
+      nextPaint.resolve(
+        (element.closest(".cm-scroller") ?? element).getBoundingClientRect().height,
+      );
+    const observer = new MutationObserver(() => {
+      if (element.getAttribute("data-markdown") === previousText) return;
+      observer.disconnect();
+      requestAnimationFrame(measure);
+    });
+    observer.observe(element, { attributes: true, attributeFilter: ["data-markdown"] });
+    Reflect.set(globalThis, "__composerNextPaintHeight", nextPaint.promise);
   });
 }
 
@@ -84,13 +86,118 @@ async function readNextComposerPaintHeight(page: Page): Promise<number> {
   return page.evaluate(() => Reflect.get(globalThis, "__composerNextPaintHeight"));
 }
 
-test("blank composer lines remain present and keep their measured height", async ({ page }) => {
+async function pasteComposerDraft(page: Page, text: string): Promise<void> {
+  await page.evaluate((pastedText) => navigator.clipboard.writeText(pastedText), text);
+  await composerLocator(page).click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect(composerLocator(page)).toHaveAttribute("data-markdown", text);
+}
+
+for (const viewport of [
+  { name: "desktop", width: 1200, height: 800, maxEditorHeight: 400 },
+  { name: "compact", width: 390, height: 844, maxEditorHeight: 160 },
+]) {
+  test(`long pasted drafts scroll inside the editor without covering composer controls (${viewport.name})`, async ({
+    page,
+    context,
+  }, testInfo) => {
+    const agent = await seedMockAgentWorkspace({
+      repoPrefix: "composer-long-paste-",
+      title: "Long pasted draft",
+    });
+    try {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await openAgentRoute(page, agent);
+      await expectComposerVisible(page);
+      const composer = composerLocator(page);
+      const text = Array.from(
+        { length: 120 },
+        (_, index) =>
+          `Pasted log line ${index}: preserve the entire multiline draft while keeping the controls visible.`,
+      ).join("\n");
+      await pasteComposerDraft(page, text);
+      const scroller = page.locator(".cm-scroller").filter({ has: composer });
+      const send = page.getByRole("button", { name: "Send message", exact: true });
+      const geometry = await scroller.evaluate((element) => {
+        const describe = (node: Element | null) =>
+          node
+            ? {
+                rect: node.getBoundingClientRect().toJSON(),
+                height: getComputedStyle(node).height,
+                maxHeight: getComputedStyle(node).maxHeight,
+                minHeight: getComputedStyle(node).minHeight,
+                overflowY: getComputedStyle(node).overflowY,
+              }
+            : null;
+        const ancestors = [];
+        for (
+          let node: Element | null = element;
+          node && ancestors.length < 8;
+          node = node.parentElement
+        )
+          ancestors.push(describe(node));
+        return {
+          ancestors,
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+        };
+      });
+      await testInfo.attach("long-paste-geometry", {
+        body: JSON.stringify(geometry, null, 2),
+        contentType: "application/json",
+      });
+      await expect
+        .poll(() => scroller.evaluate((element) => element.clientHeight))
+        .toBeLessThanOrEqual(viewport.maxEditorHeight);
+      const scrollerBox = await scroller.boundingBox();
+      const sendBox = await send.boundingBox();
+      expect(scrollerBox!.y + scrollerBox!.height).toBeLessThanOrEqual(sendBox!.y);
+      expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight);
+      await scroller.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      await expect(
+        scroller.getByText(
+          "Pasted log line 119: preserve the entire multiline draft while keeping the controls visible.",
+          { exact: true },
+        ),
+      ).toBeInViewport();
+      await send.click({ trial: true });
+      await page.screenshot({ path: testInfo.outputPath("long-paste-contained.png") });
+      await scroller.evaluate((element) => {
+        element.scrollTop = 0;
+      });
+      await expect(
+        scroller.getByText(
+          "Pasted log line 0: preserve the entire multiline draft while keeping the controls visible.",
+          { exact: true },
+        ),
+      ).toBeInViewport();
+      await expect(composer).toHaveAttribute("data-markdown", text);
+      const expandedHeight = await scroller.evaluate((element) => element.clientHeight);
+      await composer.fill("Short draft after clearing the paste");
+      await expect
+        .poll(() => scroller.evaluate((element) => element.clientHeight))
+        .toBeLessThan(expandedHeight);
+    } finally {
+      await agent.cleanup();
+    }
+  });
+}
+
+test("blank composer lines remain present and keep their measured height", async ({
+  page,
+  context,
+}) => {
   const agent = await seedMockAgentWorkspace({
     repoPrefix: "composer-whitespace-",
     title: "Composer whitespace",
   });
 
   try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await openAgentRoute(page, agent);
     await expectComposerVisible(page);
     const composer = composerLocator(page);
@@ -100,7 +207,7 @@ test("blank composer lines remain present and keep their measured height", async
     await test.step("remeasure the current draft when the window narrows", async () => {
       await page.setViewportSize({ width: 1280, height: 1200 });
       const text = "A sentence that wraps when the editor becomes narrower. ".repeat(8);
-      await composer.fill(text);
+      await pasteComposerDraft(page, text);
       await expect(composer).toHaveAttribute("data-markdown", text);
       await expect.poll(() => composerHeight(page)).toBeGreaterThan(collapsedHeight);
       const wideHeight = await composerHeight(page);
@@ -111,7 +218,7 @@ test("blank composer lines remain present and keep their measured height", async
     });
 
     await test.step("grow the composer with blank lines followed by text", async () => {
-      await composer.fill(`${blankLines}x`);
+      await pasteComposerDraft(page, `${blankLines}x`);
       await expect(composer).toHaveAttribute("data-markdown", `${blankLines}x`);
       await expect.poll(() => composerHeight(page)).toBeGreaterThan(collapsedHeight);
     });
@@ -124,7 +231,7 @@ test("blank composer lines remain present and keep their measured height", async
     });
 
     await test.step("grow on the first paint of a newline and stay stable when it receives a glyph", async () => {
-      await composer.fill("alpha\nbeta");
+      await pasteComposerDraft(page, "alpha\nbeta");
       const filledLineHeight = await composerHeight(page);
       const trailingLineHeight = await pressComposerKeyAndMeasureNextPaint(page, "Shift+Enter");
       expect(trailingLineHeight).toBeGreaterThan(filledLineHeight);
