@@ -1247,8 +1247,8 @@ test("selection toolbar copies command lists and raw multi-line code", async ({
     const copyRect = await copy.boundingBox();
     const dividerRect = await page.getByTestId("selection-actions-divider").boundingBox();
     if (!replyRect || !copyRect || !dividerRect) throw new Error("Expected selection toolbar");
-    expect(replyRect.x + replyRect.width).toBeLessThanOrEqual(dividerRect.x);
-    expect(dividerRect.x + dividerRect.width).toBeLessThanOrEqual(copyRect.x);
+    expect(copyRect.x + copyRect.width).toBeLessThanOrEqual(dividerRect.x);
+    expect(dividerRect.x + dividerRect.width).toBeLessThanOrEqual(replyRect.x);
     const dividerColors = await page
       .getByTestId("selection-actions-divider")
       .evaluate((element) => ({
@@ -1265,7 +1265,7 @@ test("selection toolbar copies command lists and raw multi-line code", async ({
     expect(padding).toHaveLength(2);
     expect(padding[0]).toEqual(padding[1]);
     expect(padding[0]?.[0]).toBe(padding[0]?.[1]);
-    await page.screenshot({ path: testInfo.outputPath("selection-reply-copy-toolbar.png") });
+    await page.screenshot({ path: testInfo.outputPath("selection-copy-reply-toolbar.png") });
     await clickSelectionCopy(page);
     const list = await readRichClipboard(page);
     await expect(page.getByText("Copied", { exact: true })).toHaveCount(0);

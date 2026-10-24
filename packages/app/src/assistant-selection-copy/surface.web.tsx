@@ -214,17 +214,6 @@ export function AssistantSelectionCopySurface({
             >
               <View style={styles.toolbar}>
                 <Button
-                  testID="reply-to-selection"
-                  size="sm"
-                  variant="ghost"
-                  onPress={submitReply}
-                  disabled={reply.copying}
-                  textStyle={styles.actionText}
-                >
-                  {t("common.reply", { defaultValue: "Reply" })}
-                </Button>
-                <View style={styles.divider} testID="selection-actions-divider" />
-                <Button
                   testID="copy-selection"
                   size="sm"
                   variant="ghost"
@@ -235,6 +224,17 @@ export function AssistantSelectionCopySurface({
                   textStyle={styles.actionText}
                 >
                   {t("common.actions.copy")}
+                </Button>
+                <View style={styles.divider} testID="selection-actions-divider" />
+                <Button
+                  testID="reply-to-selection"
+                  size="sm"
+                  variant="ghost"
+                  onPress={submitReply}
+                  disabled={reply.copying}
+                  textStyle={styles.actionText}
+                >
+                  {t("common.reply", { defaultValue: "Reply" })}
                 </Button>
               </View>
             </div>,

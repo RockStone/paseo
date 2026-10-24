@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 BASE_VERSION="$(node -p 'require("./package.json").version')"
-CUSTOM_REVISION="${PASEO_CUSTOM_REVISION:-100}"
+CUSTOM_REVISION="${PASEO_CUSTOM_REVISION:-101}"
 # The desktop app recognizes Paseoi builds by -paseoi.<digits>. Any other suffix ships an
 # official-looking build on the main daemon's port with official updates turned on.
 if [[ ! "$CUSTOM_REVISION" =~ ^[0-9]+$ ]]; then
