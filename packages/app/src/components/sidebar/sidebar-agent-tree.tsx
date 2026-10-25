@@ -207,6 +207,7 @@ function ThreadBranch({
     return (
       deriveSidebarStateBucket({
         status: turn.isActive ? "running" : agent.status,
+        backgroundTaskCount: agent.backgroundTaskCount,
         pendingPermissionCount: agent.pendingPermissions.length,
         requiresAttention: agent.requiresAttention,
         attentionReason: agent.attentionReason,

@@ -1368,6 +1368,49 @@ test("a main-session frame opens no turn until Claude starts one", async () => {
   await session.close();
 });
 
+test("background task snapshots replace activity without opening or completing a turn", async () => {
+  const session = await createSession();
+  const internal: SessionStateInternals & { failRunningRuntimeTasks(): void } =
+    asInternals(session);
+  const queryMock = createPendingQueryMock();
+  const events: AgentStreamEvent[] = [];
+  session.subscribe((event) => events.push(event));
+  const snapshot = (ids: string[]) => ({
+    type: "system",
+    subtype: "background_tasks_changed",
+    tasks: ids.map((task_id) => ({ task_id, task_type: "local_bash", description: "DB replay" })),
+    uuid: "background-tasks",
+    session_id: "sess-1",
+  });
+  try {
+    await internal.routeSdkMessageFromPump(claudeTurnInit(), queryMock);
+    await internal.routeSdkMessageFromPump(snapshot(["db-replay"]), queryMock);
+    await internal.routeSdkMessageFromPump(successResult(), queryMock);
+    expect(internal.turnState).toBe("idle");
+    expect(events.filter((event) => event.type === "background_tasks_changed")).toMatchObject([
+      { type: "background_tasks_changed", provider: "claude", count: 1 },
+    ]);
+    events.length = 0;
+
+    await internal.routeSdkMessageFromPump(snapshot(["db-replay"]), queryMock);
+    await internal.routeSdkMessageFromPump(snapshot(["other-task", "db-replay"]), queryMock);
+    // A replacement snapshot repairs a missed finish bookend.
+    await internal.routeSdkMessageFromPump(snapshot([]), queryMock);
+    await internal.routeSdkMessageFromPump(snapshot(["new-task"]), queryMock);
+    internal.failRunningRuntimeTasks();
+    expect(events).toEqual([
+      { type: "background_tasks_changed", provider: "claude", count: 2 },
+      { type: "background_tasks_changed", provider: "claude", count: 0 },
+      { type: "background_tasks_changed", provider: "claude", count: 1 },
+      { type: "background_tasks_changed", provider: "claude", count: 0 },
+    ]);
+    expect(internal.autonomousTurn).toBeNull();
+    expect(internal.turnState).toBe("idle");
+  } finally {
+    await session.close();
+  }
+});
+
 test("a background subagent's frames never open a turn while the main session is idle", async () => {
   sdkQueryFactory.mockImplementation(() => createPendingQueryMock());
   const session = await createSession();

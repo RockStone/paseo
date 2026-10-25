@@ -19,6 +19,7 @@ function createSnapshot(
     lastUserMessageAt: input.lastUserMessageAt ?? null,
     status: input.status ?? "idle",
     activeTurn: input.activeTurn,
+    backgroundTaskCount: input.backgroundTaskCount,
     capabilities: input.capabilities ?? {
       supportsStreaming: true,
       supportsSessionPersistence: true,
@@ -37,6 +38,18 @@ function createSnapshot(
 }
 
 describe("normalizeAgentSnapshot", () => {
+  it("retains background activity without creating an active foreground turn", () => {
+    const snapshot = createSnapshot({ status: "idle", activeTurn: null, backgroundTaskCount: 1 });
+    const agent = normalizeAgentSnapshot(snapshot, "server-1");
+    expect(agent.turn.phase).toBe("idle");
+    expect(projectAgentSnapshot(agent)).toMatchObject({
+      status: "idle",
+      activeTurn: null,
+      backgroundTaskCount: 1,
+    });
+    expect(normalizeAgentSnapshot(createSnapshot(), "server-1").backgroundTaskCount).toBe(0);
+  });
+
   it("round-trips activity independently of metadata and accepts older snapshots", () => {
     const lastActivityAt = "2026-04-20T00:00:30.000Z";
     const snapshot = createSnapshot({ lastActivityAt });

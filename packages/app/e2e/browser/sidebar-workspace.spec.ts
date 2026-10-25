@@ -19,12 +19,65 @@ import { seedWorkspace } from "../support/helpers/seed-client";
 import { expectWorkspaceHeader } from "../support/helpers/workspace-ui";
 import { getServerId } from "../support/helpers/server-id";
 import { getE2EDaemonPort } from "../support/helpers/daemon-port";
+import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { projectEquivalenceViewKey } from "../support/helpers/project-view-key";
 import { escapeRegex } from "../support/helpers/regex";
 import { openFilesPanel } from "../support/helpers/workspace-tabs";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 
 const GITHUB_REMOTE_URL = "https://github.com/test-owner/test-repo.git";
+
+test("idle coordinator background tasks keep workspace and tab indicators running", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "sidebar-background-tasks-",
+    title: "Background coordinator",
+  });
+  let count = 1;
+  function applyBackgroundActivity(value: unknown): void {
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      value.forEach(applyBackgroundActivity);
+      return;
+    }
+    const record = value as Record<string, unknown>;
+    if (record.id === agent.agentId && record.status === "idle") {
+      record.backgroundTaskCount = count;
+    }
+    Object.values(record).forEach(applyBackgroundActivity);
+  }
+  try {
+    // Exercise the optional snapshot field at the real client boundary. The
+    // seeded provider stays idle; no foreground tool shimmer is involved.
+    await page.routeWebSocket(daemonWsRoutePattern(), (socket) => {
+      const server = socket.connectToServer();
+      socket.onMessage((message) => server.send(message));
+      server.onMessage((message) => {
+        const envelope: unknown = JSON.parse(message.toString());
+        applyBackgroundActivity(envelope);
+        socket.send(JSON.stringify(envelope));
+      });
+    });
+    await openAgentRoute(page, agent);
+    const row = await waitForSidebarWorkspace(page, agent.workspaceId);
+    await expect(row.getByTestId("workspace-status-indicator-running")).toBeVisible();
+    const tab = page.getByTestId(`workspace-tab-agent_${agent.agentId}`);
+    await expect(tab.getByRole("progressbar", { name: "Agent running" })).toBeVisible();
+    await page.reload();
+    await expect(row.getByTestId("workspace-status-indicator-running")).toBeVisible();
+    await expect(tab.getByRole("progressbar", { name: "Agent running" })).toBeVisible();
+
+    await page.screenshot({ path: testInfo.outputPath("background-status.png") });
+    count = 0;
+    await agent.client.updateAgent(agent.agentId, { name: "Background finished" });
+    await expect(row.getByTestId("workspace-status-indicator-running")).toHaveCount(0);
+    await expect(tab.getByRole("progressbar", { name: "Agent running" })).toHaveCount(0);
+  } finally {
+    await agent.cleanup();
+  }
+});
 
 test("workspace row keeps its coordinator when a second independent root appears", async ({
   page,

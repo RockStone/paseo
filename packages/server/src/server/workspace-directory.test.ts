@@ -242,6 +242,7 @@ class WorkspaceStatus {
 interface AgentState {
   id: string;
   status: AgentSnapshotPayload["status"];
+  backgroundTaskCount?: number;
   pendingPermissionCount?: number;
   requiresAttention?: boolean;
   attentionReason?: AgentSnapshotPayload["attentionReason"];
@@ -263,6 +264,7 @@ function createAgent(
     updatedAt: NOW,
     lastUserMessageAt: null,
     status: input.status,
+    backgroundTaskCount: input.backgroundTaskCount,
     capabilities: {
       supportsStreaming: true,
       supportsSessionPersistence: true,
@@ -294,6 +296,28 @@ function createAgent(
 }
 
 describe("WorkspaceDirectory", () => {
+  test("idle background work keeps only its owning workspace running", async () => {
+    const workspace = new WorkspaceStatus();
+    workspace.hasSiblingWorkspaceSameCwd();
+    workspace.hasStampedRootAgent({
+      id: "coordinator",
+      status: "idle",
+      backgroundTaskCount: 1,
+      workspaceId: "workspace-1-sibling",
+    });
+    await expect(workspace.workspaceStatuses()).resolves.toEqual({
+      "workspace-1": "done",
+      "workspace-1-sibling": "running",
+    });
+  });
+
+  test("an idle same-workspace child contributes its live background work", async () => {
+    const workspace = new WorkspaceStatus();
+    workspace.hasRootAgent({ id: "parent-agent", status: "idle" });
+    workspace.hasDelegatedAgent({ id: "child", status: "idle", backgroundTaskCount: 1 });
+    await expect(workspace.workspaceStatus()).resolves.toBe("running");
+  });
+
   test("uses root agent activity, not delegated child activity, for workspace status", async () => {
     const workspace = new WorkspaceStatus();
 

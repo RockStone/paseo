@@ -1,4 +1,5 @@
 import type { Agent } from "@/stores/session-store";
+import { hasAgentActivity } from "@getpaseo/protocol/agent-state-bucket";
 import type { SubagentRow } from "./select";
 
 export type ArchiveFinishedStatus =
@@ -18,7 +19,10 @@ export interface ArchiveFinishedOutcome {
   failures: Array<{ id: string; error: unknown }>;
 }
 
-export type ManagedSubagentSnapshot = Pick<Agent, "id" | "status" | "parentAgentId" | "archivedAt">;
+export type ManagedSubagentSnapshot = Pick<
+  Agent,
+  "id" | "status" | "parentAgentId" | "archivedAt" | "backgroundTaskCount"
+>;
 
 export interface ArchiveFinishedSubagentsDeps {
   parentAgentId: string;
@@ -35,7 +39,8 @@ export interface ArchiveFinishedSubagents {
 }
 
 export function isFinishedSubagent(row: SubagentRow): boolean {
-  if (row.kind === "paseo") return row.status === "idle" || row.status === "error";
+  if (row.kind === "paseo")
+    return !hasAgentActivity(row) && (row.status === "idle" || row.status === "error");
   return row.status === "completed" || row.status === "failed" || row.status === "canceled";
 }
 
@@ -45,6 +50,7 @@ function canArchiveManagedSubagent(
 ): boolean {
   return Boolean(
     agent &&
+    !hasAgentActivity(agent) &&
     !agent.archivedAt &&
     agent.parentAgentId === parentAgentId &&
     (agent.status === "idle" || agent.status === "error"),

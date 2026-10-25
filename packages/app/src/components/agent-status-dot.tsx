@@ -14,12 +14,14 @@ export function AgentStatusDot({
   requiresAttention,
   attentionReason,
   pendingPermissionCount,
+  backgroundTaskCount,
   showInactive = false,
 }: {
   status: string | null | undefined;
   requiresAttention: boolean | null | undefined;
   attentionReason?: "finished" | "error" | "permission" | null;
   pendingPermissionCount?: number;
+  backgroundTaskCount?: number;
   showInactive?: boolean;
 }) {
   const { theme } = useUnistyles();
@@ -33,6 +35,7 @@ export function AgentStatusDot({
 
   const bucket = deriveSidebarStateBucket({
     status,
+    backgroundTaskCount,
     requiresAttention: Boolean(requiresAttention),
     attentionReason: attentionReason ?? null,
     pendingPermissionCount: pendingPermissionCount ?? 0,

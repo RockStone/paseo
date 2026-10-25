@@ -8,6 +8,7 @@ import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messa
 
 export interface PaseoSubagentRow {
   kind: "paseo";
+  backgroundTaskCount?: number;
   id: Agent["id"];
   provider: Agent["provider"];
   title: Agent["title"];
@@ -61,6 +62,7 @@ function toSubagentRow(agent: Agent): SubagentRow {
     description: null,
     subtitle: null,
     status: agent.status,
+    backgroundTaskCount: agent.backgroundTaskCount,
     turn: agent.turn,
     requiresAttention: agent.requiresAttention,
     createdAt: agent.createdAt,

@@ -127,6 +127,7 @@ export function toAgentPayload(
     lastActivityAt: (agent.lastActivityAt ?? agent.updatedAt).toISOString(),
     lastUserMessageAt: agent.lastUserMessageAt ? agent.lastUserMessageAt.toISOString() : null,
     status: agent.lifecycle,
+    backgroundTaskCount: agent.lifecycle === "closed" ? 0 : (agent.backgroundTaskCount ?? 0),
     activeTurn: agent.activeTurnId
       ? {
           turnId: agent.activeTurnId,

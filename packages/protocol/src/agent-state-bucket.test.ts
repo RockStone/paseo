@@ -6,6 +6,17 @@ import {
 } from "./agent-state-bucket.js";
 
 describe("deriveAgentStateBucket", () => {
+  it("shows live background work after the foreground turn ends, without masking errors or permissions", () => {
+    const activity = { status: "idle", backgroundTaskCount: 1 } as const;
+    expect(deriveAgentStateBucket(activity)).toBe("running");
+    expect(deriveAgentStateBucket({ ...activity, requiresAttention: true })).toBe("running");
+    expect(deriveAgentStateBucket({ ...activity, pendingPermissionCount: 1 })).toBe("needs_input");
+    expect(deriveAgentStateBucket({ ...activity, status: "error" })).toBe("failed");
+    expect(deriveAgentStateBucket({ ...activity, status: "closed" })).toBe("done");
+    expect(deriveAgentStateBucket({ ...activity, backgroundTaskCount: 0 })).toBe("done");
+    expect(getAgentStatusPriority(activity)).toBe(getAgentStatusPriority({ status: "running" }));
+  });
+
   it("prioritizes pending permissions as needs_input", () => {
     expect(
       deriveAgentStateBucket({

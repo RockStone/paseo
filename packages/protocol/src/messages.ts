@@ -835,6 +835,7 @@ export const AgentSnapshotPayloadSchema = z.object({
   lastActivityAt: z.string().optional(),
   lastUserMessageAt: z.string().nullable(),
   status: AgentStatusSchema,
+  backgroundTaskCount: z.number().int().nonnegative().optional(),
   activeTurn: AgentActiveTurnPayloadSchema.nullable().optional(),
   capabilities: AgentCapabilityFlagsSchema,
   currentModeId: z.string().nullable(),

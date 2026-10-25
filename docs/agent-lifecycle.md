@@ -12,6 +12,15 @@ initializing → idle → running → idle (or error → closed)
 
 Each live agent in `AgentManager` carries a `lastStatus` of `initializing`, `idle`, `running`, or `error`. `closed` is the persisted, resumable state for an agent record that has no live provider runtime. State transitions persist to disk and stream to subscribed clients via WebSocket.
 
+An idle foreground turn can still own live background work. Claude's
+`background_tasks_changed` snapshot drives `backgroundTaskCount` and keeps the
+workspace and agent indicators running until the live set is empty. It never
+opens a foreground turn or changes completion/permission notification policy.
+Counts belong to the live provider process: do not restore them from history or
+disk, and clear them when that runtime exits or is replaced. Pairing task-start
+and task-finish events can leave stale activity after a missed event; use the
+provider's full replacement snapshot.
+
 ## Runtime residency
 
 An unarchived agent may be `closed` without being deleted or archived. Closing releases its provider

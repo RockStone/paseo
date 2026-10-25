@@ -9,6 +9,7 @@ function agent(input: {
   id: string;
   workspaceId?: string;
   status?: Agent["status"];
+  backgroundTaskCount?: number;
   turn?: Agent["turn"];
   updatedAt: string;
   attentionTimestamp?: string | null;
@@ -23,6 +24,7 @@ function agent(input: {
     id: input.id,
     provider: "codex",
     status: input.status ?? "idle",
+    backgroundTaskCount: input.backgroundTaskCount,
     turn:
       input.turn ??
       (input.status === "running"
@@ -69,6 +71,22 @@ function agent(input: {
 }
 
 describe("workspace last activity", () => {
+  it("keeps the workspace running while its idle coordinator has background work", () => {
+    const coordinator = agent({
+      id: "coordinator",
+      workspaceId: "workspace-1",
+      updatedAt: "2026-01-01T00:01:00Z",
+      backgroundTaskCount: 1,
+    });
+    const agents = new Map([[coordinator.id, coordinator]]);
+    const active = buildWorkspaceAgentActivityIndex(agents);
+    expect(active.get("workspace-1")?.status).toBe("running");
+    agents.set(coordinator.id, { ...coordinator, backgroundTaskCount: 0 });
+    expect(buildWorkspaceAgentActivityIndex(agents, active).get("workspace-1")?.status).toBe(
+      "done",
+    );
+  });
+
   it("includes streamed descendants across workspace boundaries, independently of status and metadata", () => {
     const root = agent({
       id: "root",

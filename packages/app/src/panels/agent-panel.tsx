@@ -343,6 +343,7 @@ function useAgentPanelDescriptor(
         provider: agent?.provider ?? "codex",
         title: agent?.title ?? null,
         status: agent?.status ?? null,
+        backgroundTaskCount: agent?.backgroundTaskCount,
         pendingPermissionCount: agent?.pendingPermissions.length ?? 0,
         requiresAttention: agent?.requiresAttention ?? false,
         attentionReason: agent?.attentionReason ?? null,
@@ -363,6 +364,7 @@ function useAgentPanelDescriptor(
     statusBucket: descriptorState.status
       ? deriveSidebarStateBucket({
           status: descriptorState.isTurnActive ? "running" : descriptorState.status,
+          backgroundTaskCount: descriptorState.backgroundTaskCount,
           pendingPermissionCount: descriptorState.pendingPermissionCount,
           requiresAttention: descriptorState.requiresAttention,
           attentionReason: descriptorState.attentionReason,

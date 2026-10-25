@@ -6,6 +6,7 @@ export type AgentAttentionReason = "finished" | "error" | "permission" | null | 
 
 export interface AgentStateBucketInput {
   status: AgentLifecycleStatus;
+  backgroundTaskCount?: number;
   pendingPermissionCount?: number;
   requiresAttention?: boolean;
   attentionReason?: AgentAttentionReason;
@@ -26,7 +27,7 @@ export function deriveAgentStateBucket(input: AgentStateBucketInput): WorkspaceS
   if (input.status === "error" || input.attentionReason === "error") {
     return "failed";
   }
-  if (input.status === "running") {
+  if (hasAgentActivity(input)) {
     return "running";
   }
   if (input.requiresAttention) {
@@ -46,11 +47,17 @@ export function getAgentStatusPriority(input: AgentStateBucketInput): number {
   if (input.status === "error" || input.attentionReason === "error") {
     return 1;
   }
-  if (input.status === "running") {
+  if (hasAgentActivity(input)) {
     return 2;
   }
   if (input.status === "initializing") {
     return 3;
   }
   return 4;
+}
+
+export function hasAgentActivity(input: AgentStateBucketInput): boolean {
+  return (
+    input.status === "running" || (input.status === "idle" && (input.backgroundTaskCount ?? 0) > 0)
+  );
 }

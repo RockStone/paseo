@@ -7,6 +7,7 @@ import type { Agent } from "@/stores/session-store";
 import { getHostRuntimeStore, useHosts } from "@/runtime/host-runtime";
 
 export interface AggregatedAgent extends AgentDirectoryEntry {
+  backgroundTaskCount?: number;
   serverId: string;
   serverLabel: string;
 }
@@ -92,6 +93,7 @@ export function useAggregatedAgents(options?: {
           provider: agent.provider,
           pendingPermissionCount: agent.pendingPermissions.length,
           requiresAttention: agent.requiresAttention,
+          backgroundTaskCount: agent.backgroundTaskCount,
           attentionReason: agent.attentionReason,
           attentionTimestamp: agent.attentionTimestamp,
           archivedAt: agent.archivedAt,

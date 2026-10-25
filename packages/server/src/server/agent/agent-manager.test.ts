@@ -271,6 +271,61 @@ class SessionRecordingAgentClient extends TestAgentClient {
   }
 }
 
+test("background task activity updates snapshots without holding a turn or emitting terminal events", async () => {
+  const client = new SessionRecordingAgentClient();
+  const manager = new AgentManager({ clients: { codex: client }, logger });
+  const agent = await manager.createAgent({ provider: "codex", cwd: process.cwd() }, undefined, {
+    workspaceId: undefined,
+  });
+  const events: AgentManagerEvent[] = [];
+  manager.subscribe((event) => events.push(event), { agentId: agent.id, replayState: false });
+  try {
+    const session = client.sessions[0]!;
+    session.pushEvent({ type: "background_tasks_changed", provider: "codex", count: 1 });
+    await vi.waitFor(() =>
+      expect(toAgentPayload(manager.getAgent(agent.id)!).backgroundTaskCount).toBe(1),
+    );
+    expect(toAgentPayload(manager.getAgent(agent.id)!)).toMatchObject({
+      status: "idle",
+      activeTurn: null,
+    });
+    expect(events.every((event) => event.type === "agent_state")).toBe(true);
+
+    await manager.runAgent(agent.id, "A foreground turn while a background task remains");
+    expect(toAgentPayload(manager.getAgent(agent.id)!)).toMatchObject({
+      status: "idle",
+      activeTurn: null,
+      backgroundTaskCount: 1,
+    });
+    const terminals = () =>
+      events.filter(
+        (event) => event.type === "agent_stream" && event.event.type === "turn_completed",
+      );
+    expect(terminals()).toHaveLength(1);
+    session.pushEvent({ type: "background_tasks_changed", provider: "codex", count: 0 });
+    await vi.waitFor(() =>
+      expect(toAgentPayload(manager.getAgent(agent.id)!).backgroundTaskCount).toBe(0),
+    );
+    expect(terminals()).toHaveLength(1);
+    session.pushEvent({ type: "background_tasks_changed", provider: "codex", count: 1 });
+    await vi.waitFor(() =>
+      expect(toAgentPayload(manager.getAgent(agent.id)!).backgroundTaskCount).toBe(1),
+    );
+    await manager.closeAgent(agent.id);
+    const closed = events.findLast(
+      (event) => event.type === "agent_state" && event.agent.lifecycle === "closed",
+    );
+    assert(closed?.type === "agent_state");
+    expect(toAgentPayload(closed.agent)).toMatchObject({
+      status: "closed",
+      backgroundTaskCount: 0,
+    });
+  } finally {
+    await manager.closeAgent(agent.id);
+    await manager.flush();
+  }
+});
+
 class HeldAgentCreationClient extends TestAgentClient {
   private readonly creationStarted = deferred<void>();
   private readonly creationAllowed = deferred<void>();

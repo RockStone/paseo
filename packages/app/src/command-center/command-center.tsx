@@ -532,6 +532,7 @@ function ResultContent({ result, query }: { result: CommandCenterResult; query: 
           <View style={styles.iconSlot}>
             <AgentStatusDot
               status={agent.status}
+              backgroundTaskCount={agent.backgroundTaskCount}
               requiresAttention={agent.requiresAttention}
               showInactive
             />

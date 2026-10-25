@@ -2255,6 +2255,7 @@ class ClaudeAgentSession implements AgentSession {
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
   private readonly timelineAssembler = new TimelineAssembler();
   private readonly taskState = new ClaudeTaskState();
+  private backgroundTaskCount = 0;
   private readonly taskProtocolSource = new ClaudeTaskProtocolSource({
     getToolInput: (toolUseId) => this.toolUseCache.get(toolUseId)?.input ?? null,
     readWorkflowResult: readClaudeWorkflowResultFile,
@@ -2938,6 +2939,7 @@ class ClaudeAgentSession implements AgentSession {
     this.settledSubagentToolCalls.clear();
     this.settledToolUseIds.clear();
     this.taskProtocolSource.reset();
+    this.backgroundTaskCount = 0;
     this.input?.end();
     this.query?.close?.();
     await this.awaitWithTimeout(this.query?.interrupt?.(), "close query interrupt");
@@ -3405,6 +3407,7 @@ class ClaudeAgentSession implements AgentSession {
     this.input = input;
     // A fresh Claude process has no turn of its own in flight.
     this.mainTurnInFlight = false;
+    this.dispatchEvents(this.updateBackgroundTaskCount(0));
     this.query = claudeQuery(
       { prompt: input.iterable, options },
       {
@@ -3956,6 +3959,7 @@ class ClaudeAgentSession implements AgentSession {
   }
 
   private failActiveTurns(errorMessage: string): void {
+    this.dispatchEvents(this.updateBackgroundTaskCount(0));
     const failure = this.buildTurnFailedEvent(errorMessage);
     this.flushPendingToolCalls();
     if (this.activeForegroundTurnId) {
@@ -4004,11 +4008,12 @@ class ClaudeAgentSession implements AgentSession {
   }
 
   private failRunningRuntimeTasks(): void {
-    this.dispatchEvents(
-      foldSubagentObservations(this.taskProtocolSource.failRunningTasks()).map(
+    this.dispatchEvents([
+      ...this.updateBackgroundTaskCount(0),
+      ...foldSubagentObservations(this.taskProtocolSource.failRunningTasks()).map(
         (event): AgentStreamEvent => ({ type: "provider_subagent", provider: "claude", event }),
       ),
-    );
+    ]);
   }
 
   private startQueryPump(): void {
@@ -4158,6 +4163,7 @@ class ClaudeAgentSession implements AgentSession {
    * timeline.
    */
   private consumeSessionStateChange(message: SDKMessage): boolean {
+    if (this.consumeBackgroundTaskChange(message)) return true;
     if (message.type !== "system" || message.subtype !== "session_state_changed") {
       return false;
     }
@@ -4542,6 +4548,22 @@ class ClaudeAgentSession implements AgentSession {
   private appendTaskStateEvent(message: SDKMessage, events: AgentStreamEvent[]): void {
     const item = this.taskState.observe(message);
     if (item) events.push({ type: "timeline", provider: "claude", item });
+  }
+
+  private updateBackgroundTaskCount(count: number): AgentStreamEvent[] {
+    if (count === this.backgroundTaskCount) return [];
+    this.backgroundTaskCount = count;
+    return [{ type: "background_tasks_changed", provider: "claude", count }];
+  }
+
+  private consumeBackgroundTaskChange(message: SDKMessage): boolean {
+    if (message.type !== "system" || message.subtype !== "background_tasks_changed") return false;
+    // This is the full live set. Pairing task-start/finish edges would leave a
+    // stuck indicator if a bookend is missed, and would duplicate subagent tracking.
+    if (!readClaudeParentToolUseId(message)) {
+      this.dispatchEvents(this.updateBackgroundTaskCount(message.tasks.length));
+    }
+    return true;
   }
 
   /**

@@ -8,6 +8,7 @@ import type {
 } from "./messages.js";
 import {
   deriveAgentStateBucket,
+  hasAgentActivity,
   getWorkspaceStateBucketPriority,
   type WorkspaceStateBucket,
 } from "@getpaseo/protocol/agent-state-bucket";
@@ -374,12 +375,13 @@ export class WorkspaceDirectory {
         continue;
       }
       const isWorkspaceRoot = workspaceAgent.id === agent.id;
-      if (!isWorkspaceRoot && agent.status !== "running") {
+      if (!isWorkspaceRoot && !hasAgentActivity(agent)) {
         continue;
       }
       const bucket = isWorkspaceRoot
         ? deriveAgentStateBucket({
             status: agent.status,
+            backgroundTaskCount: agent.backgroundTaskCount,
             pendingPermissionCount: agent.pendingPermissions?.length ?? 0,
             requiresAttention: agent.requiresAttention,
             attentionReason: agent.attentionReason ?? null,
@@ -529,6 +531,7 @@ export class WorkspaceDirectory {
       .filter((agent) => {
         const derived = deriveAgentStateBucket({
           status: agent.status,
+          backgroundTaskCount: agent.backgroundTaskCount,
           pendingPermissionCount: agent.pendingPermissions?.length ?? 0,
           requiresAttention: agent.requiresAttention,
           attentionReason: agent.attentionReason ?? null,
