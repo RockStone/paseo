@@ -75,6 +75,7 @@ export interface Agent {
   provider: AgentProvider;
   status: AgentLifecycleStatus;
   backgroundTaskCount?: number;
+  backgroundTaskIds?: string[];
   turn: TurnLiveness;
   createdAt: Date;
   updatedAt: Date;

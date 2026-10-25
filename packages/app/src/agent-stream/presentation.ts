@@ -6,7 +6,7 @@ import {
   type PreparedToolCallHistory,
   type ToolCallDetailLevel,
 } from "@/tool-calls/detail-level/projection";
-import type { StreamItem, UserMessageItem } from "@/types/stream";
+import type { StreamItem, ToolCallItem, UserMessageItem } from "@/types/stream";
 import { presentAnsweredQuestion } from "./answered-question";
 
 interface PresentationInput {
@@ -15,6 +15,7 @@ interface PresentationInput {
   transform: TimelineItemTransform | undefined;
   level: ToolCallDetailLevel;
   isTurnActive: boolean;
+  backgroundTaskIds?: readonly string[];
 }
 
 /** Find and scrolling address a plugin row by the source it replaces. */
@@ -48,6 +49,26 @@ export function createStreamPresentation() {
   let preparedTail: StreamItem[] | undefined;
   let preparedLevel: ToolCallDetailLevel | undefined;
   let preparedHistory: PreparedToolCallHistory | null = null;
+  let backgroundTaskIds: readonly string[] | undefined;
+  let liveBackgroundTasks = new Set<string>();
+  const backgroundTaskCache = new WeakMap<ToolCallItem, ToolCallItem>();
+
+  function presentBackgroundTask(item: StreamItem): StreamItem {
+    if (item.kind !== "tool_call" || item.payload.source !== "agent") return item;
+    const { data } = item.payload;
+    if (data.status !== "completed" || data.detail.type !== "shell") return item;
+    // Claude's launch result identifies the job whose liveness comes from the
+    // provider snapshot. Never infer liveness from this historical text alone.
+    const taskId = /^Command running in background with ID: ([\w-]+)\./m.exec(
+      data.detail.output ?? "",
+    )?.[1];
+    if (!taskId || !liveBackgroundTasks.has(taskId)) return item;
+    const cached = backgroundTaskCache.get(item);
+    if (cached) return cached;
+    const projected = { ...item, isBackgroundRunning: true };
+    backgroundTaskCache.set(item, projected);
+    return projected;
+  }
 
   function presentRows(item: StreamItem): StreamItem[] {
     if (item.kind === "tool_call") {
@@ -70,10 +91,15 @@ export function createStreamPresentation() {
       )
     )
       return [{ ...item, isCompactionIntro: true }];
-    return [item.kind === "user_message" ? presentUserMessage(item) : item];
+    return [item.kind === "user_message" ? presentUserMessage(item) : presentBackgroundTask(item)];
   }
 
   return (input: PresentationInput) => {
+    if (backgroundTaskIds !== input.backgroundTaskIds) {
+      backgroundTaskIds = input.backgroundTaskIds;
+      liveBackgroundTasks = new Set(backgroundTaskIds);
+      historySource = undefined;
+    }
     // Retained history is not reprojected or regrouped on each live text update.
     if (historySource !== input.tail || historyTransform !== input.transform) {
       historyRows = projectPluginTimelineItems(input.tail, input.transform).flatMap<StreamItem>(

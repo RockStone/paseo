@@ -1233,3 +1233,97 @@ it("uses patch metadata rather than hunk contents to identify files", () => {
   expect(summary?.files[0]?.counts).toEqual({ additions: 1, deletions: 1 });
   expect(summary?.files[1]?.counts).toBeNull();
 });
+
+describe("live background Shell presentation", () => {
+  function shell(callId: string, taskId: string): ToolCallItem {
+    const item = toolCall(callId, "Bash");
+    if (item.payload.source !== "agent") throw new Error("Expected agent tool");
+    item.payload.data.provider = "claude";
+    item.payload.data.detail = {
+      type: "shell",
+      command: `run-${taskId}`,
+      output: `Command running in background with ID: ${taskId}. Output is being written to: /tmp/${taskId}.output.`,
+    };
+    return item;
+  }
+
+  it.each(["tail", "head"] as const)(
+    "tracks task identity changes at the same count in retained %s rows",
+    (source) => {
+      const a = shell("a", "job-a");
+      const b = shell("b", "job-b");
+      const unrelated = toolCall("read", "Read");
+      const items = [a, b, unrelated];
+      const present = createStreamPresentation();
+      const input = {
+        level: "detailed" as const,
+        isTurnActive: false,
+        transform: undefined,
+        tail: source === "tail" ? items : [],
+        head: source === "head" ? items : [],
+      };
+      expect(rows(present(input))).toEqual(items);
+      const firstInput = { ...input, backgroundTaskIds: ["job-a"] };
+      const first = rows(present(firstInput));
+      expect(first[0]).toMatchObject({ isBackgroundRunning: true });
+      expect(first[1]).toBe(b);
+      expect(first[2]).toBe(unrelated);
+      expect(rows(present(firstInput))[0]).toBe(first[0]);
+      const second = rows(present({ ...input, backgroundTaskIds: ["job-b"] }));
+      expect(second[0]).toBe(a);
+      expect(second[1]).toMatchObject({ isBackgroundRunning: true });
+      expect(second[2]).toBe(unrelated);
+      expect(rows(present({ ...input, backgroundTaskIds: [] }))).toEqual(items);
+      expect(a).not.toHaveProperty("isBackgroundRunning");
+      expect(b).not.toHaveProperty("isBackgroundRunning");
+      expect(a.payload.source === "agent" && a.payload.data.status).toBe("completed");
+    },
+  );
+
+  it("preserves live Shell identity in an expanded overview group", () => {
+    const a = shell("a", "job-a");
+    const b = shell("b", "job-b");
+    const present = createStreamPresentation();
+    const input = {
+      tail: [a, b],
+      head: [],
+      level: "overview" as const,
+      isTurnActive: false,
+      transform: undefined,
+    };
+    const first = present({ ...input, backgroundTaskIds: ["job-a"] }).groupsByHostId.get(a.id);
+    expect(first?.run.calls[0]).toMatchObject({ isBackgroundRunning: true });
+    expect(first?.run.calls[1]).toBe(b);
+    expect(first?.isLoading).toBe(false);
+    const completed = present({ ...input, backgroundTaskIds: [] }).groupsByHostId.get(a.id);
+    expect(completed?.run.calls).toEqual([a, b]);
+  });
+
+  it("does not revive canceled, failed, or unrelated tool results", () => {
+    const canceled = shell("canceled", "job");
+    const failed = shell("failed", "job");
+    const unrelated = toolCall("read", "Read");
+    if (
+      canceled.payload.source !== "agent" ||
+      failed.payload.source !== "agent" ||
+      unrelated.payload.source !== "agent"
+    )
+      throw new Error("Expected agent tools");
+    canceled.payload.data.status = "canceled";
+    failed.payload.data.status = "failed";
+    unrelated.payload.data.detail = {
+      type: "plain_text",
+      text: "Command running in background with ID: job.",
+    };
+    const items = [canceled, failed, unrelated];
+    const result = createStreamPresentation()({
+      tail: items,
+      head: [],
+      level: "detailed",
+      isTurnActive: false,
+      transform: undefined,
+      backgroundTaskIds: ["job"],
+    });
+    expect(rows(result)).toEqual(items);
+  });
+});

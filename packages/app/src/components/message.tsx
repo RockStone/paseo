@@ -1616,6 +1616,7 @@ interface ExpandableBadgeProps {
   onDetailHoverChange?: (hovered: boolean) => void;
   renderDetails?: () => ReactNode;
   isLoading?: boolean;
+  shimmer?: boolean;
   isError?: boolean;
   isLastInSequence?: boolean;
   disableOuterSpacing?: boolean;
@@ -1869,6 +1870,8 @@ function renderExpandableBadgeIconSlot({
 }
 
 function computeShimmerMetrics(input: {
+  shimmer: boolean | undefined;
+  muted: boolean;
   label: string;
   secondaryLabel: string | undefined;
   isLoading: boolean;
@@ -1881,6 +1884,7 @@ function computeShimmerMetrics(input: {
 }) {
   const totalShimmerChars = input.label.trim().length + (input.secondaryLabel?.trim().length ?? 0);
   const shortTextDurationAdjustment = totalShimmerChars <= 12 ? 0.25 : 0;
+  const isLoading = input.shimmer ?? (input.isLoading && !input.muted);
   const shimmerDuration = Math.max(
     1,
     Math.min(2.3, 1.25 + totalShimmerChars * 0.008 - shortTextDurationAdjustment),
@@ -1889,11 +1893,11 @@ function computeShimmerMetrics(input: {
     32,
     Math.min(120, input.labelRowWidth > 0 ? input.labelRowWidth * 0.28 : 0),
   );
-  const isWebShimmer = input.isLoading && isWeb;
+  const isWebShimmer = isLoading && isWeb;
   // React Native Web only observes a node when onLayout exists at mount. Keep
   // measuring while idle so a retained badge has dimensions when it starts loading.
   const shouldMeasureWebShimmer = isWeb;
-  const shouldMeasureNativeShimmer = input.isLoading && isNative;
+  const shouldMeasureNativeShimmer = isLoading && isNative;
   const isNativeShimmer =
     shouldMeasureNativeShimmer && input.labelRowWidth > 0 && input.labelRowHeight > 0;
   const webShimmerSpanStartX = input.labelOffsetX;
@@ -1981,6 +1985,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   onDetailHoverChange,
   renderDetails,
   isLoading = false,
+  shimmer,
   isError = false,
   isLastInSequence = false,
   disableOuterSpacing,
@@ -2043,7 +2048,9 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   } = computeShimmerMetrics({
     label,
     secondaryLabel,
-    isLoading: isLoading && !muted,
+    isLoading,
+    shimmer,
+    muted,
     labelRowWidth,
     labelRowHeight,
     labelOffsetX,
@@ -2309,6 +2316,7 @@ function areExpandableBadgePropsEqual(previous: ExpandableBadgeProps, next: Expa
   if (previous.isExpanded !== next.isExpanded) return false;
   if (previous.style !== next.style) return false;
   if (previous.isLoading !== next.isLoading) return false;
+  if (previous.shimmer !== next.shimmer) return false;
   if (previous.isError !== next.isError) return false;
   if (previous.isLastInSequence !== next.isLastInSequence) return false;
   if (previous.disableOuterSpacing !== next.disableOuterSpacing) return false;
@@ -2331,6 +2339,7 @@ interface ToolCallProps {
   result?: unknown;
   error?: unknown;
   status: "executing" | "running" | "completed" | "failed" | "canceled";
+  isBackgroundRunning?: boolean;
   detail?: ToolCallDetail;
   cwd?: string;
   metadata?: Record<string, unknown>;
@@ -2353,6 +2362,7 @@ export const ToolCall = memo(function ToolCall({
   result,
   error,
   status,
+  isBackgroundRunning,
   detail,
   cwd,
   metadata,
@@ -2392,6 +2402,7 @@ export const ToolCall = memo(function ToolCall({
         agentMessage,
         toolName,
         status,
+        isBackgroundRunning,
         error: error ?? null,
         detail: effectiveDetail,
         metadata,
@@ -2399,7 +2410,17 @@ export const ToolCall = memo(function ToolCall({
         targetAgentTitle,
         resolveIcon: resolveToolCallIcon,
       }),
-    [toolName, status, error, effectiveDetail, metadata, cwd, agentMessage, targetAgentTitle],
+    [
+      toolName,
+      status,
+      isBackgroundRunning,
+      error,
+      effectiveDetail,
+      metadata,
+      cwd,
+      agentMessage,
+      targetAgentTitle,
+    ],
   );
   const [isExpanded, setIsExpanded] = useTranscriptSectionExpanded(
     defaultExpanded ?? false,
@@ -2518,6 +2539,7 @@ export const ToolCall = memo(function ToolCall({
       onOpenFile={handleOpenFile}
       renderDetails={presentation.canOpenDetails && shouldRenderInline ? renderDetails : undefined}
       isLoading={status === "running" || status === "executing"}
+      shimmer={presentation.isRunningShell || undefined}
       isError={status === "failed"}
       isLastInSequence={isLastInSequence}
       disableOuterSpacing={disableOuterSpacing}
@@ -2534,6 +2556,7 @@ function areToolCallPropsEqual(previous: ToolCallProps, next: ToolCallProps) {
   if (previous.result !== next.result) return false;
   if (previous.error !== next.error) return false;
   if (previous.status !== next.status) return false;
+  if (previous.isBackgroundRunning !== next.isBackgroundRunning) return false;
   if (previous.detail !== next.detail) return false;
   if (previous.cwd !== next.cwd) return false;
   if (previous.metadata !== next.metadata) return false;

@@ -174,3 +174,26 @@ it("shows the target agent title as context for Paseo agent tools", () => {
   expect(presentation.displayName).toBe("Kill agent");
   expect(presentation.summary).toBe("Reviewer");
 });
+
+it.each([
+  ["running", false, true],
+  ["executing", false, true],
+  ["completed", false, false],
+  ["completed", true, true],
+  ["failed", true, false],
+  ["canceled", true, false],
+] as const)(
+  "shimmers Shell status %s with background activity %s: %s",
+  (status, isBackgroundRunning, expected) => {
+    const presentation = buildToolCallPresentation({
+      toolName: "Bash",
+      status,
+      isBackgroundRunning,
+      error: null,
+      detail: { type: "shell", command: "npm test", output: "test output" },
+      resolveIcon: fakeResolveIcon,
+    });
+    expect(presentation.isRunningShell).toBe(expected);
+    expect(presentation.emphasized).toBe(false);
+  },
+);

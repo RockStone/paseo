@@ -775,6 +775,8 @@ export type ToolCallPayload =
 
 export interface ToolCallItem {
   kind: "tool_call";
+  /** Display-only liveness for a completed tool call that launched background work. */
+  isBackgroundRunning?: boolean;
   id: string;
   timelineCursor?: TimelinePosition;
   turnId?: string;

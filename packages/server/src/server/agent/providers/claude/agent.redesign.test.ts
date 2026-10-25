@@ -1388,21 +1388,32 @@ test("background task snapshots replace activity without opening or completing a
     await internal.routeSdkMessageFromPump(successResult(), queryMock);
     expect(internal.turnState).toBe("idle");
     expect(events.filter((event) => event.type === "background_tasks_changed")).toMatchObject([
-      { type: "background_tasks_changed", provider: "claude", count: 1 },
+      { type: "background_tasks_changed", provider: "claude", taskIds: ["db-replay"] },
     ]);
     events.length = 0;
 
     await internal.routeSdkMessageFromPump(snapshot(["db-replay"]), queryMock);
     await internal.routeSdkMessageFromPump(snapshot(["other-task", "db-replay"]), queryMock);
+    await internal.routeSdkMessageFromPump(snapshot(["db-replay", "other-task"]), queryMock);
+    await internal.routeSdkMessageFromPump(snapshot(["replacement", "db-replay"]), queryMock);
     // A replacement snapshot repairs a missed finish bookend.
     await internal.routeSdkMessageFromPump(snapshot([]), queryMock);
     await internal.routeSdkMessageFromPump(snapshot(["new-task"]), queryMock);
     internal.failRunningRuntimeTasks();
     expect(events).toEqual([
-      { type: "background_tasks_changed", provider: "claude", count: 2 },
-      { type: "background_tasks_changed", provider: "claude", count: 0 },
-      { type: "background_tasks_changed", provider: "claude", count: 1 },
-      { type: "background_tasks_changed", provider: "claude", count: 0 },
+      {
+        type: "background_tasks_changed",
+        provider: "claude",
+        taskIds: ["db-replay", "other-task"],
+      },
+      {
+        type: "background_tasks_changed",
+        provider: "claude",
+        taskIds: ["db-replay", "replacement"],
+      },
+      { type: "background_tasks_changed", provider: "claude", taskIds: [] },
+      { type: "background_tasks_changed", provider: "claude", taskIds: ["new-task"] },
+      { type: "background_tasks_changed", provider: "claude", taskIds: [] },
     ]);
     expect(internal.autonomousTurn).toBeNull();
     expect(internal.turnState).toBe("idle");

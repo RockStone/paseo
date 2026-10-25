@@ -425,6 +425,7 @@ interface ManagedAgentBase {
   runtimeInfo?: AgentRuntimeInfo;
   /** Live provider activity; never restored from a previous runtime. */
   backgroundTaskCount?: number;
+  backgroundTaskIds?: string[];
   createdAt: Date;
   updatedAt: Date;
   /** Conversation activity, independent of metadata and attention updates. */
@@ -3988,7 +3989,8 @@ export class AgentManager {
     event: AgentStreamEvent,
   ): Promise<void> {
     if (event.type === "background_tasks_changed") {
-      agent.backgroundTaskCount = event.count;
+      agent.backgroundTaskIds = event.taskIds;
+      agent.backgroundTaskCount = event.taskIds.length;
       this.touchActivity(agent);
       this.emitState(agent);
       return;

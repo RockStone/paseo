@@ -22,6 +22,7 @@ interface BuildToolCallPresentationInput {
   agentMessage?: AgentMessage;
   toolName: string;
   status: ToolCallStatus;
+  isBackgroundRunning?: boolean;
   error: unknown;
   detail?: ToolCallDetail;
   cwd?: string;
@@ -32,6 +33,7 @@ interface BuildToolCallPresentationInput {
 
 export interface ToolCallPresentation {
   emphasized: boolean;
+  isRunningShell: boolean;
   detail: ToolCallDetail | undefined;
   displayName: string;
   summary?: string;
@@ -82,9 +84,13 @@ export function buildToolCallPresentation(
     error: input.error,
   });
   const hasDetails = Boolean(input.error) || hasMeaningfulToolCallDetail(detail);
+  const isRunning = input.status === "running" || input.status === "executing";
+  const hasBackgroundWork = input.status === "completed" && input.isBackgroundRunning === true;
+  const isRunningShell = detail?.type === "shell" && (isRunning || hasBackgroundWork);
 
   return {
     emphasized: Boolean(input.agentMessage) || isAgentMessageTool(input.toolName),
+    isRunningShell,
     detail,
     displayName: displayModel.displayName,
     summary: displayModel.summary,

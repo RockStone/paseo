@@ -53,7 +53,7 @@ function replaceToolCallStatus(message: WebSocketMessage, status: string): strin
   return JSON.stringify(envelope);
 }
 
-async function gateSecondToolCall(page: Page, agentId: string) {
+async function gateSecondToolCall(page: Page, agentId: string, shell = false) {
   let firstCallId: string | null = null;
   let secondCallId: string | null = null;
   let secondRunningMessage: WebSocketMessage | null = null;
@@ -84,6 +84,15 @@ async function gateSecondToolCall(page: Page, agentId: string) {
       }
 
       const toolCall = getToolCallStatus(message, agentId);
+      if (shell && toolCall) {
+        const envelope = JSON.parse(message.toString());
+        envelope.message.payload.event.item.detail = {
+          type: "shell",
+          command: `shell-${toolCall.callId}`,
+          output: "",
+        };
+        message = JSON.stringify(envelope);
+      }
       if (!toolCall) {
         ws.send(message);
         return;
@@ -374,6 +383,127 @@ test("tool labels and expanded shell output stay muted while agent messages stay
       "aria-expanded",
       "false",
     );
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("running foreground Shell shimmers while completed Shell stays static", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "@paseo:app-settings",
+      JSON.stringify({ toolCallDetailLevel: "detailed" }),
+    );
+  });
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "foreground-shell-shimmer-",
+    title: "Foreground Shell shimmer",
+    model: "ten-second-stream",
+  });
+  try {
+    const gate = await gateSecondToolCall(page, agent.agentId, true);
+    await openAgentRoute(page, agent);
+    await expectComposerVisible(page);
+    await agent.client.sendAgentMessage(agent.agentId, "Check foreground Shell animation.");
+    await gate.waitForFirstCompleted();
+    const shells = page.getByTestId("tool-call-badge").filter({ hasText: "Shell" });
+    await expect(shells).toHaveCount(1);
+    await expect(shells.first().locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
+    await gate.waitForSecondRunning();
+    gate.releaseSecondRunning();
+    await expect(shells).toHaveCount(2);
+    await expect(shells.last().locator('[style*="paseo-toolcall-shimmer"]').first()).toBeVisible();
+    await expect(shells.first().locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath("foreground-shell-shimmer.png") });
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("background Shell shimmer follows live task IDs through replacement and completion", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "background-shell-shimmer-",
+    title: "Background Shell shimmer",
+    model: "ten-second-stream",
+  });
+  let taskIds = ["job-a"];
+  const taskByCall = new Map<string, string>();
+  function replaceSnapshot(value: unknown): void {
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      value.forEach(replaceSnapshot);
+      return;
+    }
+    const record = value as Record<string, unknown>;
+    if (record.id === agent.agentId && record.status === "idle") {
+      record.backgroundTaskCount = taskIds.length;
+      record.backgroundTaskIds = taskIds;
+    }
+    Object.values(record).forEach(replaceSnapshot);
+  }
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "@paseo:app-settings",
+      JSON.stringify({ toolCallDetailLevel: "detailed" }),
+    );
+  });
+  try {
+    await agent.client.sendAgentMessage(agent.agentId, "Check background Shell animation.");
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await page.routeWebSocket(daemonWsRoutePattern(), (socket) => {
+      const server = socket.connectToServer();
+      socket.onMessage((message) => server.send(message));
+      server.onMessage((message) => {
+        const envelope = JSON.parse(message.toString());
+        replaceSnapshot(envelope);
+        const payload = envelope.message?.payload;
+        if (payload?.agentId === agent.agentId && payload.entries) {
+          for (const entry of payload.entries) {
+            const item = entry.item;
+            if (item?.type !== "tool_call") continue;
+            if (!taskByCall.has(item.callId))
+              taskByCall.set(
+                item.callId,
+                ["job-a", "job-b"][taskByCall.size] ?? `job-extra-${taskByCall.size}`,
+              );
+            const taskId = taskByCall.get(item.callId);
+            item.name = "Bash";
+            item.status = "completed";
+            item.detail = {
+              type: "shell",
+              command: `run-${taskId}`,
+              output: `Command running in background with ID: ${taskId}. Output is being written to: /tmp/${taskId}.output.`,
+            };
+          }
+        }
+        socket.send(JSON.stringify(envelope));
+      });
+    });
+    await openAgentRoute(page, agent);
+    await expectComposerVisible(page);
+    const a = page.getByTestId("tool-call-badge").filter({ hasText: "run-job-a" });
+    const b = page.getByTestId("tool-call-badge").filter({ hasText: "run-job-b" });
+    await expect(a).toBeVisible();
+    await expect(b).toBeVisible();
+    await expect(a.locator('[style*="paseo-toolcall-shimmer"]').first()).toBeVisible();
+    await expect(b.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
+    await page.reload();
+    await expect(a.locator('[style*="paseo-toolcall-shimmer"]').first()).toBeVisible();
+    taskIds = ["job-b"];
+    await agent.client.updateAgent(agent.agentId, { name: "Second background task" });
+    await expect(a.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
+    await expect(b.locator('[style*="paseo-toolcall-shimmer"]').first()).toBeVisible();
+    await b.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath("background-shell-shimmer.png") });
+    taskIds = [];
+    await agent.client.updateAgent(agent.agentId, { name: "Background tasks finished" });
+    await expect(b.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
   } finally {
     await agent.cleanup();
   }

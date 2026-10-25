@@ -188,10 +188,18 @@ describe("agent feature schemas", () => {
 
     expect(AgentSnapshotPayloadSchema.parse(base).activeTurn).toBeUndefined();
     expect(AgentSnapshotPayloadSchema.parse(base).backgroundTaskCount).toBeUndefined();
-    const background = { ...base, backgroundTaskCount: 2 };
+    expect(AgentSnapshotPayloadSchema.parse(base).backgroundTaskIds).toBeUndefined();
+    const background = { ...base, backgroundTaskCount: 2, backgroundTaskIds: ["task-1", "task-2"] };
     expect(AgentSnapshotPayloadSchema.parse(background).backgroundTaskCount).toBe(2);
+    expect(AgentSnapshotPayloadSchema.parse(background).backgroundTaskIds).toEqual([
+      "task-1",
+      "task-2",
+    ]);
     expect(
-      AgentSnapshotPayloadSchema.omit({ backgroundTaskCount: true }).safeParse(background).success,
+      AgentSnapshotPayloadSchema.omit({
+        backgroundTaskCount: true,
+        backgroundTaskIds: true,
+      }).safeParse(background).success,
     ).toBe(true);
     expect(AgentSnapshotPayloadSchema.safeParse({ ...base, backgroundTaskCount: -1 }).success).toBe(
       false,

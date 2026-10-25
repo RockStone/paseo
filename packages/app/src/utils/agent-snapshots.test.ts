@@ -20,6 +20,7 @@ function createSnapshot(
     status: input.status ?? "idle",
     activeTurn: input.activeTurn,
     backgroundTaskCount: input.backgroundTaskCount,
+    backgroundTaskIds: input.backgroundTaskIds,
     capabilities: input.capabilities ?? {
       supportsStreaming: true,
       supportsSessionPersistence: true,
@@ -39,13 +40,19 @@ function createSnapshot(
 
 describe("normalizeAgentSnapshot", () => {
   it("retains background activity without creating an active foreground turn", () => {
-    const snapshot = createSnapshot({ status: "idle", activeTurn: null, backgroundTaskCount: 1 });
+    const snapshot = createSnapshot({
+      status: "idle",
+      activeTurn: null,
+      backgroundTaskCount: 1,
+      backgroundTaskIds: ["task-1"],
+    });
     const agent = normalizeAgentSnapshot(snapshot, "server-1");
     expect(agent.turn.phase).toBe("idle");
     expect(projectAgentSnapshot(agent)).toMatchObject({
       status: "idle",
       activeTurn: null,
       backgroundTaskCount: 1,
+      backgroundTaskIds: ["task-1"],
     });
     expect(normalizeAgentSnapshot(createSnapshot(), "server-1").backgroundTaskCount).toBe(0);
   });

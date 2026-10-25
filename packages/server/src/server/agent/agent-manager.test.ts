@@ -281,7 +281,7 @@ test("background task activity updates snapshots without holding a turn or emitt
   manager.subscribe((event) => events.push(event), { agentId: agent.id, replayState: false });
   try {
     const session = client.sessions[0]!;
-    session.pushEvent({ type: "background_tasks_changed", provider: "codex", count: 1 });
+    session.pushEvent({ type: "background_tasks_changed", provider: "codex", taskIds: ["task-1"] });
     await vi.waitFor(() =>
       expect(toAgentPayload(manager.getAgent(agent.id)!).backgroundTaskCount).toBe(1),
     );
@@ -296,18 +296,19 @@ test("background task activity updates snapshots without holding a turn or emitt
       status: "idle",
       activeTurn: null,
       backgroundTaskCount: 1,
+      backgroundTaskIds: ["task-1"],
     });
     const terminals = () =>
       events.filter(
         (event) => event.type === "agent_stream" && event.event.type === "turn_completed",
       );
     expect(terminals()).toHaveLength(1);
-    session.pushEvent({ type: "background_tasks_changed", provider: "codex", count: 0 });
+    session.pushEvent({ type: "background_tasks_changed", provider: "codex", taskIds: [] });
     await vi.waitFor(() =>
       expect(toAgentPayload(manager.getAgent(agent.id)!).backgroundTaskCount).toBe(0),
     );
     expect(terminals()).toHaveLength(1);
-    session.pushEvent({ type: "background_tasks_changed", provider: "codex", count: 1 });
+    session.pushEvent({ type: "background_tasks_changed", provider: "codex", taskIds: ["task-2"] });
     await vi.waitFor(() =>
       expect(toAgentPayload(manager.getAgent(agent.id)!).backgroundTaskCount).toBe(1),
     );
@@ -319,6 +320,7 @@ test("background task activity updates snapshots without holding a turn or emitt
     expect(toAgentPayload(closed.agent)).toMatchObject({
       status: "closed",
       backgroundTaskCount: 0,
+      backgroundTaskIds: [],
     });
   } finally {
     await manager.closeAgent(agent.id);

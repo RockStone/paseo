@@ -67,6 +67,7 @@ import type {
 } from "@getpaseo/protocol/agent-types";
 import type { AgentScreenAgent } from "@/hooks/use-agent-screen-state-machine";
 import { useSessionStore } from "@/stores/session-store";
+import { useShallow } from "zustand/react/shallow";
 import { useRevealedText } from "@/hooks/use-revealed-text";
 import { useFileExplorerActions } from "@/hooks/use-file-explorer-actions";
 import { useLoadOlderAgentHistory } from "@/hooks/use-load-older-agent-history";
@@ -309,6 +310,7 @@ const AGENT_CAPABILITY_FLAG_KEYS: (keyof AgentCapabilityFlags)[] = [
 ];
 
 const EMPTY_STREAM_HEAD: StreamItem[] = [];
+const EMPTY_BACKGROUND_TASK_IDS: string[] = [];
 
 function useRetainedValue<T>(value: T, active: boolean): T {
   const retainedRef = useRef(value);
@@ -383,6 +385,13 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const transformTimelineItem = useInstalledTimelineTransform(resolvedServerId);
 
     const client = useSessionStore((state) => state.sessions[resolvedServerId]?.client ?? null);
+    const backgroundTaskIds = useSessionStore(
+      useShallow((state) => {
+        const session = state.sessions[resolvedServerId];
+        const agent = session?.agents.get(agentId) ?? session?.agentDetails.get(agentId);
+        return agent?.backgroundTaskIds ?? EMPTY_BACKGROUND_TASK_IDS;
+      }),
+    );
     const sessionStreamHead = useSessionStore((state) =>
       state.sessions[resolvedServerId]?.agentStreamHead?.get(agentId),
     );
@@ -528,6 +537,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     // the component reads the current (fresh) streamItems/streamHead from props.
     const effectiveStreamItems = useRetainedValue(streamItems, isActive);
     const effectiveStreamHead = useRetainedValue(streamHead, isActive);
+    const effectiveBackgroundTaskIds = useRetainedValue(backgroundTaskIds, isActive);
     const readSelectionSource = useStableEvent(() => [
       ...effectiveStreamItems,
       ...(effectiveStreamHead ?? []),
@@ -557,6 +567,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           transform: transformTimelineItem,
           level: toolCallDetailLevel,
           isTurnActive,
+          backgroundTaskIds: effectiveBackgroundTaskIds,
         }),
       [
         presentStream,
@@ -565,6 +576,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         transformTimelineItem,
         toolCallDetailLevel,
         isTurnActive,
+        effectiveBackgroundTaskIds,
       ],
     );
     const {
@@ -849,6 +861,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               toolName={data.name}
               error={data.error}
               status={data.status}
+              isBackgroundRunning={item.isBackgroundRunning}
               detail={data.detail}
               cwd={context.cwd}
               serverId={resolvedServerId}
