@@ -56,6 +56,9 @@ test.describe("Workspace pane mounting", () => {
       page,
     }, testInfo) => {
       const workspace = await seedWorkspace({ repoPrefix: "split-active-tab-" });
+      const paneTabRows = page
+        .locator('[data-testid^="workspace-pane-"]')
+        .getByTestId("workspace-tabs-row");
       try {
         const first = await createMockIdleAgent(workspace.client, {
           cwd: workspace.repoPath,
@@ -73,11 +76,11 @@ test.describe("Workspace pane mounting", () => {
         const firstTab = page.getByTestId(`workspace-tab-agent_${first.id}`);
         const secondTab = page.getByTestId(`workspace-tab-agent_${second.id}`);
         await firstTab.click();
-        await expect(page.getByTestId("workspace-tabs-row")).toHaveCount(1);
+        await expect(paneTabRows).toHaveCount(1);
         await page.getByTestId("workspace-split-pane-menu").click();
         await page.getByTestId(`workspace-split-pane-${direction}`).click();
 
-        await expect(page.getByTestId("workspace-tabs-row")).toHaveCount(2);
+        await expect(paneTabRows).toHaveCount(2);
         await expect(page.getByTestId("workspace-new-tab-panel")).toHaveCount(0);
         await expect(firstTab).toHaveCount(1);
         await expect(secondTab).toHaveCount(1);
@@ -94,7 +97,7 @@ test.describe("Workspace pane mounting", () => {
         // Each pane now has one tab, even though the workspace has two.
         await page.getByTestId("workspace-split-pane-menu").last().click();
         await page.getByTestId(`workspace-split-pane-${direction}`).click();
-        await expect(page.getByTestId("workspace-tabs-row")).toHaveCount(3);
+        await expect(paneTabRows).toHaveCount(3);
         await expect(page.getByTestId("workspace-new-tab-panel")).toHaveCount(1);
         await expect(firstTab).toHaveCount(1);
         await expect(secondTab).toHaveCount(1);

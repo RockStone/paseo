@@ -67,6 +67,11 @@ export type WorkspaceTabMenuEntry =
   | {
       kind: "separator";
       key: string;
+    }
+  | {
+      /** Where the file tab's "Open with…" row goes; it renders only for files with several panels. */
+      kind: "file-panel-open-with";
+      key: string;
     };
 
 interface BuildWorkspaceTabMenuEntriesInput {
@@ -251,6 +256,7 @@ export function buildWorkspaceTabMenuEntries(
         void onCopyFilePath(filePath);
       },
     });
+    entries.push({ kind: "file-panel-open-with", key: "file-panel-open-with" });
   }
 
   if (tab.target.kind === "agent" || tab.target.kind === "terminal") {
@@ -379,7 +385,7 @@ export function buildAgentRowMenuEntries(input: {
     onCloseOtherTabs: ignoreTabAction,
   }).filter((entry) => !TAB_ORDERING_ACTIONS.has(entry.key));
   for (const entry of entries) {
-    if (entry.kind === "separator") continue;
+    if (entry.kind !== "item") continue;
     if (entry.key === "close") entry.disabled = !input.canClose;
     if (entry.key === "reload-agent") entry.disabled = input.reloading;
     if (entry.key === "archive-agent") entry.disabled = input.archiving;

@@ -158,13 +158,12 @@ function ManagedAgentMenu({
           {children}
         </ContextMenuTrigger>
         <ContextMenuContent width={220} testID={`sidebar-agent-context-menu-${agentId}`}>
-          {entries.map((entry) =>
-            entry.kind === "separator" ? (
-              <ContextMenuSeparator key={entry.key} />
-            ) : (
-              <WorkspaceTabContextMenuItem key={entry.key} entry={entry} />
-            ),
-          )}
+          {entries.map((entry) => {
+            if (entry.kind === "separator") return <ContextMenuSeparator key={entry.key} />;
+            if (entry.kind === "item")
+              return <WorkspaceTabContextMenuItem key={entry.key} entry={entry} />;
+            return null;
+          })}
         </ContextMenuContent>
       </ContextMenu>
       <WorkspaceTabRenameModal

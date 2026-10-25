@@ -182,48 +182,6 @@ function ShellDetailSection({ command, output, ds }: ShellDetailProps) {
   );
 }
 
-interface WorktreeSetupDetailProps {
-  log: string;
-  branchName: string;
-  worktreePath: string;
-  ds: DetailStyles;
-}
-
-function WorktreeSetupDetailSection({
-  log,
-  branchName,
-  worktreePath,
-  ds,
-}: WorktreeSetupDetailProps) {
-  const setupLog = log.replace(/^\n+/, "");
-  const hasLog = setupLog.length > 0;
-  return (
-    <View style={ds.sectionFillStyle}>
-      <View style={ds.codeBlockFillStyle}>
-        <ScrollView
-          style={ds.codeVerticalScrollStyle}
-          contentContainerStyle={styles.codeVerticalContent}
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
-        >
-          <ScrollView
-            horizontal
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator
-            contentContainerStyle={styles.codeHorizontalContent}
-          >
-            <View style={styles.codeLine} dataSet={CODE_SURFACE_DATASET}>
-              <Text selectable style={styles.scrollText}>
-                {hasLog ? setupLog : `Preparing worktree ${branchName} at ${worktreePath}`}
-              </Text>
-            </View>
-          </ScrollView>
-        </ScrollView>
-      </View>
-    </View>
-  );
-}
-
 function resolveSubAgentFallbackHeader(
   subAgentType: string | null | undefined,
   description: string | null | undefined,
@@ -682,17 +640,7 @@ function buildDetailSections(
       <ShellDetailSection key="shell" command={detail.command} output={detail.output} ds={ds} />,
     ];
   }
-  if (detail.type === "worktree_setup") {
-    return [
-      <WorktreeSetupDetailSection
-        key="worktree-setup"
-        log={detail.log}
-        branchName={detail.branchName}
-        worktreePath={detail.worktreePath}
-        ds={ds}
-      />,
-    ];
-  }
+  if (detail.type === "worktree_setup") return [];
   if (detail.type === "sub_agent") {
     return [
       <SubAgentDetailSection

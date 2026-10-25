@@ -13,6 +13,7 @@ import { expectTerminalOutputContains } from "../support/helpers/new-workspace-l
 import { createTempGitRepo } from "../support/helpers/workspace";
 import {
   connectWorkspaceSetupClient,
+  setupCommandOutput,
   createWorkspaceThroughDaemon,
   openWorkspaceScriptsMenu,
   seedProjectForWorkspaceSetup,
@@ -148,7 +149,9 @@ test("scripts menu resizes when a service row grows after launch", async ({ page
     await seedProjectForWorkspaceSetup(client, repo.path);
     const completed = waitForWorkspaceSetupProgress(
       client,
-      (payload) => payload.status === "completed" && payload.detail.log.includes("setup complete"),
+      (payload) =>
+        payload.status === "completed" &&
+        setupCommandOutput(payload.detail).includes("setup complete"),
     );
     const workspace = await createWorkspaceThroughDaemon(client, {
       cwd: repo.path,

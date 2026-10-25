@@ -330,11 +330,11 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
   }, []);
   const [followOutput, setFollowOutputr] = useState(true);
   const followOutputRef = useRef(followOutput);
-  const setFollowOutput = (value: boolean) => {
+  const setFollowOutput = useCallback((value: boolean) => {
     followOutputRef.current = value;
     setFollowOutputr(value);
     return value;
-  };
+  }, []);
   const lastKnownScrollTopRef = useRef(0);
   const mouseScrollGestureRef = useRef<
     | { kind: "scrollbar"; pointerId: number }
@@ -815,6 +815,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     evaluateHistoryStart();
   }, [
     evaluateHistoryStart,
+    setFollowOutput,
     isJumpSettling,
     readingAnchor,
     stopFollowingOutputFromUserIntent,
@@ -865,6 +866,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     };
   }, [
     activationKey,
+    setFollowOutput,
     forceStickToBottom,
     hasRouteBottomAnchorRequest,
     isActivationReady,
@@ -1123,27 +1125,49 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     const handleTouchEnd = () => {
       lastTouchClientYRef.current = null;
     };
-    const handleSelectionChange = () => {
+    let selectionGesture: { followed: boolean; selected: boolean } | null = null;
+    const hasTranscriptSelection = () => {
       const selection = document.getSelection();
       const content = contentRef.current;
-      if (
-        !followOutputRef.current ||
-        !content ||
-        !selection ||
-        selection.isCollapsed ||
-        selection.rangeCount !== 1
-      )
-        return;
+      if (!content || !selection || selection.isCollapsed || selection.rangeCount !== 1)
+        return false;
       const range = selection.getRangeAt(0);
+      return (
+        content.contains(range.startContainer) &&
+        content.contains(range.endContainer) &&
+        !isEditableEventTarget(range.startContainer.parentElement)
+      );
+    };
+    const handleSelectionStart = (event: Event) => {
       if (
-        !content.contains(range.startContainer) ||
-        !content.contains(range.endContainer) ||
-        isEditableEventTarget(range.startContainer.parentElement)
+        !(event.target instanceof Node) ||
+        !contentRef.current?.contains(event.target) ||
+        isEditableEventTarget(event.target)
       )
         return;
-      // Selecting transcript text is reading intent. Copy/Reply may outlive the DOM
-      // range during streaming, so only an explicit return to the bottom resumes follow.
-      stopFollowingOutputFromUserIntent();
+      selectionGesture = { followed: followOutputRef.current, selected: false };
+      // Commit the pause before the browser anchors its native range. Waiting for
+      // selectionchange lets streaming scroll the line away during that first drag.
+      flushSync(() => stopFollowingOutputFromUserIntent());
+    };
+    const finishSelectionGesture = () => {
+      const gesture = selectionGesture;
+      selectionGesture = null;
+      if (!gesture || gesture.selected || hasTranscriptSelection() || !gesture.followed) return;
+      // A plain click also starts a native selection; resume if it selected nothing.
+      setFollowOutput(true);
+      forceStickToBottom();
+    };
+    const handleSelectionChange = () => {
+      if (!hasTranscriptSelection()) return;
+      if (selectionGesture) selectionGesture.selected = true;
+      // Copy/Reply may outlive the DOM range during streaming. Only an explicit
+      // return to the bottom resumes following after a real selection.
+      if (followOutputRef.current) stopFollowingOutputFromUserIntent();
+    };
+    const handleSelectionBlur = () => {
+      finishSelectionGesture();
+      clearMouseScrollGesture();
     };
 
     // Read user movement before the virtualizer's bubbling listener flushes a
@@ -1155,7 +1179,10 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
     window.addEventListener("pointerup", handlePointerEnd, { passive: true });
     window.addEventListener("pointercancel", handlePointerCancel, { passive: true });
-    window.addEventListener("blur", clearMouseScrollGesture);
+    window.addEventListener("blur", handleSelectionBlur);
+    window.addEventListener("pointerup", finishSelectionGesture, true);
+    window.addEventListener("pointercancel", finishSelectionGesture, true);
+    scrollContainer.addEventListener("selectstart", handleSelectionStart, true);
     scrollContainer.addEventListener("touchstart", handleTouchStart, { passive: true });
     scrollContainer.addEventListener("touchmove", handleTouchMove, { passive: true });
     scrollContainer.addEventListener("touchend", handleTouchEnd, { passive: true });
@@ -1170,7 +1197,10 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerCancel);
-      window.removeEventListener("blur", clearMouseScrollGesture);
+      window.removeEventListener("blur", handleSelectionBlur);
+      window.removeEventListener("pointerup", finishSelectionGesture, true);
+      window.removeEventListener("pointercancel", finishSelectionGesture, true);
+      scrollContainer.removeEventListener("selectstart", handleSelectionStart, true);
       scrollContainer.removeEventListener("touchstart", handleTouchStart);
       scrollContainer.removeEventListener("touchmove", handleTouchMove);
       scrollContainer.removeEventListener("touchend", handleTouchEnd);
@@ -1186,6 +1216,8 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     markUpwardInputEvidence,
     rearmHistoryStartFromUserIntent,
     stopFollowingOutputFromUserIntent,
+    setFollowOutput,
+    forceStickToBottom,
   ]);
 
   useEffect(() => {
@@ -1216,6 +1248,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     forceStickToBottom,
     scheduleStickToBottom,
     scrollToMessage,
+    setFollowOutput,
     viewportRef,
   ]);
 

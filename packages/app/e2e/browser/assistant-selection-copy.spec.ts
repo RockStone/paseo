@@ -120,8 +120,8 @@ async function selectStructuredClipboardFixture(page: Page): Promise<void> {
   await selectAssistantTextRange(page, "Direct matches:", "ready");
 }
 
-async function dragSelectVisiblePassage(page: Page): Promise<string> {
-  const points = await page
+async function visiblePassageDragPoints(page: Page) {
+  return page
     .getByTestId("agent-chat-scroll")
     .filter({ visible: true })
     .evaluate((feed) => {
@@ -148,6 +148,10 @@ async function dragSelectVisiblePassage(page: Page): Promise<string> {
         y2: last.top + last.height / 2,
       };
     });
+}
+
+async function dragSelectVisiblePassage(page: Page): Promise<string> {
+  const points = await visiblePassageDragPoints(page);
   await page.mouse.move(points.x1, points.y1);
   await page.mouse.down();
   await page.mouse.move(points.x2, points.y2, { steps: 12 });
@@ -193,6 +197,13 @@ test("holds the reading position while selecting streamed text and using Copy or
     await expect(composerLocator(page)).toBeVisible();
     await agent.client.sendAgentMessage(agent.agentId, "Stream passages for text selection.");
     await waitForScrollableChat(page, { minScrollableDistance: 400, timeout: 30_000 });
+    await expectNearBottom(page);
+    const click = await visiblePassageDragPoints(page);
+    await page.mouse.click(click.x1 + 10, click.y1);
+    const afterClick = await readScrollMetrics(page);
+    await expect
+      .poll(async () => (await readScrollMetrics(page)).contentHeight)
+      .toBeGreaterThan(afterClick.contentHeight + 100);
     await expectNearBottom(page);
     const selected = await dragSelectVisiblePassage(page);
     const before = await readScrollMetrics(page);

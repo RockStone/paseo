@@ -19,7 +19,6 @@ import {
   Platform,
   Modal,
   Pressable,
-  StatusBar,
   Text,
   View,
   type TextProps,
@@ -489,11 +488,10 @@ export function TooltipContent({
       return () => {};
     }
 
-    const statusBarHeight = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
     let cancelled = false;
 
     void measureElement(ctx.triggerRef.current).then((rect) => {
-      if (!cancelled) setTriggerRect({ ...rect, y: rect.y + statusBarHeight });
+      if (!cancelled) setTriggerRect(rect);
       return undefined;
     });
 

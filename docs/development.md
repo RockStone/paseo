@@ -31,7 +31,7 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 ## Paseoi custom desktop build
 
-Paseoi branches are named `paseoi/<name>`; `paseoi/v0.12.0` is the current base. The build adds desktop/browser selection replies. Select
+The v0.13.0 integration branch is `pasio/v0.13.0`; `paseoi/v0.12.0` retains the previous custom build. The build adds desktop/browser selection replies. Select
 chat text, including Thinking, commands, tool output, or assistant messages, and
 release the drag to show **Copy | Reply**. Choose **Reply** to append an editable Markdown quote to the current draft, then
 type your comment. **Copy**, beside Reply with a divider, writes the selected excerpt
@@ -89,6 +89,9 @@ file references. The outgoing mapping ties each label to its uploaded file path;
 saved messages retain the mapping as link details. These IDs identify attachments,
 not file paths or tool resources. Inline code uses the active theme's accent,
 surface, and border colors.
+
+Sidebar workspaces default to **Last activity**. Display → Sort also offers
+**Created**, **Last prompt**, and **Manual**; these keep upstream ordering semantics.
 
 Sidebar thread trees show recorded coordinator/child relationships, including
 nested managed and provider-native children. Click a thread to open it, or its

@@ -1,3 +1,4 @@
+import type { AgentAddress } from "@getpaseo/protocol/addresses";
 import { memo, useCallback, type ReactElement } from "react";
 import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
 import { ComposerGitStatusPill } from "@/composer/git-status-pill";
@@ -36,8 +37,8 @@ import { openComposerChanges } from "@/workspace-tabs/open-supporting-view";
 export const AgentTracks = memo(function AgentTracks({
   serverId,
   workspaceId,
-  agentId,
   cwd,
+  agentId,
   subagentRows,
   tasks,
   archiveFinishedStatus,
@@ -46,8 +47,8 @@ export const AgentTracks = memo(function AgentTracks({
 }: {
   serverId: string;
   workspaceId: string;
-  agentId: string;
   cwd: string;
+  agentId: string;
   subagentRows: SubagentRow[];
   tasks: TodoEntry[] | undefined;
   archiveFinishedStatus: ArchiveFinishedStatus;
@@ -69,8 +70,8 @@ export const AgentTracks = memo(function AgentTracks({
   const canDetachSubagents = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.agentDetach === true,
   );
-  const archiveSubagent = useArchiveSubagent({ serverId });
-  const detachSubagent = useDetachSubagent({ serverId });
+  const archiveSubagent = useArchiveSubagent();
+  const detachSubagent = useDetachSubagent();
   const openSubagentTarget = useCallback(
     (target: WorkspaceTabTarget) => {
       openPreferredWorkspaceTarget({
@@ -84,12 +85,15 @@ export const AgentTracks = memo(function AgentTracks({
     [openInSidePane, tabId, workspaceKey],
   );
   const handleOpenSubagent = useCallback(
-    (subagentId: string) => {
-      const session = useSessionStore.getState().sessions[serverId];
+    ({ serverId: targetServerId, agentId: subagentId }: AgentAddress) => {
+      const session = useSessionStore.getState().sessions[targetServerId];
       const agent = session?.agents.get(subagentId) ?? session?.agentDetails.get(subagentId);
       // A subagent in another workspace lives in that workspace's tabs.
-      if (agent?.workspaceId && agent.workspaceId !== workspaceId) {
-        navigateToAgent({ serverId, agentId: subagentId });
+      if (
+        targetServerId !== serverId ||
+        (agent?.workspaceId && agent.workspaceId !== workspaceId)
+      ) {
+        navigateToAgent({ serverId: targetServerId, agentId: subagentId });
         return;
       }
       openSubagentTarget({ kind: "agent", agentId: subagentId });
@@ -110,10 +114,9 @@ export const AgentTracks = memo(function AgentTracks({
     openComposerChanges({
       isCompact,
       workspaceKey,
-      checkout: { serverId, cwd, isGit: true },
       preferences: openInSidePane,
     });
-  }, [cwd, isCompact, openInSidePane, serverId, workspaceKey]);
+  }, [isCompact, openInSidePane, workspaceKey]);
 
   if (
     !hasWorkspaceDiffStat &&

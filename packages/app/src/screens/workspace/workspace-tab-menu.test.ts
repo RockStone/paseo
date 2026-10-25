@@ -370,6 +370,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
     }
     copyFilePathEntry.onSelect();
     expect(onCopyFilePath).toHaveBeenCalledWith("/some/path.ts");
+    expect(entries[1]).toEqual({ kind: "file-panel-open-with", key: "file-panel-open-with" });
   });
 
   it("uses a Changes close id for the working diff tab", () => {
