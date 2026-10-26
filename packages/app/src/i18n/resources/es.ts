@@ -2150,6 +2150,11 @@ export const es: TranslationResources = {
     },
   },
   toolCallDetails: {
+    stopCommand: "Detener comando",
+    stopping: "Deteniendo comando…",
+    stopRequested: "Detención solicitada",
+    stopFailed: "No se pudo detener el comando",
+
     error: "Error",
     empty: "No hay detalles adicionales disponibles",
     subAgentActivity: "Actividad de subagente",

@@ -1,3 +1,4 @@
+import { shellBackgroundTaskId } from "@/tool-calls/shell-task";
 import type { TimelineItemTransform } from "@/plugins/timeline/model";
 import { projectPluginTimelineItems } from "@/plugins/timeline/projection";
 import {
@@ -59,9 +60,7 @@ export function createStreamPresentation() {
     if (data.status !== "completed" || data.detail.type !== "shell") return item;
     // Claude's launch result identifies the job whose liveness comes from the
     // provider snapshot. Never infer liveness from this historical text alone.
-    const taskId = /^Command running in background with ID: ([\w-]+)\./m.exec(
-      data.detail.output ?? "",
-    )?.[1];
+    const taskId = shellBackgroundTaskId(data.detail);
     if (!taskId || !liveBackgroundTasks.has(taskId)) return item;
     const cached = backgroundTaskCache.get(item);
     if (cached) return cached;

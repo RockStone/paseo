@@ -61,6 +61,11 @@ older cancellation from settling a newer turn. If interruption is rejected or ti
 keeps its active foreground turn and replacement, reload, rewind, and Stop report the failure.
 Accepting new work after an ambiguous interruption would create a split-brain session.
 
+Expanded Shell details offer **Stop command** for live Claude tasks. This stops that
+command while the agent can continue its other work. An acknowledged stop remains pending
+until Claude reports the task outcome; a rejected stop stays visible and can be retried.
+Other providers need an individual-task control before exposing this action.
+
 ## Relationships
 
 Agents can launch other agents via the agent-scoped `create_agent` MCP tool. Agent-scoped creation is always asynchronous and always stamps `paseo.parent-agent-id`, pointing back at the caller. Omit `workspaceId` to use the caller's workspace, or pass an existing workspace ID returned by `create_workspace`. Placement never changes parentage.

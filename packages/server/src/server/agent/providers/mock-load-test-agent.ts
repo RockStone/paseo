@@ -54,6 +54,7 @@ const ONE_PIXEL_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl4Kj8AAAAASUVORK5CYII=";
 
 const CAPABILITIES: AgentCapabilityFlags = {
+  supportsShellStop: true,
   supportsStreaming: true,
   supportsSessionPersistence: true,
   supportsSessionListing: true,
@@ -1057,6 +1058,42 @@ export class MockLoadTestAgentSession implements AgentSession {
         modeId: this.modeId,
       },
     };
+  }
+
+  async stopShellCommand(toolCallId: string): Promise<void> {
+    const turn = this.activeTurn;
+    const event = this.history.findLast(
+      (entry) =>
+        entry.type === "timeline" &&
+        entry.item.type === "tool_call" &&
+        entry.item.callId === toolCallId,
+    );
+    if (
+      !turn ||
+      toolCallId !== `${turn.turnId}:steering-replay-shell` ||
+      event?.type !== "timeline" ||
+      event.item.type !== "tool_call" ||
+      event.item.status !== "running" ||
+      event.item.detail.type !== "shell"
+    ) {
+      throw new Error("This Shell command is no longer running.");
+    }
+    this.clearTurnTimer(turn);
+    this.emitTimeline(
+      turn.turnId,
+      createToolCall({
+        callId: toolCallId,
+        name: "bash",
+        status: "canceled",
+        detail: { ...event.item.detail, output: "Command stopped by user." },
+      }),
+    );
+    this.emitTimeline(turn.turnId, {
+      type: "assistant_message",
+      text: "Shell command stopped.",
+      messageId: turn.assistantMessageId,
+    });
+    this.finishTurnWithText(turn, "Shell command stopped.");
   }
 
   async interrupt(): Promise<void> {

@@ -2120,6 +2120,11 @@ export const ja: TranslationResources = {
     },
   },
   toolCallDetails: {
+    stopCommand: "コマンドを停止",
+    stopping: "コマンドを停止中…",
+    stopRequested: "停止を要求しました",
+    stopFailed: "コマンドを停止できませんでした",
+
     error: "エラー",
     empty: "追加の詳細はありません",
     subAgentActivity: "サブエージェントアクティビティ",

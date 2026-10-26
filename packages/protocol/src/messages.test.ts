@@ -613,3 +613,25 @@ test.each(["all", "base", "uncommitted"] as const)(
     expect(parsed.attachments).toEqual([attachment]);
   },
 );
+
+test("Shell stop addresses one tool call and accepts a correlated provider refusal", () => {
+  const request = {
+    type: "agent.shell.stop.request",
+    agentId: "agent-1",
+    toolCallId: "shell-1",
+    requestId: "stop-1",
+  };
+  expect(SessionInboundMessageSchema.parse(request)).toEqual(request);
+  expect(SessionInboundMessageSchema.safeParse({ ...request, toolCallId: "" }).success).toBe(false);
+  const response = {
+    type: "agent.shell.stop.response",
+    payload: {
+      requestId: "stop-1",
+      agentId: "agent-1",
+      toolCallId: "shell-1",
+      ok: false,
+      error: "Task already finished",
+    },
+  };
+  expect(SessionOutboundMessageSchema.parse(response)).toEqual(response);
+});

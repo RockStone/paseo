@@ -2135,6 +2135,11 @@ export const ptBR: TranslationResources = {
     },
   },
   toolCallDetails: {
+    stopCommand: "Parar comando",
+    stopping: "Parando comando…",
+    stopRequested: "Parada solicitada",
+    stopFailed: "Não foi possível parar o comando",
+
     error: "Erro",
     empty: "Nenhum detalhe adicional disponível",
     subAgentActivity: "Atividade do subagente",

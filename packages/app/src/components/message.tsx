@@ -1,3 +1,4 @@
+import { shellBackgroundTaskId } from "@/tool-calls/shell-task";
 import { buildRewoundComposerMessage } from "@/components/rewind/attachments";
 import { useToast } from "@/contexts/toast-context";
 import { useTranscriptSectionExpanded } from "@/agent-stream/section-expansion";
@@ -2332,6 +2333,8 @@ function areExpandableBadgePropsEqual(previous: ExpandableBadgeProps, next: Expa
 }
 
 interface ToolCallProps {
+  agentId?: string;
+  toolCallId?: string;
   agentMessage?: AgentMessage;
   serverId?: string;
   toolName: string;
@@ -2355,6 +2358,8 @@ interface ToolCallProps {
 }
 
 export const ToolCall = memo(function ToolCall({
+  agentId,
+  toolCallId,
   agentMessage,
   serverId,
   toolName,
@@ -2377,6 +2382,24 @@ export const ToolCall = memo(function ToolCall({
   maxDetailHeight = 400,
 }: ToolCallProps) {
   const { openToolCall } = useToolCallSheet();
+  const shellStopTarget = useMemo(
+    () =>
+      agentId &&
+      serverId &&
+      toolCallId &&
+      detail?.type === "shell" &&
+      (status === "running" || status === "executing" || isBackgroundRunning)
+        ? {
+            serverId,
+            agentId,
+            toolCallId,
+            backgroundTaskId: isBackgroundRunning
+              ? (shellBackgroundTaskId(detail) ?? undefined)
+              : undefined,
+          }
+        : undefined,
+    [agentId, serverId, toolCallId, detail, status, isBackgroundRunning],
+  );
 
   const isMobile = useIsCompactFormFactor();
   const shouldRenderInline = !isMobile || forceInline;
@@ -2447,6 +2470,7 @@ export const ToolCall = memo(function ToolCall({
         icon: presentation.icon,
         showLoadingSkeleton: presentation.isLoadingDetails,
         muted: !presentation.emphasized,
+        shellStopTarget,
       });
     } else {
       setIsExpanded((prev) => !prev);
@@ -2463,6 +2487,7 @@ export const ToolCall = memo(function ToolCall({
     presentation.icon,
     presentation.isLoadingDetails,
     presentation.emphasized,
+    shellStopTarget,
   ]);
 
   useEffect(() => {
@@ -2498,6 +2523,7 @@ export const ToolCall = memo(function ToolCall({
     return (
       <ToolCallDetailsContent
         muted={!presentation.emphasized}
+        shellStopTarget={shellStopTarget}
         toolName={toolName}
         detail={presentation.detail}
         errorText={presentation.errorText}
@@ -2513,6 +2539,7 @@ export const ToolCall = memo(function ToolCall({
     presentation.isLoadingDetails,
     maxDetailHeight,
     presentation.emphasized,
+    shellStopTarget,
   ]);
 
   if (presentation.isPlan && effectiveDetail?.type === "plan") {
@@ -2548,9 +2575,17 @@ export const ToolCall = memo(function ToolCall({
   );
 }, areToolCallPropsEqual);
 
+function sameToolCallTarget(previous: ToolCallProps, next: ToolCallProps) {
+  return (
+    previous.serverId === next.serverId &&
+    previous.agentId === next.agentId &&
+    previous.toolCallId === next.toolCallId
+  );
+}
+
 function areToolCallPropsEqual(previous: ToolCallProps, next: ToolCallProps) {
+  if (!sameToolCallTarget(previous, next)) return false;
   if (previous.toolName !== next.toolName) return false;
-  if (previous.serverId !== next.serverId) return false;
   if (previous.agentMessage !== next.agentMessage) return false;
   if (previous.args !== next.args) return false;
   if (previous.result !== next.result) return false;

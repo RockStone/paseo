@@ -2133,6 +2133,11 @@ export const ru: TranslationResources = {
     },
   },
   toolCallDetails: {
+    stopCommand: "Остановить команду",
+    stopping: "Остановка команды…",
+    stopRequested: "Остановка запрошена",
+    stopFailed: "Не удалось остановить команду",
+
     error: "Ошибка",
     empty: "Дополнительные сведения отсутствуют",
     subAgentActivity: "Активность субагента",

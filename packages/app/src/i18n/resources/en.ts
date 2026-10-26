@@ -2127,6 +2127,11 @@ export const en = {
     },
   },
   toolCallDetails: {
+    stopCommand: "Stop command",
+    stopping: "Stopping command…",
+    stopRequested: "Stop requested",
+    stopFailed: "Failed to stop command",
+
     error: "Error",
     empty: "No additional details available",
     subAgentActivity: "Sub-agent activity",

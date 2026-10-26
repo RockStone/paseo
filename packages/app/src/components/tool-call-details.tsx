@@ -1,5 +1,10 @@
-import React, { useMemo, type ReactNode } from "react";
+import React, { useCallback, useMemo, type ReactNode } from "react";
 import { View, ScrollView as RNScrollView, type StyleProp, type ViewStyle } from "react-native";
+import { Square } from "lucide-react-native";
+import { Button } from "./ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
+import { useShellStop, type ShellStopTarget } from "@/tool-calls/use-shell-stop";
+import { Text as NativeText, type GestureResponderEvent } from "react-native";
 import { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native-unistyles";
 import type { TFunction } from "i18next";
@@ -26,6 +31,7 @@ const ScrollView = isWeb ? RNScrollView : GHScrollView;
 // ---- Content Component ----
 
 interface ToolCallDetailsContentProps {
+  shellStopTarget?: ShellStopTarget;
   muted?: boolean;
   toolName?: string;
   detail?: ToolCallDetail;
@@ -144,39 +150,109 @@ function useDiffLines(detail: ToolCallDetail | undefined): DiffLine[] | undefine
 }
 
 interface ShellDetailProps {
+  shellStopTarget?: ShellStopTarget;
   command: string;
   output: string | null | undefined;
   ds: DetailStyles;
 }
 
-function ShellDetailSection({ command, output, ds }: ShellDetailProps) {
+function ShellCommandOutput({ command, output, ds }: ShellDetailProps) {
   const normalizedCommand = command.replace(/\n+$/, "");
   const commandOutput = (output ?? "").replace(/^\n+/, "");
-  const hasOutput = commandOutput.length > 0;
+  return (
+    <ScrollView
+      style={ds.codeVerticalScrollStyle}
+      contentContainerStyle={styles.codeVerticalContent}
+      nestedScrollEnabled
+      showsVerticalScrollIndicator
+    >
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        showsHorizontalScrollIndicator
+        contentContainerStyle={styles.codeHorizontalContent}
+      >
+        <View style={styles.codeLine} dataSet={CODE_SURFACE_DATASET}>
+          <Text selectable style={styles.scrollText}>
+            <Text style={styles.shellPrompt}>$ </Text>
+            {normalizedCommand}
+            {commandOutput ? `\n\n${commandOutput}` : ""}
+          </Text>
+        </View>
+      </ScrollView>
+    </ScrollView>
+  );
+}
+
+function ShellStopAction({
+  label,
+  phase,
+  onStop,
+}: {
+  label: string;
+  phase: "idle" | "pending" | "requested";
+  onStop: () => Promise<void>;
+}) {
+  const handlePress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      void onStop();
+    },
+    [onStop],
+  );
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          style={styles.shellStopButton}
+          testID="shell-command-stop"
+          accessibilityLabel={label}
+          disabled={phase !== "idle"}
+          aria-busy={phase === "pending"}
+          loading={phase === "pending"}
+          leftIcon={Square}
+          onPress={handlePress}
+        />
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function ShellDetailSection({ command, output, ds, shellStopTarget }: ShellDetailProps) {
+  const { t } = useTranslation();
+  const control = useShellStop(shellStopTarget);
+  const labelKey = {
+    idle: "stopCommand",
+    pending: "stopping",
+    requested: "stopRequested",
+  } as const;
+  const label = t(`toolCallDetails.${labelKey[control.phase]}`);
   return (
     <View style={ds.sectionFillStyle}>
       <View style={ds.codeBlockFillStyle}>
-        <ScrollView
-          style={ds.codeVerticalScrollStyle}
-          contentContainerStyle={styles.codeVerticalContent}
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
-        >
-          <ScrollView
-            horizontal
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator
-            contentContainerStyle={styles.codeHorizontalContent}
+        <View style={[styles.shellCommandRow, ds.shouldFill && styles.fillHeight]}>
+          <View style={styles.shellCommandText}>
+            <ShellCommandOutput command={command} output={output} ds={ds} />
+          </View>
+          {control.supported ? (
+            <ShellStopAction label={label} phase={control.phase} onStop={control.stop} />
+          ) : null}
+        </View>
+        {control.phase === "requested" ? (
+          <NativeText style={styles.shellStopStatus}>{label}</NativeText>
+        ) : null}
+        {control.error ? (
+          <NativeText
+            accessibilityRole="alert"
+            testID="shell-command-stop-error"
+            style={styles.shellStopError}
           >
-            <View style={styles.codeLine} dataSet={CODE_SURFACE_DATASET}>
-              <Text selectable style={styles.scrollText}>
-                <Text style={styles.shellPrompt}>$ </Text>
-                {normalizedCommand}
-                {hasOutput ? `\n\n${commandOutput}` : ""}
-              </Text>
-            </View>
-          </ScrollView>
-        </ScrollView>
+            {control.error}
+          </NativeText>
+        ) : null}
       </View>
     </View>
   );
@@ -633,11 +709,18 @@ function buildDetailSections(
   diffLines: DiffLine[] | undefined,
   ds: DetailStyles,
   t: TFunction,
+  shellStopTarget?: ShellStopTarget,
 ): ReactNode[] {
   if (!detail) return [];
   if (detail.type === "shell") {
     return [
-      <ShellDetailSection key="shell" command={detail.command} output={detail.output} ds={ds} />,
+      <ShellDetailSection
+        key="shell"
+        command={detail.command}
+        output={detail.output}
+        ds={ds}
+        shellStopTarget={shellStopTarget}
+      />,
     ];
   }
   if (detail.type === "worktree_setup") return [];
@@ -747,6 +830,7 @@ function ToolCallDetailsBody({
   maxHeight,
   fillAvailableHeight = false,
   showLoadingSkeleton = false,
+  shellStopTarget,
 }: ToolCallDetailsContentProps) {
   const { t } = useTranslation();
   const resolvedMaxHeight = fillAvailableHeight ? undefined : (maxHeight ?? 300);
@@ -765,7 +849,14 @@ function ToolCallDetailsBody({
     return <ScrollablePlainTextSection text={thinkingText.trimEnd()} ds={ds} muted />;
   }
 
-  const sections: ReactNode[] = buildDetailSections(toolName, detail, diffLines, ds, t);
+  const sections: ReactNode[] = buildDetailSections(
+    toolName,
+    detail,
+    diffLines,
+    ds,
+    t,
+    shellStopTarget,
+  );
 
   if (errorText) {
     sections.push(<ErrorSection key="error" errorText={errorText} ds={ds} />);
@@ -787,6 +878,27 @@ const styles = StyleSheet.create((theme) => {
   const insets = getCodeInsets(theme);
 
   return {
+    shellCommandRow: { flexDirection: "row", alignItems: "flex-start" },
+    shellCommandText: { flex: 1, minWidth: 0 },
+    shellStopButton: {
+      width: 28,
+      height: 28,
+      padding: 0,
+      marginTop: theme.spacing[1],
+      marginRight: theme.spacing[2],
+    },
+    shellStopError: {
+      color: theme.colors.destructive,
+      fontSize: theme.fontSize.sm,
+      paddingHorizontal: theme.spacing[3],
+      paddingBottom: theme.spacing[2],
+    },
+    shellStopStatus: {
+      color: theme.colors.foregroundMuted,
+      fontSize: theme.fontSize.sm,
+      paddingHorizontal: theme.spacing[3],
+      paddingBottom: theme.spacing[2],
+    },
     paddedContainer: {
       gap: theme.spacing[4],
       padding: 0,

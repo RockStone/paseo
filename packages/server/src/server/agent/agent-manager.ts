@@ -3158,6 +3158,14 @@ export class AgentManager {
     }
   }
 
+  async stopShellCommand(agentId: string, toolCallId: string): Promise<void> {
+    const agent = this.requireSessionAgent(agentId);
+    if (!agent.session?.stopShellCommand) {
+      throw new Error("This provider does not support stopping individual Shell commands.");
+    }
+    await agent.session.stopShellCommand(toolCallId);
+  }
+
   async cancelAgentRun(agentId: string): Promise<AgentRunCancellationResult> {
     return this.runForegroundMutation(agentId, () => this.cancelAgentRunNow(agentId));
   }

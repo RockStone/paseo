@@ -5885,3 +5885,38 @@ test("a failing direct source observes fire-and-forget file replies without unha
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test.each([null, "Provider refused stop"])(
+  "Shell stop returns correlated success or actionable failure: %s",
+  async (failure) => {
+    const messages: SessionOutboundMessage[] = [];
+    const stopShellCommand = vi.fn(async () => {
+      if (failure) throw new Error(failure);
+    });
+    const cancelAgentRun = vi.fn();
+    const session = createSessionForTest({
+      messages,
+      agentManager: { stopShellCommand, cancelAgentRun },
+    });
+    await session.handleMessage({
+      type: "agent.shell.stop.request",
+      agentId: "agent-a",
+      toolCallId: "shell-a",
+      requestId: "stop-a",
+    });
+    expect(stopShellCommand.mock.calls).toEqual([["agent-a", "shell-a"]]);
+    expect(cancelAgentRun).not.toHaveBeenCalled();
+    expect(messages).toEqual([
+      {
+        type: "agent.shell.stop.response",
+        payload: {
+          agentId: "agent-a",
+          toolCallId: "shell-a",
+          requestId: "stop-a",
+          ok: failure === null,
+          error: failure,
+        },
+      },
+    ]);
+  },
+);

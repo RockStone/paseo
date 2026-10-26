@@ -21,6 +21,7 @@ type OptionalAgentSessionMethodName = {
 }[keyof AgentSession];
 
 const OPTIONAL_AGENT_SESSION_METHOD_NAMES = [
+  "stopShellCommand",
   "steerActiveTurn",
   "listCommands",
   "setModel",
@@ -131,6 +132,10 @@ class FakeSession implements AgentSession {
     return null;
   }
 
+  async stopShellCommand() {
+    this.recordedCalls.push("stopShellCommand");
+  }
+
   async interrupt() {
     this.recordedCalls.push("interrupt");
   }
@@ -189,6 +194,7 @@ describe("wrapSessionProvider", () => {
     const session = new FakeSession();
     const wrapped = wrapSessionProvider("custom-claude", session);
 
+    await wrapped.stopShellCommand?.("shell-1");
     await wrapped.steerActiveTurn?.("follow-up", { expectedTurnId: "turn-1" });
     await wrapped.listCommands?.();
     await wrapped.setModel?.("sonnet");
@@ -204,6 +210,7 @@ describe("wrapSessionProvider", () => {
       { prompt: "follow-up", options: { expectedTurnId: "turn-1" } },
     ]);
     expect(session.recordedCalls).toEqual([
+      "stopShellCommand",
       "steerActiveTurn",
       "listCommands",
       "setModel",

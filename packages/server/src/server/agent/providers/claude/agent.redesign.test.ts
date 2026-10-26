@@ -8,6 +8,7 @@ import { streamSession } from "../test-utils/session-stream-adapter.js";
 import type { AgentStreamEvent, AgentTimelineItem } from "../../agent-sdk-types.js";
 
 interface QueryMock {
+  stopTask: ReturnType<typeof vi.fn>;
   next: ReturnType<typeof vi.fn>;
   interrupt: ReturnType<typeof vi.fn>;
   return: ReturnType<typeof vi.fn>;
@@ -48,6 +49,7 @@ function createPromptUuidReader(prompt: AsyncIterable<unknown>) {
 
 function createBaseQueryMock(nextImpl: QueryMock["next"]): QueryMock {
   return {
+    stopTask: vi.fn(async () => undefined),
     next: nextImpl,
     interrupt: vi.fn(async () => undefined),
     return: vi.fn(async () => undefined),
@@ -2199,6 +2201,281 @@ test("Claude's structured OAuth failure remains visible when its terminal result
       total_cost_usd: 0,
     });
     expect(events.some((event) => event.type === "turn_failed")).toBe(false);
+  } finally {
+    await session.close();
+  }
+});
+
+test("stops only the selected live Shell task without interrupting its turn or sibling", async () => {
+  const queryMock = createPendingQueryMock();
+  sdkQueryFactory.mockReturnValue(queryMock);
+  const session = await createSession();
+  const internal: SessionStateInternals = asInternals(session);
+  try {
+    const { turnId } = await session.startTurn("run two commands");
+    for (const [tool_use_id, task_id, is_backgrounded] of [
+      ["shell-a", "job-a", false],
+      ["shell-b", "job-b", true],
+    ] as const) {
+      await internal.routeSdkMessageFromPump(
+        {
+          type: "system",
+          subtype: "task_started",
+          task_type: "local_bash",
+          tool_use_id,
+          task_id,
+          is_backgrounded,
+          description: "test command",
+          uuid: task_id,
+          session_id: "sess-1",
+        },
+        queryMock,
+      );
+    }
+    await session.stopShellCommand!("shell-a");
+    expect(queryMock.stopTask.mock.calls).toEqual([["job-a"]]);
+    expect(queryMock.interrupt).not.toHaveBeenCalled();
+    expect(internal.activeForegroundTurnId).toBe(turnId);
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "shell-b",
+              name: "Bash",
+              input: { command: "sleep 5", run_in_background: true },
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+        uuid: "background-call",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    // Launch results can precede the full background snapshot. Keep the task's
+    // native mapping even though its original tool call is now completed.
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "shell-b",
+              content:
+                "Command running in background with ID: job-b. Output is being written to: /tmp/job-b.output.",
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+        uuid: "background-result",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    await internal.routeSdkMessageFromPump(successResult(), queryMock);
+    expect(internal.activeForegroundTurnId).toBeNull();
+    // A foreground turn finishing must not prevent stopping its background job.
+    await session.stopShellCommand!("shell-b");
+    expect(queryMock.stopTask.mock.calls).toEqual([["job-a"], ["job-b"]]);
+  } finally {
+    await session.close();
+  }
+});
+
+test("Shell stop rejects completed, sidechain and non-Shell tasks and allows retry after rejection", async () => {
+  const queryMock = createPendingQueryMock();
+  sdkQueryFactory.mockReturnValue(queryMock);
+  const session = await createSession();
+  const internal: SessionStateInternals = asInternals(session);
+  try {
+    await session.startTurn("run command");
+    const started = (tool_use_id: string, task_id: string, extra = {}) => ({
+      type: "system",
+      subtype: "task_started",
+      task_type: "local_bash",
+      tool_use_id,
+      task_id,
+      description: "test command",
+      uuid: task_id,
+      session_id: "sess-1",
+      ...extra,
+    });
+    await internal.routeSdkMessageFromPump(started("shell", "job"), queryMock);
+    await internal.routeSdkMessageFromPump(
+      started("nested-shell", "nested-job", { parent_tool_use_id: "child" }),
+      queryMock,
+    );
+    await internal.routeSdkMessageFromPump(
+      started("agent", "agent-job", { task_type: "local_agent" }),
+      queryMock,
+    );
+    await expect(session.stopShellCommand!("nested-shell")).rejects.toThrow("no longer running");
+    await expect(session.stopShellCommand!("agent")).rejects.toThrow("no longer running");
+    queryMock.stopTask.mockRejectedValueOnce(new Error("Provider refused stop"));
+    await expect(session.stopShellCommand!("shell")).rejects.toThrow("Provider refused stop");
+    await session.stopShellCommand!("shell");
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "system",
+        subtype: "task_notification",
+        task_id: "job",
+        status: "stopped",
+        summary: "stopped",
+        output_file: "/tmp/job.output",
+        uuid: "finished",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    await expect(session.stopShellCommand!("shell")).rejects.toThrow("no longer running");
+    expect(queryMock.stopTask.mock.calls).toEqual([["job"], ["job"]]);
+    expect(queryMock.interrupt).not.toHaveBeenCalled();
+  } finally {
+    await session.close();
+  }
+  await expect(session.stopShellCommand!("shell")).rejects.toThrow("no longer running");
+});
+
+test("Shell stop retires jobs omitted from a replacement background snapshot", async () => {
+  const queryMock = createPendingQueryMock();
+  sdkQueryFactory.mockReturnValue(queryMock);
+  const session = await createSession();
+  const internal: SessionStateInternals = asInternals(session);
+  try {
+    await session.startTurn("run background command");
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "system",
+        subtype: "task_started",
+        task_type: "local_bash",
+        tool_use_id: "shell",
+        task_id: "job",
+        is_backgrounded: true,
+        description: "test",
+        uuid: "start",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    for (const ids of [["job"], []]) {
+      await internal.routeSdkMessageFromPump(
+        {
+          type: "system",
+          subtype: "background_tasks_changed",
+          tasks: ids.map((task_id) => ({ task_id, task_type: "local_bash", description: "test" })),
+          uuid: "snapshot",
+          session_id: "sess-1",
+        },
+        queryMock,
+      );
+    }
+    await expect(session.stopShellCommand!("shell")).rejects.toThrow("no longer running");
+    expect(queryMock.stopTask).not.toHaveBeenCalled();
+  } finally {
+    await session.close();
+  }
+});
+
+test("Shell stop coalesces concurrent clicks and retires a task_updated-only terminal", async () => {
+  const queryMock = createPendingQueryMock();
+  sdkQueryFactory.mockReturnValue(queryMock);
+  const session = await createSession();
+  const internal: SessionStateInternals = asInternals(session);
+  let acknowledge!: () => void;
+  queryMock.stopTask.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        acknowledge = resolve;
+      }),
+  );
+  try {
+    await session.startTurn("run command");
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "system",
+        subtype: "task_started",
+        task_type: "local_bash",
+        tool_use_id: "shell",
+        task_id: "job",
+        description: "test",
+        uuid: "start",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    const first = session.stopShellCommand!("shell");
+    const second = session.stopShellCommand!("shell");
+    expect(queryMock.stopTask.mock.calls).toEqual([["job"]]);
+    acknowledge();
+    await Promise.all([first, second]);
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "system",
+        subtype: "task_updated",
+        task_id: "job",
+        patch: { status: "killed" },
+        uuid: "end",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    await expect(session.stopShellCommand!("shell")).rejects.toThrow("no longer running");
+    expect(queryMock.interrupt).not.toHaveBeenCalled();
+  } finally {
+    await session.close();
+  }
+});
+
+test("Shell stop retires a foreground command when its tool result arrives", async () => {
+  const queryMock = createPendingQueryMock();
+  sdkQueryFactory.mockReturnValue(queryMock);
+  const session = await createSession();
+  const internal: SessionStateInternals = asInternals(session);
+  try {
+    await session.startTurn("run command");
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", id: "shell", name: "Bash", input: { command: "echo done" } },
+          ],
+        },
+        parent_tool_use_id: null,
+        uuid: "call",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "system",
+        subtype: "task_started",
+        task_type: "local_bash",
+        tool_use_id: "shell",
+        task_id: "job",
+        description: "test",
+        uuid: "start",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    await internal.routeSdkMessageFromPump(
+      {
+        type: "user",
+        message: { content: [{ type: "tool_result", tool_use_id: "shell", content: "done" }] },
+        parent_tool_use_id: null,
+        uuid: "result",
+        session_id: "sess-1",
+      },
+      queryMock,
+    );
+    await expect(session.stopShellCommand!("shell")).rejects.toThrow("no longer running");
+    expect(queryMock.stopTask).not.toHaveBeenCalled();
   } finally {
     await session.close();
   }

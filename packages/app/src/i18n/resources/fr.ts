@@ -2147,6 +2147,11 @@ export const fr: TranslationResources = {
     },
   },
   toolCallDetails: {
+    stopCommand: "Arrêter la commande",
+    stopping: "Arrêt de la commande…",
+    stopRequested: "Arrêt demandé",
+    stopFailed: "Impossible d’arrêter la commande",
+
     error: "Erreur",
     empty: "Aucun détail supplémentaire disponible",
     subAgentActivity: "Activité du sous-agent",

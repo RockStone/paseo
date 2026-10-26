@@ -2078,6 +2078,11 @@ export const zhCN: TranslationResources = {
     },
   },
   toolCallDetails: {
+    stopCommand: "停止命令",
+    stopping: "正在停止命令…",
+    stopRequested: "已请求停止",
+    stopFailed: "无法停止命令",
+
     error: "错误",
     empty: "没有可用的更多详情",
     subAgentActivity: "Sub-agent 活动",

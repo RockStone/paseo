@@ -2100,6 +2100,11 @@ export const ar: TranslationResources = {
     },
   },
   toolCallDetails: {
+    stopCommand: "إيقاف الأمر",
+    stopping: "جارٍ إيقاف الأمر…",
+    stopRequested: "تم طلب الإيقاف",
+    stopFailed: "تعذر إيقاف الأمر",
+
     error: "خطأ",
     empty: "لا توجد تفاصيل إضافية متاحة",
     subAgentActivity: "نشاط الوكيل الفرعي",

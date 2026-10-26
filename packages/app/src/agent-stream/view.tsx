@@ -854,6 +854,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               itemId={item.id}
               onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
               toolName={data.name}
+              agentId={agentId}
+              toolCallId={data.callId}
               error={data.error}
               status={data.status}
               isBackgroundRunning={item.isBackgroundRunning}
@@ -884,7 +886,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           />
         );
       },
-      [context.cwd, resolvedServerId, setInlineDetailsExpanded, handleToolCallOpenFile],
+      [context.cwd, resolvedServerId, agentId, setInlineDetailsExpanded, handleToolCallOpenFile],
     );
 
     // Read through a stable event so live group updates do not change the renderer identity

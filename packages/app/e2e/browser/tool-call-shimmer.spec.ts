@@ -487,24 +487,140 @@ test("background Shell shimmer follows live task IDs through replacement and com
     });
     await openAgentRoute(page, agent);
     await expectComposerVisible(page);
+    const scroller = page.getByTestId("agent-chat-scroll").first();
+    await scroller.hover();
+    await page.mouse.wheel(0, -20_000);
     const a = page.getByTestId("tool-call-badge").filter({ hasText: "run-job-a" });
     const b = page.getByTestId("tool-call-badge").filter({ hasText: "run-job-b" });
     await expect(a).toBeVisible();
     await expect(b).toBeVisible();
     await expect(a.locator('[style*="paseo-toolcall-shimmer"]').first()).toBeVisible();
     await expect(b.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
+    await a.getByRole("button").first().click();
+    await expect(a.getByRole("button").first()).toHaveAttribute("aria-expanded", "true");
+    await expect(a.getByTestId("shell-command-stop")).toBeVisible();
+    await b.getByRole("button").first().click();
+    await expect(b.getByTestId("shell-command-stop")).toHaveCount(0);
     await page.reload();
+    await scroller.hover();
+    await page.mouse.wheel(0, -20_000);
     await expect(a.locator('[style*="paseo-toolcall-shimmer"]').first()).toBeVisible();
+    await a.getByRole("button").first().click();
+    await b.getByRole("button").first().click();
     taskIds = ["job-b"];
     await agent.client.updateAgent(agent.agentId, { name: "Second background task" });
     await expect(a.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
     await expect(b.locator('[style*="paseo-toolcall-shimmer"]').first()).toBeVisible();
+    await expect(a.getByTestId("shell-command-stop")).toHaveCount(0);
+    await expect(b.getByTestId("shell-command-stop")).toBeVisible();
     await b.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath("background-shell-shimmer.png") });
     taskIds = [];
     await agent.client.updateAgent(agent.agentId, { name: "Background tasks finished" });
     await expect(b.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
+    await expect(b.getByTestId("shell-command-stop")).toHaveCount(0);
   } finally {
     await agent.cleanup();
   }
 });
+
+for (const viewport of [
+  { name: "desktop", width: 1280, height: 720 },
+  { name: "compact", width: 390, height: 844 },
+]) {
+  test(`expanded Shell can stop its exact command, shows pending and supports retry after failure (${viewport.name})`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "@paseo:app-settings",
+        JSON.stringify({ toolCallDetailLevel: "detailed" }),
+      );
+    });
+    const agent = await seedMockAgentWorkspace({
+      repoPrefix: "shell-stop-",
+      title: "Stop selected Shell",
+      model: "ten-second-stream",
+    });
+    let attempts = 0;
+    let held = false;
+    const queued: WebSocketMessage[] = [];
+    let release = () => {};
+    const requests: Record<string, unknown>[] = [];
+    await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+      const server = ws.connectToServer();
+      release = () => {
+        held = false;
+        for (const message of queued.splice(0)) ws.send(message);
+      };
+      ws.onMessage((message) => {
+        const request = parseSessionMessage(message);
+        if (request?.type === "agent.shell.stop.request") {
+          requests.push(request);
+          attempts++;
+          if (attempts === 1) {
+            ws.send(
+              JSON.stringify({
+                type: "session",
+                message: {
+                  type: "agent.shell.stop.response",
+                  payload: {
+                    requestId: request.requestId,
+                    agentId: request.agentId,
+                    toolCallId: request.toolCallId,
+                    ok: false,
+                    error: "Provider refused stop. Try again.",
+                  },
+                },
+              }),
+            );
+            return;
+          }
+          held = true;
+        }
+        server.send(message);
+      });
+      server.onMessage((message) => {
+        if (held) queued.push(message);
+        else ws.send(message);
+      });
+    });
+    try {
+      await openAgentRoute(page, agent);
+      await expectComposerVisible(page);
+      await agent.client.sendAgentMessage(
+        agent.agentId,
+        "replay a claude-shaped foreground shell tool call",
+      );
+      const shell = page.getByTestId("tool-call-badge").filter({ hasText: "Shell" });
+      await expect(shell).toBeVisible();
+      await expect(page.getByTestId("shell-command-stop")).toHaveCount(0);
+      await shell.getByRole("button").first().click();
+      const stop = page.getByTestId("shell-command-stop");
+      await expect(stop).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath("shell-stop-expanded.png") });
+      await stop.click();
+      await expect(page.getByTestId("shell-command-stop-error")).toHaveText(
+        "Provider refused stop. Try again.",
+      );
+      await expect(stop).toBeEnabled();
+      await stop.click();
+      await expect(stop).toBeDisabled();
+      await expect(stop).toHaveAttribute("aria-busy", "true");
+      expect(requests).toHaveLength(2);
+      expect(requests[1]).toMatchObject({
+        agentId: agent.agentId,
+        toolCallId: expect.stringContaining(":steering-replay-shell"),
+      });
+      expect(requests[0].toolCallId).toBe(requests[1].toolCallId);
+      release();
+      await expect(page.getByTestId("shell-command-stop-error")).toHaveCount(0);
+      await expect(stop).toHaveCount(0);
+      await expect(page.getByText("Shell command stopped.", { exact: true })).toBeVisible();
+    } finally {
+      release();
+      await agent.cleanup();
+    }
+  });
+}

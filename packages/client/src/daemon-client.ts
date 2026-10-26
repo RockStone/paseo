@@ -3855,6 +3855,26 @@ export class DaemonClient {
     return payload;
   }
 
+  async stopShellCommand(agentId: string, toolCallId: string): Promise<void> {
+    const requestId = this.createRequestId();
+    const message = SessionInboundMessageSchema.parse({
+      type: "agent.shell.stop.request",
+      agentId,
+      toolCallId,
+      requestId,
+    });
+    const payload = await this.sendRequest({
+      requestId,
+      message,
+      options: { skipQueue: true },
+      select: (msg) =>
+        msg.type === "agent.shell.stop.response" && msg.payload.requestId === requestId
+          ? msg.payload
+          : null,
+    });
+    if (!payload.ok) throw new Error(payload.error ?? "Failed to stop Shell command");
+  }
+
   async cancelAgent(agentId: string): Promise<void> {
     const requestId = this.createRequestId();
     const message = SessionInboundMessageSchema.parse({

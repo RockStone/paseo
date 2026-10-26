@@ -12,11 +12,13 @@ import {
   useIsolatedBottomSheetVisibility,
 } from "@/components/ui/isolated-bottom-sheet-modal";
 import type { ToolCallIconComponent } from "@/utils/tool-call-icon";
+import type { ShellStopTarget } from "@/tool-calls/use-shell-stop";
 import { ToolCallDetailsContent } from "./tool-call-details";
 
 // ----- Types -----
 
 export interface ToolCallSheetData {
+  shellStopTarget?: ShellStopTarget;
   muted?: boolean;
   toolName: string;
   displayName: string;
@@ -184,6 +186,7 @@ function ToolCallSheetContent({ data, onClose }: ToolCallSheetContentProps) {
       <BottomSheetScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <ToolCallDetailsContent
           muted={data.muted}
+          shellStopTarget={data.shellStopTarget}
           toolName={toolName}
           detail={detail}
           errorText={errorText}

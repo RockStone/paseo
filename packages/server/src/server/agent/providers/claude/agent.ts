@@ -364,6 +364,7 @@ type ClaudeConversationRewindTarget =
   | { kind: "fork"; messageId: string };
 
 const CLAUDE_CAPABILITIES: AgentCapabilityFlags = {
+  supportsShellStop: true,
   supportsStreaming: true,
   supportsSessionPersistence: true,
   supportsSessionListing: true,
@@ -2312,6 +2313,8 @@ class ClaudeAgentSession implements AgentSession {
   private readonly timelineAssembler = new TimelineAssembler();
   private readonly taskState = new ClaudeTaskState();
   private backgroundTaskIds: string[] = [];
+  private readonly shellTasks = new Map<string, string>();
+  private readonly pendingShellStops = new Map<string, Promise<void>>();
   private readonly taskProtocolSource = new ClaudeTaskProtocolSource({
     getToolInput: (toolUseId) => this.toolUseCache.get(toolUseId)?.input ?? null,
     readWorkflowResult: readClaudeWorkflowResultFile,
@@ -3002,6 +3005,8 @@ class ClaudeAgentSession implements AgentSession {
     // available; waiting for interrupt/return here delays our process-tree cleanup
     // beyond the daemon's close deadline when the provider stops answering.
     this.query = null;
+    this.shellTasks.clear();
+    this.pendingShellStops.clear();
     this.input = null;
     // Terminate the entire process tree (claude + MCP children) to prevent
     // orphan accumulation. The SDK's internal cleanup may only kill the
@@ -3426,6 +3431,8 @@ class ClaudeAgentSession implements AgentSession {
       // Null out query/input BEFORE awaiting the old iterator's return so the
       // old pump sees this.query !== activeQuery and skips failActiveTurns.
       this.query = null;
+      this.shellTasks.clear();
+      this.pendingShellStops.clear();
       this.input = null;
       this.queryPumpPromise = null;
       this.queryRestartNeeded = false;
@@ -4056,6 +4063,8 @@ class ClaudeAgentSession implements AgentSession {
     // Drop the dead handles so the next write spawns a fresh process instead of
     // failing against a dead transport forever.
     this.query = null;
+    this.shellTasks.clear();
+    this.pendingShellStops.clear();
     this.input = null;
     this.dispatchEvents([
       this.buildTurnFailedEvent(
@@ -4184,6 +4193,8 @@ class ClaudeAgentSession implements AgentSession {
     } finally {
       if (this.query === activeQuery) {
         this.query = null;
+        this.shellTasks.clear();
+        this.pendingShellStops.clear();
         this.input = null;
       }
     }
@@ -4416,6 +4427,8 @@ class ClaudeAgentSession implements AgentSession {
     }
     if (this.query === activeQuery) {
       this.query = null;
+      this.shellTasks.clear();
+      this.pendingShellStops.clear();
       this.input = null;
     }
     this.persistence = null;
@@ -4522,6 +4535,7 @@ class ClaudeAgentSession implements AgentSession {
     }
 
     const events: AgentStreamEvent[] = [];
+    this.observeShellTask(message);
     this.appendTaskStateEvent(message, events);
 
     // Subagent identity and lifecycle are announced by Claude Code's task protocol, so they are
@@ -4607,7 +4621,62 @@ class ClaudeAgentSession implements AgentSession {
     if (item) events.push({ type: "timeline", provider: "claude", item });
   }
 
+  async stopShellCommand(toolCallId: string): Promise<void> {
+    const taskId = this.shellTasks.get(toolCallId);
+    if (this.closed || !this.query || !taskId) {
+      throw new Error("This Shell command is no longer running or has no individual stop control.");
+    }
+    // Only the provider's live tool-use → task mapping can authorize a stop. Never
+    // guess by command text or interrupt the whole session as a fallback.
+    const pending = this.pendingShellStops.get(toolCallId);
+    if (pending) return pending;
+    const stop = this.query.stopTask(taskId);
+    this.pendingShellStops.set(toolCallId, stop);
+    try {
+      await stop;
+    } finally {
+      if (this.pendingShellStops.get(toolCallId) === stop)
+        this.pendingShellStops.delete(toolCallId);
+    }
+  }
+
+  private retireFinishedShellTask(item: Extract<AgentTimelineItem, { type: "tool_call" }>): void {
+    const taskId = this.shellTasks.get(item.callId);
+    if (!taskId || this.backgroundTaskIds.includes(taskId)) return;
+    // A background launch returns its tool result before the job ends, and its
+    // replacement snapshot may follow that result. Ordinary foreground results retire here.
+    const launched =
+      item.detail.type === "shell" &&
+      item.detail.output?.includes(`Command running in background with ID: ${taskId}.`);
+    if (!launched) this.shellTasks.delete(item.callId);
+  }
+
+  private observeShellTask(message: SDKMessage): void {
+    if (message.type !== "system") return;
+    if (
+      message.subtype === "task_started" &&
+      message.task_type === "local_bash" &&
+      message.tool_use_id
+    ) {
+      this.shellTasks.set(message.tool_use_id, message.task_id);
+    } else if (
+      message.subtype === "task_notification" ||
+      (message.subtype === "task_updated" &&
+        ["completed", "failed", "stopped", "killed"].includes(message.patch.status ?? ""))
+    ) {
+      for (const [callId, taskId] of this.shellTasks) {
+        if (taskId === message.task_id) this.shellTasks.delete(callId);
+      }
+    }
+  }
+
   private updateBackgroundTasks(taskIds: string[]): AgentStreamEvent[] {
+    const live = new Set(taskIds);
+    for (const [callId, taskId] of this.shellTasks) {
+      if (this.backgroundTaskIds.includes(taskId) && !live.has(taskId)) {
+        this.shellTasks.delete(callId);
+      }
+    }
     const next = taskIds.slice().sort();
     const unchanged =
       next.length === this.backgroundTaskIds.length &&
@@ -5280,6 +5349,7 @@ class ClaudeAgentSession implements AgentSession {
       if (this.settledToolUseIds.has(item.callId)) return;
     } else {
       this.settledToolUseIds.add(item.callId);
+      this.retireFinishedShellTask(item);
     }
     if (target) {
       target.push(item);

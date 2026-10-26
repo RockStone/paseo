@@ -402,6 +402,7 @@ const AgentCapabilityFlagsSchema: z.ZodType<AgentCapabilityFlags> = z
     supportsRewindFiles: z.boolean().optional().default(false),
     // COMPAT(rewind): added in v0.1.X, drop when floor >= v0.1.X.
     supportsRewindBoth: z.boolean().optional().default(false),
+    supportsShellStop: z.boolean().optional(),
   })
   .catchall(z.boolean());
 
@@ -2084,6 +2085,24 @@ export const AgentDetachResponseMessageSchema = z.object({
   payload: AgentActionResponsePayloadSchema,
 });
 
+export const AgentShellStopRequestMessageSchema = z.object({
+  type: z.literal("agent.shell.stop.request"),
+  agentId: z.string(),
+  toolCallId: z.string().min(1),
+  requestId: z.string(),
+});
+
+export const AgentShellStopResponseMessageSchema = z.object({
+  type: z.literal("agent.shell.stop.response"),
+  payload: z.object({
+    requestId: z.string(),
+    agentId: z.string(),
+    toolCallId: z.string(),
+    ok: z.boolean(),
+    error: z.string().nullable(),
+  }),
+});
+
 export const AgentRewindModeSchema = z.enum(["conversation", "files", "both"]);
 
 export const AgentRewindRequestMessageSchema = z.object({
@@ -3384,6 +3403,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   AgentConfigApplyRequestMessageSchema,
   AgentDetachRequestMessageSchema,
   AgentRewindRequestMessageSchema,
+  AgentShellStopRequestMessageSchema,
   AgentPermissionResponseMessageSchema,
   CheckoutStatusRequestSchema,
   CheckoutDiffGetRequestSchema,
@@ -3775,6 +3795,8 @@ export const ServerInfoStatusPayloadSchema = z
         composerGitDetails: z.boolean().optional(),
         sharedCommands: z.boolean().optional(),
         temporaryFileUploads: z.boolean().optional(),
+        // COMPAT(agentShellStop): added in Paseoi r112, remove gate after 2027-04-26.
+        agentShellStop: z.boolean().optional(),
         // COMPAT(agentThinkingUpdate): added in v0.2.4, remove gate after 2027-01-28.
         agentThinkingUpdate: z.boolean().optional(),
         // COMPAT(daemonDiagnostics): added in v0.1.100, remove gate after 2026-12-25 once daemon floor >= v0.1.100.
@@ -7115,6 +7137,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   AgentConfigApplyResponseMessageSchema,
   AgentDetachResponseMessageSchema,
   AgentRewindResponseMessageSchema,
+  AgentShellStopResponseMessageSchema,
   UpdateAgentResponseMessageSchema,
   ProjectRenameResponseSchema,
   ProjectIconSetResponseSchema,

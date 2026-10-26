@@ -179,6 +179,7 @@ export interface AgentCapabilityFlags {
   supportsRewindConversation?: boolean;
   supportsRewindFiles?: boolean;
   supportsRewindBoth?: boolean;
+  supportsShellStop?: boolean;
 }
 
 export interface AgentPersistenceHandle {
@@ -702,6 +703,8 @@ export interface AgentSession {
    * still uncertain.
    */
   interrupt(): Promise<void>;
+  /** Stop one provider-owned Shell task without interrupting the agent's turn. */
+  stopShellCommand?(toolCallId: string): Promise<void>;
   /** Release live runtime resources without archiving or deleting the durable native session. */
   close(): Promise<void>;
   listCommands?(): Promise<AgentSlashCommand[]>;

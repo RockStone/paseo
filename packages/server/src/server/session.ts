@@ -2741,6 +2741,8 @@ export class Session {
     switch (msg.type) {
       case "agent.rewind.request":
         return this.handleAgentRewindRequest(msg, source);
+      case "agent.shell.stop.request":
+        return this.handleShellStopRequest(msg, source);
       default:
         return undefined;
     }
@@ -4823,6 +4825,31 @@ export class Session {
         this.handleAgentRunError(agentId, error, "Failed to cancel running agent on request");
       }
     }
+  }
+
+  private async handleShellStopRequest(
+    msg: Extract<SessionInboundMessage, { type: "agent.shell.stop.request" }>,
+    source?: object,
+  ): Promise<void> {
+    let error: string | null = null;
+    try {
+      await this.agentManager.stopShellCommand(msg.agentId, msg.toolCallId);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : "Failed to stop Shell command";
+    }
+    this.emitForSource(
+      {
+        type: "agent.shell.stop.response",
+        payload: {
+          requestId: msg.requestId,
+          agentId: msg.agentId,
+          toolCallId: msg.toolCallId,
+          ok: error === null,
+          error,
+        },
+      },
+      source,
+    );
   }
 
   private async handleAgentRewindRequest(
