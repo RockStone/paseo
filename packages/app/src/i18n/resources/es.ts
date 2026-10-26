@@ -740,6 +740,8 @@ export const es: TranslationResources = {
         openFor: "Menú abierto para{{label}}",
         copyResumeCommand: "Copiar comando de reanudación",
         copyAgentId: "Copiar ID del agente",
+        copySubagentId: "Copiar ID del subagente",
+        copyParentAgentId: "Copiar ID del agente principal",
         copyTerminalId: "Copiar ID del terminal",
         copyFilePath: "Copiar ruta relativa",
         rename: "Rebautizar",

@@ -3,6 +3,7 @@ import {
   buildWorkspaceDesktopTabActions,
   buildWorkspaceTabMenuEntries,
   buildAgentRowMenuEntries,
+  buildProviderSubagentMenuEntries,
 } from "@/screens/workspace/workspace-tab-menu";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
 
@@ -16,6 +17,65 @@ function createAgentTab(): WorkspaceTabDescriptor {
 }
 
 describe("buildWorkspaceTabMenuEntries", () => {
+  it("copies the exact scoped identities for native children without lifecycle actions", () => {
+    const copy = vi.fn();
+    const entries = buildProviderSubagentMenuEntries({
+      parentAgentId: "parent-full-id",
+      subagentId: "toolu_full-native-child-id",
+      menuTestIDBase: "native-row",
+      onCopyAgentId: copy,
+    });
+    expect(entries.map((entry) => entry.key)).toEqual(["copy-subagent-id", "copy-parent-agent-id"]);
+    for (const entry of entries) {
+      if (entry.kind === "item") entry.onSelect();
+    }
+    expect(copy.mock.calls).toEqual([["toolu_full-native-child-id"], ["parent-full-id"]]);
+  });
+
+  it("adds native identity actions to tabs while keeping tab-close actions", () => {
+    const copy = vi.fn();
+    const entries = buildWorkspaceTabMenuEntries({
+      surface: "desktop",
+      tab: {
+        key: "native",
+        tabId: "native",
+        kind: "provider_subagent",
+        target: {
+          kind: "provider_subagent",
+          parentAgentId: "parent-full-id",
+          subagentId: "toolu_full-native-child-id",
+        },
+      },
+      index: 0,
+      tabCount: 1,
+      menuTestIDBase: "native-tab",
+      onCopyAgentId: copy,
+      onCopyResumeCommand: vi.fn(),
+      onCopyTerminalId: vi.fn(),
+      onCopyFilePath: vi.fn(),
+      onReloadAgent: vi.fn(),
+      onArchiveAgent: vi.fn(),
+      onRenameTab: vi.fn(),
+      onCloseTab: vi.fn(),
+      onCloseTabsBefore: vi.fn(),
+      onCloseTabsAfter: vi.fn(),
+      onCloseOtherTabs: vi.fn(),
+    });
+    expect(entries.map((entry) => entry.key)).toEqual([
+      "copy-subagent-id",
+      "copy-parent-agent-id",
+      "identity-separator",
+      "close-before",
+      "close-after",
+      "close-others",
+      "close",
+    ]);
+    for (const entry of entries.slice(0, 2)) {
+      if (entry.kind === "item") entry.onSelect();
+    }
+    expect(copy.mock.calls).toEqual([["toolu_full-native-child-id"], ["parent-full-id"]]);
+  });
+
   it("gives agent rows the tab actions without actions on neighboring tabs", () => {
     const calls: string[] = [];
     const entries = buildAgentRowMenuEntries({

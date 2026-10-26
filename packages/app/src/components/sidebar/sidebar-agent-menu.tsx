@@ -18,7 +18,10 @@ import {
   useWorkspaceTabRename,
   WorkspaceTabRenameModal,
 } from "@/screens/workspace/use-workspace-tab-rename";
-import { buildAgentRowMenuEntries } from "@/screens/workspace/workspace-tab-menu";
+import {
+  buildAgentRowMenuEntries,
+  buildProviderSubagentMenuEntries,
+} from "@/screens/workspace/workspace-tab-menu";
 import { WorkspaceTabContextMenuItem } from "@/screens/workspace/workspace-tab-context-menu-item";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { isWeb } from "@/constants/platform";
@@ -35,9 +38,41 @@ export function SidebarAgentMenu({
   workspaceId: string;
   children: ReactNode;
 }) {
-  // Native provider threads have provider-owned lifecycles rather than managed agent IDs.
-  if (node.target.kind !== "agent") return props.children;
+  if (node.target.kind === "provider_subagent")
+    return <ProviderSubagentMenu target={node.target} {...props} />;
   return <ManagedAgentMenu agentId={node.target.agentId} {...props} />;
+}
+
+function ProviderSubagentMenu({
+  target,
+  serverId,
+  children,
+}: {
+  target: Extract<SidebarThreadNode["target"], { kind: "provider_subagent" }>;
+  serverId: string;
+  children: ReactNode;
+}) {
+  const { handleCopyAgentId } = useAgentMenuActions(serverId);
+  const menuTestIDBase = `sidebar-provider-subagent-menu-${target.parentAgentId}-${target.subagentId}`;
+  const entries = buildProviderSubagentMenuEntries({
+    ...target,
+    menuTestIDBase,
+    onCopyAgentId: handleCopyAgentId,
+  });
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger contextOnly={isWeb} enabledOnMobile={false}>
+        {children}
+      </ContextMenuTrigger>
+      <ContextMenuContent width={220} testID={menuTestIDBase}>
+        {entries.map((entry) =>
+          entry.kind === "item" ? (
+            <WorkspaceTabContextMenuItem key={entry.key} entry={entry} />
+          ) : null,
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }
 
 function ManagedAgentMenu({

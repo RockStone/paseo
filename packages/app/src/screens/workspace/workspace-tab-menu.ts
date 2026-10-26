@@ -229,6 +229,17 @@ export function buildWorkspaceTabMenuEntries(
     });
   }
 
+  if (tab.target.kind === "provider_subagent") {
+    entries.push(
+      ...buildProviderSubagentMenuEntries({
+        ...tab.target,
+        menuTestIDBase,
+        onCopyAgentId,
+      }),
+    );
+    entries.push({ kind: "separator", key: "identity-separator" });
+  }
+
   if (tab.target.kind === "terminal") {
     const { terminalId } = tab.target;
     entries.push({
@@ -355,6 +366,37 @@ export function buildWorkspaceTabMenuEntries(
 
 const TAB_ORDERING_ACTIONS = new Set(["close-before", "close-after", "close-others"]);
 const ignoreTabAction = () => {};
+
+/** Native children have a scoped identity, but no managed-agent lifecycle actions. */
+export function buildProviderSubagentMenuEntries(input: {
+  parentAgentId: string;
+  subagentId: string;
+  menuTestIDBase: string;
+  onCopyAgentId: (id: string) => Promise<void> | void;
+}): WorkspaceTabMenuEntry[] {
+  return [
+    {
+      kind: "item",
+      key: "copy-subagent-id",
+      label: i18n.t("workspace.tabs.menu.copySubagentId"),
+      icon: "copy",
+      testID: `${input.menuTestIDBase}-copy-subagent-id`,
+      onSelect: () => {
+        void input.onCopyAgentId(input.subagentId);
+      },
+    },
+    {
+      kind: "item",
+      key: "copy-parent-agent-id",
+      label: i18n.t("workspace.tabs.menu.copyParentAgentId"),
+      icon: "copy",
+      testID: `${input.menuTestIDBase}-copy-parent-agent-id`,
+      onSelect: () => {
+        void input.onCopyAgentId(input.parentAgentId);
+      },
+    },
+  ];
+}
 
 /** Agent row actions share tab labels and behavior, without actions on neighboring tabs. */
 export function buildAgentRowMenuEntries(input: {

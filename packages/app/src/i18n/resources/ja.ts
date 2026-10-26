@@ -738,6 +738,8 @@ export const ja: TranslationResources = {
         openFor: "{{label}}のメニューを開く",
         copyResumeCommand: "再開コマンドをコピー",
         copyAgentId: "エージェントIDをコピー",
+        copySubagentId: "サブエージェントIDをコピー",
+        copyParentAgentId: "親エージェントIDをコピー",
         copyTerminalId: "ターミナルIDをコピー",
         copyFilePath: "相対パスをコピー",
         rename: "名前を変更",

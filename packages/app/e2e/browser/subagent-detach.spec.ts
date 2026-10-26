@@ -545,7 +545,9 @@ test("workspace subagent lists show ten rows including nested children and toggl
   }
 });
 
-test("sidebar provider-native tree opens the correct nested child timeline", async ({ page }) => {
+test("sidebar provider-native tree opens the correct nested child timeline", async ({
+  page,
+}, testInfo) => {
   const workspace = await seedWorkspace({ repoPrefix: "sidebar-native-tree-" });
   try {
     const parent = await workspace.client.createAgent({
@@ -733,6 +735,33 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
     await expect(
       page.getByText("Native provider child thread: native-child", { exact: true }),
     ).toBeVisible();
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    const tab = page.getByTestId(
+      `workspace-tab-provider_subagent_${parent.id.length}_${parent.id}_12_native-child`,
+    );
+    for (const trigger of [child, tab]) {
+      await trigger.click({ button: "right" });
+      await expect(page.getByRole("menuitem", { name: "Copy subagent id" })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: "Archive agent" })).toHaveCount(0);
+      await expect(page.getByRole("menuitem", { name: "Reload agent" })).toHaveCount(0);
+      await page.screenshot({
+        path: testInfo.outputPath(
+          trigger === child ? "native-sidebar-menu.png" : "native-tab-menu.png",
+        ),
+      });
+      await page.getByRole("menuitem", { name: "Copy subagent id" }).click();
+      await expect
+        .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+        .toBe("native-child");
+      await trigger.click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Copy parent agent id" }).click();
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(parent.id);
+    }
+    await nested.click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Copy subagent id" }).click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("native-grandchild");
   } finally {
     await workspace.cleanup();
   }

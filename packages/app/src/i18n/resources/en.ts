@@ -731,6 +731,8 @@ export const en = {
         openFor: "Open menu for {{label}}",
         copyResumeCommand: "Copy resume command",
         copyAgentId: "Copy agent id",
+        copySubagentId: "Copy subagent id",
+        copyParentAgentId: "Copy parent agent id",
         copyTerminalId: "Copy terminal id",
         copyFilePath: "Copy relative path",
         rename: "Rename",
