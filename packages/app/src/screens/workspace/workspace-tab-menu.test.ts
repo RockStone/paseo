@@ -25,7 +25,10 @@ describe("buildWorkspaceTabMenuEntries", () => {
       menuTestIDBase: "native-row",
       onCopyAgentId: copy,
     });
-    expect(entries.map((entry) => entry.key)).toEqual(["copy-subagent-id", "copy-parent-agent-id"]);
+    expect(entries.map((entry) => entry.key)).toEqual([
+      "copy-subagent-reference",
+      "copy-parent-agent-id",
+    ]);
     for (const entry of entries) {
       if (entry.kind === "item") entry.onSelect();
     }
@@ -36,6 +39,7 @@ describe("buildWorkspaceTabMenuEntries", () => {
     const copy = vi.fn();
     const entries = buildWorkspaceTabMenuEntries({
       surface: "desktop",
+      nativeSubagentId: "a563f2a0dc7f150e1",
       tab: {
         key: "native",
         tabId: "native",
@@ -62,7 +66,8 @@ describe("buildWorkspaceTabMenuEntries", () => {
       onCloseOtherTabs: vi.fn(),
     });
     expect(entries.map((entry) => entry.key)).toEqual([
-      "copy-subagent-id",
+      "copy-native-agent-id",
+      "copy-subagent-reference",
       "copy-parent-agent-id",
       "identity-separator",
       "close-before",
@@ -70,10 +75,14 @@ describe("buildWorkspaceTabMenuEntries", () => {
       "close-others",
       "close",
     ]);
-    for (const entry of entries.slice(0, 2)) {
+    for (const entry of entries.slice(0, 3)) {
       if (entry.kind === "item") entry.onSelect();
     }
-    expect(copy.mock.calls).toEqual([["toolu_full-native-child-id"], ["parent-full-id"]]);
+    expect(copy.mock.calls).toEqual([
+      ["a563f2a0dc7f150e1"],
+      ["toolu_full-native-child-id"],
+      ["parent-full-id"],
+    ]);
   });
 
   it("gives agent rows the tab actions without actions on neighboring tabs", () => {

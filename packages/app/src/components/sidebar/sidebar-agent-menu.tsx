@@ -26,6 +26,7 @@ import { WorkspaceTabContextMenuItem } from "@/screens/workspace/workspace-tab-c
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { isWeb } from "@/constants/platform";
 import type { SidebarThreadNode } from "@/subagents/sidebar-tree";
+import { useProviderSubagentNativeId } from "@/subagents/provider-store";
 
 const NO_TERMINALS_QUERY_KEY: readonly unknown[] = [];
 
@@ -53,9 +54,11 @@ function ProviderSubagentMenu({
   children: ReactNode;
 }) {
   const { handleCopyAgentId } = useAgentMenuActions(serverId);
+  const nativeSubagentId = useProviderSubagentNativeId(serverId, target);
   const menuTestIDBase = `sidebar-provider-subagent-menu-${target.parentAgentId}-${target.subagentId}`;
   const entries = buildProviderSubagentMenuEntries({
     ...target,
+    nativeSubagentId,
     menuTestIDBase,
     onCopyAgentId: handleCopyAgentId,
   });

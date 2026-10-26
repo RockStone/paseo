@@ -19,6 +19,7 @@ export type SubagentObservation =
       /** The subagent exists, and here is what it was asked to do. */
       kind: "declared";
       id: string;
+      nativeId?: string;
       /** Subagent type, e.g. "Explore". Identical across a fan-out — not the task. */
       title?: string;
       /** The task this child was given. What actually distinguishes it from its siblings. */
@@ -83,6 +84,7 @@ export function foldSubagentObservations(
       type: "upsert",
       id: observation.id,
       status: "running",
+      ...(observation.nativeId === undefined ? {} : { nativeId: observation.nativeId }),
       ...(observation.title === undefined ? {} : { title: observation.title }),
       ...(observation.description === undefined ? {} : { description: observation.description }),
       ...(observation.toolCallId === undefined ? {} : { toolCallId: observation.toolCallId }),

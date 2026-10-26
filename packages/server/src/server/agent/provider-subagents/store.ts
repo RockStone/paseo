@@ -11,6 +11,7 @@ export type ProviderSubagentStatus = "running" | "completed" | "failed" | "cance
 
 export interface ProviderSubagentDescriptor {
   id: string;
+  nativeId?: string | null;
   parentAgentId: string;
   /** Direct provider-subagent parent. Null identifies a child of the managed agent. */
   parentSubagentId: string | null;
@@ -29,6 +30,7 @@ export type ProviderSubagentInputEvent =
   | {
       type: "upsert";
       id: string;
+      nativeId?: string | null;
       title?: string | null;
       description?: string | null;
       /**
@@ -113,8 +115,10 @@ export class ProviderSubagentStore {
       this.timelines.initialize(key);
     }
     const timestamp = event.timestamp ?? new Date().toISOString();
+    const nativeId = stickyField(event.nativeId, previous?.nativeId);
     const subagent: ProviderSubagentDescriptor = {
       id: event.id,
+      ...(nativeId === null ? {} : { nativeId }),
       parentAgentId,
       provider,
       title: stickyField(event.title, previous?.title),

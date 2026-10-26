@@ -60,6 +60,7 @@ import {
   type WorkspaceTabMenuLabels,
 } from "@/screens/workspace/workspace-tab-menu";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
+import { useProviderSubagentNativeId } from "@/subagents/provider-store";
 import type { PaneHost } from "@/panels/panel-manifest";
 import type { WorkspaceTabLaunchPurpose } from "@/workspace-tabs/launcher";
 import type { SurfaceBackdrop } from "@/styles/surface-backdrop";
@@ -1529,9 +1530,14 @@ function ResolvedDesktopTabChip({
 }) {
   const { t } = useTranslation();
   const presentation = item.presentation;
+  const nativeSubagentId = useProviderSubagentNativeId(
+    serverId,
+    item.tab.target.kind === "provider_subagent" ? item.tab.target : undefined,
+  );
   const resolvedTab = useMemo(
     () =>
       buildWorkspaceDesktopTabActions({
+        nativeSubagentId,
         tab: item.tab,
         index,
         tabCount,
@@ -1550,6 +1556,7 @@ function ResolvedDesktopTabChip({
       }),
     [
       index,
+      nativeSubagentId,
       item.tab,
       onCloseOtherTabs,
       onCloseTab,

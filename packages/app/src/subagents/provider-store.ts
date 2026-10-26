@@ -168,6 +168,19 @@ function settleTimeline(
   };
 }
 
+export function useProviderSubagentNativeId(
+  serverId: string,
+  target: { parentAgentId: string; subagentId: string } | undefined,
+): string | null | undefined {
+  return useProviderSubagentStore((state) =>
+    target
+      ? state.descriptors.get(
+          providerSubagentKey(serverId, target.parentAgentId, target.subagentId),
+        )?.nativeId
+      : undefined,
+  );
+}
+
 export const useProviderSubagentStore = create<ProviderSubagentState>((set) => ({
   descriptors: new Map(),
   timelines: new Map(),

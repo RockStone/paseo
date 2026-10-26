@@ -89,6 +89,7 @@ describe("observeReplaySubagents", () => {
     expect(observations[0]).toMatchObject({
       kind: "declared",
       id: TOOL_USE_ID,
+      nativeId: AGENT_ID,
       toolCallId: TOOL_USE_ID,
       title: "general-purpose",
       description: "Summarize hover and unistyles docs",
@@ -125,6 +126,7 @@ describe("observeReplaySubagents", () => {
       expect.objectContaining({
         kind: "declared",
         id: nestedToolUseId,
+        nativeId: "a6acb4b898",
         parentSubagentId: TOOL_USE_ID,
       }),
     );

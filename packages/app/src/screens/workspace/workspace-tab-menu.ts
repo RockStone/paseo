@@ -75,6 +75,7 @@ export type WorkspaceTabMenuEntry =
     };
 
 interface BuildWorkspaceTabMenuEntriesInput {
+  nativeSubagentId?: string | null;
   surface: WorkspaceTabMenuSurface;
   tab: WorkspaceTabDescriptor;
   index: number;
@@ -95,6 +96,7 @@ interface BuildWorkspaceTabMenuEntriesInput {
 }
 
 interface BuildWorkspaceDesktopTabActionsInput {
+  nativeSubagentId?: string | null;
   tab: WorkspaceTabDescriptor;
   index: number;
   tabCount: number;
@@ -233,6 +235,7 @@ export function buildWorkspaceTabMenuEntries(
     entries.push(
       ...buildProviderSubagentMenuEntries({
         ...tab.target,
+        nativeSubagentId: input.nativeSubagentId,
         menuTestIDBase,
         onCopyAgentId,
       }),
@@ -369,18 +372,19 @@ const ignoreTabAction = () => {};
 
 /** Native children have a scoped identity, but no managed-agent lifecycle actions. */
 export function buildProviderSubagentMenuEntries(input: {
+  nativeSubagentId?: string | null;
   parentAgentId: string;
   subagentId: string;
   menuTestIDBase: string;
   onCopyAgentId: (id: string) => Promise<void> | void;
 }): WorkspaceTabMenuEntry[] {
-  return [
+  const entries: WorkspaceTabMenuEntry[] = [
     {
       kind: "item",
-      key: "copy-subagent-id",
-      label: i18n.t("workspace.tabs.menu.copySubagentId"),
+      key: "copy-subagent-reference",
+      label: i18n.t("workspace.tabs.menu.copySubagentReference"),
       icon: "copy",
-      testID: `${input.menuTestIDBase}-copy-subagent-id`,
+      testID: `${input.menuTestIDBase}-copy-subagent-reference`,
       onSelect: () => {
         void input.onCopyAgentId(input.subagentId);
       },
@@ -396,6 +400,20 @@ export function buildProviderSubagentMenuEntries(input: {
       },
     },
   ];
+  const nativeId = input.nativeSubagentId;
+  if (nativeId) {
+    entries.unshift({
+      kind: "item",
+      key: "copy-native-agent-id",
+      label: i18n.t("workspace.tabs.menu.copyNativeAgentId"),
+      icon: "copy",
+      testID: `${input.menuTestIDBase}-copy-native-agent-id`,
+      onSelect: () => {
+        void input.onCopyAgentId(nativeId);
+      },
+    });
+  }
+  return entries;
 }
 
 /** Agent row actions share tab labels and behavior, without actions on neighboring tabs. */
@@ -442,6 +460,7 @@ export function buildWorkspaceDesktopTabActions(
   return {
     contextMenuTestId,
     menuEntries: buildWorkspaceTabMenuEntries({
+      nativeSubagentId: input.nativeSubagentId,
       surface: "desktop",
       tab: input.tab,
       index: input.index,

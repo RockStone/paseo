@@ -18,6 +18,7 @@ import {
   type WorkspaceTabMenuLabels,
 } from "@/screens/workspace/workspace-tab-menu";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
+import { useProviderSubagentNativeId } from "@/subagents/provider-store";
 
 // The trigger draws at 32pt beside its island neighbours, so only vertical slop is free.
 const TAB_SWITCHER_TRIGGER_HIT_SLOP = { top: 8, bottom: 8 } as const;
@@ -206,7 +207,12 @@ function MobileWorkspaceTabOption({
     [t],
   );
   const menuTestIDBase = `workspace-tab-menu-${tab.tabId}`;
+  const nativeSubagentId = useProviderSubagentNativeId(
+    normalizedServerId,
+    tab.target.kind === "provider_subagent" ? tab.target : undefined,
+  );
   const menuEntries = buildWorkspaceTabMenuEntries({
+    nativeSubagentId,
     surface: "mobile",
     tab,
     index: tabIndex,

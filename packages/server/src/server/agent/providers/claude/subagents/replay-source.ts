@@ -216,6 +216,7 @@ function declareSubagent(
   return {
     kind: "declared",
     id: link.id,
+    nativeId: subagent.agentId,
     ...(title ? { title } : {}),
     ...(description ? { description } : {}),
     ...(link.toolCallId ? { toolCallId: link.toolCallId } : {}),

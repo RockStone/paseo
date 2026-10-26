@@ -57,6 +57,7 @@ describe("ClaudeTaskProtocolSource", () => {
       {
         kind: "declared",
         id: "toolu_01DgLoPMW9",
+        nativeId: "a1730a6215e1f5cf6",
         toolCallId: "toolu_01DgLoPMW9",
         title: "general-purpose",
         description: "Summarize hover and unistyles docs",
@@ -108,6 +109,7 @@ describe("ClaudeTaskProtocolSource", () => {
     expect(initial).toContainEqual({
       kind: "declared",
       id: "toolu_original",
+      nativeId: "a1730a6215e1f5cf6",
       toolCallId: "toolu_original",
       title: "general-purpose",
       description: "Summarize hover and unistyles docs",
@@ -168,6 +170,7 @@ describe("ClaudeTaskProtocolSource", () => {
       {
         kind: "declared",
         id: "toolu_second",
+        nativeId: "second",
         toolCallId: "toolu_second",
         title: "general-purpose",
         description: "Summarize hover and unistyles docs",
@@ -323,6 +326,7 @@ describe("ClaudeTaskProtocolSource", () => {
       {
         kind: "declared",
         id: "toolu_01DgLoPMW9",
+        nativeId: "a1730a6215e1f5cf6",
         toolCallId: "toolu_01DgLoPMW9",
         title: "Workflow",
         description: "Runs one deterministic child and returns its structured result",

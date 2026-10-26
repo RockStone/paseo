@@ -2,6 +2,23 @@ import { describe, expect, test } from "vitest";
 import { ProviderSubagentStore } from "./store.js";
 
 describe("ProviderSubagentStore", () => {
+  test("preserves native identity across partial updates and allows clearing it", () => {
+    const store = new ProviderSubagentStore();
+    store.apply("parent", "claude", {
+      type: "upsert",
+      id: "toolu_launch",
+      nativeId: "a563f2a0dc7f150e1",
+    });
+    store.apply("parent", "claude", { type: "upsert", id: "toolu_launch", status: "completed" });
+    expect(store.get("parent", "toolu_launch")).toMatchObject({
+      id: "toolu_launch",
+      nativeId: "a563f2a0dc7f150e1",
+      status: "completed",
+    });
+    store.apply("parent", "claude", { type: "upsert", id: "toolu_launch", nativeId: null });
+    expect(store.get("parent", "toolu_launch")?.nativeId).toBeUndefined();
+  });
+
   test("keeps provider children and their timelines scoped to the parent agent", () => {
     const subagents = new ProviderSubagentStore();
 

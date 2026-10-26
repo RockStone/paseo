@@ -4843,6 +4843,8 @@ export const AgentTimelineListPromptsResponseMessageSchema = z.object({
 
 export const ProviderSubagentDescriptorPayloadSchema = z.object({
   id: z.string(),
+  // Provider-owned task/session identity; `id` remains the stable Paseo reference.
+  nativeId: z.string().nullable().optional(),
   parentAgentId: z.string(),
   // COMPAT(providerSubagentNesting): added in v0.7, remove optional after 2027-03-04.
   parentSubagentId: z.string().nullable().optional(),

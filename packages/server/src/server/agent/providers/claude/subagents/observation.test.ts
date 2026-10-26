@@ -10,6 +10,7 @@ describe("foldSubagentObservations", () => {
         {
           kind: "declared",
           id: "toolu_1",
+          nativeId: "native-child",
           title: "Explore",
           description: "Find subagent title code",
           toolCallId: "toolu_1",
@@ -19,6 +20,7 @@ describe("foldSubagentObservations", () => {
       {
         type: "upsert",
         id: "toolu_1",
+        nativeId: "native-child",
         status: "running",
         title: "Explore",
         description: "Find subagent title code",

@@ -615,6 +615,7 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
                     {
                       ...descriptor,
                       id: "native-child",
+                      nativeId: "a563f2a0dc7f150e1",
                       parentSubagentId: null,
                       description: "Native implementation",
                     },
@@ -741,24 +742,41 @@ test("sidebar provider-native tree opens the correct nested child timeline", asy
     );
     for (const trigger of [child, tab]) {
       await trigger.click({ button: "right" });
-      await expect(page.getByRole("menuitem", { name: "Copy subagent id" })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: "Copy subagent reference" })).toBeVisible();
       await expect(page.getByRole("menuitem", { name: "Archive agent" })).toHaveCount(0);
       await expect(page.getByRole("menuitem", { name: "Reload agent" })).toHaveCount(0);
+      await expect
+        .poll(() =>
+          page.getByRole("menuitem", { name: "Copy native agent id" }).evaluate((element) => {
+            let opacity = 1;
+            for (let node: Element | null = element; node; node = node.parentElement) {
+              opacity *= Number(getComputedStyle(node).opacity);
+            }
+            return opacity;
+          }),
+        )
+        .toBeGreaterThan(0.99);
       await page.screenshot({
         path: testInfo.outputPath(
           trigger === child ? "native-sidebar-menu.png" : "native-tab-menu.png",
         ),
       });
-      await page.getByRole("menuitem", { name: "Copy subagent id" }).click();
+      await page.getByRole("menuitem", { name: "Copy subagent reference" }).click();
       await expect
         .poll(() => page.evaluate(() => navigator.clipboard.readText()))
         .toBe("native-child");
+      await trigger.click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Copy native agent id" }).click();
+      await expect
+        .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+        .toBe("a563f2a0dc7f150e1");
       await trigger.click({ button: "right" });
       await page.getByRole("menuitem", { name: "Copy parent agent id" }).click();
       await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(parent.id);
     }
     await nested.click({ button: "right" });
-    await page.getByRole("menuitem", { name: "Copy subagent id" }).click();
+    await expect(page.getByRole("menuitem", { name: "Copy native agent id" })).toHaveCount(0);
+    await page.getByRole("menuitem", { name: "Copy subagent reference" }).click();
     await expect
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
       .toBe("native-grandchild");

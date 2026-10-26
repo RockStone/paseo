@@ -397,6 +397,7 @@ export class ClaudeTaskProtocolSource {
       {
         kind: "declared",
         id,
+        nativeId: message.task_id,
         toolCallId: id,
         ...(title ? { title } : {}),
         ...(description ? { description } : {}),

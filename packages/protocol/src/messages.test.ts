@@ -8,7 +8,26 @@ import {
   SessionInboundMessageSchema,
   SessionOutboundMessageSchema,
   WorkspaceProjectDescriptorPayloadSchema,
+  ProviderSubagentDescriptorPayloadSchema,
 } from "./messages.js";
+
+test("provider subagent descriptors accept optional native identity without changing reference identity", () => {
+  const descriptor = {
+    id: "toolu_launch",
+    parentAgentId: "parent",
+    provider: "claude",
+    title: null,
+    description: null,
+    status: "running",
+    createdAt: "2026-10-26T00:00:00Z",
+    updatedAt: "2026-10-26T00:00:00Z",
+    toolCallId: "toolu_launch",
+  };
+  expect(ProviderSubagentDescriptorPayloadSchema.parse(descriptor).nativeId).toBeUndefined();
+  expect(
+    ProviderSubagentDescriptorPayloadSchema.parse({ ...descriptor, nativeId: "a563f2a0dc7f150e1" }),
+  ).toMatchObject({ id: "toolu_launch", nativeId: "a563f2a0dc7f150e1" });
+});
 
 function workspaceDescriptor(overrides: Record<string, unknown> = {}) {
   return {
