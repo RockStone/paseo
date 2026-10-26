@@ -137,7 +137,7 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
   const keys = useMemo(() => sidebarThreadKeys(visibleTree), [visibleTree]);
   const { visibleItems, expanded, canToggle, toggleExpanded } = useLimitedSidebarGroup(keys, {
     kind: "pinned",
-    limit: 10,
+    limit: 5,
   });
   const visibleKeys = useMemo(() => new Set(visibleItems), [visibleItems]);
   return (

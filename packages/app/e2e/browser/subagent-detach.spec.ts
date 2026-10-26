@@ -476,10 +476,10 @@ test("sidebar nests cross-workspace subagents under the parent without parallel 
   }
 });
 
-test("workspace subagent lists show ten rows including nested children and toggle more or less", async ({
+test("workspace subagent lists show five rows including nested children and toggle more or less", async ({
   page,
 }) => {
-  const workspace = await seedWorkspace({ repoPrefix: "sidebar-ten-subagents-" });
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-five-subagents-" });
   try {
     const parent = await workspace.client.createAgent({
       provider: "mock",
@@ -518,7 +518,7 @@ test("workspace subagent lists show ten rows including nested children and toggl
     const more = page.getByTestId(
       `sidebar-agent-tree-show-more-${serverId}:${workspace.workspaceId}`,
     );
-    await expect(rows).toHaveCount(10);
+    await expect(rows).toHaveCount(5);
     await expect(page.getByTestId(`sidebar-agent-tree-row-agent:${nested.id}`)).toBeVisible();
     await expect(page.getByTestId(`sidebar-agent-tree-row-agent:${children[0]!.id}`)).toHaveCount(
       0,
@@ -537,9 +537,9 @@ test("workspace subagent lists show ten rows including nested children and toggl
     ).toHaveCount(0);
     await expect(rows).toHaveCount(12);
     await more.click();
-    await expect(rows).toHaveCount(10);
+    await expect(rows).toHaveCount(5);
     await expect(more).toHaveText("Show more");
-    await page.screenshot({ path: "/tmp/paseoi-r57-subagent-show-more.png" });
+    await page.screenshot({ path: "/private/tmp/paseoi-sidebar-five-agents.png" });
   } finally {
     await workspace.cleanup();
   }
