@@ -67,7 +67,9 @@ The desktop/browser composer decorates Markdown while preserving its source text
 for sending. The `##` session picker and `@@` profile picker insert colored inline
 names at the caret; their link targets stay hidden. Code spans, bold, and italic
 text hide their markers after a space follows the closing marker. Shift+Enter continues numbered lists; Shift+Enter on an
-empty item ends the list. Enter sends the message. The reference's saved context
+empty item ends the list. Inserting or removing items renumbers that list while keeping
+its starting number, nested lists, and literal code separate. Numbering changes share
+the edit's Undo step. Enter sends the message. The reference's saved context
 is sent only while its complete source remains in the draft. Removing the inline name removes its
 outgoing context. Sent messages render Markdown and show saved reference details
 on hover instead of duplicate attachment cards. File mentions use `@` links and

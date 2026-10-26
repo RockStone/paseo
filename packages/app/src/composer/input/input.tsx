@@ -1,4 +1,4 @@
-import { continueNumberedList } from "./list-continuation";
+import { continueNumberedList, normalizeNumberedList } from "./list-continuation";
 import {
   useComposerEditingSession,
   useComposerFullscreen,
@@ -1831,12 +1831,19 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
     const handleInputChange = useCallback(
       (nextValue: string) => {
+        if (!isWeb) {
+          const normalized = normalizeNumberedList({ before: valueRef.current, text: nextValue });
+          if (normalized.text !== nextValue) {
+            replaceText(normalized.text, normalized.selection);
+            return;
+          }
+        }
         updateComposerHeightForText?.(valueRef.current, nextValue);
         valueRef.current = nextValue;
         updateLiveTextPresence(nextValue);
         onChangeText(nextValue);
       },
-      [onChangeText, updateComposerHeightForText, updateLiveTextPresence],
+      [onChangeText, updateComposerHeightForText, updateLiveTextPresence, replaceText],
     );
 
     const handleInputFocus = useCallback(() => {

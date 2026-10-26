@@ -1,4 +1,8 @@
-import { continueNumberedList } from "./list-continuation";
+import {
+  continueNumberedList,
+  numberedListChanges,
+  normalizeNumberedList,
+} from "./list-continuation";
 import { describe, expect, it, vi } from "vitest";
 import {
   applyDictationTranscript,
@@ -365,6 +369,89 @@ describe("fullscreen glyph rail", () => {
 });
 
 describe("numbered composer lists", () => {
+  it("renumbers following items when inserting in the middle", () => {
+    const text = "1. first\n2. second\n3. third";
+    const caret = text.indexOf("\n3.");
+    expect(continueNumberedList(text, { start: caret, end: caret })).toEqual({
+      text: "1. first\n2. second\n3. \n4. third",
+      selection: { start: caret + 4, end: caret + 4 },
+    });
+  });
+
+  it.each([
+    ["1. first\n2. second\n3. third", "1. first\n3. third", "1. first\n2. third"],
+    ["1. first\n2. second\n3. third", "2. second\n3. third", "1. second\n2. third"],
+    ["7) first\n8) second\n9) third", "7) first\n9) third", "7) first\n8) third"],
+    ["1. first\n2. second\n3. third\n4. fourth", "1. first\n4. fourth", "1. first\n2. fourth"],
+  ])("closes numbering gaps after deleting items: %s", (before, text, expected) => {
+    expect(normalizeNumberedList({ before, text, selection: { start: 0, end: 0 } }).text).toBe(
+      expected,
+    );
+  });
+
+  it("keeps nested numbering and other lists independent", () => {
+    const before =
+      "1. parent\n   1. child\n   2. next\n2. sibling\n\nSeparate\n\n5. other\n8. deliberate";
+    const caret = before.indexOf("\n   2.");
+    expect(continueNumberedList(before, { start: caret, end: caret })?.text).toBe(
+      "1. parent\n   1. child\n   2. \n   3. next\n2. sibling\n\nSeparate\n\n5. other\n8. deliberate",
+    );
+  });
+
+  it("keeps the caret at the inserted item across double-digit numbering", () => {
+    const before = "8. first\n9. second\n10. third";
+    const caret = before.indexOf("\n10.");
+    expect(continueNumberedList(before, { start: caret, end: caret })).toEqual({
+      text: "8. first\n9. second\n10. \n11. third",
+      selection: { start: caret + 5, end: caret + 5 },
+    });
+  });
+
+  it("maps a selection after number widths shrink", () => {
+    const before = "9. first\n10. second\n11. third";
+    const text = "10. second\n11. third";
+    const result = normalizeNumberedList({
+      before,
+      text,
+      selection: { start: 4, end: text.length },
+    });
+    expect(result).toEqual({
+      text: "9. second\n10. third",
+      selection: { start: 3, end: text.length - 1 },
+    });
+  });
+
+  it("derives the native caret from the edit when selection arrives later", () => {
+    expect(
+      normalizeNumberedList({
+        before: "1. first\n2. second\n3. third",
+        text: "1. first\n3. third",
+      }),
+    ).toEqual({
+      text: "1. first\n2. third",
+      selection: { start: 9, end: 9 },
+    });
+  });
+
+  it("renumbers following items after removing an empty middle marker", () => {
+    const before = "1. first\n2. \n3. third";
+    const caret = before.indexOf("\n3.");
+    expect(continueNumberedList(before, { start: caret, end: caret })?.text).toBe(
+      "1. first\n\n2. third",
+    );
+  });
+
+  it("does not rewrite pasted documents, literal code, or intentionally edited numbers", () => {
+    expect(numberedListChanges("", "1. first\n7. deliberate")).toEqual([]);
+    expect(numberedListChanges("1. first\n3. second", "1. first\n7. second")).toEqual([]);
+    expect(
+      numberedListChanges("```\n1. code\n3. code\n```", "```\n1. code\n2. inserted\n3. code\n```"),
+    ).toEqual([]);
+    expect(numberedListChanges("1. first\n7. deliberate", "1. first\n7. deliberate edit")).toEqual(
+      [],
+    );
+  });
+
   it("continues list numbers and indentation without sending", () => {
     expect(continueNumberedList("  9) hello", { start: 10, end: 10 })).toEqual({
       text: "  9) hello\n  10) ",

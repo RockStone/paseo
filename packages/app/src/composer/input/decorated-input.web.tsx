@@ -6,6 +6,7 @@ import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import type { EditingTextInputHandle, EditingTextInputProps } from "@/components/ui/text-input";
 import { composerDecorations } from "./decorations.web";
+import { numberedListChanges } from "./list-continuation";
 import { openExternalUrl } from "@/utils/open-external-url";
 
 interface DecoratedInputProps extends Omit<
@@ -190,6 +191,22 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
         history(),
         EditorView.lineWrapping,
         composerDecorations,
+        EditorState.transactionFilter.of((transaction) => {
+          if (
+            !transaction.docChanged ||
+            transaction.isUserEvent("undo") ||
+            transaction.isUserEvent("redo") ||
+            transaction.isUserEvent("input.complete") ||
+            transaction.isUserEvent("input.type.compose")
+          )
+            return transaction;
+          const changes = numberedListChanges(
+            transaction.startState.doc.toString(),
+            transaction.newDoc.toString(),
+          );
+          // Fold corrections into the user's edit so one Undo restores both text and numbering.
+          return changes.length ? [transaction, { changes, sequential: true }] : transaction;
+        }),
         configuration.of(presentation()),
         EditorView.domEventHandlers({
           mousedown: (event) => {

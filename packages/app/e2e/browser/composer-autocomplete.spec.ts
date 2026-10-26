@@ -8,6 +8,7 @@ import {
   composerLocator,
   expectComposerDraft,
   expectComposerVisible,
+  selectComposerDraftRange,
 } from "../support/helpers/composer";
 import {
   openAgentRoute,
@@ -1179,6 +1180,77 @@ test("composer code fences require matching closers and keep monospace with a cu
     await workspace.cleanup();
   }
 });
+
+for (const width of [1280, 494]) {
+  test(`numbered composer lists renumber insertions and deletions with one-step undo at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "numbered-composer-",
+      title: "Numbered composer",
+    });
+    const gate = await installDaemonWebSocketGate(page);
+    try {
+      await page.setViewportSize({ width, height: 900 });
+      await openAgentRoute(page, workspace);
+      await expectComposerVisible(page);
+      const input = composerLocator(page);
+      const before = "1. first\n2. second\n3. third";
+      const caret = before.indexOf("\n3.");
+      await input.fill(before);
+      await selectComposerDraftRange(page, caret, caret);
+      await input.press("Shift+Enter");
+      await expectComposerDraft(page, "1. first\n2. second\n3. \n4. third");
+      await expect(input).toHaveAttribute("data-selection-start", String(caret + 4));
+      await input.press("ControlOrMeta+z");
+      await expectComposerDraft(page, before);
+      await input.press("ControlOrMeta+Shift+z");
+      await expectComposerDraft(page, "1. first\n2. second\n3. \n4. third");
+      await selectComposerDraftRange(page, caret + 4, caret + 4);
+      await input.pressSequentially("inserted");
+      const inserted = "1. first\n2. second\n3. inserted\n4. third";
+      await expectComposerDraft(page, inserted);
+      await page.screenshot({ path: testInfo.outputPath("renumbered-insertion.png") });
+      await selectComposerDraftRange(
+        page,
+        inserted.indexOf("3. inserted"),
+        inserted.indexOf("4. third"),
+      );
+      await input.press("Backspace");
+      await expectComposerDraft(page, before);
+      await input.press("ControlOrMeta+z");
+      await expectComposerDraft(page, inserted);
+      await selectComposerDraftRange(page, 0, "1. first\n".length);
+      await input.press("Backspace");
+      await expectComposerDraft(page, "1. second\n2. inserted\n3. third");
+
+      await input.fill(before);
+      await selectComposerDraftRange(page, caret, caret);
+      await input.press("ArrowRight");
+      await page.keyboard.insertText("3. extra\n4. extra\n");
+      await expectComposerDraft(page, "1. first\n2. second\n3. extra\n4. extra\n5. third");
+
+      const nested = "1. parent\n   1. child\n   2. next\n2. sibling";
+      await input.fill(nested);
+      const nestedCaret = nested.indexOf("\n   2.");
+      await selectComposerDraftRange(page, nestedCaret, nestedCaret);
+      await input.press("Shift+Enter");
+      await expectComposerDraft(page, "1. parent\n   1. child\n   2. \n   3. next\n2. sibling");
+
+      const code = "```\n1. literal\n3. literal\n```";
+      await input.fill(code);
+      const codeCaret = code.indexOf("\n3.");
+      await input.locator(".composer-code-block").first().click();
+      await input.press("End");
+      await expect(input).toHaveAttribute("data-selection-start", String(codeCaret));
+      await input.press("Shift+Enter");
+      await expectComposerDraft(page, "```\n1. literal\n\n3. literal\n```");
+      expect(gate.getClientRequests("send_agent_message_request")).toHaveLength(0);
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+}
 
 test("decorated composer hides reference targets, formats closed Markdown and continues numbered lists", async ({
   page,
