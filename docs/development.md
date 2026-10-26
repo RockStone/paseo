@@ -169,7 +169,15 @@ installation are disabled for those versions, so updating cannot discard the
 local patch. Set
 `PASEO_CUSTOM_REVISION` to a higher number for each build from the same upstream
 version.
-The local build uses an ad-hoc signature and is not notarized.
+Custom builds require a persistent signing certificate in your login Keychain.
+Save its SHA-1 fingerprint in `.dev/paseoi-signing-identity`, or set
+`PASEO_MAC_SIGNING_IDENTITY` for another checkout. The fingerprint is public;
+keep the private key in Keychain. Builds fail if the configured identity is
+unavailable, including after certificate expiry, rather than reverting to ad-hoc
+signing. Reuse the identity and app ID so macOS can recognize updates and retain
+privacy grants. Switching from an ad-hoc build may require granting Full Disk
+Access again and fully quitting/reopening Paseoi once. UI reload does not restart
+the processes that inherit that access. These local builds are not notarized.
 
 macOS uses `CFBundleName` to find Electron's UI helpers. The custom packager adds
 Paseoi-named helpers while retaining the Paseo helpers used by the bundled CLI

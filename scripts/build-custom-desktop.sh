@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 BASE_VERSION="$(node -p 'require("./package.json").version')"
-CUSTOM_REVISION="${PASEO_CUSTOM_REVISION:-116}"
+CUSTOM_REVISION="${PASEO_CUSTOM_REVISION:-117}"
 # The desktop app recognizes Paseoi builds by -paseoi.<digits>. Any other suffix ships an
 # official-looking build on the main daemon's port with official updates turned on.
 if [[ ! "$CUSTOM_REVISION" =~ ^[0-9]+$ ]]; then
@@ -12,6 +12,8 @@ if [[ ! "$CUSTOM_REVISION" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 CUSTOM_VERSION="${BASE_VERSION}-paseoi.${CUSTOM_REVISION}"
+
+node scripts/sign-custom-desktop.mjs --check
 
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:desktop -- \
   --publish never --mac --dir \
@@ -48,6 +50,6 @@ for CUSTOM_ARCH_DIR in mac mac-arm64; do
       /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $CUSTOM_HELPER_NAME" \
         "$CUSTOM_HELPER_DIR/Contents/Info.plist"
     done
-    codesign --force --deep --sign - "$CUSTOM_OUTPUT_DIR/Paseoi.app"
+    node scripts/sign-custom-desktop.mjs "$CUSTOM_OUTPUT_DIR/Paseoi.app"
   fi
 done
