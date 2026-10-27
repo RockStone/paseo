@@ -2278,6 +2278,7 @@ test("stops only the selected live Shell task without interrupting its turn or s
     );
     await internal.routeSdkMessageFromPump(successResult(), queryMock);
     expect(internal.activeForegroundTurnId).toBeNull();
+    await expect(session.canStopRuntime!()).resolves.toBe(false);
     // A foreground turn finishing must not prevent stopping its background job.
     await session.stopShellCommand!("shell-b");
     expect(queryMock.stopTask.mock.calls).toEqual([["job-a"], ["job-b"]]);

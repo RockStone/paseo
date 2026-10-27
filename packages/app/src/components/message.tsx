@@ -8,6 +8,7 @@ import { AssistantFileLinkResolverProvider, type InlinePathTarget } from "@/assi
 import type { OpenFileDisposition } from "@/workspace/file-open";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { useMarkdownSource } from "@/components/markdown/images";
+import { MessagePreview, MessageSender } from "@/components/user-message";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
 import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
@@ -101,6 +102,7 @@ export type { AssistantForkTarget };
 
 interface UserMessageProps {
   onOpenWorkspaceFile?: (target: InlinePathTarget, disposition: OpenFileDisposition) => void;
+  sender?: AgentMessage["sender"];
   serverId?: string;
   agentId?: string;
   messageId?: string;
@@ -448,7 +450,46 @@ function ReplayedUserMessage(props: UserMessageProps) {
   );
 }
 
+function UserMessageRichText({
+  message,
+  client,
+  serverId,
+  workspaceRoot,
+  onOpenWorkspaceFile,
+  details,
+  onLinkPress,
+}: Pick<
+  UserMessageProps,
+  "message" | "client" | "serverId" | "workspaceRoot" | "onOpenWorkspaceFile"
+> & {
+  details: ReturnType<typeof messageReferenceDetails>["details"];
+  onLinkPress: (url: string) => void;
+}) {
+  return (
+    <AssistantFileLinkResolverProvider
+      client={client}
+      serverId={serverId}
+      workspaceRoot={workspaceRoot}
+      onOpenWorkspaceFile={onOpenWorkspaceFile}
+    >
+      <MarkdownReferenceContext.Provider value={details}>
+        <View dataSet={MESSAGE_TEXT_DATASET}>
+          <MarkdownRenderer
+            text={message}
+            variant="user"
+            onLinkPress={onLinkPress}
+            client={client ?? undefined}
+            workspaceRoot={workspaceRoot}
+            serverId={serverId}
+          />
+        </View>
+      </MarkdownReferenceContext.Provider>
+    </AssistantFileLinkResolverProvider>
+  );
+}
+
 const UserMessageContent = memo(function UserMessageContent({
+  sender,
   serverId,
   agentId,
   messageId,
@@ -588,6 +629,7 @@ const UserMessageContent = memo(function UserMessageContent({
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
+        {sender ? <MessageSender sender={sender} serverId={serverId} /> : null}
         {hasImages ? (
           <View style={imagePreviewContainerStyle} testID="user-message-image-gallery">
             {images.map((image) => (
@@ -602,54 +644,46 @@ const UserMessageContent = memo(function UserMessageContent({
         ) : null}
         {hasText || hasAttachments || imageRecoveryStatus ? (
           <View style={userMessageStylesheet.bubble} testID="user-message-bubble">
-            {imageRecoveryStatus ? (
-              <Text style={userMessageStylesheet.text}>
-                {t(
-                  imageRecoveryStatus === "unavailable"
-                    ? "message.attachments.imageLoadFailed"
-                    : "common.loading",
-                )}
-              </Text>
-            ) : null}
-            {hasAttachments ? (
-              <View style={attachmentPreviewContainerStyle}>
-                {visibleAttachments.map((attachment, index) => {
-                  const content = getAgentAttachmentPillContent(attachment, t);
-                  return (
-                    <AttachmentFrame
-                      key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
-                    >
-                      <AttachmentLabel
-                        icon={content.icon}
-                        title={content.title}
-                        subtitle={content.subtitle}
-                      />
-                    </AttachmentFrame>
-                  );
-                })}
-              </View>
-            ) : null}
-            {hasText ? (
-              <AssistantFileLinkResolverProvider
-                client={client}
-                serverId={serverId}
-                workspaceRoot={workspaceRoot}
-                onOpenWorkspaceFile={onOpenWorkspaceFile}
-              >
-                <MarkdownReferenceContext.Provider value={details}>
-                  <View dataSet={MESSAGE_TEXT_DATASET}>
-                    <MarkdownRenderer
-                      text={message}
-                      variant="user"
-                      onLinkPress={handleUserLinkPress}
-                      client={client ?? undefined}
-                      workspaceRoot={workspaceRoot}
-                      serverId={serverId}
-                    />
-                  </View>
-                </MarkdownReferenceContext.Provider>
-              </AssistantFileLinkResolverProvider>
-            ) : null}
+            <MessagePreview>
+              {imageRecoveryStatus ? (
+                <Text style={userMessageStylesheet.text}>
+                  {t(
+                    imageRecoveryStatus === "unavailable"
+                      ? "message.attachments.imageLoadFailed"
+                      : "common.loading",
+                  )}
+                </Text>
+              ) : null}
+              {hasAttachments ? (
+                <View style={attachmentPreviewContainerStyle}>
+                  {visibleAttachments.map((attachment, index) => {
+                    const content = getAgentAttachmentPillContent(attachment, t);
+                    return (
+                      <AttachmentFrame
+                        key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
+                      >
+                        <AttachmentLabel
+                          icon={content.icon}
+                          title={content.title}
+                          subtitle={content.subtitle}
+                        />
+                      </AttachmentFrame>
+                    );
+                  })}
+                </View>
+              ) : null}
+              {hasText ? (
+                <UserMessageRichText
+                  message={message}
+                  client={client}
+                  serverId={serverId}
+                  workspaceRoot={workspaceRoot}
+                  onOpenWorkspaceFile={onOpenWorkspaceFile}
+                  details={details}
+                  onLinkPress={handleUserLinkPress}
+                />
+              ) : null}
+            </MessagePreview>
           </View>
         ) : null}
         {hasText ? (
@@ -690,7 +724,7 @@ const UserMessageContent = memo(function UserMessageContent({
 });
 
 interface AssistantTurnFooterProps {
-  getContent: () => string;
+  getContent?: () => string;
   completedAt?: Date;
   durationMs?: number | null;
   onFork?: (target: AssistantForkTarget) => Promise<void> | void;
@@ -760,10 +794,12 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
 
   return (
     <View style={assistantTurnFooterStylesheet.container}>
-      <TurnCopyButton
-        getContent={getContent}
-        containerStyle={assistantTurnFooterStylesheet.copyButton}
-      />
+      {getContent ? (
+        <TurnCopyButton
+          getContent={getContent}
+          containerStyle={assistantTurnFooterStylesheet.copyButton}
+        />
+      ) : null}
       {canFork ? <AssistantForkMenu onFork={handleFork} /> : null}
       <MessageTimeLabel
         date={completedAt}
@@ -1075,6 +1111,10 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     borderColor: theme.colors.border,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
+  },
+  // Details that do not sit in a card leave the header as a lone highlighted pill.
+  pressableExpandedDetached: {
+    borderRadius: theme.borderRadius.full,
   },
   detailWrapperBorderless: {
     borderWidth: 0,
@@ -2165,7 +2205,10 @@ export const ExpandableBadge = memo(function ExpandableBadge({
       expandableBadgeStylesheet.pressable,
       isPressed && isInteractive ? expandableBadgeStylesheet.pressablePressed : null,
       isExpanded && expandableBadgeStylesheet.pressableExpanded,
-      isExpanded && !borderlessWhenExpanded && expandableBadgeStylesheet.pressableExpandedAttached,
+      isExpanded &&
+        (borderlessWhenExpanded
+          ? expandableBadgeStylesheet.pressableExpandedDetached
+          : expandableBadgeStylesheet.pressableExpandedAttached),
     ],
     [borderlessWhenExpanded, isExpanded, isInteractive, isPressed],
   );

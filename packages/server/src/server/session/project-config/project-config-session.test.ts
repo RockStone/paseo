@@ -89,7 +89,7 @@ describe("ProjectConfigSession", () => {
     expect(emitted[3]).toMatchObject({
       payload: { ok: false, error: { code: "stale_project_config" } },
     });
-    expect(statPaseoConfigPath(project)).toBeNull();
+    expect(await statPaseoConfigPath(project)).toBeNull();
   });
 
   test("edits the active workspace's config without changing the source checkout", async () => {
@@ -127,7 +127,7 @@ describe("ProjectConfigSession", () => {
       type: "read_project_config_response",
       payload: { ok: true, config: { scripts: { dev: { command: "worktree" } } } },
     });
-    const revision = statPaseoConfigPath(checkout);
+    const revision = await statPaseoConfigPath(checkout);
     await subsystem.handleWriteProjectConfigRequest({
       type: "write_project_config_request",
       requestId: "write",
@@ -330,7 +330,7 @@ describe("ProjectConfigSession", () => {
       requestId: "write-uncommitted-setup",
       repoRoot,
       config: { worktree: { setup: "npm install" } },
-      expectedRevision: statPaseoConfigPath(repoRoot),
+      expectedRevision: await statPaseoConfigPath(repoRoot),
     });
 
     expect(emitted).toEqual([

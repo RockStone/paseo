@@ -661,6 +661,115 @@ describe("stream reducer canonical tool calls", () => {
     expect(new Set(tools.map((tool) => tool.id)).size).toBe(2);
   });
 
+  it.each(["live", "canonical"] as const)(
+    "keeps current tool identity during %s updates when an older turn reports late",
+    (source) => {
+      let state: StreamItem[] = [];
+      const events = [
+        { callId: "background", turnId: "codex-turn-17", status: "running" as const },
+        { callId: "exec-current", turnId: "codex-turn-18", status: "running" as const },
+        { callId: "background", turnId: "codex-turn-17", status: "completed" as const },
+        { callId: "exec-current", turnId: "codex-turn-18", status: "completed" as const },
+      ];
+      for (const [index, item] of events.entries()) {
+        state = reduceStreamUpdate(
+          state,
+          canonicalToolTimeline({
+            provider: "codex",
+            name: "exec_command",
+            ...item,
+          }),
+          new Date(index * 1000),
+          { source },
+        );
+      }
+      expect(
+        state.filter(isAgentToolCallItem).map((item) => ({
+          id: item.id,
+          turnId: item.turnId,
+          status: item.payload.data.status,
+        })),
+      ).toEqual([
+        {
+          id: "agent_tool_turn:codex-turn-17/background",
+          turnId: "codex-turn-17",
+          status: "completed",
+        },
+        {
+          id: "agent_tool_turn:codex-turn-18/exec-current",
+          turnId: "codex-turn-18",
+          status: "completed",
+        },
+      ]);
+    },
+  );
+
+  it("keeps overlapping Claude native tasks unique through repeated late progress updates", () => {
+    let state: StreamItem[] = [];
+    const taskIds = ["sound-task", "visual-task", "driver-task"];
+    const descriptions = ["Sound loop", "Visual rebuild", "Driver-view clip"];
+    const update = (index: number, progress: number) => {
+      const event = canonicalToolTimeline({
+        provider: "claude",
+        callId: taskIds[index],
+        turnId: index < 2 ? "foreground-turn-40" : "foreground-turn-41",
+        name: "Agent",
+        status: "running",
+        detail: {
+          type: "sub_agent",
+          description: descriptions[index],
+          log: `unique-output-${index}-${progress}`,
+          actions: [],
+        },
+      });
+      state = reduceStreamUpdate(state, event, new Date(progress));
+    };
+    taskIds.forEach((_, index) => update(index, 0));
+    for (let progress = 1; progress <= 60; progress += 1) {
+      update(progress % 3, progress);
+      const tools = state.filter(isAgentToolCallItem);
+      expect(tools).toHaveLength(3);
+      expect(new Set(tools.map((tool) => tool.id)).size).toBe(3);
+      expect(tools.map((tool) => tool.payload.data.callId)).toEqual(taskIds);
+      expect(tools.map((tool) => tool.payload.data.detail)).toEqual(
+        descriptions.map((description) => expect.objectContaining({ description })),
+      );
+    }
+  });
+
+  it("does not move reasoning into an older turn when a late tool update finalizes it", () => {
+    const background = canonicalToolTimeline({
+      provider: "codex",
+      name: "exec_command",
+      callId: "background",
+      turnId: "old",
+      status: "running",
+    });
+    let state = reduceStreamUpdate([], background, new Date(0));
+    state = reduceStreamUpdate(
+      state,
+      {
+        type: "timeline",
+        provider: "codex",
+        turnId: "current",
+        item: { type: "reasoning", text: "Working on the current request" },
+      },
+      new Date(1),
+    );
+    state = reduceStreamUpdate(
+      state,
+      canonicalToolTimeline({
+        provider: "codex",
+        name: "exec_command",
+        callId: "background",
+        turnId: "old",
+        status: "completed",
+      }),
+      new Date(2),
+    );
+    expect(state.at(-1)).toMatchObject({ kind: "thought", turnId: "current", status: "ready" });
+  });
+
   it("merges lifecycle updates for the same call occurrence", () => {
     const callId = "tool-updated-within-turn";
     const turnId = "autonomous-turn-1";

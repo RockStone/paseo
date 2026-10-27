@@ -67,6 +67,7 @@ import { WorkspaceScriptsButton } from "@/screens/workspace/scripts";
 import { ImportSessionSheet } from "@/components/import-session-sheet";
 import { useNavigateToImportedAgent } from "@/hooks/use-import-session";
 import { useToast } from "@/contexts/toast-context";
+import { useOpenOutsideWorkspaceFolder } from "@/workspace/open-in-file-manager/outside-folder";
 import { selectIsAgentListOpen, usePanelStore } from "@/stores/panel-store";
 import { toggleDesktopSidebarsWithCheckoutIntent } from "@/utils/desktop-sidebar-toggle";
 import {
@@ -3060,6 +3061,7 @@ function WorkspaceScreenContent({
           <WorkspaceOpenInEditorButton
             serverId={normalizedServerId}
             cwd={workspaceDirectory}
+            projectId={workspaceDescriptor?.projectId ?? null}
             activeFile={activeFileLocation}
             hideLabels
           />
@@ -3566,6 +3568,7 @@ function WorkspaceScreenContent({
       view: "files",
     });
   });
+  const openMarkdownOutsideDirectory = useOpenOutsideWorkspaceFolder(normalizedServerId);
   const markdownPathOpener = useMemo(
     () =>
       createInlinePathOpener({
@@ -3573,8 +3576,15 @@ function WorkspaceScreenContent({
         client,
         openFile: openMarkdownFile,
         openDirectory: openMarkdownDirectory,
+        openOutsideDirectory: openMarkdownOutsideDirectory,
       }),
-    [workspaceDirectory, client, openMarkdownFile, openMarkdownDirectory],
+    [
+      workspaceDirectory,
+      client,
+      openMarkdownFile,
+      openMarkdownDirectory,
+      openMarkdownOutsideDirectory,
+    ],
   );
   useEffect(() => {
     if (!isRouteFocused) markdownPathOpener.cancel();

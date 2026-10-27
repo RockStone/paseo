@@ -6,6 +6,7 @@ import { transformTimelineItem, type TimelineItemTransform } from "@/plugins/tim
 import type { InstalledPlugin } from "@/plugins/types";
 import {
   applyStreamEvent,
+  getStreamItemMessageId,
   hydrateStreamState,
   type StreamItem,
   type ToolCallItem,
@@ -15,8 +16,9 @@ import type { AgentStreamEventPayload } from "@getpaseo/protocol/messages";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { buildAgentStreamRenderModel } from "./model";
-import { createStreamPresentation, getStreamItemMessageId } from "./presentation";
+import { createStreamPresentation } from "./presentation";
 import { transcriptDisplayKey, useSectionExpansionStore } from "./section-expansion";
+import { createReadingAnchor } from "./reading-anchor";
 
 const runtime = {
   paseo: {},
@@ -100,7 +102,11 @@ function pluginData(items: StreamItem[]): unknown[] {
   return items.flatMap((item) => (item.kind === "plugin" ? [item.data] : []));
 }
 
-const presentationOptions = { level: "overview" as const, isTurnActive: true };
+const presentationOptions = {
+  display: "collapseToolCalls" as const,
+  expandedTurnHostIds: new Set<string>(),
+  isTurnActive: true,
+};
 
 function answeredQuestion(): ToolCallItem {
   const item = toolCall("question-1", "AskUserQuestion");
@@ -132,7 +138,7 @@ describe("answered inline questions", () => {
       for (const source of ["tail", "head"] as const) {
         const result = createStreamPresentation()({
           ...presentationOptions,
-          level,
+          display: level === "detailed" ? "full" : "collapseToolCalls",
           tail: source === "tail" ? [item] : [],
           head: source === "head" ? [item] : [],
           transform: undefined,
@@ -210,7 +216,8 @@ describe("answered inline questions", () => {
       item.payload.data.status = status;
       const result = createStreamPresentation()({
         ...presentationOptions,
-        level: "detailed",
+        ...presentationOptions,
+        display: "full",
         tail: [item],
         head: [],
         transform: undefined,
@@ -240,7 +247,8 @@ describe("answered inline questions", () => {
     item.payload.data.detail.output = output;
     const result = createStreamPresentation()({
       ...presentationOptions,
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       tail: [item],
       head: [],
       transform: undefined,
@@ -718,7 +726,8 @@ describe("timeline presentation", () => {
     };
     const present = createStreamPresentation();
     const result = present({
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: false,
       transform: undefined,
       tail: [compaction],
@@ -730,7 +739,8 @@ describe("timeline presentation", () => {
     ]);
     expect(
       present({
-        level: "detailed",
+        ...presentationOptions,
+        display: "full",
         isTurnActive: false,
         transform: undefined,
         tail: [compaction, summary],
@@ -744,7 +754,8 @@ describe("timeline presentation", () => {
     };
     expect(
       present({
-        level: "detailed",
+        ...presentationOptions,
+        display: "full",
         isTurnActive: false,
         transform: undefined,
         tail: [compaction, reply],
@@ -767,7 +778,8 @@ describe("timeline presentation", () => {
     const shell = toolCall("intervening-shell", "Bash");
     const items = [compaction, shell, summary];
     const result = createStreamPresentation()({
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: source === "live",
       transform: undefined,
       tail: source === "history" ? items : [],
@@ -783,7 +795,8 @@ describe("timeline presentation", () => {
     };
     const shell = toolCall("intervening-shell", "Bash");
     const result = createStreamPresentation()({
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: false,
       transform: undefined,
       tail: [shell, summary],
@@ -800,7 +813,8 @@ describe("timeline presentation", () => {
         "Restored context and tool results. ".repeat(2000),
     };
     const result = createStreamPresentation()({
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: source === "live",
       transform: undefined,
       tail: source === "history" ? [summary] : [],
@@ -819,7 +833,8 @@ describe("timeline presentation", () => {
         "</system-reminder>",
     };
     const result = createStreamPresentation()({
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: false,
       transform: undefined,
       tail: [message],
@@ -837,7 +852,8 @@ describe("timeline presentation", () => {
         "Called the Read tool with the following input: restored context.\n".repeat(100),
     };
     const result = createStreamPresentation()({
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: source === "live",
       transform: undefined,
       tail: source === "history" ? [summary] : [],
@@ -855,7 +871,8 @@ describe("timeline presentation", () => {
       { ...userMessage("user-envelope", 3), text: envelope + "User context. ".repeat(100) },
     ];
     const result = createStreamPresentation()({
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: false,
       transform: undefined,
       tail: items,
@@ -879,7 +896,8 @@ describe("timeline presentation", () => {
     const reply = assistantMessage("reply", 2);
     const items = [notification, notification, ordinaryTool, user, reply];
     const result = createStreamPresentation()({
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: source === "live",
       tail: source === "history" ? items : [],
       head: source === "live" ? items : [],
@@ -1127,7 +1145,8 @@ describe("recorded file-change accuracy", () => {
     const present = createStreamPresentation()({
       tail: items,
       head: [],
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       transform: undefined,
       isTurnActive: false,
     });
@@ -1259,7 +1278,8 @@ describe("live background Shell presentation", () => {
       const items = [a, b, unrelated];
       const present = createStreamPresentation();
       const input = {
-        level: "detailed" as const,
+        ...presentationOptions,
+        display: "full" as const,
         isTurnActive: false,
         transform: undefined,
         tail: source === "tail" ? items : [],
@@ -1290,7 +1310,8 @@ describe("live background Shell presentation", () => {
     const input = {
       tail: [a, b],
       head: [],
-      level: "overview" as const,
+      ...presentationOptions,
+      display: "collapseToolCalls" as const,
       isTurnActive: false,
       transform: undefined,
     };
@@ -1322,7 +1343,8 @@ describe("live background Shell presentation", () => {
     const result = createStreamPresentation()({
       tail: items,
       head: [],
-      level: "detailed",
+      ...presentationOptions,
+      display: "full",
       isTurnActive: false,
       transform: undefined,
       backgroundTaskIds: ["job"],
@@ -1330,3 +1352,175 @@ describe("live background Shell presentation", () => {
     expect(rows(result)).toEqual(items);
   });
 });
+
+it("opening a turn reveals individual calls rather than another tool group", () => {
+  const present = createStreamPresentation();
+  const timestamp = new Date();
+  const tail: StreamItem[] = [
+    { kind: "user_message", id: "prompt", text: "Work", timestamp },
+    toolCall("one", "Bash"),
+    toolCall("two", "Bash"),
+    { kind: "assistant_message", id: "reply", text: "Done", timestamp },
+  ];
+  const result = present({
+    ...presentationOptions,
+    transform: undefined,
+    tail,
+    head: [],
+    display: "collapseTurns",
+    isTurnActive: false,
+    expandedTurnHostIds: new Set(["prompt"]),
+  });
+  expect(result.tail.map((item) => item.id)).toEqual(tail.map((item) => item.id));
+  expect(result.groupsByHostId.size).toBe(0);
+  expect(result.readingRowReplacements.get("tool-two")).toBeUndefined();
+});
+
+it.each(["collapseToolCalls", "collapseTurns"] as const)(
+  "preserves the reader when a prepend extends a group in %s",
+  (display) => {
+    const present = createStreamPresentation();
+    const anchor = createReadingAnchor();
+    const calls = [toolCall("one", "Bash"), toolCall("two", "Bash")];
+    const input = {
+      ...presentationOptions,
+      transform: undefined,
+      display,
+      head: [],
+      isTurnActive: false,
+    };
+    const partial = present({ ...input, tail: calls.slice(1) });
+    anchor.reconcile(0, [{ id: partial.tail[0]!.id, top: 48, height: 200 }]);
+    const completed = present({ ...input, tail: calls });
+    const groupId = completed.tail[0]!.id;
+    expect(anchor.getRowId(completed.readingRowReplacements)).toBe(groupId);
+    expect(
+      anchor.reconcile(
+        0,
+        [{ id: groupId, top: 448, height: 200 }],
+        false,
+        completed.readingRowReplacements,
+      ),
+    ).toBe(400);
+    expect(anchor.getRowId()).toBe(groupId);
+    const timestamp = new Date();
+    const folded = present({
+      ...input,
+      display: "collapseTurns",
+      tail: [
+        { kind: "user_message", id: "prompt", text: "Work", timestamp },
+        ...calls,
+        { kind: "assistant_message", id: "reply", text: "Done", timestamp },
+      ],
+    });
+    // Both the original partial group and its replacement resolve directly to the turn.
+    expect(folded.readingRowReplacements.get(calls[1]!.id)).toBe("prompt");
+    expect(anchor.getRowId(folded.readingRowReplacements)).toBe("prompt");
+    const opened = present({ ...input, tail: calls, display: "full" });
+    expect(opened.readingRowReplacements.get(calls[1]!.id)).toBeUndefined();
+  },
+);
+
+it("presents received agent messages as attributed bubbles with the original turn identity", () => {
+  const call = toolCall("received", "agent_message");
+  if (call.payload.source !== "agent") throw new Error("Expected agent tool");
+  call.turnId = "turn";
+  call.payload.data.agentMessage = {
+    event: "message",
+    sender: { id: "sender", title: "Reviewer" },
+    text: "Ready",
+  };
+  const result = createStreamPresentation()({
+    ...presentationOptions,
+    transform: undefined,
+    tail: [call],
+    head: [],
+  });
+  expect(result.tail[0]).toMatchObject({
+    kind: "user_message",
+    id: call.id,
+    turnId: "turn",
+    text: "Ready",
+    sender: { id: "sender", title: "Reviewer" },
+  });
+});
+
+it("does not reopen the previous turn while a new run waits for its first row", () => {
+  const timestamp = new Date();
+  const tail: StreamItem[] = [
+    { kind: "user_message", id: "prompt", text: "Work", timestamp },
+    toolCall("one", "Bash"),
+    { kind: "assistant_message", id: "reply", text: "Done", timestamp },
+  ];
+  for (const item of tail) item.turnId = "completed";
+  const result = createStreamPresentation()({
+    ...presentationOptions,
+    transform: undefined,
+    tail,
+    head: [],
+    display: "collapseTurns",
+    isTurnActive: true,
+    activeTurnId: "new",
+  });
+  expect(result.tail.map((item) => item.id)).toEqual(["prompt", "reply"]);
+});
+
+it("groups reasoning with tools unless Expand thinking is enabled, including setting changes", () => {
+  const present = createStreamPresentation();
+  const timestamp = new Date();
+  const thought: StreamItem = {
+    kind: "thought",
+    id: "thought",
+    text: "Consider this",
+    status: "ready",
+    timestamp,
+  };
+  const tail: StreamItem[] = [toolCall("one", "Bash"), thought, toolCall("two", "Bash")];
+  for (const item of tail) item.turnId = "run";
+  const input = {
+    ...presentationOptions,
+    transform: undefined,
+    tail,
+    head: [],
+    display: "collapseToolCalls" as const,
+    isTurnActive: false,
+  };
+  const grouped = present({ ...input, autoExpandReasoning: false });
+  expect(grouped.tail).toHaveLength(1);
+  expect(grouped.groupsByHostId.get("tool-one")?.run.calls).toEqual(tail);
+  const separate = present({ ...input, autoExpandReasoning: true });
+  expect(separate.tail.map((item) => item.id)).toEqual(["tool-one", "thought", "tool-two"]);
+  expect(separate.groupsByHostId.has("thought")).toBe(false);
+  const next = { ...thought, id: "next", turnId: "next-run" };
+  const bounded = present({ ...input, tail: [...tail, next], autoExpandReasoning: false });
+  expect(bounded.tail.map((item) => item.id)).toEqual(["tool-one", "next"]);
+});
+
+it.each([false, true])(
+  "reveals raw reasoning when opening a turn (Expand thinking %s)",
+  (autoExpandReasoning) => {
+    const timestamp = new Date();
+    const tail: StreamItem[] = [
+      { kind: "user_message", id: "prompt", text: "Work", timestamp },
+      { kind: "thought", id: "thought", text: "Consider this", status: "ready", timestamp },
+      toolCall("one", "Bash"),
+      { kind: "assistant_message", id: "reply", text: "Done", timestamp },
+    ];
+    const input = {
+      ...presentationOptions,
+      transform: undefined,
+      tail,
+      head: [],
+      display: "collapseTurns" as const,
+      isTurnActive: false,
+      autoExpandReasoning,
+    };
+    const present = createStreamPresentation();
+    const closed = present(input);
+    expect(closed.tail.some((item) => item.id === "thought")).toBe(false);
+    const opened = present({ ...input, expandedTurnHostIds: new Set(["prompt"]) });
+    expect(opened.tail).toEqual(tail);
+    expect(opened.turns.nestedItemIds.has("thought")).toBe(true);
+    expect(opened.groupsByHostId.size).toBe(0);
+  },
+);

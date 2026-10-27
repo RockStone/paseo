@@ -9,6 +9,7 @@ export const PROVIDER_CAPABILITIES = [
   "prompt.image",
   "prompt.output_schema",
   "prompt.steer",
+  "session.can_stop_runtime",
   "session.archive",
   "session.configure",
   "session.list",
@@ -277,6 +278,7 @@ export type ProviderInput =
     }
   | { type: "session.archive"; requestId: string; persistence: ProviderPersistence }
   | { type: "session.unarchive"; requestId: string; persistence: ProviderPersistence }
+  | { type: "session.can_stop_runtime"; requestId: string; sessionId: string }
   | { type: "session.close"; requestId: string; sessionId: string };
 
 export interface ProviderThinkingOption {
@@ -553,6 +555,7 @@ export type ProviderTimelineItem =
     });
 
 export type ProviderEvent =
+  | { type: "session.can_stop_runtime"; requestId: string; sessionId: string; canStop: boolean }
   | { type: "catalog"; requestId: string; catalog: ProviderCatalog }
   | { type: "sessions"; requestId: string; sessions: ProviderSessionSummary[] }
   | { type: "request.completed"; requestId: string }
@@ -635,6 +638,8 @@ function requiredPromptCapabilities(prompt: ProviderPrompt): readonly ProviderCa
 
 export function requiredProviderCapabilities(input: ProviderInput): readonly ProviderCapability[] {
   switch (input.type) {
+    case "session.can_stop_runtime":
+      return ["session.can_stop_runtime"];
     case "catalog":
     case "session.interrupt":
     case "session.close":
@@ -954,6 +959,13 @@ export const ProviderInputSchema: z.ZodType<ProviderInput> = z.discriminatedUnio
       type: z.literal("session.unarchive"),
       requestId: idSchema,
       persistence: persistenceSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("session.can_stop_runtime"),
+      requestId: idSchema,
+      sessionId: idSchema,
     })
     .strict(),
   z.object({ type: z.literal("session.close"), requestId: idSchema, sessionId: idSchema }).strict(),
@@ -1326,6 +1338,14 @@ export const ProviderEventSchema: z.ZodType<ProviderEvent> = z.discriminatedUnio
       type: z.literal("session.ready"),
       requestId: idSchema.optional(),
       sessionId: idSchema,
+    })
+    .strip(),
+  z
+    .object({
+      type: z.literal("session.can_stop_runtime"),
+      requestId: idSchema,
+      sessionId: idSchema,
+      canStop: z.boolean(),
     })
     .strip(),
   z

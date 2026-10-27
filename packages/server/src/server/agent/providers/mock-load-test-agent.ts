@@ -231,6 +231,7 @@ interface LargeAgentStreamPayloadRequest {
 }
 
 interface AgentStreamStressRequest {
+  tools: boolean;
   count: number;
   coalesced: boolean;
 }
@@ -294,6 +295,35 @@ function parseMockQuestionPrompt(prompt: AgentPromptInput): MockQuestionPromptRe
   const text = promptToText(prompt);
   if (!/emit\s+(?:a\s+)?synthetic\s+questions?/i.test(text)) {
     return null;
+  }
+
+  if (/with\s+links/i.test(text)) {
+    return {
+      questions: [
+        {
+          question:
+            "Sign in at https://example.com/login, then follow [the setup guide](https://example.com/setup). Done?",
+          header: "signIn",
+          options: [
+            {
+              label: "Done",
+              description: "Logs are at https://example.com/logs if sign-in fails.",
+            },
+            { label: "Not yet, see [status](https://example.com/status)" },
+          ],
+          multiSelect: false,
+        },
+        {
+          question: "Which checks should run?",
+          header: "checks",
+          options: [
+            { label: "Lint", description: "Rules: https://example.com/lint" },
+            { label: "Typecheck" },
+          ],
+          multiSelect: true,
+        },
+      ],
+    };
   }
 
   if (/free[-\s]?write|freeform|text[-\s]?only/i.test(text)) {
@@ -433,7 +463,7 @@ function parseLargeAgentStreamPayloadPrompt(
 
 function parseAgentStreamStressPrompt(prompt: AgentPromptInput): AgentStreamStressRequest | null {
   const text = promptToText(prompt);
-  const match = /emit\s+(\d+)\s+(coalesced\s+)?agent stream updates/i.exec(text);
+  const match = /emit\s+(\d+)\s+(coalesced\s+|tool\s+)?agent stream updates/i.exec(text);
   if (!match) {
     return null;
   }
@@ -443,7 +473,8 @@ function parseAgentStreamStressPrompt(prompt: AgentPromptInput): AgentStreamStre
   }
   return {
     count: Math.min(count, 5_000),
-    coalesced: Boolean(match[2]),
+    coalesced: match[2]?.trim() === "coalesced",
+    tools: match[2]?.trim() === "tool",
   };
 }
 
@@ -1460,21 +1491,37 @@ export class MockLoadTestAgentSession implements AgentSession {
     this.emitTurnStarted(turn);
 
     for (let index = 0; index < stress.count; index += 1) {
-      this.emitTimeline(
-        turn.turnId,
-        stress.coalesced
-          ? {
-              type: "assistant_message",
-              text: `stress-update-${index}`,
-              messageId: turn.assistantMessageId,
-            }
-          : {
-              type: "todo",
-              items: [{ text: `stress-update-${index}`, completed: index % 2 === 0 }],
-            },
-      );
+      let item: AgentTimelineItem;
+      if (stress.tools) {
+        item = {
+          type: "tool_call",
+          callId: `${turn.turnId}:stress:${index}`,
+          name: "Bash",
+          status: "completed",
+          error: null,
+          detail: { type: "shell", command: `echo stress-${index}`, output: `stress-${index}` },
+        };
+      } else if (stress.coalesced) {
+        item = {
+          type: "assistant_message",
+          text: `stress-update-${index}`,
+          messageId: turn.assistantMessageId,
+        };
+      } else {
+        item = {
+          type: "todo",
+          items: [{ text: `stress-update-${index}`, completed: index % 2 === 0 }],
+        };
+      }
+      this.emitTimeline(turn.turnId, item);
     }
 
+    if (stress.tools)
+      this.emitTimeline(turn.turnId, {
+        type: "assistant_message",
+        text: `Completed ${stress.count} commands`,
+        messageId: turn.assistantMessageId,
+      });
     this.activeTurn = null;
     const usage = {
       inputTokens: 1,

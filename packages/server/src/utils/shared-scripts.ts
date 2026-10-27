@@ -6,13 +6,13 @@ export function sharedScriptsRoot(paseoHome: string): string {
 }
 
 /** Only scripts inherit from the host. Repo lifecycle hooks and metadata stay local. */
-export function readWorkspaceScriptConfig(
+export async function readWorkspaceScriptConfig(
   repoRoot: string,
   sharedRoot?: string,
-): ReadPaseoConfigResult {
-  const project = readPaseoConfig(repoRoot);
+): Promise<ReadPaseoConfigResult> {
+  const project = await readPaseoConfig(repoRoot);
   if (!project.ok || !sharedRoot) return project;
-  const shared = readPaseoConfig(sharedRoot);
+  const shared = await readPaseoConfig(sharedRoot);
   if (!shared.ok) return shared;
   return {
     ok: true,

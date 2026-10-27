@@ -335,7 +335,7 @@ export async function runWorktreeAutoTerminals(options: {
   if (!options.terminalManager) return;
   const terminalManager = options.terminalManager;
   await Promise.all(
-    getWorktreeTerminalSpecs(options.workspaceCwd).map(async (spec) => {
+    (await getWorktreeTerminalSpecs(options.workspaceCwd)).map(async (spec) => {
       try {
         const terminal = await terminalManager.createTerminal({
           cwd: options.workspaceCwd,
@@ -580,7 +580,7 @@ async function launchWorkspaceScript(
     logger,
     onLifecycleChanged,
   } = options;
-  const configResult = readWorkspaceScriptConfig(repoRoot, options.sharedScriptsRoot);
+  const configResult = await readWorkspaceScriptConfig(repoRoot, options.sharedScriptsRoot);
   if (!configResult.ok) {
     throw paseoConfigParseError(configResult);
   }

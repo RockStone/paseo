@@ -34,12 +34,12 @@ interface BuildWorkspaceScriptPayloadsOptions {
   resolveHealth?: (hostname: string) => ScriptHealthState | null;
 }
 
-export function readPaseoConfigForProjection(
+export async function readPaseoConfigForProjection(
   workspaceDirectory: string,
   logger: Logger,
   sharedScriptsRoot?: string,
-): PaseoConfig | null {
-  const result = readWorkspaceScriptConfig(workspaceDirectory, sharedScriptsRoot);
+): Promise<PaseoConfig | null> {
+  const result = await readWorkspaceScriptConfig(workspaceDirectory, sharedScriptsRoot);
   if (result.ok) {
     return result.config;
   }
@@ -292,9 +292,9 @@ export function createScriptStatusEmitter({
   sharedScriptsRoot?: string;
   resolveWorkspaceDirectory: (workspaceId: string) => string | null | Promise<string | null>;
   logger: Logger;
-}): (workspaceId: string, scripts: ScriptHealthEntry[]) => void {
-  return (workspaceId, scripts) => {
-    void (async () => {
+}): (workspaceId: string, scripts: ScriptHealthEntry[]) => Promise<void> {
+  return async (workspaceId, scripts) => {
+    try {
       const workspaceDirectory = await resolveWorkspaceDirectory(workspaceId);
       if (!workspaceDirectory) {
         return;
@@ -308,7 +308,11 @@ export function createScriptStatusEmitter({
       const projected = buildWorkspaceScriptPayloads({
         workspaceId,
         workspaceDirectory,
-        paseoConfig: readPaseoConfigForProjection(workspaceDirectory, logger, sharedScriptsRoot),
+        paseoConfig: await readPaseoConfigForProjection(
+          workspaceDirectory,
+          logger,
+          sharedScriptsRoot,
+        ),
         serviceProxy,
         runtimeStore,
         daemonPort: resolvedDaemonPort,
@@ -324,6 +328,8 @@ export function createScriptStatusEmitter({
       for (const session of sessions()) {
         session.emit(message);
       }
-    })();
+    } catch (error) {
+      logger.warn({ err: error, workspaceId }, "Failed to project workspace script status");
+    }
   };
 }

@@ -1,4 +1,5 @@
 import type { UserComposerAttachment } from "@/attachments/types";
+import { planTimelineTailFetch } from "@/timeline/timeline-sync-plan";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
@@ -44,8 +45,7 @@ export function useRewindAgentMutation(input: UseRewindAgentMutationInput): {
           : undefined;
         if (!input.serverId) throw new Error(t("common.errors.daemonClientUnavailable"));
         await getHostRuntimeStore().fetchAgentTimeline(input.serverId, input.agentId, {
-          direction: "tail",
-          projection: "projected",
+          ...planTimelineTailFetch(),
           ...(cursor ? { cursor: { epoch: cursor.epoch, seq: cursor.endSeq } } : {}),
         });
       }

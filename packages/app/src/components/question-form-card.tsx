@@ -18,6 +18,7 @@ import { isWeb } from "@/constants/platform";
 import { EditingTextInput as TextInput } from "@/components/ui/text-input";
 import type { EditingTextInputHandle } from "@/components/ui/text-input/types";
 import { ScrollableCodeSurface } from "@/components/ui/scrollable-code-surface";
+import { MarkdownRenderer } from "@/components/markdown/renderer";
 import {
   areQuestionsAnswered,
   buildQuestionFormAnswers,
@@ -41,6 +42,20 @@ const IS_WEB = isWeb;
 // Native previews are uncapped: inside the option's Pressable, Android never hands a
 // drag to the preview's nested scroll, so lines past a cap would be unreachable.
 const OPTION_PREVIEW_MAX_HEIGHT = IS_WEB ? 240 : undefined;
+
+// Web clicks that must not answer: a link in the label, anything in the description, and the
+// second click of a double-click, which would otherwise land on the next question's options.
+function isNonAnsweringClick(event: GestureResponderEvent, description: View | null): boolean {
+  if (!IS_WEB) return false;
+  const click = event.nativeEvent as unknown as MouseEvent;
+  if (click.detail > 1) return true;
+  const target = click.target as Element | null;
+  const descriptionElement = description as unknown as Element | null;
+  return Boolean(target?.closest("a") || descriptionElement?.contains(target));
+}
+
+// The description is selectable text, so a touch on it belongs to the text, not the option.
+const claimResponder = () => true;
 
 function getQuestionInputPlaceholder({
   question,
@@ -78,11 +93,13 @@ function QuestionOptionRow({
   const { theme } = useUnistyles();
   const pressStart = useRef<{ x: number; y: number } | null>(null);
 
+  const descriptionRef = useRef<View>(null);
   const handlePressIn = useCallback((event: GestureResponderEvent) => {
     pressStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
   }, []);
   const handlePress = useCallback(
     (event: GestureResponderEvent) => {
+      if (isNonAnsweringClick(event, descriptionRef.current)) return;
       // A drag selects the option's text without choosing an answer or advancing the card.
       const start = pressStart.current;
       if (
@@ -109,17 +126,6 @@ function QuestionOptionRow({
     [isSelected, theme.colors.surface2],
   );
 
-  const optionLabelStyle = useMemo(
-    () => [
-      styles.optionLabel,
-      { color: isSelected ? theme.colors.foreground : theme.colors.foregroundMuted },
-    ],
-    [isSelected, theme.colors.foreground, theme.colors.foregroundMuted],
-  );
-  const optionDescriptionStyle = useMemo(
-    () => [styles.optionDescription, { color: theme.colors.foregroundMuted }],
-    [theme.colors.foregroundMuted],
-  );
   const accessibilityState = useMemo(() => ({ checked: isSelected }), [isSelected]);
 
   // Static left-side control: square for multi-select, circle for single-select.
@@ -159,13 +165,15 @@ function QuestionOptionRow({
           {isSelected && !multiSelect ? <View style={radioDotStyle} /> : null}
         </View>
         <View style={styles.optionTextBlock}>
-          <Text selectable style={optionLabelStyle}>
-            {option.label}
-          </Text>
+          <MarkdownRenderer text={option.label} compact muted={!isSelected} selectable />
           {option.description ? (
-            <Text selectable style={optionDescriptionStyle}>
-              {option.description}
-            </Text>
+            <View
+              ref={descriptionRef}
+              testID="question-form-option-description"
+              onStartShouldSetResponder={claimResponder}
+            >
+              <MarkdownRenderer text={option.description} compact muted />
+            </View>
           ) : null}
           {option.preview ? (
             // Shown for every option at once so they can be compared before picking.
@@ -550,10 +558,6 @@ export function QuestionFormCard({
     ],
     [theme.colors.surface1, theme.colors.border],
   );
-  const questionTextStyle = useMemo(
-    () => [styles.questionText, { color: theme.colors.foreground }],
-    [theme.colors.foreground],
-  );
   // Single-select radios need a group; checkboxes are valid standalone.
   const optionsGroupAccessibility = useMemo(
     () =>
@@ -598,9 +602,9 @@ export function QuestionFormCard({
         onSelect={handleSelectQuestion}
       />
       <View style={styles.questionHeader}>
-        <Text selectable testID="question-form-current-question" style={questionTextStyle}>
-          {activeQuestion?.question}
-        </Text>
+        <View testID="question-form-current-question" style={styles.questionText}>
+          <MarkdownRenderer text={questions[resolvedActiveQuestionIndex].question} compact />
+        </View>
       </View>
 
       {activeQuestion ? (
@@ -703,9 +707,6 @@ const styles = StyleSheet.create((theme) => ({
   },
   questionText: {
     flex: 1,
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.normal,
-    lineHeight: 22,
   },
   optionsWrap: {
     gap: theme.spacing[1],
@@ -750,15 +751,6 @@ const styles = StyleSheet.create((theme) => ({
   optionTextBlock: {
     flex: 1,
     gap: theme.spacing[1],
-  },
-  optionLabel: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.normal,
-    lineHeight: 22,
-  },
-  optionDescription: {
-    fontSize: theme.fontSize.base,
-    lineHeight: 20,
   },
   optionPreviewText: {
     lineHeight: 20,

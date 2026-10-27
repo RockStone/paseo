@@ -1,3 +1,4 @@
+import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
 import type { Page } from "@playwright/test";
 import { test, expect } from "../support/fixtures";
 import { expectComposerVisible } from "../support/helpers/composer";
@@ -143,7 +144,7 @@ async function configureOverviewToolCalls(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
       "@paseo:app-settings",
-      JSON.stringify({ toolCallDetailLevel: "overview" }),
+      JSON.stringify({ chatDisplay: "collapseToolCalls" }),
     );
   });
 }
@@ -293,6 +294,99 @@ test("keeps overview tool calls inline on desktop", async ({ page }) => {
     await expect(toggle).toHaveAttribute("aria-label", "Expand thinking");
     await toggle.click();
     await expect(group.getByTestId("tool-call-badge")).toHaveCount(0);
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("overlapping native task updates keep each row and its expanded details attached", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => {
+    localStorage.setItem("@paseo:app-settings", JSON.stringify({ chatDisplay: "full" }));
+  });
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "overlapping-native-tasks-",
+    title: "Overlapping native tasks",
+    model: "ten-second-stream",
+  });
+  let template: { message: Extract<SessionOutboundMessage, { type: "agent_stream" }> } | null =
+    null;
+  let send: ((message: string) => void) | null = null;
+  let sequence: number | undefined;
+  const labels = ["Sound loop", "Visual rebuild", "Driver-view clip"];
+  const update = (index: number, progress: number) => {
+    if (!template || !send) throw new Error("Expected the mock tool stream");
+    const envelope = structuredClone(template);
+    if (sequence !== undefined) envelope.message.payload.seq = sequence++;
+    envelope.message.payload.event = {
+      type: "timeline",
+      provider: "claude",
+      turnId: index < 2 ? "native-turn-40" : "native-turn-41",
+      item: {
+        type: "tool_call",
+        callId: `native-task-${index}`,
+        name: "Agent",
+        status: "running",
+        error: null,
+        detail: {
+          type: "sub_agent",
+          description: labels[index],
+          log: `unique-task-output-${index}-${progress}`,
+          actions: [],
+        },
+      },
+    };
+    send(JSON.stringify(envelope));
+  };
+  try {
+    await page.routeWebSocket(daemonWsRoutePattern(), (socket) => {
+      const server = socket.connectToServer();
+      send = (message) => socket.send(message);
+      socket.onMessage((message) => server.send(message));
+      server.onMessage((message) => {
+        const session = parseSessionMessage(message);
+        if (session?.type === "agent_stream") {
+          const payload = session.payload as Extract<
+            SessionOutboundMessage,
+            { type: "agent_stream" }
+          >["payload"];
+          if (payload.agentId === agent.agentId) {
+            if (template) return;
+            if (payload.event.type === "timeline" && payload.event.item.type === "tool_call") {
+              template = JSON.parse(message.toString());
+              sequence = payload.seq;
+              return;
+            }
+          }
+        }
+        socket.send(message);
+      });
+    });
+    await openAgentRoute(page, agent);
+    await expectComposerVisible(page);
+    await agent.client.sendAgentMessage(agent.agentId, "Exercise native task identity.");
+    await expect.poll(() => template !== null, { timeout: 30_000 }).toBe(true);
+    labels.forEach((_, index) => update(index, 0));
+    const badges = page
+      .getByTestId("tool-call-badge")
+      .filter({ hasText: /Sound loop|Visual rebuild|Driver-view clip/ });
+    await expect(badges).toHaveCount(3);
+    for (let progress = 1; progress <= 60; progress += 1) update(progress % 3, progress);
+    await expect(badges).toHaveCount(3);
+    for (const [index, label] of labels.entries()) {
+      const badge = badges.filter({ hasText: label });
+      await expect(badge).toHaveCount(1);
+      await badge.getByRole("button").first().click();
+      const latest = 60 - ((60 - index + 3) % 3);
+      await expect(
+        badge.getByText(`unique-task-output-${index}-${latest}`, { exact: true }),
+      ).toBeVisible();
+      await expect(badge).not.toContainText(`unique-task-output-${(index + 1) % 3}-`);
+      await badge.getByRole("button").first().click();
+    }
+    await page.screenshot({ path: testInfo.outputPath("overlapping-native-task-rows.png") });
   } finally {
     await agent.cleanup();
   }

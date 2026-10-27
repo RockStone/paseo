@@ -141,7 +141,7 @@ test("overview labels stay muted when a retained group becomes loading", async (
   await page.addInitScript(() => {
     localStorage.setItem(
       "@paseo:app-settings",
-      JSON.stringify({ toolCallDetailLevel: "overview" }),
+      JSON.stringify({ chatDisplay: "collapseToolCalls" }),
     );
   });
   const agent = await seedMockAgentWorkspace({

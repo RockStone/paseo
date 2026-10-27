@@ -1,10 +1,11 @@
-import { mkdirSync, realpathSync } from "node:fs";
-import { basename, dirname, join, resolve, sep } from "path";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "path";
 import type pino from "pino";
 import type { SessionInboundMessage, SessionOutboundMessage } from "../../messages.js";
 import type { ProjectRegistry, WorkspaceRegistry } from "../../workspace-registry.js";
 import {
   readPaseoConfigForEdit,
+  resolveProjectConfigRoot,
   writePaseoConfigForEdit,
   type ProjectConfigRpcError,
 } from "../../../utils/paseo-config-file.js";
@@ -42,7 +43,7 @@ export class ProjectConfigSession {
     this.workspaceRegistry = options.workspaceRegistry;
     this.logger = options.logger;
     this.sharedScriptsRoot = options.sharedScriptsRoot
-      ? canonicalizeConfigRoot(options.sharedScriptsRoot)
+      ? resolve(options.sharedScriptsRoot)
       : undefined;
   }
 
@@ -55,7 +56,7 @@ export class ProjectConfigSession {
       return;
     }
 
-    const result = readPaseoConfigForEdit(repoRoot);
+    const result = await readPaseoConfigForEdit(repoRoot);
     if (!result.ok) {
       this.logger.warn(
         { repoRoot, requestId: msg.requestId, outcome: result.error.code },
@@ -105,13 +106,13 @@ export class ProjectConfigSession {
     );
     if (repoRoot === this.sharedScriptsRoot) {
       try {
-        mkdirSync(repoRoot, { recursive: true });
+        await mkdir(repoRoot, { recursive: true });
       } catch {
         this.emitProjectConfigWriteFailure(msg, { code: "write_failed" }, repoRoot);
         return;
       }
     }
-    const result = writePaseoConfigForEdit({
+    const result = await writePaseoConfigForEdit({
       repoRoot,
       config: msg.config,
       expectedRevision: msg.expectedRevision,
@@ -190,45 +191,33 @@ export class ProjectConfigSession {
   }
 
   private async resolveKnownProjectRoot(repoRoot: string): Promise<string | null> {
-    const requestedRoot = canonicalizeConfigRoot(repoRoot);
-    if (requestedRoot === this.sharedScriptsRoot) return requestedRoot;
+    const requestedRoot = resolve(repoRoot);
     const projects = await this.projectRegistry.list();
-    const activeProjects = new Set<string>();
-    for (const project of projects) {
-      if (project.archivedAt !== null) {
-        continue;
-      }
-      const projectRoot = canonicalizeConfigRoot(project.rootPath);
-      activeProjects.add(project.projectId);
-      if (requestedRoot === projectRoot) {
-        return projectRoot;
-      }
-    }
-    for (const workspace of await this.workspaceRegistry.list()) {
-      if (workspace.archivedAt !== null || !activeProjects.has(workspace.projectId)) continue;
-      const workspaceRoot = canonicalizeConfigRoot(workspace.cwd);
-      if (requestedRoot === workspaceRoot) return workspaceRoot;
-    }
-    return null;
+    const activeProjectIds = new Set(
+      projects.filter((p) => p.archivedAt === null).map((p) => p.projectId),
+    );
+    const workspaces = await this.workspaceRegistry.list();
+    const activeRoots = new Set([
+      ...projects.filter((p) => p.archivedAt === null).map((p) => resolve(p.rootPath)),
+      ...workspaces
+        .filter((w) => w.archivedAt === null && activeProjectIds.has(w.projectId))
+        .map((w) => resolve(w.cwd)),
+      ...(this.sharedScriptsRoot ? [this.sharedScriptsRoot] : []),
+    ]);
+    const root = await resolveProjectConfigRoot(requestedRoot, activeRoots);
+    if (!root) return null;
+    // Authorization follows live registry state after alias IO, including archive/removal.
+    if (root === this.sharedScriptsRoot) return root;
+    const current = await this.projectRegistry.list();
+    const currentProjectIds = new Set(
+      current.filter((p) => p.archivedAt === null).map((p) => p.projectId),
+    );
+    if (current.some((p) => p.archivedAt === null && resolve(p.rootPath) === root)) return root;
+    const currentWorkspaces = await this.workspaceRegistry.list();
+    return currentWorkspaces.some(
+      (w) => w.archivedAt === null && currentProjectIds.has(w.projectId) && resolve(w.cwd) === root,
+    )
+      ? root
+      : null;
   }
-}
-
-function canonicalizeConfigRoot(repoRoot: string): string {
-  const resolved = resolve(repoRoot);
-  try {
-    return stripTrailingPathSeparators(realpathSync(resolved));
-  } catch {
-    const parent = dirname(resolved);
-    return parent === resolved
-      ? resolved
-      : join(canonicalizeConfigRoot(parent), basename(resolved));
-  }
-}
-
-function stripTrailingPathSeparators(path: string): string {
-  let normalized = path;
-  while (normalized.length > 1 && normalized.endsWith(sep)) {
-    normalized = normalized.slice(0, -1);
-  }
-  return normalized;
 }
