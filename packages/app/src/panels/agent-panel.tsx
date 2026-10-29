@@ -1038,6 +1038,7 @@ function ChatAgentContent({
       retryTimelineSync={retryTimelineSync}
       onAttentionInputFocus={attentionController.clearOnInputFocus}
       onAttentionPromptSend={attentionController.clearOnPromptSend}
+      onAttentionInteraction={attentionController.clearOnInteraction}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
     />
   );
@@ -1068,6 +1069,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   cwd,
   onAttentionInputFocus,
   onAttentionPromptSend,
+  onAttentionInteraction,
   onOpenWorkspaceFile,
 }: {
   serverId: string;
@@ -1094,9 +1096,15 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   cwd: string;
   onAttentionInputFocus: () => void;
   onAttentionPromptSend: () => void;
+  onAttentionInteraction: () => void;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
 }) {
   const { t } = useTranslation();
+  const handleInteractionStart = useCallback(() => {
+    onAttentionInteraction();
+    // Observe the gesture without taking ownership of text selection or scrolling.
+    return false;
+  }, [onAttentionInteraction]);
   // The workspace sheet is for looking; Open as tab brings the agent back with its composer.
   const showsComposer = usePaneContext().host !== "sheet";
   // The dock lays out fullscreen for the same session the composer edits in.
@@ -1143,10 +1151,17 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     attachmentFocusRequestId,
     composerState,
   } = rawAgentInputDraft;
+  const editDraftText = useCallback(
+    (text: string) => {
+      onAttentionInteraction();
+      editText(text);
+    },
+    [editText, onAttentionInteraction],
+  );
   const agentInputDraft = useMemo(
     (): AgentInputDraft => ({
       textSource,
-      editText,
+      editText: editDraftText,
       replaceText,
       textReplacement,
       attachments,
@@ -1158,7 +1173,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     }),
     [
       textSource,
-      editText,
+      editDraftText,
       replaceText,
       textReplacement,
       attachments,
@@ -1278,7 +1293,15 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       setAttachments={agentInputDraft.setAttachments}
       onRewindComplete={handleRewindComplete}
     >
-      <View style={styles.root}>
+      <View
+        style={styles.root}
+        onStartShouldSetResponderCapture={handleInteractionStart}
+        {...(isWeb
+          ? {
+              onKeyDownCapture: onAttentionInteraction,
+            }
+          : {})}
+      >
         {dock}
 
         {isArchivingCurrentAgent ? (

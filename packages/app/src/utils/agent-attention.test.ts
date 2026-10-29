@@ -141,6 +141,24 @@ describe("shouldClearAgentAttention", () => {
       }),
     ).toBe(true);
   });
+
+  it.each([
+    ["finished", true],
+    ["permission", false],
+    ["error", false],
+    [null, false],
+  ] as const)("interaction clears %s attention: %s", (attentionReason, expected) => {
+    expect(
+      shouldClearAgentAttention({
+        agentId: "agent-1",
+        isConnected: true,
+        requiresAttention: true,
+        attentionReason,
+        trigger: "interaction",
+        hasDeferredFocusEntryClear: true,
+      }),
+    ).toBe(expected);
+  });
 });
 
 describe("pickAttentionAgent", () => {

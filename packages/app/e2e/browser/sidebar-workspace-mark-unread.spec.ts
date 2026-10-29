@@ -219,6 +219,39 @@ test("clicking a multi-agent workspace reveals and clears its marked agent", asy
   await expectSelectedAgent(page, newest.id);
 });
 
+test("interacting with the current chat reads new completions without clearing another workspace", async ({
+  page,
+  workspaces: { subject, other },
+}, testInfo) => {
+  await openAgentRoute(page, subject);
+  await markAsUnread(page, other.workspaceId);
+  const route = page.url();
+  const composer = page.getByRole("textbox", { name: "Message agent..." });
+
+  await subject.client.sendAgentMessage(subject.agentId, "Finish while I am reading this chat.");
+  await subject.client.waitForFinish(subject.agentId, 20_000);
+  await expectStatus(page, subject.workspaceId, "attention");
+  await page.screenshot({ path: testInfo.outputPath("completion-unread.png") });
+  await page.getByText("Finish while I am reading this chat.", { exact: true }).click();
+  await expectStatus(page, subject.workspaceId, "done");
+  await expectStatus(page, other.workspaceId, "attention");
+  await expect(page).toHaveURL(route);
+  await expectSelectedAgent(page, subject.agentId);
+  await page.screenshot({ path: testInfo.outputPath("completion-read.png") });
+
+  // The composer stays focused throughout the next turn: typing must work without a new focus event.
+  await composer.click();
+  await subject.client.sendAgentMessage(subject.agentId, "Finish while the composer is focused.");
+  await subject.client.waitForFinish(subject.agentId, 20_000);
+  await expectStatus(page, subject.workspaceId, "attention");
+  await expect(composer).toBeFocused();
+  await page.keyboard.type("Unsent draft");
+  await expectStatus(page, subject.workspaceId, "done");
+  await expectStatus(page, other.workspaceId, "attention");
+  await expect(composer).toHaveText("Unsent draft");
+  await expect(page).toHaveURL(route);
+});
+
 test("manual unread survives leaving the current workspace on compact layout", async ({
   page,
   workspaces,
@@ -228,6 +261,26 @@ test("manual unread survives leaving the current workspace on compact layout", a
   await leaveMarkedWorkspaceAndReopenOnCompact(page, workspaces);
   await markUnreadThenResumeChat(page, workspaces.subject.workspaceId);
   await completeTurnAndLeaveOnCompact(page, workspaces);
+});
+
+test.describe("touch interaction with a completed chat", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("reads the current completion without changing workspaces", async ({ page, workspaces }) => {
+    const { subject } = workspaces;
+    await openCompactWorkspace(page, subject);
+    await closeMobileAgentSidebar(page);
+    await subject.client.sendAgentMessage(subject.agentId, "Finish before I tap this message.");
+    await subject.client.waitForFinish(subject.agentId, 20_000);
+    await openMobileAgentSidebar(page);
+    await expectStatus(page, subject.workspaceId, "attention");
+    await closeMobileAgentSidebar(page);
+    const route = page.url();
+    await page.getByText("Finish before I tap this message.", { exact: true }).tap();
+    await openMobileAgentSidebar(page);
+    await expectStatus(page, subject.workspaceId, "done");
+    await expect(page).toHaveURL(route);
+  });
 });
 
 async function reopenMarkedWorkspaceAfterBackgroundTurn(page: Page, workspace: MockAgentWorkspace) {

@@ -12,6 +12,7 @@ interface ShouldClearAgentAttentionInput {
 export type AgentAttentionClearTrigger =
   | "focus-entry"
   | "input-focus"
+  | "interaction"
   | "prompt-send"
   | "agent-blur";
 
@@ -72,6 +73,9 @@ export function shouldClearAgentAttention(input: ShouldClearAgentAttentionInput)
     return false;
   }
   if (input.attentionReason === "permission") {
+    return false;
+  }
+  if (input.trigger === "interaction" && input.attentionReason !== "finished") {
     return false;
   }
   if (input.trigger === "focus-entry" && input.hasDeferredFocusEntryClear === true) {

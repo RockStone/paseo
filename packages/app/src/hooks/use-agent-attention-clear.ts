@@ -20,6 +20,7 @@ interface UseAgentAttentionClearParams {
 }
 
 interface AgentAttentionClearController {
+  clearOnInteraction: () => void;
   clearOnInputFocus: () => void;
   clearOnPromptSend: () => void;
   clearOnAgentBlur: () => void;
@@ -122,6 +123,11 @@ export function useAgentAttentionClear({
   }, [clearAttention, isAppVisible, isScreenFocused]);
 
   return {
+    clearOnInteraction: useCallback(() => {
+      if (isScreenFocused && getIsAppActivelyVisible()) {
+        clearAttention("interaction");
+      }
+    }, [clearAttention, isScreenFocused]),
     clearOnInputFocus: useCallback(() => {
       clearAttention("input-focus");
     }, [clearAttention]),
