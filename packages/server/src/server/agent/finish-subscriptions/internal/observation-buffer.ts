@@ -33,7 +33,7 @@ export function createObservationBuffer(signal: AbortSignal) {
     wake?.();
   }
   return {
-    pushInitial(result: FinishObservationResult) {
+    pushInitial(result: FinishObservationResult, skip = false) {
       initialPending = false;
       let settled = false;
       if (result.status === "permission" && result.final) {
@@ -43,6 +43,7 @@ export function createObservationBuffer(signal: AbortSignal) {
         if (pendingPermissions.length)
           push({ ...result, final: { ...result.final, pendingPermissions } });
       } else if (
+        !skip &&
         !terminalObserved &&
         result.final?.status !== "running" &&
         result.final?.status !== "initializing"

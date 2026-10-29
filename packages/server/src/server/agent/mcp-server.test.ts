@@ -2928,7 +2928,7 @@ describe("create_agent MCP tool", () => {
 
     try {
       const parent = await agentManager.createAgent(
-        { provider: "claude", cwd: existingCwd },
+        { provider: "claude", cwd: workdir },
         undefined,
         { workspaceId: "wks_parent" },
       );
@@ -3758,16 +3758,12 @@ describe("send_agent_prompt MCP tool", () => {
       const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
       let mcpClient: Client | undefined;
       try {
-        const parent = await manager.createAgent(
-          { provider: "codex", cwd: existingCwd },
-          undefined,
-          { workspaceId: "wks_parent" },
-        );
-        const child = await manager.createAgent(
-          { provider: "codex", cwd: existingCwd },
-          undefined,
-          { workspaceId: "wks_parent" },
-        );
+        const parent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+          workspaceId: "wks_parent",
+        });
+        const child = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+          workspaceId: "wks_parent",
+        });
         const server = await createAgentMcpServer({
           agentManager: manager,
           agentStorage: storage,
@@ -3830,20 +3826,12 @@ describe("send_agent_prompt MCP tool", () => {
       const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
       let mcpClient: Client | undefined;
       try {
-        const parent = await manager.createAgent(
-          { provider: "codex", cwd: existingCwd },
-          undefined,
-          {
-            workspaceId: "wks_parent",
-          },
-        );
-        const child = await manager.createAgent(
-          { provider: "codex", cwd: existingCwd },
-          undefined,
-          {
-            workspaceId: "wks_parent",
-          },
-        );
+        const parent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+          workspaceId: "wks_parent",
+        });
+        const child = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+          workspaceId: "wks_parent",
+        });
         const server = await createAgentMcpServer({
           agentManager: manager,
           agentStorage: storage,
@@ -3899,20 +3887,12 @@ describe("send_agent_prompt MCP tool", () => {
       const manager = new AgentManager({ clients: { codex: client }, registry: storage, logger });
       let mcpClient: Client | undefined;
       try {
-        const parent = await manager.createAgent(
-          { provider: "codex", cwd: existingCwd },
-          undefined,
-          {
-            workspaceId: "wks_parent",
-          },
-        );
-        const child = await manager.createAgent(
-          { provider: "codex", cwd: existingCwd },
-          undefined,
-          {
-            workspaceId: "wks_parent",
-          },
-        );
+        const parent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+          workspaceId: "wks_parent",
+        });
+        const child = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+          workspaceId: "wks_parent",
+        });
         const server = await createAgentMcpServer({
           agentManager: manager,
           agentStorage: storage,
@@ -4277,15 +4257,13 @@ describe("send_agent_prompt MCP tool", () => {
 
     try {
       const parent = await agentManager.createAgent(
-        { provider: "claude", cwd: existingCwd },
+        { provider: "claude", cwd: workdir },
         undefined,
         { workspaceId: "wks_parent" },
       );
-      const child = await agentManager.createAgent(
-        { provider: "codex", cwd: existingCwd },
-        undefined,
-        { workspaceId: "wks_parent" },
-      );
+      const child = await agentManager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+        workspaceId: "wks_parent",
+      });
       const server = await createAgentMcpServer({
         agentManager,
         agentStorage: storage,
@@ -4332,7 +4310,7 @@ describe("send_agent_prompt MCP tool", () => {
 
     try {
       const parent = await agentManager.createAgent(
-        { provider: "claude", cwd: existingCwd },
+        { provider: "claude", cwd: workdir },
         undefined,
         { workspaceId: "wks_parent" },
       );
@@ -4393,6 +4371,7 @@ describe("send_agent_prompt MCP tool", () => {
   ])(
     "notifies $parentProvider parent after $childProvider provider-started continuations while unread",
     async ({ parentProvider, childProvider }) => {
+      // Snapshot capture must inspect this temporary directory, not the developer's checkout.
       const workdir = await mkdtemp(join(tmpdir(), "mcp-autonomous-finish-"));
       const storage = new AgentStorage(join(workdir, "agents"), logger);
       const parentClient = new HeldTurnAgentClient(
@@ -4414,7 +4393,7 @@ describe("send_agent_prompt MCP tool", () => {
       vi.setSystemTime(new Date("2026-10-23T09:00:00Z"));
       try {
         const parent = await manager.createAgent(
-          { provider: parentProvider, cwd: existingCwd },
+          { provider: parentProvider, cwd: workdir },
           undefined,
           { workspaceId: "wks_parent" },
         );
@@ -4493,11 +4472,9 @@ describe("send_agent_prompt MCP tool", () => {
       });
       let mcp: Client | undefined;
       try {
-        const parent = await manager.createAgent(
-          { provider: "claude", cwd: existingCwd },
-          undefined,
-          { workspaceId: "wks_parent" },
-        );
+        const parent = await manager.createAgent({ provider: "claude", cwd: workdir }, undefined, {
+          workspaceId: "wks_parent",
+        });
         const server = await createAgentMcpServer({
           agentManager: manager,
           agentStorage: storage,

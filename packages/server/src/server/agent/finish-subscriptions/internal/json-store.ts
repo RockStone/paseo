@@ -12,6 +12,7 @@ const recordsSchema = z.array(
     serverId: z.string().min(1).optional(),
     requireParentOwnership: z.boolean().optional(),
     disabled: z.boolean().optional(),
+    acknowledgedActivityAt: z.string().min(1).optional(),
   }),
 );
 

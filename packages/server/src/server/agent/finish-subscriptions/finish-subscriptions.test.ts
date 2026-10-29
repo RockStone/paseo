@@ -8,6 +8,9 @@ import type { WaitForFinishResult } from "@getpaseo/client/internal/daemon-clien
 import type { AgentMessageDelivery } from "../agent-messages/index.js";
 import { buildStoredAgentPayload } from "../agent-projections.js";
 import { createTestLogger } from "../../../test-utils/test-logger.js";
+import { setImmediate } from "node:timers/promises";
+import type { HostObservation } from "../host-operations/index.js";
+import { openFinishObservation } from "./internal/observation-stream.js";
 import {
   createFinishSubscriptions,
   createJsonFinishSubscriptionStore,
@@ -68,7 +71,12 @@ afterEach(async () => {
   for (const service of services.splice(0)) await service.close();
   await Promise.all(homes.splice(0).map((home) => rm(home, { recursive: true, force: true })));
 });
-async function scenario(directory?: string, removalFailures = 0, retryDelayMs = 1) {
+async function scenario(
+  directory?: string,
+  removalFailures = 0,
+  retryDelayMs = 1,
+  source?: FinishObservation,
+) {
   const home = directory ?? (await mkdtemp(join(tmpdir(), "finish-recovery-")));
   if (!directory) homes.push(home);
   const durableStore = createJsonFinishSubscriptionStore(home);
@@ -88,7 +96,7 @@ async function scenario(directory?: string, removalFailures = 0, retryDelayMs = 
   const service = createFinishSubscriptions({
     store,
     messages: () => delivery,
-    open: observation.open.bind(observation),
+    open: source ? source.open.bind(source) : observation.open.bind(observation),
     callerIsActive: async () => active,
     serverId: "origin",
     logger: createTestLogger(),
@@ -459,23 +467,77 @@ test.each([false, true])(
   },
 );
 
-test("parent watch survives acknowledged finishes and daemon restart", async () => {
-  const first = await scenario();
+test("restart does not wake a parent for its acknowledged child, but a new provider turn does", async () => {
+  let snapshot = outcome("running").final!;
+  let handler: Parameters<HostObservation["observe"]>[1] | undefined;
+  const host: HostObservation = {
+    async observe(_id, callback) {
+      handler = callback;
+      callback(snapshot, undefined, "Partial work saved", true);
+      return async () => {};
+    },
+    async wait() {
+      return { ...outcome(snapshot.status === "closed" ? "closed" : "idle"), final: snapshot };
+    },
+  };
+  const source: FinishObservation = {
+    open: (record, signal) =>
+      openFinishObservation({ use: async (_server, action) => action(host) }, record, signal),
+  };
+  const first = await scenario(undefined, 0, 1, source);
   await first.service.register({ ...intent, requireParentOwnership: true });
-  await until(() => first.observation.waits.length === 1);
-  first.observation.waits[0]!.result.resolve(outcome("idle"));
+  await setImmediate();
+  snapshot = outcome("idle").final!;
+  handler!(snapshot, { type: "turn_completed", provider: "codex" }, "Partial work saved");
   await until(() => first.delivery.prompts.length === 1);
   first.delivery.acknowledgments[0]!.resolve("steered");
-  await until(() => first.observation.waits.length === 2);
+  await expect
+    .poll(async () => (await first.store.list())[0]?.acknowledgedActivityAt)
+    .toBe(snapshot.lastActivityAt);
   await first.service.close();
-  const restarted = await scenario(first.home);
-  await until(() => restarted.observation.waits.length === 1);
-  restarted.observation.waits[0]!.result.resolve({
-    ...outcome("idle"),
-    lastMessage: "Report after restart",
-  });
+
+  // Shutdown closes the provider runtime without changing the child's work activity.
+  snapshot = { ...snapshot, status: "closed", updatedAt: "2026-01-02T00:00:00Z" };
+  const restarted = await scenario(first.home, 0, 1, source);
+  await setImmediate();
+  expect(restarted.delivery.prompts).toEqual([]);
+  expect(await restarted.store.list()).toHaveLength(1);
+
+  snapshot = { ...snapshot, status: "running", lastActivityAt: "2026-01-03T00:00:00Z" };
+  handler!(snapshot, { type: "turn_started", provider: "codex", turnId: "foreground-turn-1" });
+  snapshot = { ...snapshot, status: "idle" };
+  handler!(
+    snapshot,
+    { type: "turn_completed", provider: "codex", turnId: "foreground-turn-1" },
+    "New report",
+  );
   await until(() => restarted.delivery.prompts.length === 1);
-  expect(restarted.delivery.prompts[0]).toContain("Report after restart");
+  expect(restarted.delivery.prompts[0]).toContain("New report");
+  expect(restarted.delivery.prompts[0]).toContain("finished.");
+});
+
+test("checkpoint write failures retry storage without resending an acknowledged finish", async () => {
+  const state = await scenario();
+  await state.service.register({ ...intent, requireParentOwnership: true });
+  await until(() => state.observation.waits.length === 1);
+  const originalPut = state.store.put;
+  let attempts = 0;
+  state.store.put = async (record) => {
+    if (++attempts <= 2) throw new Error("Checkpoint storage unavailable");
+    return originalPut(record);
+  };
+  state.observation.waits[0]!.result.resolve(outcome("idle"));
+  await until(() => state.delivery.prompts.length === 1);
+  expect((await state.store.list())[0]?.acknowledgedActivityAt).toBeUndefined();
+  state.delivery.acknowledgments[0]!.resolve("steered");
+  await until(() => state.observation.waits.length === 2);
+  expect(attempts).toBe(3);
+  expect(state.delivery.prompts).toHaveLength(1);
+  await state.service.close();
+  const recovered = createJsonFinishSubscriptionStore(state.home);
+  expect((await recovered.list())[0]?.acknowledgedActivityAt).toBe(
+    outcome("idle").final!.lastActivityAt,
+  );
 });
 
 test("a parent receives plan approval after the child's earlier finish", async () => {

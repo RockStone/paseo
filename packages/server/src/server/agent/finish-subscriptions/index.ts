@@ -22,6 +22,8 @@ export interface FinishSubscription {
   requireParentOwnership?: boolean;
   /** A queued opt-out replaces prior intent only when dispatch accepts. */
   disabled?: boolean;
+  /** Work activity already acknowledged by the parent; runtime closure does not advance it. */
+  acknowledgedActivityAt?: string;
 }
 export interface FinishSubscriptionStore {
   list(): Promise<FinishSubscription[]>;
@@ -54,7 +56,9 @@ export interface FinishSubscriptions {
   /** Pending notification intent, including registration, recovery and unacknowledged delivery. */
   hasPendingForCaller(agentId: string): boolean;
   register(
-    input: Omit<FinishSubscription, "id"> & { preserveParentOwnership?: boolean },
+    input: Omit<FinishSubscription, "id" | "acknowledgedActivityAt"> & {
+      preserveParentOwnership?: boolean;
+    },
     pendingDispatch?: boolean,
   ): Promise<FinishRegistration>;
   close(): Promise<void>;
@@ -174,14 +178,14 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
     result: FinishObservationResult,
     permissions: Set<string>,
     signal: AbortSignal,
-  ): Promise<boolean> {
+  ): Promise<"retain" | "remove"> {
     const requests = result.final?.pendingPermissions ?? [];
     const reason = reasonFor(result);
     for (const id of permissions)
       if (!requests.some((request) => request.id === id)) permissions.delete(id);
     const acknowledgments: Promise<unknown>[] = [];
     for (const request of reason === "needs permission" ? requests : [undefined]) {
-      if (signal.aborted) return false;
+      signal.throwIfAborted();
       if (request && permissions.has(request.id)) continue;
       const title = result.final?.title ?? record.childAgentId;
       const receipt = deps.messages().enqueue({
@@ -212,14 +216,29 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
       );
     }
     await abortable(Promise.all(acknowledgments), signal);
-    if (signal.aborted) return false;
+    signal.throwIfAborted();
     if (
       (reason === "finished" || reason === "errored" || reason === "was canceled") &&
       record.requireParentOwnership
     )
-      return false;
-    if (reason !== "needs permission") return true;
-    return false;
+      return "retain";
+    return reason === "needs permission" ? "retain" : "remove";
+  }
+  async function checkpoint(
+    watch: Watch,
+    record: FinishSubscription,
+    result: FinishObservationResult,
+  ): Promise<void> {
+    if (result.status === "permission" || !result.final) return;
+    const activityAt = result.final.lastActivityAt ?? result.final.updatedAt;
+    await serialize(async () => {
+      watch.controller.signal.throwIfAborted();
+      for (const intent of watch.records) {
+        await deps.store.put({ ...intent, acknowledgedActivityAt: activityAt });
+        intent.acknowledgedActivityAt = activityAt;
+      }
+      record.acknowledgedActivityAt = activityAt;
+    });
   }
   async function run(watch: Watch, group: Set<Watch>): Promise<void> {
     const signal = watch.controller.signal;
@@ -230,11 +249,16 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
       requireParentOwnership: watch.records.every(
         (intent) => intent.requireParentOwnership === true,
       ),
+      acknowledgedActivityAt: watch.records.every(
+        (intent) => intent.acknowledgedActivityAt === watch.records[0]!.acknowledgedActivityAt,
+      )
+        ? watch.records[0]!.acknowledgedActivityAt
+        : undefined,
     };
     const permissions = new Set<string>();
     let observation: FinishObservationSession | undefined;
     let pending: FinishObservationResult | undefined;
-    let acknowledged = false;
+    let delivered: "retain" | "remove" | undefined;
     let remoteFailures = 0;
     let retries = 0;
     let warned = false;
@@ -282,16 +306,19 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
             stop(watch, group);
             return;
           }
-          if (!acknowledged)
-            acknowledged =
-              pending.silent === true || (await deliver(record, pending, permissions, signal));
-          if (acknowledged) {
+          delivered ??=
+            pending.silent === true
+              ? "remove"
+              : await deliver(record, pending, permissions, signal);
+          if (delivered === "remove") {
             // A removal failure retries only the commit, never the already accepted callback.
             await remove(watch);
             stop(watch, group);
             return;
           }
+          await checkpoint(watch, record, pending);
           pending = undefined;
+          delivered = undefined;
           retries = 0;
           warned = false;
         } catch (error) {

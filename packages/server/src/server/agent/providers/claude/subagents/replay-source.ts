@@ -297,15 +297,14 @@ async function observeSubagent(
   );
   if (subtitle) observations.push(subtitle);
   for (const observation of timeline) observations.push(observation);
-  const terminalStatus = link.status ?? childTerminalStatus;
-  if (terminalStatus) {
-    observations.push({
-      kind: "status",
-      id: link.id,
-      status: terminalStatus,
-      ...(lastTimestamp ? { timestamp: lastTimestamp } : {}),
-    });
-  }
+  // This is a previous provider runtime, not live liveness evidence. A transcript can end
+  // mid-request after shutdown; only the new runtime's task events may mark it running again.
+  observations.push({
+    kind: "status",
+    id: link.id,
+    status: link.status ?? childTerminalStatus ?? "canceled",
+    ...(lastTimestamp ? { timestamp: lastTimestamp } : {}),
+  });
   return observations;
 }
 

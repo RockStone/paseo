@@ -1,4 +1,6 @@
 import { expect, test } from "vitest";
+import { setImmediate } from "node:timers/promises";
+import type { FinishSubscription } from "../index.js";
 import type { WaitForFinishResult } from "@getpaseo/client/internal/daemon-client";
 import type { AgentStreamEvent } from "../../agent-sdk-types.js";
 import {
@@ -56,12 +58,12 @@ function permission(id: string): AgentStreamEvent {
     request: { id, provider: "codex", name: "Write", kind: "tool", input: { path: id } },
   };
 }
-async function scenario() {
+async function scenario(record: Partial<FinishSubscription> = {}) {
   const host = new Host();
   const controller = new AbortController();
   const observation = await openFinishObservation(
     { use: async (_server, action) => action(host) },
-    { id: "watch", callerAgentId: "parent", childAgentId: "child" },
+    { id: "watch", callerAgentId: "parent", childAgentId: "child", ...record },
     controller.signal,
   );
   return { host, observation, controller };
@@ -284,6 +286,99 @@ test("closing an already reported turn silently retires the persistent parent wa
     expect((await observation.next()).silent).toBeUndefined();
     host.handler!({ ...outcomeSnapshot(), status: "closed" }, undefined, "Already reported");
     expect(await observation.next()).toMatchObject({ silent: true, final: { status: "closed" } });
+  } finally {
+    await observation.close();
+  }
+});
+
+test.each(["idle", "error", "closed"] as const)(
+  "recovery ignores an acknowledged %s baseline and retains observation for new work",
+  async (status) => {
+    const final = { ...outcomeSnapshot(), status };
+    const { host, observation } = await scenario({ acknowledgedActivityAt: final.lastActivityAt });
+    try {
+      host.handler!(final, undefined, "Already reported", true);
+      host.baseline.resolve({
+        status: status === "error" ? "error" : "idle",
+        final,
+        lastMessage: "Already reported",
+        error: null,
+      });
+      let settled = false;
+      const next = observation.next().then((result) => {
+        settled = true;
+        return result;
+      });
+      await setImmediate();
+      expect(settled).toBe(false);
+      // A provider can reuse local turn IDs, even return identical text. Live work re-arms it.
+      host.emit("running", {
+        type: "turn_started",
+        provider: "claude",
+        turnId: "foreground-turn-1",
+      });
+      host.emit("idle", {
+        type: "turn_completed",
+        provider: "claude",
+        turnId: "foreground-turn-1",
+      });
+      const result = await next;
+      expect(result).toMatchObject({ status: "idle", lastMessage: "Last response" });
+      expect(result.silent).toBeUndefined();
+    } finally {
+      await observation.close();
+    }
+  },
+);
+
+test.each([undefined, "2025-12-31T00:00:00.000Z"])(
+  "recovery reports unacknowledged or newer interrupted work (checkpoint: %s)",
+  async (acknowledgedActivityAt) => {
+    const { host, observation } = await scenario({ acknowledgedActivityAt });
+    try {
+      host.handler!(outcomeSnapshot(), undefined, "Pending report", true);
+      expect(await observation.next()).toMatchObject({
+        final: { status: "closed" },
+        lastMessage: "Pending report",
+      });
+    } finally {
+      await observation.close();
+    }
+  },
+);
+
+test("closing newly active work after recovery still notifies its parent", async () => {
+  const { host, observation } = await scenario({
+    acknowledgedActivityAt: outcomeSnapshot().lastActivityAt,
+  });
+  try {
+    host.handler!(outcomeSnapshot(), undefined, "Already reported", true);
+    host.emit("running", { type: "turn_started", provider: "claude" });
+    host.handler!(outcomeSnapshot(), undefined, "Interrupted new work");
+    const result = await observation.next();
+    expect(result.final?.status).toBe("closed");
+    expect(result.silent).toBeUndefined();
+  } finally {
+    await observation.close();
+  }
+});
+
+test("a late acknowledged startup snapshot cannot close a newly observed turn", async () => {
+  const final = outcomeSnapshot();
+  const { host, observation } = await scenario({ acknowledgedActivityAt: final.lastActivityAt });
+  try {
+    host.emit("running", { type: "turn_started", provider: "claude" });
+    host.handler!(final, undefined, "Old report", true);
+    host.baseline.resolve({ status: "idle", final, lastMessage: "Old report", error: null });
+    let settled = false;
+    const next = observation.next().then((result) => {
+      settled = true;
+      return result;
+    });
+    await setImmediate();
+    expect(settled).toBe(false);
+    host.emit("idle", { type: "turn_completed", provider: "claude" });
+    expect((await next).lastMessage).toBe("Last response");
   } finally {
     await observation.close();
   }

@@ -584,6 +584,81 @@ describe("ClaudeAgentSession persisted history load", () => {
     },
   );
 
+  test("restores an interrupted native child without spinning its completed shell command", async () => {
+    const directory = path.join(path.dirname(transcriptPath()), SESSION_ID, "subagents");
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      path.join(directory, "agent-child.meta.json"),
+      JSON.stringify({ toolUseId: "task" }),
+    );
+    writeFileSync(
+      transcriptPath(),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "task",
+              name: "Agent",
+              input: { description: "Investigate music" },
+            },
+          ],
+        },
+      }),
+    );
+    writeFileSync(
+      path.join(directory, "agent-child.jsonl"),
+      [
+        {
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "shell",
+                name: "Bash",
+                input: { command: "sed -n 82,110p service.dart" },
+              },
+            ],
+          },
+        },
+        {
+          type: "user",
+          message: {
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "shell",
+                content: "Saved output",
+                is_error: false,
+              },
+            ],
+          },
+        },
+        // The old runtime exited during the next API request, before a final assistant reply.
+        { type: "api-request", timestamp: "2026-10-26T17:32:04.713Z" },
+      ]
+        .map((entry) => JSON.stringify({ ...entry, isSidechain: true, agentId: "child" }))
+        .join("\n"),
+    );
+    const session = await resume();
+    try {
+      const states: string[] = [];
+      const shellStates: string[] = [];
+      for await (const event of session.streamHistory()) {
+        if (event.type !== "provider_subagent") continue;
+        if (event.event.type === "upsert" && event.event.status) states.push(event.event.status);
+        if (event.event.type === "timeline" && event.event.item.type === "tool_call")
+          shellStates.push(event.event.item.status);
+      }
+      expect(states).toEqual(["running", "canceled"]);
+      expect(shellStates).toEqual(["running", "completed"]);
+    } finally {
+      await session.close();
+    }
+  });
+
   test("logs the resolved transcript path when the transcript does not exist", async () => {
     await (await resume()).close();
 

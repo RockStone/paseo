@@ -326,7 +326,7 @@ describe("observeReplaySubagents", () => {
     expect(descriptor).toMatchObject({ status: "completed" });
   });
 
-  it("leaves a subagent with no recorded outcome running", async () => {
+  it("does not revive an unfinished native child as running when replaying its old transcript", async () => {
     const observations = (
       await observeReplaySubagents({
         subagents: [{ agentId: AGENT_ID, meta: { toolUseId: TOOL_USE_ID }, entries: [] }],
@@ -334,7 +334,7 @@ describe("observeReplaySubagents", () => {
         convertEntry: () => [],
       })
     ).observations;
-    expect(observations.some((o) => o.kind === "status")).toBe(false);
+    expect(applyToStore(observations)).toMatchObject({ status: "canceled" });
   });
 
   it("reports a failed outcome as failed", async () => {

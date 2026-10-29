@@ -54,10 +54,19 @@ export function createFinishObservation(input: {
       async observe(agentId, handler, signal, onError) {
         const stored = await agentStorage.get(agentId);
         let updates = Promise.resolve();
-        const publish = (snapshot: AgentSnapshotPayload | null, event?: AgentStreamEvent) => {
+        const publish = (
+          snapshot: AgentSnapshotPayload | null,
+          event?: AgentStreamEvent,
+          initial = false,
+        ) => {
           updates = updates
             .then(async () =>
-              handler(snapshot, event, await agentManager.getLastAssistantMessage(agentId)),
+              handler(
+                snapshot,
+                event,
+                await agentManager.getLastAssistantMessage(agentId),
+                initial,
+              ),
             )
             .catch(onError);
         };
@@ -84,12 +93,13 @@ export function createFinishObservation(input: {
           { agentId, replayState: false },
         );
         const current = agentManager.getAgent(agentId);
-        if (current)
-          publish(toAgentPayload(current, { title: stored?.title }), {
-            type: "turn_started",
-            provider: current.provider,
-          });
-        else publish(stored ? buildStoredAgentPayload(stored, [stored.provider]) : null);
+        if (current) publish(toAgentPayload(current, { title: stored?.title }), undefined, true);
+        else
+          publish(
+            stored ? buildStoredAgentPayload(stored, [stored.provider]) : null,
+            undefined,
+            true,
+          );
         const stop = () => unsubscribe();
         signal.addEventListener("abort", stop, { once: true });
         return async () => {

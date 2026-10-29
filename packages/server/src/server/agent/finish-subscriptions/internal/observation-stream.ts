@@ -81,6 +81,15 @@ export async function openFinishObservation(
   const lifetime = AbortSignal.any([signal, controller.signal]);
   const buffer = createObservationBuffer(lifetime);
   const cycle = { armed: true, running: false };
+  let observedWork = false;
+  function alreadyAcknowledged(snapshot: AgentSnapshotPayload | null): boolean {
+    return (
+      snapshot !== null &&
+      record.acknowledgedActivityAt !== undefined &&
+      (snapshot.lastActivityAt ?? snapshot.updatedAt) === record.acknowledgedActivityAt &&
+      (snapshot.status === "idle" || snapshot.status === "closed" || snapshot.status === "error")
+    );
+  }
   let opened!: () => void;
   let failed!: (error: unknown) => void;
   const ready = new Promise<void>((resolve, reject) => {
@@ -93,8 +102,19 @@ export async function openFinishObservation(
       async (host) => {
         const release = await host.observe(
           record.childAgentId,
-          (snapshot, event, lastMessage) =>
-            observeState(buffer, snapshot, event, lastMessage ?? null, cycle),
+          (snapshot, event, lastMessage, initial) => {
+            if (initial && alreadyAcknowledged(snapshot)) {
+              if (!observedWork) cycle.armed = false;
+              return;
+            }
+            if (
+              snapshot?.status === "running" ||
+              snapshot?.status === "initializing" ||
+              (!initial && event?.type === "turn_started")
+            )
+              observedWork = true;
+            observeState(buffer, snapshot, event, lastMessage ?? null, cycle);
+          },
           lifetime,
           (error) => buffer.fail(error),
         );
@@ -104,7 +124,8 @@ export async function openFinishObservation(
         void host
           .wait(record.childAgentId, lifetime)
           .then((result) => {
-            if (buffer.pushInitial(result) && !cycle.running) cycle.armed = false;
+            const skip = result.status !== "permission" && alreadyAcknowledged(result.final);
+            if ((buffer.pushInitial(result, skip) || skip) && !cycle.running) cycle.armed = false;
             return undefined;
           })
           .catch((error) => buffer.fail(error));

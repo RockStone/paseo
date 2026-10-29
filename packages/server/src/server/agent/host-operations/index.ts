@@ -62,6 +62,8 @@ export interface HostObservation {
       snapshot: AgentSnapshotPayload | null,
       event?: AgentStreamEvent,
       lastMessage?: string | null,
+      /** Initial snapshot, rather than a new lifecycle event. */
+      initial?: boolean,
     ) => void,
     signal: AbortSignal,
     onError: (error: unknown) => void,
@@ -386,7 +388,7 @@ function remoteObservation(client: DaemonClient): HostObservation {
   return {
     async observe(agentId, handler, signal, onError) {
       const observation = client.observeTimeline([agentId], { signal });
-      const refresh = async (event?: AgentStreamEvent) => {
+      const refresh = async (event?: AgentStreamEvent, initial = false) => {
         let snapshot = (await client.fetchAgent(agentId))?.agent ?? null;
         let lastMessage: string | null = null;
         if (
@@ -408,7 +410,7 @@ function remoteObservation(client: DaemonClient): HostObservation {
             lastMessage = current.lastMessage;
           }
         }
-        handler(snapshot, event, lastMessage);
+        handler(snapshot, event, lastMessage, initial);
       };
       let updates = Promise.resolve();
       const unsubscribe = observation.subscribe({
@@ -430,7 +432,7 @@ function remoteObservation(client: DaemonClient): HostObservation {
       });
       try {
         await observation.ready;
-        await refresh();
+        await refresh(undefined, true);
       } catch (error) {
         unsubscribe();
         await observation.release();

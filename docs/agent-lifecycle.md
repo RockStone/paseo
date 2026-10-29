@@ -165,8 +165,12 @@ child work. Archived or deleted parents suppress delivery; parent-owned creation
 reporting after detachment.
 
 Parent-owned watches remain stored after a finish, error, or cancellation so provider-started turns
-can notify again. A new observed turn re-arms reporting; repeated terminal events stay silent.
-Closing an already-reported idle child removes its watch without another callback. Detachment,
+can notify again. After parent dispatch acknowledges an outcome, the watch stores the child's
+work-activity timestamp. Recovery ignores an already-acknowledged baseline, including a runtime
+that shutdown changed from idle to closed, and keeps watching for new work. Runtime closure and
+metadata edits do not advance work activity; local turn numbers can restart and are not durable
+notification identities. A new observed turn re-arms reporting; repeated terminal events stay silent.
+Closing an already-reported idle child during live observation removes its watch without another callback. Detachment,
 an archived parent, and an accepted `notifyOnFinish: false` follow-up suppress further callbacks.
 A rejected follow-up preserves the preceding watch. Unrelated callers receive one-task watches to
 avoid reciprocal notification loops.
@@ -176,7 +180,10 @@ retries the captured notification; it does not change the child's reported outco
 follows the [connected-host observation policy](connected-hosts.md#delegating-agents). Shutdown stops observation before flushing message delivery, retaining
 outstanding intent. A crash after successful dispatch but before removal commits can repeat the
 notification. Clean shutdown can also flush an already queued callback while retaining its intent,
-so that callback can repeat after restart. This is an at-least-once wakeup, without turn attribution or exactly-once delivery.
+so that callback can repeat after restart. The same window exists before an acknowledged parent-watch
+checkpoint commits. Older records without a checkpoint retain pending-notification semantics because
+recovery cannot prove that their outcome was delivered. This is an at-least-once wakeup, without
+exactly-once delivery.
 
 Permission requests are notification checkpoints, not the end of that subscription. The caller is notified again after a permission response when the child finishes, errors, or requests another permission.
 The permission notification includes the normalized request plus the child and request IDs, so the caller can inspect it and respond without fetching agent status.
@@ -187,6 +194,10 @@ A watched child that closes before its finish event also notifies the caller so 
 Some providers can create their own child sessions inside one provider runtime. OMP's task tool reports these with `child_session` events; `AgentManager` imports the live provider handle, stamps `paseo.parent-agent-id`, and surfaces the result as a normal subagent in the parent's subagents track.
 
 The provider still owns the underlying runtime. Paseo keeps an agent record so the child can be opened, tracked, archived, and cascaded with the parent, but prompts and history hydration route through the provider adapter for that native child handle.
+
+Claude transcript replay is evidence of past work, not a running process. A native child's transcript
+that ends without a terminal outcome restores as canceled; live task announcements can mark it running
+again. Preserve completed tool results even when the child's final reply was interrupted.
 
 ## Background workspaces
 
