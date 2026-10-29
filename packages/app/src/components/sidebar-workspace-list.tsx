@@ -1288,6 +1288,11 @@ function WorkspaceRowWithMenu({
     });
   }, [markUnread, toast]);
 
+  const handleOpenWorkspace = useCallback(() => {
+    onPress();
+    handleMarkAsRead();
+  }, [handleMarkAsRead, onPress]);
+
   useKeyboardActionHandler({
     handlerId: `workspace-archive-${workspace.workspaceKey}`,
     actions: ["workspace.archive"],
@@ -1309,7 +1314,7 @@ function WorkspaceRowWithMenu({
         selected={selected}
         shortcutNumber={shortcutNumber}
         showShortcutBadge={showShortcutBadge}
-        onPress={onPress}
+        onPress={handleOpenWorkspace}
         drag={drag}
         isDragging={isDragging}
         isArchiving={isArchiving}

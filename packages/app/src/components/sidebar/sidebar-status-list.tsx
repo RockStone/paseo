@@ -676,6 +676,11 @@ function StatusWorkspaceRowWithMenu({
     });
   }, [markUnread, toast]);
 
+  const handleOpenWorkspace = useCallback(() => {
+    onPress();
+    handleMarkAsRead();
+  }, [handleMarkAsRead, onPress]);
+
   useKeyboardActionHandler({
     handlerId: `workspace-archive-${workspace.workspaceKey}`,
     actions: ["workspace.archive"],
@@ -697,7 +702,7 @@ function StatusWorkspaceRowWithMenu({
         selected={selected}
         shortcutNumber={shortcutNumber}
         showShortcutBadge={showShortcutBadge}
-        onPress={onPress}
+        onPress={handleOpenWorkspace}
         isArchiving={isArchiving}
         archiveLabel={t("sidebar.workspace.actions.archive")}
         archiveStatus={isArchiving ? "pending" : "idle"}

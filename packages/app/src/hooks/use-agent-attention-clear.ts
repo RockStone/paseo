@@ -12,6 +12,8 @@ type AttentionReason = "finished" | "error" | "permission" | null | undefined;
 
 interface UseAgentAttentionClearParams {
   agentId: string | null | undefined;
+  workspaceId: string;
+  workspaceHasFinishedAttention: boolean;
   client: DaemonClient | null;
   isConnected: boolean;
   requiresAttention: boolean | null | undefined;
@@ -28,15 +30,18 @@ interface AgentAttentionClearController {
 
 export function useAgentAttentionClear({
   agentId,
+  workspaceId,
+  workspaceHasFinishedAttention,
   client,
   isConnected,
   requiresAttention,
   attentionReason,
   isScreenFocused,
 }: UseAgentAttentionClearParams): AgentAttentionClearController {
+  const hasAttention = Boolean(requiresAttention) || workspaceHasFinishedAttention;
   const [isAppVisible, setIsAppVisible] = useState<boolean>(() => getIsAppActivelyVisible());
   const deferredFocusEntryClearRef = useRef(false);
-  const prevRequiresAttentionRef = useRef(Boolean(requiresAttention));
+  const prevRequiresAttentionRef = useRef(hasAttention);
   const prevActivelyViewedRef = useRef(isScreenFocused && getIsAppActivelyVisible());
   const prevScreenFocusedRef = useRef(false);
   const prevAppVisibleRef = useRef(getIsAppActivelyVisible());
@@ -44,7 +49,8 @@ export function useAgentAttentionClear({
   const clearAttention = useCallback(
     (trigger: AgentAttentionClearTrigger) => {
       const resolvedAgentId = agentId?.trim();
-      if (!client || !resolvedAgentId) {
+      const resolvedWorkspaceId = workspaceId.trim();
+      if (!client || !resolvedAgentId || !resolvedWorkspaceId) {
         return;
       }
       if (
@@ -52,6 +58,7 @@ export function useAgentAttentionClear({
           agentId: resolvedAgentId,
           isConnected,
           requiresAttention,
+          workspaceHasFinishedAttention,
           attentionReason,
           trigger,
           hasDeferredFocusEntryClear: deferredFocusEntryClearRef.current,
@@ -60,9 +67,18 @@ export function useAgentAttentionClear({
         return;
       }
       deferredFocusEntryClearRef.current = false;
-      client.clearAgentAttention(resolvedAgentId).catch(() => {});
+      // The sidebar badge aggregates the owning workspace, including stored-only closed agents.
+      client.clearWorkspaceAttention(resolvedWorkspaceId).catch(() => {});
     },
-    [agentId, attentionReason, client, isConnected, requiresAttention],
+    [
+      agentId,
+      attentionReason,
+      client,
+      isConnected,
+      requiresAttention,
+      workspaceHasFinishedAttention,
+      workspaceId,
+    ],
   );
 
   useEffect(() => {
@@ -91,24 +107,24 @@ export function useAgentAttentionClear({
   }, []);
 
   useEffect(() => {
-    if (!requiresAttention) {
+    if (!hasAttention) {
       deferredFocusEntryClearRef.current = false;
     }
-  }, [requiresAttention]);
+  }, [hasAttention]);
 
   useEffect(() => {
     const isActivelyViewed = isScreenFocused && isAppVisible;
     if (
       !prevRequiresAttentionRef.current &&
-      Boolean(requiresAttention) &&
+      hasAttention &&
       prevActivelyViewedRef.current &&
       isActivelyViewed
     ) {
       deferredFocusEntryClearRef.current = true;
     }
-    prevRequiresAttentionRef.current = Boolean(requiresAttention);
+    prevRequiresAttentionRef.current = hasAttention;
     prevActivelyViewedRef.current = isActivelyViewed;
-  }, [isAppVisible, isScreenFocused, requiresAttention]);
+  }, [hasAttention, isAppVisible, isScreenFocused]);
 
   useEffect(() => {
     const enteredScreenFocus = !prevScreenFocusedRef.current && isScreenFocused && isAppVisible;
@@ -124,10 +140,10 @@ export function useAgentAttentionClear({
 
   return {
     clearOnInteraction: useCallback(() => {
-      if (isScreenFocused && getIsAppActivelyVisible()) {
+      if (workspaceHasFinishedAttention && isScreenFocused && getIsAppActivelyVisible()) {
         clearAttention("interaction");
       }
-    }, [clearAttention, isScreenFocused]),
+    }, [clearAttention, isScreenFocused, workspaceHasFinishedAttention]),
     clearOnInputFocus: useCallback(() => {
       clearAttention("input-focus");
     }, [clearAttention]),

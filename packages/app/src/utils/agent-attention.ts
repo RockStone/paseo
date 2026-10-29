@@ -4,6 +4,7 @@ interface ShouldClearAgentAttentionInput {
   agentId: string | null | undefined;
   isConnected: boolean;
   requiresAttention: boolean | null | undefined;
+  workspaceHasFinishedAttention?: boolean;
   attentionReason?: "finished" | "error" | "permission" | null | undefined;
   trigger?: AgentAttentionClearTrigger;
   hasDeferredFocusEntryClear?: boolean;
@@ -69,13 +70,16 @@ export function shouldClearAgentAttention(input: ShouldClearAgentAttentionInput)
   if (!input.isConnected) {
     return false;
   }
-  if (!input.requiresAttention) {
+  if (!input.requiresAttention && !input.workspaceHasFinishedAttention) {
     return false;
   }
   if (input.attentionReason === "permission") {
     return false;
   }
-  if (input.trigger === "interaction" && input.attentionReason !== "finished") {
+  const hasFinishedAttention = input.requiresAttention
+    ? input.attentionReason === "finished"
+    : input.workspaceHasFinishedAttention === true;
+  if (input.trigger === "interaction" && !hasFinishedAttention) {
     return false;
   }
   if (input.trigger === "focus-entry" && input.hasDeferredFocusEntryClear === true) {

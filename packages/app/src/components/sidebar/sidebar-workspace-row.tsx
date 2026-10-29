@@ -126,6 +126,11 @@ export function SidebarWorkspaceRow({
     });
   }, [markUnread, toast]);
 
+  const handleOpenWorkspace = useCallback(() => {
+    onPress();
+    handleMarkAsRead();
+  }, [handleMarkAsRead, onPress]);
+
   useKeyboardActionHandler({
     handlerId: `workspace-archive-${workspace.workspaceKey}`,
     actions: ["workspace.archive"],
@@ -147,7 +152,7 @@ export function SidebarWorkspaceRow({
         hostBadge={hostBadge}
         isCreating={isCreating}
         isArchiving={isArchiving}
-        onPress={onPress}
+        onPress={handleOpenWorkspace}
         drag={drag}
         isDragging={isDragging}
         dragHandleProps={dragHandleProps}

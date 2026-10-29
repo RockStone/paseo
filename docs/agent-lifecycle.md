@@ -327,8 +327,8 @@ A finished workspace can be marked unread after it has been reviewed. The daemon
 `finished` attention on its newest eligible workspace-root agent without sending a new completion
 notification. Opening the workspace clears that attention through the normal focus flow.
 If a turn finishes in the chat you are already viewing, its completion stays unread until you
-interact with that chat. Clicking or typing acknowledges that completion without clearing other
-agents' attention or permission requests.
+interact with that chat. Clicking or typing acknowledges completion across its owning workspace,
+including closed agents. Other workspaces and permission requests remain unread.
 
 Attention is set by the agent finishing or failing and cleared by the client's
 `workspace.clear_attention`, which fires when the user reads the chat. While unread, the reason and

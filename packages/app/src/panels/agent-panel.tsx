@@ -48,6 +48,7 @@ import { useWorkspaceAttachmentScopeKey } from "@/attachments/workspace-attachme
 import { COMPACT_FORM_FACTOR_WIDTH, useIsCompactFormFactor } from "@/constants/layout";
 import { isNative, isWeb } from "@/constants/platform";
 import { useAgentAttentionClear } from "@/hooks/use-agent-attention-clear";
+import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { useAgentInputDraft, type AgentInputDraft } from "@/composer/draft/input-draft";
 import {
   type AgentScreenAgent,
@@ -765,8 +766,13 @@ function ChatAgentContent({
   const hasHydratedHistoryBefore =
     hasAppliedAuthoritativeHistory || replicaTimelineStatus === "painted";
 
+  const workspaceHasFinishedAttention =
+    useWorkspaceFields(serverId, workspaceId, (workspace) => workspace.status === "attention") ===
+    true;
   const attentionController = useAgentAttentionClear({
     agentId,
+    workspaceId,
+    workspaceHasFinishedAttention,
     client,
     isConnected,
     requiresAttention: agentState.requiresAttention,

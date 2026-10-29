@@ -159,6 +159,20 @@ describe("shouldClearAgentAttention", () => {
       }),
     ).toBe(expected);
   });
+
+  it("reads a finished workspace even when its visible agent is already read", () => {
+    expect(
+      shouldClearAgentAttention({
+        agentId: "read-agent",
+        isConnected: true,
+        requiresAttention: false,
+        attentionReason: null,
+        workspaceHasFinishedAttention: true,
+        trigger: "interaction",
+        hasDeferredFocusEntryClear: true,
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("pickAttentionAgent", () => {

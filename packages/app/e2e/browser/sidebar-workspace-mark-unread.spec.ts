@@ -252,6 +252,41 @@ test("interacting with the current chat reads new completions without clearing a
   await expect(page).toHaveURL(route);
 });
 
+test("reading a chat clears another agent's completion in the same workspace", async ({
+  page,
+  workspaces: { subject, other },
+}) => {
+  await openAgentRoute(page, subject);
+  await markAsUnread(page, other.workspaceId);
+  const route = page.url();
+  const sibling = await subject.client.createAgent({
+    provider: "mock",
+    cwd: subject.cwd,
+    workspaceId: subject.workspaceId,
+    title: "Unread sibling",
+    modeId: "load-test",
+    model: "e2e-fast-stream",
+    initialPrompt: "Finish while another agent's chat is open.",
+  });
+  await subject.client.waitForFinish(sibling.id, 20_000);
+  await expectStatus(page, subject.workspaceId, "attention");
+  await page.getByText("Finish this turn.", { exact: true }).click();
+  await expectStatus(page, subject.workspaceId, "done");
+  await expectStatus(page, other.workspaceId, "attention");
+  await expectSelectedAgent(page, subject.agentId);
+  await expect(page).toHaveURL(route);
+
+  await subject.client.sendAgentMessage(
+    sibling.id,
+    "Finish before the current workspace row is clicked.",
+  );
+  await subject.client.waitForFinish(sibling.id, 20_000);
+  await expectStatus(page, subject.workspaceId, "attention");
+  await openWorkspace(page, subject.workspaceId);
+  await expectStatus(page, subject.workspaceId, "done");
+  await expectStatus(page, other.workspaceId, "attention");
+});
+
 test("manual unread survives leaving the current workspace on compact layout", async ({
   page,
   workspaces,
