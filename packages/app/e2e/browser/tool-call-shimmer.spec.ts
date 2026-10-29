@@ -1,8 +1,35 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "../support/fixtures";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { expectComposerVisible } from "../support/helpers/composer";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+
+interface ShimmerEvidence {
+  animationDuration: string;
+  endPx: number;
+  label: string;
+  renderedWidth: number;
+  startPx: number;
+}
+
+async function readShimmerEvidence(locator: Locator): Promise<ShimmerEvidence> {
+  return locator.evaluate((root) => {
+    const shimmer = Array.from(root.querySelectorAll<HTMLElement>("*")).find((element) =>
+      getComputedStyle(element).animationName.includes("paseo-toolcall-shimmer"),
+    );
+    if (!shimmer) {
+      throw new Error("Expected a running shimmer inside the badge");
+    }
+    const style = getComputedStyle(shimmer);
+    return {
+      animationDuration: style.animationDuration,
+      endPx: Number.parseFloat(style.getPropertyValue("--paseo-shimmer-end")),
+      label: shimmer.textContent ?? "",
+      renderedWidth: shimmer.getBoundingClientRect().width,
+      startPx: Number.parseFloat(style.getPropertyValue("--paseo-shimmer-start")),
+    };
+  });
+}
 
 type WebSocketMessage = string | Buffer;
 
@@ -136,12 +163,12 @@ async function gateSecondToolCall(page: Page, agentId: string, shell = false) {
   };
 }
 
-test("overview labels stay muted when a retained group becomes loading", async ({ page }) => {
+test("overview labels stay muted when a lone call becomes a running group", async ({ page }) => {
   test.setTimeout(120_000);
   await page.addInitScript(() => {
     localStorage.setItem(
       "@paseo:app-settings",
-      JSON.stringify({ chatDisplay: "collapseToolCalls" }),
+      JSON.stringify({ chatDisplay: "collapseToolCalls", autoExpandReasoning: true }),
     );
   });
   const agent = await seedMockAgentWorkspace({
@@ -161,20 +188,14 @@ test("overview labels stay muted when a retained group becomes loading", async (
 
     await gate.waitForFirstCompleted();
     const group = page.getByTestId("tool-call-group").first();
-    await expect(group).toBeVisible();
-    const idleGroupHandle = await group.elementHandle();
-    if (!idleGroupHandle) {
-      throw new Error("Expected the idle tool-call group to be mounted");
-    }
+    await expect(page.getByTestId("tool-call-badge").last()).toBeVisible();
+    await expect(group).toHaveCount(0);
     await expect(group.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
 
     await gate.waitForSecondRunning();
     gate.releaseSecondRunning();
     await expect(group.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
-    const sameGroupNode = await group.evaluate(
-      (node, previous) => node === previous,
-      idleGroupHandle,
-    );
+    await expect(group).toBeVisible();
 
     await group.click();
     const runningChild = page.getByTestId("tool-call-badge").last();
@@ -183,7 +204,6 @@ test("overview labels stay muted when a retained group becomes loading", async (
     const color = await header.evaluate((element) => getComputedStyle(element).color);
     await expect(runningChild.locator('[dir="auto"]').first()).toHaveCSS("color", color);
     await expect(runningChild.locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
-    expect(sameGroupNode).toBe(true);
   } finally {
     await agent.cleanup();
   }
@@ -424,6 +444,12 @@ test("running foreground Shell shimmers while completed Shell stays static", asy
     await expect(shells).toHaveCount(2);
     await expect(shells.last().locator('[style*="paseo-toolcall-shimmer"]').first()).toBeVisible();
     await expect(shells.first().locator('[style*="paseo-toolcall-shimmer"]')).toHaveCount(0);
+    const evidence = await readShimmerEvidence(shells.last());
+    expect(evidence.endPx).toBeGreaterThan(0);
+    await testInfo.attach("shell-shimmer-evidence", {
+      body: JSON.stringify(evidence, null, 2),
+      contentType: "application/json",
+    });
     await page.screenshot({ path: testInfo.outputPath("foreground-shell-shimmer.png") });
   } finally {
     await agent.cleanup();

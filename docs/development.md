@@ -31,7 +31,7 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 ## Paseoi custom desktop build
 
-The v0.14.0-beta.1 integration branch is `pasio/v0.14.0-beta.1`; `pasio/v0.13.0` retains the previous custom build. The build adds desktop/browser selection replies. Select
+The stable v0.14.0 integration branch is `pasio/v0.14.0`; `pasio/v0.14.0-beta.1` and `pasio/v0.13.0` retain the previous custom builds. The build adds desktop/browser selection replies. Select
 chat text, including Thinking, commands, tool output, or assistant messages, and
 release the drag to show **Copy | Reply**. Choose **Reply** to append an editable Markdown quote to the current draft, then
 type your comment. **Copy**, beside Reply with a divider, writes the selected excerpt
@@ -131,6 +131,10 @@ as well. No stash is created.
 The **Uncommitted** list has **Commit & Push** in its header. It sends a separate request
 to the current agent; the agent reviews and performs Git operations. Composer
 drafts and attachments stay intact.
+
+Claude sessions retain the `Paseo` entrypoint used by earlier custom builds.
+Explicit launch hooks can override it. This launch label does not refresh OAuth
+credentials or grant the separate Usage scope.
 
 Build a locally signed macOS app for your machine:
 

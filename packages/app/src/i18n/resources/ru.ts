@@ -2047,7 +2047,6 @@ export const ru: TranslationResources = {
     parent: {
       backToParent: "Назад к родителю",
       backTo: "Назад к {{label}}",
-      parent: "Родитель",
       parentAgent: "Родительский агент",
       openParent: "Открыть родителя",
     },

@@ -30,16 +30,20 @@ function createQueryMock(events: unknown[]): Query {
 }
 
 describe("Claude SDK env", () => {
-  test.each(["node", "bun", process.execPath])(
-    "identifies the spawned %s process as Paseo after clearing parent session env",
-    async (command) => {
+  test.each(
+    ["node", "bun", process.execPath].flatMap((command) =>
+      [undefined, "Paseo", "custom-client"].map((entrypoint) => ({ command, entrypoint })),
+    ),
+  )(
+    "preserves explicit launch identity $entrypoint in $command while clearing inherited session env",
+    async ({ command, entrypoint }) => {
       let output = "";
       let exited = Promise.resolve<unknown[]>([]);
       const query = claudeQuery(
         { prompt: "", options: {} },
         {
           runtimeSettings: { env: { CLAUDE_CODE_ENTRYPOINT: "sdk-ts" } },
-          launchEnv: { CLAUDE_CODE_ENTRYPOINT: "sdk-cli" },
+          launchEnv: entrypoint === undefined ? {} : { CLAUDE_CODE_ENTRYPOINT: entrypoint },
           queryFactory: ({ options }) => {
             if (!options.spawnClaudeCodeProcess) {
               throw new Error("Missing Claude process launcher");
@@ -65,7 +69,10 @@ describe("Claude SDK env", () => {
 
       try {
         expect(await exited).toEqual([0, null]);
-        expect(JSON.parse(output)).toEqual({ entrypoint: "Paseo", parentSession: null });
+        expect(JSON.parse(output)).toEqual({
+          entrypoint: entrypoint ?? "Paseo",
+          parentSession: null,
+        });
       } finally {
         query.close();
       }
@@ -135,7 +142,7 @@ describe("Claude SDK env", () => {
       expect(capturedEnv?.PASEO_TEST_FLAG).toBe(launchContext.env?.PASEO_TEST_FLAG);
       expect(capturedEnv?.MCP_TIMEOUT).toBe("claude-startup-timeout");
       expect(capturedEnv?.MCP_TOOL_TIMEOUT).toBe("claude-tool-timeout");
-      expect(session.usageSession?.()?.env).toBe(capturedEnv);
+      expect(session.usageSession?.()?.env).toStrictEqual(capturedEnv);
       // Paseo reads session_state_changed to know when an autonomous turn is over.
       expect(capturedEnv?.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS).toBe("1");
       // Without it, Stop and replace kill every background subagent along with the turn.
@@ -207,7 +214,7 @@ describe("Claude SDK env", () => {
       expect(queryFactory).not.toHaveBeenCalled();
       const result = await session.run("resume env check");
       expect(session.usageSession?.()?.sessionKey).toBe(descriptor?.sessionKey);
-      expect(capturedEnv).toBe(descriptor?.env);
+      expect(capturedEnv).toStrictEqual(descriptor?.env);
       expect(result.sessionId).toBe("persisted-session");
       expect(capturedEnv?.PASEO_AGENT_ID).toBe(launchContext.env?.PASEO_AGENT_ID);
       expect(capturedEnv?.PASEO_TEST_FLAG).toBe(launchContext.env?.PASEO_TEST_FLAG);

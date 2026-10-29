@@ -207,7 +207,7 @@ test("manual unread survives departure and clears on reopening without changing 
   await markBackgroundWorkspaceAndRead(page, workspaces.subject.workspaceId);
 });
 
-test("clicking a multi-agent workspace reveals and clears its marked agent", async ({
+test("clicking a multi-agent workspace clears unread and keeps its coordinator selected", async ({
   page,
   workspaces,
 }) => {
@@ -216,7 +216,10 @@ test("clicking a multi-agent workspace reveals and clears its marked agent", asy
   await openWorkspace(page, workspaces.other.workspaceId);
   const newest = await addFinishedAgent(workspaces.subject);
   await markBackgroundWorkspaceAndReopen(page, workspaces.subject.workspaceId);
-  await expectSelectedAgent(page, newest.id);
+  // Paseoi deliberately anchors workspace clicks to the original coordinator.
+  // Marking the workspace unread must not redirect its row to a later agent.
+  await expectSelectedAgent(page, workspaces.subject.agentId);
+  await expect(page.getByTestId(`workspace-tab-agent_${newest.id}`).first()).toBeVisible();
 });
 
 test("interacting with the current chat reads new completions without clearing another workspace", async ({

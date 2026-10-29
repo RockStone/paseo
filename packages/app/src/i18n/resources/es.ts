@@ -2065,7 +2065,6 @@ export const es: TranslationResources = {
     parent: {
       backToParent: "Volver al padre",
       backTo: "Volver a {{label}}",
-      parent: "Padre",
       parentAgent: "Agente padre",
       openParent: "Abrir padre",
     },

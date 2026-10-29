@@ -1993,7 +1993,6 @@ export const zhCN: TranslationResources = {
     parent: {
       backToParent: "返回父代理",
       backTo: "返回 {{label}}",
-      parent: "父代理",
       parentAgent: "父代理",
       openParent: "打开父代理",
     },

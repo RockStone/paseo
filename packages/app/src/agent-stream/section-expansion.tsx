@@ -106,6 +106,21 @@ export const useSectionExpansionStore = create<SectionExpansionState>((set) => (
 
 const Scope = createContext<{ displayKey: string; itemId: string } | null>(null);
 
+/** Tracks centralized tool expansion for the transcript's Collapse all / Expand thinking control. */
+export function useTrackTranscriptSectionExpanded(
+  expanded: boolean,
+  section: string,
+  enabled = true,
+  thinking = false,
+) {
+  const scope = useContext(Scope);
+  const key = enabled ? scope?.displayKey : undefined;
+  const id = `${scope?.itemId}:${section}`;
+  useEffect(() => {
+    if (key) useSectionExpansionStore.getState().setSection(key, id, false, expanded, thinking);
+  }, [key, id, expanded, thinking]);
+}
+
 export function TranscriptExpansionScope({
   displayKey,
   itemId,

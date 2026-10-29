@@ -216,6 +216,7 @@ export function Button({
   trailing,
   style,
   textStyle,
+  numberOfLines,
   disabled,
   loading = false,
   loadingMode = "prepend",
@@ -231,6 +232,7 @@ export function Button({
     trailing?: ReactNode;
     style?: StyleProp<ViewStyle>;
     textStyle?: StyleProp<TextStyle>;
+    numberOfLines?: number;
     loading?: boolean;
     /** Replace content visually while retaining its resting dimensions. */
     loadingMode?: "prepend" | "replace";
@@ -320,7 +322,11 @@ export function Button({
         iconSize={buttonIconSize[size]}
         uniProps={resolveIconMapping()}
       />
-      {children != null ? <Text style={resolvedTextStyle}>{children}</Text> : null}
+      {children != null ? (
+        <Text numberOfLines={numberOfLines} style={resolvedTextStyle}>
+          {children}
+        </Text>
+      ) : null}
       {trailing}
     </>
   );

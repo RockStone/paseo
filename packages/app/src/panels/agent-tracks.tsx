@@ -17,7 +17,7 @@ import {
   type ArchiveFinishedStatus,
   useArchiveSubagent,
   useDetachSubagent,
-  useSubagentOpensInSheet,
+  useSubagentSheetTab,
   type SubagentRow,
 } from "@/subagents";
 import { ParentAgentPill } from "@/subagents/parent";
@@ -113,7 +113,7 @@ export const AgentTracks = memo(function AgentTracks({
     },
     [openSubagentTarget],
   );
-  const opensInSheet = useSubagentOpensInSheet(workspaceKey);
+  const sheetTabFor = useSubagentSheetTab(workspaceKey, tabId);
   const handleOpenChanges = useCallback(() => {
     if (!workspaceKey) {
       return;
@@ -149,7 +149,7 @@ export const AgentTracks = memo(function AgentTracks({
         rows={subagentRows}
         onOpenSubagent={handleOpenSubagent}
         onOpenProviderSubagent={handleOpenProviderSubagent}
-        opensInSheet={opensInSheet}
+        sheetTabFor={sheetTabFor}
         onArchiveSubagent={archiveSubagent}
         onArchiveFinished={onArchiveFinished}
         archiveFinishedStatus={archiveFinishedStatus}

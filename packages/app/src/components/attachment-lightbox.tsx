@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native-unistyles";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft, ChevronRight, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import type { AttachmentMetadata } from "@/attachments/types";
@@ -39,7 +39,6 @@ export function AttachmentLightbox({
   onNavigate,
 }: AttachmentLightboxProps) {
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const index = source
     ? (sources?.findIndex((item) => sourceKey(item) === sourceKey(source)) ?? -1)
     : -1;
@@ -77,6 +76,58 @@ export function AttachmentLightbox({
     onKeyDown: handleWebOverlayKeyDown,
   });
 
+  if (!source) {
+    return null;
+  }
+
+  return (
+    <Modal transparent animationType="fade" statusBarTranslucent visible onRequestClose={onClose}>
+      <ModalRoot style={styles.root}>
+        <SafeAreaProvider>
+          <WindowChromeRootRegion corners="both">
+            <View ref={setWebOverlayScope} style={styles.root}>
+              <Pressable
+                testID="attachment-lightbox-backdrop"
+                accessibilityRole="button"
+                accessibilityLabel={t("message.attachments.dismissImage")}
+                onPress={onClose}
+                style={styles.backdrop}
+              />
+              <LightboxContentLayer>
+                <LightboxImageArea source={source} onClose={onClose} />
+                {hasGallery ? (
+                  <LightboxNavigation
+                    index={index}
+                    total={sources?.length ?? 0}
+                    previous={previous}
+                    next={next}
+                  />
+                ) : null}
+              </LightboxContentLayer>
+            </View>
+          </WindowChromeRootRegion>
+        </SafeAreaProvider>
+      </ModalRoot>
+    </Modal>
+  );
+}
+
+function LightboxImageArea({
+  source,
+  onClose,
+}: {
+  source: ImageLightboxSource;
+  onClose: () => void;
+}) {
+  return (
+    <View pointerEvents="box-none" style={styles.imageArea}>
+      <LightboxImages source={source} onClose={onClose} />
+    </View>
+  );
+}
+
+function LightboxContentLayer({ children }: { children: ReactNode }) {
+  const insets = useSafeAreaInsets();
   const contentLayerStyle = useMemo(
     () => [
       styles.contentLayer,
@@ -89,39 +140,10 @@ export function AttachmentLightbox({
     ],
     [insets.bottom, insets.left, insets.right, insets.top],
   );
-  if (!source) {
-    return null;
-  }
-
   return (
-    <Modal transparent animationType="fade" statusBarTranslucent visible onRequestClose={onClose}>
-      <ModalRoot style={styles.root}>
-        <WindowChromeRootRegion corners="both">
-          <View ref={setWebOverlayScope} style={styles.root}>
-            <Pressable
-              testID="attachment-lightbox-backdrop"
-              accessibilityRole="button"
-              accessibilityLabel={t("message.attachments.dismissImage")}
-              onPress={onClose}
-              style={styles.backdrop}
-            />
-            <View pointerEvents="box-none" style={contentLayerStyle}>
-              <View pointerEvents="box-none" style={styles.imageArea}>
-                <LightboxImages source={source} onClose={onClose} />
-              </View>
-              {hasGallery ? (
-                <LightboxNavigation
-                  index={index}
-                  total={sources?.length ?? 0}
-                  previous={previous}
-                  next={next}
-                />
-              ) : null}
-            </View>
-          </View>
-        </WindowChromeRootRegion>
-      </ModalRoot>
-    </Modal>
+    <View pointerEvents="box-none" style={contentLayerStyle}>
+      {children}
+    </View>
   );
 }
 
