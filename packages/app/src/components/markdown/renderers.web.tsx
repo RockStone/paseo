@@ -9,6 +9,7 @@ import type {
 } from "react-native-enriched-markdown";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useFileLink } from "@/assistant-file-links";
+import { FileLinkContextMenu } from "@/assistant-file-links/context-menu.web";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { HighlightedCodeBlock } from "@/components/highlighted-code-block";
 import type { Theme } from "@/styles/theme";
@@ -34,7 +35,9 @@ const LINK_HOVER_STYLE = { textDecoration: "underline" } as const;
 
 function WebLink({ link, anchorProps, children }: LinkRendererProps) {
   const details = useContext(MarkdownReferenceContext).get(link.url);
-  const { tooltipPath, onHoverIn } = useFileLink(markdownLinkSource(link.url, link.sourceType));
+  const { tooltipPath, absolutePath, isFile, onHoverIn } = useFileLink(
+    markdownLinkSource(link.url, link.sourceType),
+  );
   const [hovered, setHovered] = useState(false);
   const handleMouseEnter = useCallback(() => setHovered(true), []);
   const handleMouseLeave = useCallback(() => setHovered(false), []);
@@ -56,20 +59,18 @@ function WebLink({ link, anchorProps, children }: LinkRendererProps) {
       {children}
     </a>
   );
-  if (details)
-    return (
-      <HoverCard>
-        <HoverCardTrigger inline>{anchor}</HoverCardTrigger>
-        <HoverCardContent placement="top" alignment="start" style={styles.referenceCard}>
-          <ScrollView style={styles.referenceDetails} testID="message-reference-details">
-            <Text selectable style={styles.tooltipPath}>
-              {details.text}
-            </Text>
-          </ScrollView>
-        </HoverCardContent>
-      </HoverCard>
-    );
-  return (
+  const content = details ? (
+    <HoverCard>
+      <HoverCardTrigger inline>{anchor}</HoverCardTrigger>
+      <HoverCardContent placement="top" alignment="start" style={styles.referenceCard}>
+        <ScrollView style={styles.referenceDetails} testID="message-reference-details">
+          <Text selectable style={styles.tooltipPath}>
+            {details.text}
+          </Text>
+        </ScrollView>
+      </HoverCardContent>
+    </HoverCard>
+  ) : (
     <Tooltip delayDuration={400}>
       <TooltipTrigger asChild onHoverIn={onHoverIn}>
         <InlineLinkTrigger>{anchor}</InlineLinkTrigger>
@@ -82,6 +83,13 @@ function WebLink({ link, anchorProps, children }: LinkRendererProps) {
         </TooltipContent>
       ) : null}
     </Tooltip>
+  );
+  return isFile ? (
+    <FileLinkContextMenu path={absolutePath} onResolve={onHoverIn}>
+      {content}
+    </FileLinkContextMenu>
+  ) : (
+    content
   );
 }
 // TooltipTrigger also supplies native Pressable handlers; forward only DOM events.

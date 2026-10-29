@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import type { OpenFileDisposition } from "@/workspace/file-open";
+import { resolveWorkspaceFilePaths } from "@/workspace/file-open";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { formatFileLinkTooltipPath } from "./tooltip-path";
 import type { InlinePathTarget } from "./parse";
@@ -21,6 +22,8 @@ import {
 export interface UseFileLinkResult {
   target: InlinePathTarget | null;
   tooltipPath: string | null;
+  absolutePath: string | null;
+  isFile: boolean;
   onHoverIn: () => void;
   onPress: () => void;
   open: (source: AssistantFileLinkSource, disposition: OpenFileDisposition) => void;
@@ -140,9 +143,14 @@ export function useFileLink(source: AssistantFileLinkSource): UseFileLinkResult 
   }, [query.data, resolution]);
 
   const tooltipPath = target ? formatFileLinkTooltipPath({ target, workspaceRoot }) : null;
+  const absolutePath =
+    target && workspaceRoot
+      ? (resolveWorkspaceFilePaths({ path: target.path, workspaceRoot })?.absolutePath ?? null)
+      : null;
+  const isFile = resolution.kind === "needsLookup" || resolution.value.kind === "file";
   return useMemo(
-    () => ({ target, tooltipPath, onHoverIn, onPress, open }),
-    [target, tooltipPath, onHoverIn, onPress, open],
+    () => ({ target, tooltipPath, absolutePath, isFile, onHoverIn, onPress, open }),
+    [target, tooltipPath, absolutePath, isFile, onHoverIn, onPress, open],
   );
 }
 

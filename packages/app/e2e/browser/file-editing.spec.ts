@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Locator } from "@playwright/test";
 import { expect, test, type Page } from "../support/fixtures";
@@ -129,6 +130,21 @@ function mediaState(element: HTMLMediaElement) {
     paused: element.paused,
     videoWidth: (element as HTMLVideoElement).videoWidth,
   };
+}
+
+function imageWidth(image: HTMLImageElement) {
+  return image.naturalWidth;
+}
+
+function readClipboard() {
+  return navigator.clipboard.readText();
+}
+
+function isOpaque(element: HTMLElement) {
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    if (getComputedStyle(node).opacity !== "1") return false;
+  }
+  return true;
 }
 
 test.describe("CodeMirror workspace file editing", () => {
@@ -348,9 +364,11 @@ test.describe("CodeMirror workspace file editing", () => {
     }
   });
 
-  test("shows an absolute POSIX assistant file link relative to the workspace on hover", async ({
+  test("shows the relative link tooltip and copies the full file path on right click", async ({
     page,
-  }) => {
+    context,
+  }, testInfo) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const workspace = await seedWorkspace({ repoPrefix: "file-link-tooltip-" });
     const filePath = path.join(workspace.repoPath, "src", "target.ts");
     try {
@@ -377,6 +395,21 @@ test.describe("CodeMirror workspace file editing", () => {
       await expect(fileLink).toBeVisible({ timeout: 15_000 });
       await fileLink.hover();
       await expect(fileLink).toHaveAttribute("title", "src/target.ts:42-45");
+      await fileLink.click({ button: "right" });
+      const copy = page.getByTestId("file-link-copy-path");
+      await expect(copy).toBeVisible();
+      await expect.poll(() => copy.evaluate(isOpaque)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath("file-link-copy-path.png") });
+      await copy.click();
+      await expect.poll(() => page.evaluate(readClipboard)).toBe(filePath);
+      await expect(copy).toHaveCount(0);
+      await expect(page.getByTestId("workspace-file-pane")).toHaveCount(0);
+      await page.evaluate(() => {
+        navigator.clipboard.writeText = () => Promise.reject(new Error("Clipboard denied"));
+      });
+      await fileLink.click({ button: "right" });
+      await page.getByTestId("file-link-copy-path").click();
+      await expect(page.getByText("Copy failed", { exact: true })).toBeVisible();
     } finally {
       await workspace.cleanup();
     }
@@ -473,7 +506,7 @@ test.describe("CodeMirror workspace file editing", () => {
     try {
       await openAgentRoute(page, session);
 
-      const fileLink = page.getByText(target, { exact: true });
+      const fileLink = page.getByTestId("assistant-message").getByText(target, { exact: true });
       await expect(fileLink).toBeVisible({ timeout: 15_000 });
       await fileLink.click();
 
@@ -932,6 +965,51 @@ test.describe("CodeMirror workspace file editing", () => {
     await expect(preview.host).toBeVisible();
   });
 
+  test("renders local relative images inside HTML preview and retries missing images", async ({
+    page,
+    withWorkspace,
+  }, testInfo) => {
+    const workspace = await withWorkspace({ prefix: "file-html-relative-images-" });
+    const directory = path.join(workspace.repoPath, ".local", "review", "pilot");
+    const assets = path.join(workspace.repoPath, ".local", "assets");
+    await mkdir(directory, { recursive: true });
+    await mkdir(assets, { recursive: true });
+    await writeFile(path.join(assets, "hero & card.png"), RED_PIXEL);
+    await writeFile(path.join(directory, "sibling.png"), BLUE_PIXEL);
+    await writeFile(
+      path.join(directory, "index.html"),
+      `<!doctype html><html><body>
+<h1>Local image review</h1>
+<img alt="Hero" src="../../assets/hero%20%26%20card.png?v=2#preview" width="180" height="180">
+<img alt="Sibling" src='./sibling.png' width="180" height="180">
+<img alt="Missing" src="../../assets/missing.png" width="180" height="180">
+</body></html>`,
+    );
+    await workspace.navigateTo();
+    await openFileExplorer(page);
+    await expandFolder(page, ".local");
+    await expandFolder(page, "review");
+    await expandFolder(page, "pilot");
+    await openFileFromExplorer(page, "index.html");
+    const preview = htmlPreview(page);
+    await expect(
+      preview.document.getByRole("heading", { name: "Local image review" }),
+    ).toBeVisible();
+    const hero = preview.document.getByRole("img", { name: "Hero", exact: true });
+    const sibling = preview.document.getByRole("img", { name: "Sibling", exact: true });
+    await expect.poll(() => hero.evaluate(imageWidth)).toBe(1);
+    await expect.poll(() => sibling.evaluate(imageWidth)).toBe(1);
+    const error = page.getByTestId("html-preview-image-error");
+    await expect(error).toContainText("missing.png");
+    await writeFile(path.join(assets, "missing.png"), BLUE_PIXEL);
+    await error.getByRole("button", { name: "Retry", exact: true }).click();
+    const repaired = preview.document.getByRole("img", { name: "Missing", exact: true });
+    await expect.poll(() => repaired.evaluate(imageWidth)).toBe(1);
+    await expect(error).toHaveCount(0);
+    await expect(preview.host).not.toHaveAttribute("sandbox", /allow-same-origin/);
+    await page.screenshot({ path: testInfo.outputPath("html-local-images.png") });
+  });
+
   test("runs inline scripts without allowing fetch egress", async ({ page, withWorkspace }) => {
     test.setTimeout(90_000);
     const workspace = await withWorkspace({ prefix: "file-editing-html-csp-" });
@@ -971,6 +1049,52 @@ test.describe("CodeMirror workspace file editing", () => {
       preview.document.getByText("Network request blocked", { exact: true }),
     ).toBeVisible();
     expect(blockedRequests).toEqual([]);
+  });
+
+  test("keeps HTML image reads inside the workspace and ignores script-created references", async ({
+    page,
+    withWorkspace,
+  }) => {
+    const workspace = await withWorkspace({ prefix: "file-html-image-scope-" });
+    const outside = await mkdtemp(path.join(tmpdir(), "html-image-outside-"));
+    try {
+      await writeFile(path.join(outside, "private.png"), RED_PIXEL);
+      await symlink(
+        path.join(outside, "private.png"),
+        path.join(workspace.repoPath, "outside.png"),
+      );
+      await writeFile(path.join(workspace.repoPath, "dynamic.png"), RED_PIXEL);
+      await writeFile(
+        path.join(workspace.repoPath, "scope.html"),
+        `<!doctype html><html><body>
+<h1>Image scope</h1><img alt="Outside" src="outside.png">
+<img alt="Remote" src="${BLOCKED_PREVIEW_URL}/image.png">
+<script>const image=new Image();image.alt='Dynamic';image.src='dynamic.png';document.body.append(image);</script>
+</body></html>`,
+      );
+      const gate = await installDaemonWebSocketGate(page);
+      const blockedRequests: string[] = [];
+      page.on("requestfailed", (request) => {
+        if (request.url().startsWith(BLOCKED_PREVIEW_URL)) {
+          blockedRequests.push(request.failure()?.errorText ?? "");
+        }
+      });
+      await workspace.navigateTo();
+      await openWorkspaceFile(page, "scope.html");
+      const preview = htmlPreview(page);
+      await expect(preview.document.getByRole("heading", { name: "Image scope" })).toBeVisible();
+      await expect(page.getByTestId("html-preview-image-error")).toContainText(
+        "Access outside of workspace is not allowed",
+      );
+      const dynamic = preview.document.getByRole("img", { name: "Dynamic" });
+      await expect(dynamic).toBeVisible();
+      await expect.poll(() => dynamic.evaluate(imageWidth)).toBe(0);
+      expect(fileReadCount(gate, "dynamic.png")).toBe(0);
+      expect(blockedRequests).toHaveLength(1);
+      expect(blockedRequests[0]).toMatch(/csp/i);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 
   test("isolates HTML plans from the app origin and storage", async ({ page, withWorkspace }) => {

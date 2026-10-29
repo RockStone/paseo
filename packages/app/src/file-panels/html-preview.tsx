@@ -3,6 +3,8 @@ import { StyleSheet } from "react-native-unistyles";
 import { WebView } from "react-native-webview";
 import { withPreviewCsp } from "./html-preview-csp";
 import { htmlPreviewNavigationKind } from "./html-preview-navigation";
+import type { HtmlPreviewImageAsset } from "./html-preview/images";
+import { createHtmlImageUrl } from "./html-preview/image-url";
 
 // A preview is a viewer, not a browser. Only the document Paseo hands the WebView
 // loads; navigations the page attempts afterwards are refused, so a link, a
@@ -32,8 +34,25 @@ const ORIGIN_WHITELIST = ["*"];
 // would arrive with no injected policy and a clean slate to egress from.
 const BASE_URL = "about:blank";
 
-export function FileHtmlPreview({ html, testID }: { html: string; testID?: string }) {
-  const document = useMemo(() => withPreviewCsp(html), [html]);
+const NO_IMAGES: readonly HtmlPreviewImageAsset[] = [];
+
+export function FileHtmlPreview({
+  html,
+  images = NO_IMAGES,
+  testID,
+}: {
+  html: string;
+  images?: readonly HtmlPreviewImageAsset[];
+  testID?: string;
+}) {
+  const document = useMemo(() => {
+    let source = html;
+    for (const image of images) {
+      const url = createHtmlImageUrl(image.bytes, image.mime);
+      source = source.replaceAll(`src="${image.source}"`, `src="${url}"`);
+    }
+    return withPreviewCsp(source);
+  }, [html, images]);
   const source = useMemo(() => ({ html: document, baseUrl: BASE_URL }), [document]);
   // Latched per document rather than once for the lifetime of the WebView: the
   // file pane re-renders with new content on every live-file refresh, and each of

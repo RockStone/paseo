@@ -1,4 +1,4 @@
-// A preview renders a self-contained document and nothing else. Inline styles and
+// A preview renders a document with its host-resolved static images. Inline styles and
 // scripts run so a plan page keeps its layout and its diagrams; fetch, XHR,
 // WebSocket, beacon, remote script, remote font, remote image, and form posts are
 // all refused. Agent-written HTML is not trusted markup.
@@ -9,7 +9,7 @@
 // (both verified against the Chromium this app ships against). So a hostile page
 // can still reach a server by navigating, carrying data available inside the
 // preview. The opaque origin is what bounds the damage: the frame has no storage,
-// no parent access, and no way to read any file but itself. Native narrows it
+// no parent access, and no file bridge beyond images embedded by the host. Native narrows it
 // further in html-preview.tsx, because a WebView can refuse navigation outside CSP — see the
 // caveat there on why that is a mitigation rather than a guarantee.
 const POLICY = [

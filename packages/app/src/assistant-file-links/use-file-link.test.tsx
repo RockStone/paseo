@@ -105,6 +105,26 @@ describe("useFileLink", () => {
     cleanup();
   });
 
+  it("exposes a full copy path without a line suffix for local references", () => {
+    const getDirectorySuggestions = vi.fn(async () => resolvedSuggestions([]));
+    const { result } = renderHook(() => useFileLink({ href: "docs/guide.md:42-45" }), {
+      wrapper: createWrapper({ client: { getDirectorySuggestions }, openedFiles: [] }),
+    });
+    expect(result.current.isFile).toBe(true);
+    expect(result.current.absolutePath).toBe("/Users/test/project/docs/guide.md");
+    expect(result.current.tooltipPath).toBe("docs/guide.md:42-45");
+    expect(getDirectorySuggestions).not.toHaveBeenCalled();
+  });
+
+  it("leaves ordinary web links out of the file menu", () => {
+    const getDirectorySuggestions = vi.fn(async () => resolvedSuggestions([]));
+    const { result } = renderHook(() => useFileLink({ href: "https://example.com/page" }), {
+      wrapper: createWrapper({ client: { getDirectorySuggestions }, openedFiles: [] }),
+    });
+    expect(result.current.isFile).toBe(false);
+    expect(result.current.absolutePath).toBeNull();
+  });
+
   it("returns the same object across no-op parent rerenders", () => {
     const getDirectorySuggestions = vi.fn(async () => resolvedSuggestions([]));
     const queryClient = createQueryClient();

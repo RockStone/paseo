@@ -591,6 +591,10 @@ Audio and video use the same file URL lifetime as image previews. They load the 
 playback, start paused, and stop when their retained tab is hidden or closed. Codec support comes
 from the platform player; unsupported content shows an error with Retry.
 
+HTML previews resolve static local image references relative to the HTML file through scoped
+host reads. External resources and script-created file references remain blocked. See the
+[HTML preview boundary](../SECURITY.md#html-file-preview).
+
 The handle checks every write against the version it last read or wrote, so two panels or a panel
 and an agent cannot silently overwrite each other. The daemon reports the file's kind (text,
 image, binary) with its stat from a bounded sniff, which is how Source claims text files without a

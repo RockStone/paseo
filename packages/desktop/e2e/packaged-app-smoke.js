@@ -880,6 +880,14 @@ async function openSmokeWorkspace({ appPath, env, page, daemonHome }) {
   const projectPath = path.join(daemonHome, "sandbox-smoke-project");
   fs.mkdirSync(projectPath);
   fs.writeFileSync(path.join(projectPath, "README.md"), "Packaged Linux sandbox smoke\n");
+  fs.writeFileSync(
+    path.join(projectPath, "preview.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="red"/></svg>',
+  );
+  fs.writeFileSync(
+    path.join(projectPath, "index.html"),
+    '<!doctype html><h1>Local HTML images</h1><img src="./preview.svg" alt="Local image" width="160" height="160">',
+  );
   for (const extension of ["mp3", "mp4"]) {
     const name = `preview.${extension}`;
     fs.copyFileSync(
@@ -1032,6 +1040,26 @@ async function assertMediaFilePreviews(page) {
   }
 }
 
+async function assertHtmlFileImages(page) {
+  const tree = page.getByTestId("file-explorer-tree-scroll").filter({ visible: true }).first();
+  await tree.getByText("index.html", { exact: true }).first().click();
+  const host = page.getByTestId("file-html-preview");
+  await host.waitFor({ state: "visible" });
+  const handle = await host.elementHandle();
+  const previewFrame = await handle.contentFrame();
+  await previewFrame
+    .getByRole("heading", { name: "Local HTML images" })
+    .waitFor({ state: "visible" });
+  await previewFrame.waitForFunction(() => {
+    const image = window.document.querySelector("img");
+    return image && image.naturalWidth === 16;
+  });
+  assert.equal((await host.getAttribute("sandbox")).includes("allow-same-origin"), false);
+  const artifactDir = process.env.PASEO_DESKTOP_SMOKE_ARTIFACT_DIR?.trim();
+  if (artifactDir) await page.screenshot({ path: path.join(artifactDir, "html-local-image.png") });
+  console.log("Packaged desktop smoke: HTML local image decoded inside the isolated preview");
+}
+
 async function assertSandboxState({ browser, page, expectedSandbox, stdout, stderr }) {
   const diagnostics = await page.evaluate(() =>
     window.paseoDesktop.invoke("desktop_sandbox_diagnostics"),
@@ -1175,6 +1203,7 @@ async function smokePackagedDesktopApp({
     if (process.platform === "darwin") {
       await assertMacSidebarLayout({ appPath, env, page, daemonHome });
       await assertMediaFilePreviews(page);
+      await assertHtmlFileImages(page);
     }
     if (expectedSandbox !== undefined) {
       await assertSandboxState({ browser, page, expectedSandbox, stdout, stderr });

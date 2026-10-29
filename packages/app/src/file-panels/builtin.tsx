@@ -8,6 +8,9 @@ import { FileHtmlPreview } from "./html-preview";
 import { FilePanelLoading } from "./loading";
 import { FileMarkdownPreview } from "./markdown-preview";
 import { MediaFilePanel } from "./media-preview/panel";
+import { useHtmlPreviewImages } from "./html-preview/use-images";
+import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 import { TextFilePanel, type TextFilePreviewProps } from "./source/panel";
 import type { RenderingFilePanel, SourceFilePanel } from "./catalog";
 
@@ -51,10 +54,31 @@ function MarkdownPreview({ text, params, workspaceId, host }: TextFilePreviewPro
 }
 
 /** The page owns its scrolling, so there is no ScrollView around it. */
-function HtmlPreview({ text }: TextFilePreviewProps) {
+function HtmlPreview({ text, params, workspaceId, host }: TextFilePreviewProps) {
+  const { t } = useTranslation();
+  const client = useSessionStore((state) => state.sessions[host.id]?.client ?? null);
+  const workspaceRoot = useWorkspace(workspaceId, (workspace) => workspace.directory);
+  const preview = useHtmlPreviewImages({
+    html: text,
+    filePath: params.path,
+    workspaceRoot: workspaceRoot ?? "",
+    serverId: host.id,
+    client,
+  });
+  if (preview.html === null) return <FilePanelLoading />;
   return (
     <View style={styles.container}>
-      <FileHtmlPreview html={text} testID="file-html-preview" />
+      {preview.failures.length > 0 ? (
+        <View style={styles.previewError} testID="html-preview-image-error">
+          <Text style={styles.errorText} accessibilityRole="alert">
+            {t("panels.file.failedToLoadPreview")}: {preview.failures.join("\n")}
+          </Text>
+          <Button variant="outline" size="sm" onPress={preview.retry} loading={preview.retrying}>
+            {t("common.actions.retry")}
+          </Button>
+        </View>
+      ) : null}
+      <FileHtmlPreview html={preview.html} images={preview.images} testID="file-html-preview" />
     </View>
   );
 }
@@ -101,6 +125,7 @@ export function BuiltinFilePanelView({
 
 const styles = StyleSheet.create((theme) => ({
   container: { flex: 1, minHeight: 0 },
+  previewError: { padding: theme.spacing[3], gap: theme.spacing[2] },
   centerState: {
     flex: 1,
     alignItems: "center",
