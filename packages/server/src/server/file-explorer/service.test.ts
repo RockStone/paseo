@@ -36,6 +36,36 @@ async function createTempDir(prefix: string): Promise<string> {
 }
 
 describe("file explorer service", () => {
+  it.each([
+    ["mp3", "audio/mpeg"],
+    ["m4a", "audio/mp4"],
+    ["aac", "audio/aac"],
+    ["wav", "audio/wav"],
+    ["ogg", "audio/ogg"],
+    ["oga", "audio/ogg"],
+    ["flac", "audio/flac"],
+    ["mp4", "video/mp4"],
+    ["m4v", "video/mp4"],
+    ["mov", "video/quicktime"],
+    ["webm", "video/webm"],
+    ["ogv", "video/ogg"],
+  ])(
+    "classifies %s media consistently for observation and playback",
+    async (extension, mimeType) => {
+      const root = await createTempDir("paseo-media-preview-");
+      const relativePath = `clip.${extension.toUpperCase()}`;
+      const bytes = Buffer.from("media fixture");
+      try {
+        await writeFile(path.join(root, relativePath), bytes);
+        const version = await getExplorerFileVersion({ root, relativePath });
+        expect(version).toMatchObject({ status: "ready", kind: "binary", mimeType });
+        const file = await readExplorerFileBytes({ root, relativePath });
+        expect(file).toMatchObject({ kind: "binary", mimeType, bytes });
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
   it("atomically writes an existing text file at the expected revision", async () => {
     const root = await createTempDir("paseo-file-write-");
     try {

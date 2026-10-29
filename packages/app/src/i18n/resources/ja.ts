@@ -2073,6 +2073,8 @@ export const ja: TranslationResources = {
           markdown: "Markdown",
           html: "HTML",
           image: "画像",
+          audio: "音声",
+          video: "動画",
           source: "ソース",
         },
       },
@@ -2085,6 +2087,10 @@ export const ja: TranslationResources = {
       failedToLoad: "ファイルの読み込みに失敗しました",
       notFound: "ファイルが見つかりません",
       failedToLoadPreview: "ファイルプレビューの読み込みに失敗しました",
+      audioPreview: "音声プレビュー: {{name}}",
+      videoPreview: "動画プレビュー: {{name}}",
+      mediaPlaybackFailed:
+        "このメディアを再生できませんでした。形式またはコーデックがサポートされていない可能性があります。",
       editor: {
         preview: "プレビュー",
         source: "ソース",

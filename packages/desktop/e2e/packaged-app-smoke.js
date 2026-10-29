@@ -880,6 +880,13 @@ async function openSmokeWorkspace({ appPath, env, page, daemonHome }) {
   const projectPath = path.join(daemonHome, "sandbox-smoke-project");
   fs.mkdirSync(projectPath);
   fs.writeFileSync(path.join(projectPath, "README.md"), "Packaged Linux sandbox smoke\n");
+  for (const extension of ["mp3", "mp4"]) {
+    const name = `preview.${extension}`;
+    fs.copyFileSync(
+      path.resolve(__dirname, "../../app/e2e/support/fixtures", name),
+      path.join(projectPath, name),
+    );
+  }
   const workspace = await runCliShimJsonCommand({
     appPath,
     env,
@@ -975,6 +982,54 @@ async function assertMacSidebarLayout(options) {
   console.log(
     "Packaged desktop smoke: sidebars fill the window and New workspace preview supports navigation without background drag regions",
   );
+}
+
+async function assertMediaFilePreviews(page) {
+  let explorer = page.getByTestId("workspace-explorer-sidebar").filter({ visible: true }).first();
+  if ((await explorer.count()) === 0) {
+    await page.getByTestId("workspace-explorer-toggle").first().click();
+    explorer = page.getByTestId("workspace-explorer-sidebar").filter({ visible: true }).first();
+  }
+  await explorer.getByTestId("workspace-tab-files").click({ position: { x: 12, y: 13 } });
+  const tree = page.getByTestId("file-explorer-tree-scroll").filter({ visible: true }).first();
+  await tree.waitFor({ state: "visible" });
+  for (const kind of ["audio", "video"]) {
+    const extension = kind === "audio" ? "mp3" : "mp4";
+    await tree.getByText(`preview.${extension}`, { exact: true }).first().click();
+    const testId = `file-${kind}-preview`;
+    const player = page.getByTestId(testId);
+    await page.waitForFunction((id) => {
+      const media = document.querySelector(`[data-testid="${id}"]`);
+      return media && media.readyState >= 1 && media.duration > 0;
+    }, testId);
+    assert.equal(await player.evaluate((media) => media.paused && media.controls), true);
+    const handle = await player.elementHandle();
+    const box = await player.boundingBox();
+    assert.ok(box, `Missing ${kind} player bounds`);
+    await player.click({ position: { x: 25, y: box.height - (kind === "video" ? 48 : 25) } });
+    await page.waitForFunction((id) => {
+      const media = document.querySelector(`[data-testid="${id}"]`);
+      return media && !media.paused && media.currentTime > 0;
+    }, testId);
+    await player.evaluate((media) => {
+      media.currentTime = 2;
+    });
+    await page.waitForFunction((id) => {
+      const media = document.querySelector(`[data-testid="${id}"]`);
+      return media && !media.seeking && media.currentTime >= 2;
+    }, testId);
+    const artifactDir = process.env.PASEO_DESKTOP_SMOKE_ARTIFACT_DIR?.trim();
+    if (artifactDir) {
+      fs.mkdirSync(artifactDir, { recursive: true });
+      await page.screenshot({ path: path.join(artifactDir, `${extension}-preview.png`) });
+    }
+    await tree.getByText("README.md", { exact: true }).first().click();
+    await player.waitFor({ state: "detached" });
+    assert.equal(await handle.evaluate((media) => media.paused), true);
+    console.log(
+      `Packaged desktop smoke: ${extension} decoded, played, sought, and paused on tab change`,
+    );
+  }
 }
 
 async function assertSandboxState({ browser, page, expectedSandbox, stdout, stderr }) {
@@ -1119,6 +1174,7 @@ async function smokePackagedDesktopApp({
     await smokeCliTerminal({ appPath, env });
     if (process.platform === "darwin") {
       await assertMacSidebarLayout({ appPath, env, page, daemonHome });
+      await assertMediaFilePreviews(page);
     }
     if (expectedSandbox !== undefined) {
       await assertSandboxState({ browser, page, expectedSandbox, stdout, stderr });

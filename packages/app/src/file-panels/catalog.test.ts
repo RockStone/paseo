@@ -25,6 +25,14 @@ function panelId(file: FilePanelFile, candidates: readonly FilePanelCandidate[] 
 }
 
 describe("built-in file panels", () => {
+  it.each([
+    ["mp3", "audio"],
+    ["MP4", "video"],
+  ])("opens %s files with playback controls", (extension, kind) => {
+    expect(candidateIds({ path: `clip.${extension}`, kind: "binary" })).toEqual([
+      `builtin:${kind}`,
+    ]);
+  });
   it("opens each rendered extension with its panel alone, never with Source beside it", () => {
     expect(candidateIds(textFile("README.md"))).toEqual(["builtin:markdown"]);
     expect(candidateIds(textFile("plan.html"))).toEqual(["builtin:html"]);

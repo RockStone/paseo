@@ -122,7 +122,113 @@ async function seedAgentWithFileLink(input: LinkedFile) {
   return session;
 }
 
+function mediaState(element: HTMLMediaElement) {
+  return {
+    readyState: element.readyState,
+    currentTime: element.currentTime,
+    paused: element.paused,
+    videoWidth: (element as HTMLVideoElement).videoWidth,
+  };
+}
+
 test.describe("CodeMirror workspace file editing", () => {
+  for (const extension of ["mp3", "mp4"] as const) {
+    test(`previews ${extension} media files and stops playback when hidden`, async ({
+      page,
+    }, testInfo) => {
+      const session = await seedMockAgentWorkspace({
+        repoPrefix: "media-file-preview-",
+        title: "Media file preview",
+      });
+      const name = `preview.${extension}`;
+      const fixture = await readFile(path.resolve(__dirname, `../support/fixtures/${name}`));
+      await writeFile(path.join(session.cwd, name), fixture);
+      await writeFile(path.join(session.cwd, "notes.md"), "# Playback pauses when this tab opens.");
+      try {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.emulateMedia({ colorScheme: extension === "mp4" ? "dark" : "light" });
+        await openAgentRoute(page, session);
+        await openWorkspaceFile(page, name);
+        const player = page.getByTestId(
+          extension === "mp4" ? "file-video-preview" : "file-audio-preview",
+        );
+        await expect(player).toBeVisible();
+        await expect(player).toHaveCSS("color-scheme", extension === "mp4" ? "dark" : "light");
+        await expect
+          .poll(async () => (await player.evaluate(mediaState)).readyState)
+          .toBeGreaterThanOrEqual(1);
+        expect(
+          await player.evaluate((element: HTMLMediaElement) => ({
+            controls: element.controls,
+            paused: element.paused,
+            duration: Math.round(element.duration),
+          })),
+        ).toEqual({ controls: true, paused: true, duration: 6 });
+        await page.screenshot({ path: testInfo.outputPath(`${extension}-preview.png`) });
+        const element = await player.elementHandle();
+        if (!element) throw new Error("Expected media controls");
+        const bounds = await player.boundingBox();
+        if (!bounds) throw new Error("Expected media bounds");
+        await player.click({
+          position: { x: 25, y: bounds.height - (extension === "mp4" ? 48 : 25) },
+        });
+        await expect
+          .poll(async () => (await player.evaluate(mediaState)).currentTime)
+          .toBeGreaterThan(0);
+        await player.evaluate((node: HTMLMediaElement) => {
+          node.currentTime = 2;
+        });
+        await expect
+          .poll(async () => (await player.evaluate(mediaState)).currentTime)
+          .toBeGreaterThanOrEqual(2);
+        await openWorkspaceFile(page, "notes.md");
+        await expect.poll(async () => (await element.evaluate(mediaState)).paused).toBe(true);
+        await openWorkspaceFile(page, name);
+        await expect(player).toBeVisible();
+        await expect.poll(async () => (await player.evaluate(mediaState)).paused).toBe(true);
+        await page.setViewportSize({ width: 900, height: 620 });
+        await expect(player).toBeVisible();
+        const narrow = await player.boundingBox();
+        if (!narrow) throw new Error("Expected a media preview in the narrow pane");
+        expect(narrow.x).toBeGreaterThanOrEqual(0);
+        expect(narrow.x + narrow.width).toBeLessThanOrEqual(900);
+        expect(narrow.y + narrow.height).toBeLessThanOrEqual(620);
+        await page.screenshot({ path: testInfo.outputPath(`${extension}-preview-narrow.png`) });
+      } finally {
+        await session.cleanup();
+      }
+    });
+  }
+
+  test("shows a retryable media error and recovers after the file is repaired", async ({
+    page,
+  }, testInfo) => {
+    const session = await seedMockAgentWorkspace({
+      repoPrefix: "media-preview-error-",
+      title: "Media preview error",
+    });
+    await writeFile(path.join(session.cwd, "broken.mp4"), "Not a video");
+    try {
+      await openAgentRoute(page, session);
+      await openWorkspaceFile(page, "broken.mp4");
+      const error = page.getByTestId("file-media-error");
+      await expect(error).toContainText("This media could not be played");
+      await error.getByRole("button", { name: "Retry", exact: true }).click();
+      await expect(error).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath("media-preview-error.png") });
+      await writeFile(
+        path.join(session.cwd, "broken.mp4"),
+        await readFile(path.resolve(__dirname, "../support/fixtures/preview.mp4")),
+      );
+      const player = page.getByTestId("file-video-preview");
+      await expect(player).toBeVisible();
+      await expect.poll(async () => (await player.evaluate(mediaState)).videoWidth).toBe(320);
+      await expect(error).toHaveCount(0);
+    } finally {
+      await session.cleanup();
+    }
+  });
+
   test("opens explicit screenshot links and explains missing files", async ({ page }) => {
     const session = await seedMockAgentWorkspace({
       repoPrefix: "screenshot-markdown-link-",

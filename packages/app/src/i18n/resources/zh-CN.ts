@@ -2032,6 +2032,8 @@ export const zhCN: TranslationResources = {
           markdown: "Markdown",
           html: "HTML",
           image: "图片",
+          audio: "音频",
+          video: "视频",
           source: "源代码",
         },
       },
@@ -2044,6 +2046,9 @@ export const zhCN: TranslationResources = {
       failedToLoad: "加载文件失败",
       notFound: "找不到文件",
       failedToLoadPreview: "加载文件预览失败",
+      audioPreview: "音频预览：{{name}}",
+      videoPreview: "视频预览：{{name}}",
+      mediaPlaybackFailed: "无法播放此媒体文件，可能不支持其格式或编解码器。",
       editor: {
         preview: "预览",
         source: "源代码",

@@ -146,6 +146,9 @@ Users can also detach an existing subagent from the subagents track. Detach is d
 
 Agent-originated messages and automatic notifications share a recipient-daemon delivery module. A queued receipt acknowledges admission before provider dispatch, allowing a child to report and finish in the same two-second quiet window. Human prompts dispatch directly. Conflicting explicit interruption or session-mode choices retain separate ordered dispatches.
 
+Keep received agent messages in attributed agent cards. Their arrival can start a turn, but that
+does not make them human messages or give them the user's bubble presentation.
+
 The pending message window is in memory. Clean shutdown flushes it before closing agents; an abrupt
 crash can lose queued prompts. A durable send receipt remains pending until actual dispatch
 acknowledgment, so a lost window never becomes a completed receipt. Completion waits cover queued

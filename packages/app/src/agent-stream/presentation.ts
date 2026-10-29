@@ -107,22 +107,6 @@ export function createStreamPresentation() {
   let collapsed: TurnCollapse | undefined;
 
   function presentRows(item: StreamItem): StreamItem[] {
-    if (item.kind === "tool_call" && item.payload.source === "agent") {
-      const message = item.payload.data.agentMessage;
-      if (message?.event === "message") {
-        return [
-          {
-            kind: "user_message",
-            id: item.id,
-            turnId: item.turnId,
-            timelineCursor: item.timelineCursor,
-            timestamp: item.timestamp,
-            text: message.text,
-            sender: message.sender,
-          },
-        ];
-      }
-    }
     if (item.kind === "tool_call") {
       const answer = presentAnsweredQuestion(item);
       if (answer) return [answer];

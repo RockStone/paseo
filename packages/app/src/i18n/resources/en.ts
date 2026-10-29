@@ -2081,6 +2081,8 @@ export const en = {
           markdown: "Markdown",
           html: "HTML",
           image: "Image",
+          audio: "Audio",
+          video: "Video",
           source: "Source",
         },
       },
@@ -2093,6 +2095,10 @@ export const en = {
       failedToLoad: "Failed to load file",
       notFound: "File not found",
       failedToLoadPreview: "Failed to load file preview",
+      audioPreview: "Audio preview: {{name}}",
+      videoPreview: "Video preview: {{name}}",
+      mediaPlaybackFailed:
+        "This media could not be played. Its format or codec may not be supported.",
       editor: {
         preview: "Preview",
         source: "Source",

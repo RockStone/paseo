@@ -2104,6 +2104,8 @@ export const es: TranslationResources = {
           markdown: "Markdown",
           html: "HTML",
           image: "Imagen",
+          audio: "Audio",
+          video: "Vídeo",
           source: "Código fuente",
         },
       },
@@ -2116,6 +2118,10 @@ export const es: TranslationResources = {
       failedToLoad: "No se pudo cargar el archivo",
       notFound: "No se encontró el archivo",
       failedToLoadPreview: "No se pudo cargar la vista previa del archivo",
+      audioPreview: "Vista previa de audio: {{name}}",
+      videoPreview: "Vista previa de vídeo: {{name}}",
+      mediaPlaybackFailed:
+        "No se pudo reproducir este archivo multimedia. Es posible que el formato o el códec no sean compatibles.",
       editor: {
         preview: "Vista previa",
         source: "Código fuente",

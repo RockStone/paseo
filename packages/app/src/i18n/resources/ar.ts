@@ -2054,6 +2054,8 @@ export const ar: TranslationResources = {
           markdown: "Markdown",
           html: "HTML",
           image: "صورة",
+          audio: "صوت",
+          video: "فيديو",
           source: "المصدر",
         },
       },
@@ -2066,6 +2068,9 @@ export const ar: TranslationResources = {
       failedToLoad: "فشل تحميل الملف",
       notFound: "الملف غير موجود",
       failedToLoadPreview: "فشل تحميل معاينة الملف",
+      audioPreview: "معاينة الصوت: {{name}}",
+      videoPreview: "معاينة الفيديو: {{name}}",
+      mediaPlaybackFailed: "تعذر تشغيل هذا الملف. قد لا يكون التنسيق أو برنامج الترميز مدعومًا.",
       editor: {
         preview: "معاينة",
         source: "المصدر",

@@ -2100,6 +2100,8 @@ export const fr: TranslationResources = {
           markdown: "Markdown",
           html: "HTML",
           image: "Image",
+          audio: "Audio",
+          video: "Vidéo",
           source: "Source",
         },
       },
@@ -2112,6 +2114,10 @@ export const fr: TranslationResources = {
       failedToLoad: "Impossible de charger le fichier",
       notFound: "Fichier introuvable",
       failedToLoadPreview: "Impossible de charger l’aperçu du fichier",
+      audioPreview: "Aperçu audio : {{name}}",
+      videoPreview: "Aperçu vidéo : {{name}}",
+      mediaPlaybackFailed:
+        "Impossible de lire ce média. Son format ou son codec n’est peut-être pas pris en charge.",
       editor: {
         preview: "Aperçu",
         source: "Source",

@@ -7,6 +7,7 @@ import { useSessionStore } from "@/stores/session-store";
 import { FileHtmlPreview } from "./html-preview";
 import { FilePanelLoading } from "./loading";
 import { FileMarkdownPreview } from "./markdown-preview";
+import { MediaFilePanel } from "./media-preview/panel";
 import { TextFilePanel, type TextFilePreviewProps } from "./source/panel";
 import type { RenderingFilePanel, SourceFilePanel } from "./catalog";
 
@@ -65,6 +66,14 @@ function ImagePanel({ file }: PluginFilePanelProps) {
   return <ZoomableImage uri={url.url} testID="image-file-preview" />;
 }
 
+function AudioPanel(props: PluginFilePanelProps) {
+  return <MediaFilePanel {...props} kind="audio" />;
+}
+
+function VideoPanel(props: PluginFilePanelProps) {
+  return <MediaFilePanel {...props} kind="video" />;
+}
+
 function FilePanelError({ message }: { message: string }) {
   return (
     <View style={styles.centerState}>
@@ -77,6 +86,8 @@ const components = {
   "builtin:markdown": MarkdownPanel,
   "builtin:html": HtmlPanel,
   "builtin:image": ImagePanel,
+  "builtin:audio": AudioPanel,
+  "builtin:video": VideoPanel,
   "builtin:source": SourcePanel,
 };
 

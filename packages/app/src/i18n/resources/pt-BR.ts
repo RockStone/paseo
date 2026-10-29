@@ -2089,6 +2089,8 @@ export const ptBR: TranslationResources = {
           markdown: "Markdown",
           html: "HTML",
           image: "Imagem",
+          audio: "Áudio",
+          video: "Vídeo",
           source: "Fonte",
         },
       },
@@ -2101,6 +2103,10 @@ export const ptBR: TranslationResources = {
       failedToLoad: "Falha ao carregar arquivo",
       notFound: "Arquivo não encontrado",
       failedToLoadPreview: "Falha ao carregar prévia do arquivo",
+      audioPreview: "Prévia de áudio: {{name}}",
+      videoPreview: "Prévia de vídeo: {{name}}",
+      mediaPlaybackFailed:
+        "Não foi possível reproduzir esta mídia. O formato ou codec pode não ser compatível.",
       editor: {
         preview: "Prévia",
         source: "Fonte",

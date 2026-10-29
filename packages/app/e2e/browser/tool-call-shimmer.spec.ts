@@ -247,7 +247,7 @@ test("thinking stays muted and trims trailing blank lines without removing parag
 
 test("tool labels and expanded shell output stay muted while agent messages stay emphasized", async ({
   page,
-}) => {
+}, testInfo) => {
   const agent = await seedMockAgentWorkspace({
     repoPrefix: "tool-tones-",
     title: "Tool tones",
@@ -318,6 +318,13 @@ test("tool labels and expanded shell output stay muted while agent messages stay
     await expect(received.getByText("Peer agent", { exact: true })).toHaveCSS("color", foreground);
     await received.getByRole("button").first().click();
     await expect(received.getByText(/Ready for review/)).toHaveCSS("color", foreground);
+    await expect(
+      page.getByTestId("user-message").filter({ hasText: "Ready for review." }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByTestId("user-message").filter({ hasText: "Show the implementation and checks." }),
+    ).toHaveCount(1);
+    await page.screenshot({ path: testInfo.outputPath("agent-message-card.png") });
     await expect(received.getByText("Message received", { exact: true })).toHaveCSS(
       "color",
       foreground,

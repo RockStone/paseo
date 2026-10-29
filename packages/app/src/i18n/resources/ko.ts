@@ -2064,6 +2064,8 @@ export const ko: TranslationResources = {
           markdown: "Markdown",
           html: "HTML",
           image: "이미지",
+          audio: "오디오",
+          video: "비디오",
           source: "소스",
         },
       },
@@ -2076,6 +2078,10 @@ export const ko: TranslationResources = {
       failedToLoad: "파일을 불러오지 못했습니다",
       notFound: "파일을 찾을 수 없습니다",
       failedToLoadPreview: "파일 미리보기를 불러오지 못했습니다",
+      audioPreview: "오디오 미리보기: {{name}}",
+      videoPreview: "비디오 미리보기: {{name}}",
+      mediaPlaybackFailed:
+        "이 미디어를 재생할 수 없습니다. 형식이나 코덱이 지원되지 않을 수 있습니다.",
       editor: {
         preview: "미리보기",
         source: "소스",

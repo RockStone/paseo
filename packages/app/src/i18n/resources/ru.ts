@@ -2086,6 +2086,8 @@ export const ru: TranslationResources = {
           markdown: "Markdown",
           html: "HTML",
           image: "Изображение",
+          audio: "Аудио",
+          video: "Видео",
           source: "Исходный текст",
         },
       },
@@ -2098,6 +2100,10 @@ export const ru: TranslationResources = {
       failedToLoad: "Не удалось загрузить файл",
       notFound: "Файл не найден",
       failedToLoadPreview: "Не удалось загрузить предварительный просмотр файла.",
+      audioPreview: "Предпросмотр аудио: {{name}}",
+      videoPreview: "Предпросмотр видео: {{name}}",
+      mediaPlaybackFailed:
+        "Не удалось воспроизвести медиафайл. Возможно, формат или кодек не поддерживается.",
       editor: {
         preview: "Предпросмотр",
         source: "Исходный текст",

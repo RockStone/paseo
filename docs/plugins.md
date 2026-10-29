@@ -581,11 +581,15 @@ panel, and mounts it with a `PluginFile` handle; the panel reads, shows its own 
 and resolves conflicts. The host has no bar and no notion of a panel's views: the Markdown and HTML
 panels own their Preview and Source views, toolbar and editor buffer, and the tab only shows the
 dot a panel sets through `tab.setModified`. Source is the floor for text files no other built-in
-claims, never a candidate beside one. Built-in panels (Markdown, HTML, Image, and Source, Paseo's
+claims, never a candidate beside one. Built-in panels (Markdown, HTML, Image, Audio, Video, and Source, Paseo's
 editor) take exactly `PluginFilePanelProps`, including params and persisted tab state, so a fix to reading, watching, or writing lands in one place:
 `packages/app/src/file-panels/file/`. Do not add a host-side read or loading gate for one panel;
 make that panel faster instead. Source highlights a large file on native in idle-time slices,
 the lines around the opening line first.
+
+Audio and video use the same file URL lifetime as image previews. They load the file before
+playback, start paused, and stop when their retained tab is hidden or closed. Codec support comes
+from the platform player; unsupported content shows an error with Retry.
 
 The handle checks every write against the version it last read or wrote, so two panels or a panel
 and an agent cannot silently overwrite each other. The daemon reports the file's kind (text,

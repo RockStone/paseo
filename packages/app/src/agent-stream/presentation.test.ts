@@ -1421,7 +1421,7 @@ it.each(["collapseToolCalls", "collapseTurns"] as const)(
   },
 );
 
-it("presents received agent messages as attributed bubbles with the original turn identity", () => {
+it("keeps received agent messages as agent cards with their original identity and attribution", () => {
   const call = toolCall("received", "agent_message");
   if (call.payload.source !== "agent") throw new Error("Expected agent tool");
   call.turnId = "turn";
@@ -1436,13 +1436,8 @@ it("presents received agent messages as attributed bubbles with the original tur
     tail: [call],
     head: [],
   });
-  expect(result.tail[0]).toMatchObject({
-    kind: "user_message",
-    id: call.id,
-    turnId: "turn",
-    text: "Ready",
-    sender: { id: "sender", title: "Reviewer" },
-  });
+  expect(result.tail[0]).toBe(call);
+  expect(result.tail[0]?.kind).toBe("tool_call");
 });
 
 it("does not reopen the previous turn while a new run waits for its first row", () => {
