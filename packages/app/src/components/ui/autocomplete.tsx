@@ -1,19 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
-import {
-  ScrollView,
-  Text,
-  View,
-  Pressable,
-  type LayoutChangeEvent,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  type PressableStateCallbackType,
-} from "react-native";
+import { useCallback, useMemo, useRef, type ReactNode, type RefObject } from "react";
+import { ScrollView, Text, View, Pressable, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { Bot, File, Folder, Terminal, MessageSquare, Layers } from "lucide-react-native";
 import type { Theme } from "@/styles/theme";
-import { getScrollOffsetToRevealItem } from "./scroll-reveal";
+import { useRevealActiveItem } from "./scroll-reveal";
 
 export interface AutocompleteOption {
   id: string;
@@ -64,20 +55,20 @@ function removeBoltGlyphs(value?: string): string | undefined {
 }
 
 interface AutocompleteRowProps {
-  index: number;
   option: AutocompleteOption;
   isSelected: boolean;
   mutedColor: string;
   onSelect: (option: AutocompleteOption) => void;
-  onRowLayout: (index: number, event: LayoutChangeEvent) => void;
+  activeItemRef: RefObject<View | null>;
+  onRowLayout: () => void;
 }
 
 function AutocompleteRow({
-  index,
   option,
   isSelected,
   mutedColor,
   onSelect,
+  activeItemRef,
   onRowLayout,
 }: AutocompleteRowProps) {
   const optionLabel = removeBoltGlyphs(option.label) ?? option.label;
@@ -86,10 +77,6 @@ function AutocompleteRow({
   const iconKind = option.kind ?? "file";
   const LeadingIcon = iconKind === "command" ? File : LEADING_ICONS[iconKind];
 
-  const handleLayout = useCallback(
-    (event: LayoutChangeEvent) => onRowLayout(index, event),
-    [index, onRowLayout],
-  );
   const handlePress = useCallback(() => onSelect(option), [onSelect, option]);
   const pressableStyle = useCallback(
     ({ hovered = false, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
@@ -102,7 +89,8 @@ function AutocompleteRow({
   return (
     <Pressable
       testID={`autocomplete-option-${option.id}`}
-      onLayout={handleLayout}
+      ref={isSelected ? activeItemRef : undefined}
+      onLayout={isSelected ? onRowLayout : undefined}
       onPress={handlePress}
       style={pressableStyle}
     >
@@ -155,83 +143,9 @@ export function Autocomplete({
   const resolvedLoadingText = loadingText ?? t("common.states.loading");
   const resolvedEmptyText = emptyText ?? t("common.empty.noResults");
   const scrollRef = useRef<ScrollView>(null);
-  const rowLayoutsRef = useRef<Map<number, { top: number; height: number }>>(new Map());
-  const viewportHeightRef = useRef(0);
-  const scrollOffsetRef = useRef(0);
-
-  const ensureActiveItemVisible = useCallback(() => {
-    if (selectedIndex < 0) {
-      return;
-    }
-
-    const layout = rowLayoutsRef.current.get(selectedIndex);
-    if (!layout) {
-      return;
-    }
-
-    const nextOffset = getScrollOffsetToRevealItem({
-      currentOffset: scrollOffsetRef.current,
-      viewportHeight: viewportHeightRef.current,
-      itemTop: layout.top,
-      itemHeight: layout.height,
-    });
-
-    if (Math.abs(nextOffset - scrollOffsetRef.current) < 1) {
-      return;
-    }
-
-    scrollOffsetRef.current = nextOffset;
-    scrollRef.current?.scrollTo({ y: nextOffset, animated: false });
-  }, [selectedIndex]);
-
-  const pinToBottom = useCallback(() => {
-    scrollRef.current?.scrollToEnd({ animated: false });
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollToEnd({ animated: false });
-    });
-  }, []);
-
-  useEffect(() => {
-    rowLayoutsRef.current.clear();
-    scrollOffsetRef.current = 0;
-  }, [options]);
-
-  useEffect(() => {
-    if (options.length === 0) {
-      return;
-    }
-    pinToBottom();
-  }, [options, pinToBottom]);
-
-  useEffect(() => {
-    const raf = requestAnimationFrame(ensureActiveItemVisible);
-    return () => {
-      cancelAnimationFrame(raf);
-    };
-  }, [ensureActiveItemVisible, options.length]);
-
-  const handleScrollViewLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      viewportHeightRef.current = event.nativeEvent.layout.height;
-      ensureActiveItemVisible();
-    },
-    [ensureActiveItemVisible],
-  );
-
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
-  }, []);
-
-  const handleRowLayout = useCallback(
-    (index: number, event: LayoutChangeEvent) => {
-      rowLayoutsRef.current.set(index, {
-        top: event.nativeEvent.layout.y,
-        height: event.nativeEvent.layout.height,
-      });
-      ensureActiveItemVisible();
-    },
-    [ensureActiveItemVisible],
-  );
+  const listKey = useMemo(() => options.map((option) => option.id).join("\0"), [options]);
+  const { activeItemRef, contentRef, onItemLayout, onViewportLayout, onScroll } =
+    useRevealActiveItem({ activeIndex: selectedIndex, listKey, scrollRef });
 
   const selectedOption = options[selectedIndex];
   const containerStyle = useMemo(() => [styles.container, { maxHeight }], [maxHeight]);
@@ -290,25 +204,26 @@ export function Autocomplete({
         {header}
         <ScrollView
           ref={scrollRef}
-          onLayout={handleScrollViewLayout}
-          onContentSizeChange={pinToBottom}
-          onScroll={handleScroll}
+          onLayout={onViewportLayout}
+          onContentSizeChange={onItemLayout}
+          onScroll={onScroll}
           scrollEventThrottle={16}
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="always"
         >
-          {options.map((option, index) => (
-            <AutocompleteRow
-              key={option.id}
-              index={index}
-              option={option}
-              isSelected={index === selectedIndex}
-              mutedColor={theme.colors.foregroundMuted}
-              onSelect={onSelect}
-              onRowLayout={handleRowLayout}
-            />
-          ))}
+          <View ref={contentRef} collapsable={false} style={styles.scrollContent}>
+            {options.map((option, index) => (
+              <AutocompleteRow
+                key={option.id}
+                option={option}
+                isSelected={index === selectedIndex}
+                mutedColor={theme.colors.foregroundMuted}
+                onSelect={onSelect}
+                activeItemRef={activeItemRef}
+                onRowLayout={onItemLayout}
+              />
+            ))}
+          </View>
         </ScrollView>
       </View>
     </View>

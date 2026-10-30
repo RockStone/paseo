@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import type { Locator } from "@playwright/test";
 import { expectFileTabOpen } from "../support/helpers/file-explorer";
 import { seedAgentProfiles } from "../support/helpers/agent-profiles";
+import { expectAgentIdle } from "../support/helpers/agent-stream";
 import { expectWorkspaceAgentConfiguration } from "../support/helpers/command-center-agent-controls";
 import { installDaemonWebSocketGate } from "../support/helpers/daemon-websocket-gate";
 import { expect, test, type Page } from "../support/fixtures";
@@ -379,7 +381,195 @@ function expectPopoverDoesNotDisappearAfterFirstVisible(frames: PopoverFrame[]):
   ).toBeUndefined();
 }
 
+async function expectSelectedSuggestionVisible(rows: Locator, index: number, color: string) {
+  await expect(rows.nth(index)).toHaveCSS("background-color", color);
+  await expect(rows.nth(index)).toBeInViewport({ ratio: 1 });
+}
+
+async function exerciseSuggestionWrap(input: Locator, rows: Locator): Promise<string> {
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(6);
+  await expect(rows.last()).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  const color = await rows.last().evaluate((element) => getComputedStyle(element).backgroundColor);
+  await expectSelectedSuggestionVisible(rows, count - 1, color);
+  await input.press("ArrowDown");
+  await expectSelectedSuggestionVisible(rows, 0, color);
+  await input.press("ArrowUp");
+  await expectSelectedSuggestionVisible(rows, count - 1, color);
+  for (let index = count - 2; index >= 0; index -= 1) {
+    await input.press("ArrowUp");
+    await expectSelectedSuggestionVisible(rows, index, color);
+  }
+  await input.press("ArrowUp");
+  await expectSelectedSuggestionVisible(rows, count - 1, color);
+  await input.press("ArrowDown");
+  await expectSelectedSuggestionVisible(rows, 0, color);
+  for (let index = 0; index < count + 3; index += 1) await input.press("ArrowDown");
+  await expectSelectedSuggestionVisible(rows, 3, color);
+  for (let index = 0; index < count + 5; index += 1) await input.press("ArrowUp");
+  await expectSelectedSuggestionVisible(rows, count - 2, color);
+  return color;
+}
+
+for (const width of [1280, 494]) {
+  test(`profile mention keyboard wrap follows variable-height rows after filtering at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const profiles = await seedAgentProfiles(
+      Array.from({ length: 24 }, (_, index) => ({
+        id: `scroll-profile-${index}`,
+        name: `scroll-profile-${String(index).padStart(2, "0")}`,
+        provider: "claude" as const,
+        model: "opus-5.5",
+        notes: index % 2 ? "A profile with an extra description row" : undefined,
+      })),
+    );
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "profile-scroll-wrap-",
+      title: "Profile scrolling",
+    });
+    try {
+      await openAgentRoute(page, workspace);
+      await expectComposerVisible(page);
+      await page.mouse.move(1, 1);
+      const input = composerLocator(page);
+      const rows = page.locator('[data-testid^="autocomplete-option-profile:scroll-profile-"]');
+      await input.fill("@@scroll-profile-");
+      await expect(rows).toHaveCount(24);
+      await exerciseSuggestionWrap(input, rows);
+      await input.fill("@@scroll-profile-0");
+      await expect(rows).toHaveCount(10);
+      await exerciseSuggestionWrap(input, rows);
+      await page.screenshot({ path: testInfo.outputPath("profile-scroll-wrap.png") });
+    } finally {
+      await workspace.cleanup();
+      await profiles.restore();
+    }
+  });
+
+  test(`session mention keyboard wrap follows selection through directory updates at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "session-scroll-wrap-",
+      title: "Session scrolling",
+    });
+    try {
+      const peers: string[] = [];
+      for (let index = 0; index < 24; index += 1) {
+        const peer = await workspace.client.createAgent({
+          provider: "mock",
+          cwd: workspace.cwd,
+          workspaceId: workspace.workspaceId,
+          title: `scroll-peer-${String(index).padStart(2, "0")}`,
+          model: "e2e-fast-stream",
+          modeId: "load-test",
+        });
+        peers.push(peer.id);
+      }
+      await openAgentRoute(page, workspace);
+      await expectComposerVisible(page);
+      await page.mouse.move(1, 1);
+      const input = composerLocator(page);
+      const rows = page.locator('[data-testid^="autocomplete-option-session:thread:"]');
+      await input.fill("##scroll-peer-");
+      await expect(rows).toHaveCount(24);
+      const color = await exerciseSuggestionWrap(input, rows);
+      await input.press("ArrowDown");
+      await input.press("ArrowDown");
+      await expectSelectedSuggestionVisible(rows, 0, color);
+      await workspace.client.updateAgent(peers.at(-1)!, {
+        name: "scroll-peer-23!",
+      });
+      await expect(rows.first()).toContainText("scroll-peer-23!");
+      await expectSelectedSuggestionVisible(rows, 0, color);
+      await input.fill("##scroll-peer-0");
+      await expect(rows).toHaveCount(10);
+      await exerciseSuggestionWrap(input, rows);
+      await page.screenshot({ path: testInfo.outputPath("session-scroll-wrap.png") });
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+
+  test(`slash command keyboard wrap stays visible after filtering at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await installListCommandsStub(page);
+    const session = await openReadyMockAgent(page, { expectWorkspaceTab: false });
+    try {
+      await page.mouse.move(1, 1);
+      const input = composerLocator(page);
+      const popover = page.getByTestId("composer-autocomplete-popover");
+      const rows = popover.locator('[data-testid^="autocomplete-option-"]');
+      await input.fill("/");
+      await expect(popover.getByText("/help", { exact: true }).first()).toBeVisible();
+      await exerciseSuggestionWrap(input, rows);
+      await input.fill("/h");
+      await expect(popover.getByText("/tdd", { exact: true })).toHaveCount(0);
+      await exerciseSuggestionWrap(input, rows);
+      await page.screenshot({ path: testInfo.outputPath("slash-scroll-wrap.png") });
+    } finally {
+      await session.cleanup();
+    }
+  });
+}
+
 test.describe("Composer autocomplete", () => {
+  test("file mention keyboard wrap keeps the selected row inside the scroll viewport", async ({
+    page,
+  }, testInfo) => {
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "autocomplete-scroll-wrap-",
+      title: "Autocomplete scroll wrap",
+      repo: {
+        files: Array.from({ length: 24 }, (_, index) => ({
+          path: `scroll-wrap-${String(index).padStart(2, "0")}.md`,
+          content: "scroll fixture\n",
+        })),
+      },
+    });
+    try {
+      await openAgentRoute(page, workspace);
+      await expectComposerVisible(page);
+      await page.mouse.move(1, 1);
+      const input = composerLocator(page);
+      await input.fill("@scroll-wrap-");
+      const rows = page.locator('[data-testid^="autocomplete-option-file:scroll-wrap-"]');
+      await expect(rows).toHaveCount(24);
+      await expect(rows.last()).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      const selectedColor = await rows
+        .last()
+        .evaluate((element) => getComputedStyle(element).backgroundColor);
+      await expect(rows.last()).toBeInViewport({ ratio: 1 });
+      await input.press("ArrowDown");
+      await expect(rows.first()).toHaveCSS("background-color", selectedColor);
+      await page.screenshot({ path: testInfo.outputPath("wrapped-to-first.png") });
+      await expect(rows.first()).toBeInViewport({ ratio: 1 });
+      await input.press("ArrowUp");
+      await expect(rows.last()).toHaveCSS("background-color", selectedColor);
+      await expect(rows.last()).toBeInViewport({ ratio: 1 });
+      for (let index = 22; index >= 0; index -= 1) {
+        await input.press("ArrowUp");
+        await expect(rows.nth(index)).toHaveCSS("background-color", selectedColor);
+        await expect(rows.nth(index)).toBeInViewport({ ratio: 1 });
+      }
+      await input.fill("@scroll-wrap-0");
+      await expect(rows).toHaveCount(12);
+      await expect(rows.last()).toHaveCSS("background-color", selectedColor);
+      await expect(rows.last()).toBeInViewport({ ratio: 1 });
+      await input.press("ArrowDown");
+      await expect(rows.first()).toHaveCSS("background-color", selectedColor);
+      await page.screenshot({ path: testInfo.outputPath("filtered-wrap-to-first.png") });
+      await expect(rows.first()).toBeInViewport({ ratio: 1 });
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+
   test("keeps New workspace off the running-agent command list before a project is chosen", async ({
     page,
   }) => {
@@ -752,7 +942,13 @@ test.describe("Composer profile references", () => {
         "data-markdown",
         `Please delegate ${mention} the review.`,
       );
-      await input.press("Enter");
+      await Promise.all([
+        workspace.client.waitForAgentUpsert(
+          workspace.agentId,
+          (agent) => agent.status === "running",
+        ),
+        input.press("Enter"),
+      ]);
       await expect.poll(() => gate.getClientRequests("send_agent_message_request").length).toBe(1);
       const request = gate.getClientRequests("send_agent_message_request")[0]!;
       expect(request.text).toBe(`Please delegate ${mention} the review.`);
@@ -768,6 +964,9 @@ test.describe("Composer profile references", () => {
       const reference = sent.getByRole("link", { name: "@Opus delegate", exact: true });
       await expect(reference).toBeVisible();
       await expect(sent).not.toContainText("Agent profile ·");
+      // Transcript auto-scroll legitimately closes its hover cards while the mock streams.
+      await workspace.client.waitForFinish(workspace.agentId, 20_000);
+      await expectAgentIdle(page);
       await reference.hover();
       await expect(page.getByText(/Referenced Paseo agent profile: Opus delegate/)).toBeVisible();
       await expect(page.getByText(/Profile notes:.*Use a separate worktree/s)).toBeVisible();

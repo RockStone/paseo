@@ -45,7 +45,7 @@ export interface RevealActiveItemHandlers {
  * content. Measuring on selection/list changes also covers retained rows that
  * move or keep their size without emitting another onLayout event on web.
  * A list replacement resets to the top only when selection restarts there.
- * Bottom-anchored lists share only getScrollOffsetToRevealItem.
+ * The caller's initial selection also anchors bottom-first suggestion lists.
  */
 export function useRevealActiveItem(options: {
   activeIndex: number;
