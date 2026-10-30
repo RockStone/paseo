@@ -24,7 +24,11 @@ export function deriveAgentStateBucket(input: AgentStateBucketInput): WorkspaceS
   if ((input.pendingPermissionCount ?? 0) > 0 || input.attentionReason === "permission") {
     return "needs_input";
   }
-  if (input.status === "error" || input.attentionReason === "error") {
+  // Acknowledging a failure clears its badge without rewriting the provider lifecycle.
+  if (
+    input.requiresAttention !== false &&
+    (input.status === "error" || input.attentionReason === "error")
+  ) {
     return "failed";
   }
   if (hasAgentActivity(input)) {

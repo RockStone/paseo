@@ -893,6 +893,10 @@ Get the session ID from the agent JSON (`persistence.sessionId`), then:
 ~/.codex/sessions/{YYYY}/{MM}/{DD}/rollout-{timestamp}-{session-id}.jsonl
 ```
 
+Paginated Codex threads also keep history in `~/.codex/thread_history_1.sqlite`. A rollout-only
+copy can return an empty history. For an isolated reproduction, snapshot the matching thread's
+database rows alongside its rollout; never edit the live database.
+
 ## Testing with Playwright MCP
 
 Point Playwright MCP at the running Expo web target. For root checkout dev, `npm run dev:app` reserves `http://localhost:8081`. For Paseo-managed worktree app services, use the service URL or port shown by Paseo for that worktree.

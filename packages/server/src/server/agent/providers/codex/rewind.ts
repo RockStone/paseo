@@ -95,7 +95,7 @@ export async function revertCodexConversation(input: {
     model: input.model ?? null,
     serviceTier: input.serviceTier ?? null,
     ...(input.config ? { config: input.config } : {}),
-    excludeTurns: false,
+    excludeTurns: true,
     persistExtendedHistory: true,
   };
 

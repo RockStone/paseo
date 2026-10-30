@@ -1859,7 +1859,7 @@ describe("Codex app-server provider", () => {
       purpose: "history",
     });
 
-    expect(threadRequests).toEqual(["thread/read"]);
+    expect(threadRequests).toEqual(["thread/read", "thread/read"]);
     await session.close();
     appServer.assertNoErrors();
   });
@@ -1898,6 +1898,7 @@ describe("Codex app-server provider", () => {
       "thread/resume",
       "thread/unarchive",
       "thread/resume",
+      "thread/read",
       "thread/read",
     ]);
     await session.close();
@@ -2160,7 +2161,7 @@ describe("Codex app-server provider", () => {
         cwd: "/workspace/project",
         model: "gpt-5.4",
         serviceTier: null,
-        excludeTurns: false,
+        excludeTurns: true,
         persistExtendedHistory: true,
       },
     ]);
@@ -2220,7 +2221,7 @@ describe("Codex app-server provider", () => {
         cwd: "/workspace/project",
         model: "gpt-5.4",
         serviceTier: null,
-        excludeTurns: false,
+        excludeTurns: true,
         persistExtendedHistory: true,
       },
     ]);
@@ -4641,6 +4642,69 @@ describe("Codex app-server provider", () => {
     });
   });
 
+  test("loads paginated Codex history without requesting the full image history", async () => {
+    const session = createSession();
+    const request = vi.fn(async (method: string, params: unknown) => {
+      const p = params as {
+        cursor?: string;
+        includeTurns?: boolean;
+        itemsView?: string;
+        turnId?: string;
+      };
+      if (method === "thread/read" && p.includeTurns === false)
+        return { thread: { historyMode: "paginated" } };
+      if (method === "thread/turns/list" && p.itemsView === "notLoaded") {
+        return p.cursor
+          ? { data: [{ id: "turn-2", items: [] }], nextCursor: null }
+          : { data: [{ id: "turn-1", items: [] }], nextCursor: "older-turn-page" };
+      }
+      if (method === "thread/items/list") {
+        if (p.turnId === "turn-2")
+          return {
+            data: [
+              {
+                turnId: "turn-2",
+                item: { type: "agentMessage", id: "reply", text: "Retained reply." },
+              },
+            ],
+            nextCursor: null,
+          };
+        return p.cursor
+          ? {
+              data: [{ turnId: "turn-1", item: { type: "contextCompaction", id: "compact" } }],
+              nextCursor: null,
+            }
+          : {
+              data: [
+                {
+                  turnId: "turn-1",
+                  item: {
+                    type: "userMessage",
+                    id: "prompt",
+                    content: [{ type: "text", text: "Retained context." }],
+                  },
+                },
+              ],
+              nextCursor: "older-item-page",
+            };
+      }
+      throw new Error(`Unbounded history request: ${method}`);
+    });
+    session.client = { request };
+    await asInternals(session).loadPersistedHistory(session.client);
+    const history: AgentStreamEvent[] = [];
+    for await (const event of session.streamHistory()) history.push(event);
+    expect(
+      history.map((event) => (event.type === "timeline" ? event.item.type : event.type)),
+    ).toEqual(["user_message", "compaction", "assistant_message"]);
+    expect(asInternals(session).codexUserMessageTurns().resolve("prompt")).toEqual({
+      index: 0,
+      turnId: "turn-1",
+    });
+    expect(request.mock.calls.filter(([method]) => method === "thread/items/list")).toHaveLength(3);
+    expect(request.mock.calls.filter(([method]) => method === "thread/turns/list")).toHaveLength(2);
+  });
+
   test("loads Codex persisted history from the app-server thread", async () => {
     const session = createSession();
     const requests: Array<{ method: string; params: unknown }> = [];
@@ -4682,6 +4746,7 @@ describe("Codex app-server provider", () => {
     }
 
     expect(requests.map((request) => [request.method, request.params])).toEqual([
+      ["thread/read", { threadId: "test-thread", includeTurns: false }],
       ["thread/read", { threadId: "test-thread", includeTurns: true }],
     ]);
     expect(history).toEqual([
@@ -5565,7 +5630,7 @@ describe("Codex app-server provider", () => {
     expect(session.currentThreadId).toBe("archived-thread-id");
     expect(requests).toEqual([
       { method: "thread/loaded/list", params: {} },
-      { method: "thread/resume", params: { threadId: "archived-thread-id" } },
+      { method: "thread/resume", params: { threadId: "archived-thread-id", excludeTurns: true } },
     ]);
   });
 

@@ -2061,45 +2061,102 @@ async function threadItemToTimelineEntries(
   return [timelineItem, ...(await mcpToolResultImagesToTimeline(item))];
 }
 
+const CodexHistoryTurnSchema = z
+  .object({
+    id: z.string().optional(),
+    items: z.array(z.unknown()).default([]),
+  })
+  .passthrough();
+
 const CodexThreadReadResponseSchema = z
   .object({
     thread: z
       .object({
-        turns: z
-          .array(
-            z
-              .object({
-                items: z.array(z.unknown()).default([]),
-              })
-              .passthrough(),
-          )
-          .default([]),
+        historyMode: z.enum(["legacy", "paginated"]).optional(),
+        turns: z.array(CodexHistoryTurnSchema).default([]),
       })
       .passthrough()
       .default({ turns: [] }),
   })
   .passthrough();
 
-type CodexThreadReadResponse = z.infer<typeof CodexThreadReadResponseSchema>;
-type CodexThreadReadRequest = (threadId: string) => Promise<unknown>;
+const CodexTurnsPageSchema = z.object({
+  data: z.array(CodexHistoryTurnSchema.extend({ id: z.string() })),
+  nextCursor: z.string().nullable(),
+});
+const CodexItemsPageSchema = z.object({
+  data: z.array(
+    z.object({
+      item: z.record(z.string(), z.unknown()),
+      startedAtMs: z.number().nullable().optional(),
+      completedAtMs: z.number().nullable().optional(),
+    }),
+  ),
+  nextCursor: z.string().nullable(),
+});
 
-async function requestCodexThreadHistory(
-  requestThread: CodexThreadReadRequest,
+async function* readCodexThreadHistory(
+  client: CodexAppServerClientLike,
   threadId: string,
-): Promise<CodexThreadReadResponse> {
-  const response = await requestThread(threadId);
-  return CodexThreadReadResponseSchema.parse(response);
+): AsyncGenerator<z.infer<typeof CodexHistoryTurnSchema>> {
+  const metadata = CodexThreadReadResponseSchema.parse(
+    await client.request("thread/read", { threadId, includeTurns: false }),
+  );
+  if (metadata.thread.historyMode !== "paginated") {
+    const history = CodexThreadReadResponseSchema.parse(
+      await client.request("thread/read", { threadId, includeTurns: true }),
+    );
+    yield* history.thread.turns;
+    return;
+  }
+
+  let turnCursor: string | null = null;
+  do {
+    const turns = CodexTurnsPageSchema.parse(
+      await client.request("thread/turns/list", {
+        threadId,
+        cursor: turnCursor,
+        limit: 50,
+        sortDirection: "asc",
+        itemsView: "notLoaded",
+      }),
+    );
+    for (const turn of turns.data) {
+      let itemCursor: string | null = null;
+      do {
+        // One image-heavy turn can exceed the transport ceiling; page its items too.
+        const items = CodexItemsPageSchema.parse(
+          await client.request("thread/items/list", {
+            threadId,
+            turnId: turn.id,
+            cursor: itemCursor,
+            limit: 8,
+            sortDirection: "asc",
+          }),
+        );
+        yield {
+          ...turn,
+          items: items.data.map((entry) => {
+            const timestamp = entry.startedAtMs ?? entry.completedAtMs;
+            if (timestamp == null) return entry.item;
+            return { ...entry.item, timestamp: readCodexHistoryTimestamp(entry.item) ?? timestamp };
+          }),
+        };
+        itemCursor = items.nextCursor;
+      } while (itemCursor !== null);
+    }
+    turnCursor = turns.nextCursor;
+  } while (turnCursor !== null);
 }
 
 async function loadCodexThreadHistoryTimeline(params: {
   threadId: string;
   cwd: string | null;
-  requestThread: CodexThreadReadRequest;
+  client: CodexAppServerClientLike;
 }): Promise<CodexThreadHistoryProjection> {
-  const response = await requestCodexThreadHistory(params.requestThread, params.threadId);
   const timeline: PersistedTimelineEntry[] = [];
   const subAgentTimelineIndexByThreadId = new Map<string, number>();
-  for (const turn of response.thread.turns) {
+  for await (const turn of readCodexThreadHistory(params.client, params.threadId)) {
     for (const item of turn.items) {
       const historicalSubAgentActivity = readCodexSubAgentActivity(item);
       if (historicalSubAgentActivity) {
@@ -2149,13 +2206,6 @@ async function loadCodexThreadHistoryTimeline(params: {
     },
   );
   return { timeline, subAgentRoutes };
-}
-
-function readCodexThread(client: CodexAppServerClientLike, threadId: string): Promise<unknown> {
-  return client.request("thread/read", {
-    threadId,
-    includeTurns: true,
-  });
 }
 
 export async function forkCodexThread(
@@ -3992,9 +4042,7 @@ export class CodexAppServerAgentSession implements AgentSession {
     const history = await loadCodexThreadHistoryTimeline({
       threadId,
       cwd: this.config.cwd ?? null,
-      requestThread: (threadIdToRead) => {
-        return readCodexThread(client, threadIdToRead);
-      },
+      client,
     });
     const { timeline, subAgentRoutes } = history;
     this.subAgentCallsByCallId.clear();
@@ -4046,7 +4094,7 @@ export class CodexAppServerAgentSession implements AgentSession {
         const childHistory = await loadCodexThreadHistoryTimeline({
           threadId: next.route.childThreadId,
           cwd: this.config.cwd ?? null,
-          requestThread: (childThreadId) => readCodexThread(client, childThreadId),
+          client,
         });
         for (const entry of childHistory.timeline) {
           this.emitProviderSubagentTimeline(next.route.childThreadId, entry.item, entry.timestamp);
@@ -4069,7 +4117,7 @@ export class CodexAppServerAgentSession implements AgentSession {
 
   private async ensureThreadLoaded(): Promise<void> {
     if (!this.client || !this.currentThreadId) return;
-    const params: Record<string, unknown> = { threadId: this.currentThreadId };
+    const params: Record<string, unknown> = { threadId: this.currentThreadId, excludeTurns: true };
     const developerInstructions = composeSystemPromptParts(
       this.config.systemPrompt,
       this.config.daemonAppendSystemPrompt,

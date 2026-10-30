@@ -334,6 +334,8 @@ Attention is set by the agent finishing or failing and cleared by the client's
 `workspace.clear_attention`, which fires when the user reads the chat. While unread, the reason and
 timestamp track the latest finished or failed turn; desktop attention alerts fire only on the first
 unread transition. Parent finish notifications are independent of that unread flag.
+Acknowledging a failure clears its sidebar badge while the agent lifecycle stays `error` and its
+failure remains in the conversation. A later failure creates unread attention again.
 Loading an agent's runtime changes neither attention nor activity timestamps, so resuming carries
 their stored values through untouched. Forging either makes a background resume look like the user read a workspace and like the
 agent worked in it just now, which rewrites the sidebar timestamp permanently — persisted

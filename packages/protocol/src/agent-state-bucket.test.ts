@@ -6,6 +6,19 @@ import {
 } from "./agent-state-bucket.js";
 
 describe("deriveAgentStateBucket", () => {
+  it("clears an acknowledged error badge without changing the agent lifecycle", () => {
+    const failed = { status: "error", requiresAttention: true, attentionReason: "error" } as const;
+    expect(deriveAgentStateBucket(failed)).toBe("failed");
+    expect(
+      deriveAgentStateBucket({ ...failed, requiresAttention: false, attentionReason: null }),
+    ).toBe("done");
+    expect(
+      deriveAgentStateBucket({ ...failed, requiresAttention: false, pendingPermissionCount: 1 }),
+    ).toBe("needs_input");
+    expect(deriveAgentStateBucket(failed)).toBe("failed");
+    expect(failed.status).toBe("error");
+  });
+
   it("shows live background work after the foreground turn ends, without masking errors or permissions", () => {
     const activity = { status: "idle", backgroundTaskCount: 1 } as const;
     expect(deriveAgentStateBucket(activity)).toBe("running");

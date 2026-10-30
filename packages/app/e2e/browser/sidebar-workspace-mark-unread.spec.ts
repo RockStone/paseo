@@ -67,7 +67,11 @@ async function markAsRead(page: Page, workspaceId: string) {
   await expectStatus(page, workspaceId, "done");
 }
 
-async function expectStatus(page: Page, workspaceId: string, status: "done" | "attention") {
+async function expectStatus(
+  page: Page,
+  workspaceId: string,
+  status: "done" | "attention" | "failed",
+) {
   await expect(
     workspaceRow(page, workspaceId).getByTestId(`workspace-status-indicator-${status}`),
   ).toBeVisible();
@@ -205,6 +209,35 @@ test("manual unread survives departure and clears on reopening without changing 
   await leaveMarkedWorkspaceAndReopen(page, workspaces);
   await completeTurnAndLeave(page, workspaces);
   await markBackgroundWorkspaceAndRead(page, workspaces.subject.workspaceId);
+});
+
+test("reading a failed workspace dismisses its error dot without clearing the failure", async ({
+  page,
+  workspaces: { subject, other },
+}, testInfo) => {
+  await openAgentRoute(page, other);
+  await subject.client.sendAgentMessage(subject.agentId, "Emit a synthetic turn failure.");
+  await subject.client.waitForAgentUpsert(
+    subject.agentId,
+    (agent) => agent.status === "error",
+    20_000,
+  );
+  await expectStatus(page, subject.workspaceId, "failed");
+  await openWorkspace(page, subject.workspaceId);
+  await expectStatus(page, subject.workspaceId, "done");
+  await expect(page.getByText("[System Error] Requested mock provider failure")).toBeVisible();
+  await page.reload();
+  await expectStatus(page, subject.workspaceId, "done");
+  await page.screenshot({ path: testInfo.outputPath("acknowledged-error.png") });
+  await openWorkspace(page, other.workspaceId);
+  await subject.client.sendAgentMessage(subject.agentId, "Emit a synthetic turn failure again.");
+  await subject.client.waitForAgentUpsert(
+    subject.agentId,
+    (agent) => agent.status === "error",
+    20_000,
+  );
+  await expectStatus(page, subject.workspaceId, "failed");
+  await markAsRead(page, subject.workspaceId);
 });
 
 test("clicking a multi-agent workspace clears unread and keeps its coordinator selected", async ({
