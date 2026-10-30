@@ -94,6 +94,50 @@ test.describe("Subagent detach", () => {
   });
 });
 
+test("sidebar shows an imported independent session without children and opens the correct tab", async ({
+  page,
+}, testInfo) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-independent-import-" });
+  try {
+    const original = await workspace.client.createAgent({
+      provider: "mock",
+      cwd: workspace.repoPath,
+      workspaceId: workspace.workspaceId,
+      title: "Existing USB-phone session",
+      modeId: "load-test",
+      model: "ten-second-stream",
+    });
+    const imported = await workspace.client.createAgent({
+      provider: "mock",
+      cwd: workspace.repoPath,
+      workspaceId: workspace.workspaceId,
+      title: "Pull installed app packages (3)",
+      modeId: "load-test",
+      model: "ten-second-stream",
+    });
+    await openAgentRoute(page, { workspaceId: workspace.workspaceId, agentId: original.id });
+    const row = page.getByTestId(`sidebar-agent-tree-row-agent:${imported.id}`);
+    await expect(row).toHaveText("Pull installed app packages (3)");
+    await expect(row).toBeVisible();
+    await row.click();
+    await expectAgentTabActive(page, imported.id);
+    await expectComposerVisible(page);
+    await page.reload();
+    await expect(row).toBeVisible();
+    await expectAgentTabActive(page, imported.id);
+    await page.screenshot({ path: testInfo.outputPath("independent-import-sidebar.png") });
+    await switchWorkspaceViaSidebar({
+      page,
+      serverId: getServerId(),
+      workspaceId: workspace.workspaceId,
+    });
+    await expectAgentTabActive(page, original.id);
+    await expect(row).toBeVisible();
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 test("sidebar agent menu copies, renames, reloads and closes only the selected agent view", async ({
   page,
   context,
@@ -410,8 +454,9 @@ test("sidebar coordinator tree collapses, opens child threads and restores relat
     await page.screenshot({ path: "/tmp/paseoi-sidebar-agent-tree.png" });
     await openSubagentsTrack(page);
     await detachSubagentFromTrack(page, pair.child.id);
-    // Both coordinators still own children, so each now has a distinct root group.
-    await expect(root).toBeVisible();
+    // The workspace row keeps representing the original coordinator; the detached session
+    // becomes its own named group while retaining its descendants.
+    await expect(root).toHaveCount(0);
     await expect(siblingRow).toBeVisible();
     await expect(child).toBeVisible();
     await expect(nested).toBeVisible();

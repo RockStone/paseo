@@ -390,6 +390,7 @@ describe("selectSubagentsForParent", () => {
     ]);
     expect(Object.keys(rows[0] ?? {}).sort()).toEqual([
       "address",
+      "backgroundTaskCount",
       "createdAt",
       "description",
       "id",
@@ -562,6 +563,30 @@ describe("sidebar coordinator tree", () => {
       nestedWorkspaceIds,
     });
   }
+  it("shows an imported independent session without children beside the original coordinator", () => {
+    const root = makeAgent({ id: "coordinator", workspaceId: "workspace-a" });
+    const imported = makeAgent({
+      id: "imported",
+      title: "Pull installed app packages (3)",
+      workspaceId: "workspace-a",
+      createdAt: new Date(AGENT_TIMESTAMP.getTime() + 1),
+    });
+    const result = tree([root, imported]);
+    expect(result.map((node) => node.key)).toEqual(["agent:imported"]);
+    expect(result[0]?.title).toBe(imported.title);
+    expect(result[0]?.children).toEqual([]);
+    expect(
+      sidebarWorkspaceTarget(
+        new Map([
+          [root.id, root],
+          [imported.id, imported],
+        ]),
+        "workspace-a",
+      ),
+    ).toEqual({ kind: "agent", agentId: root.id });
+    expect(imported.parentAgentId).toBeNull();
+    expect(tree([root, { ...imported, archivedAt: AGENT_TIMESTAMP }])).toEqual([]);
+  });
   it("nests delegated workspaces with their descendants without changing ownership", () => {
     const agents = [
       makeAgent({ id: "coordinator", title: "Plan", workspaceId: "workspace-a" }),
@@ -583,10 +608,10 @@ describe("sidebar coordinator tree", () => {
       undefined,
       new Set(["workspace-b"]),
     );
-    expect(grouped.map((node) => node.key)).toEqual(["agent:coordinator"]);
+    expect(grouped.map((node) => node.key)).toEqual(["agent:coordinator", "agent:independent"]);
     expect(grouped[0]?.children[0]?.key).toBe("agent:child");
     expect(grouped[0]?.children[0]?.children[0]?.key).toBe("agent:grandchild");
-    expect(tree(agents)).toEqual([]);
+    expect(tree(agents).map((node) => node.key)).toEqual(["agent:independent"]);
     const childWorkspaceTree = buildSidebarThreadTree({
       serverId: SERVER_ID,
       workspaceId: "workspace-b",
@@ -600,13 +625,35 @@ describe("sidebar coordinator tree", () => {
     expect(childWorkspaceTree[0]?.children.map((node) => node.key)).toEqual(["agent:grandchild"]);
     expect(agents[1]?.parentAgentId).toBe("coordinator");
   });
-  it("removes archived and detached children without changing any records", () => {
+  it("removes archived children and shows detached children as independent sessions", () => {
     const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });
-    const child = makeAgent({ id: "child", workspaceId: "workspace-a", parentAgentId: "parent" });
+    const child = makeAgent({
+      id: "child",
+      workspaceId: "workspace-a",
+      parentAgentId: "parent",
+      createdAt: new Date(AGENT_TIMESTAMP.getTime() + 1),
+    });
     expect(tree([root, child])).toHaveLength(1);
     expect(tree([root, { ...child, archivedAt: AGENT_TIMESTAMP }])).toEqual([]);
-    expect(tree([root, { ...child, parentAgentId: null }])).toEqual([]);
+    expect(tree([root, { ...child, parentAgentId: null }]).map((node) => node.key)).toEqual([
+      "agent:child",
+    ]);
     expect(child.parentAgentId).toBe("parent");
+  });
+  it("keeps the activity filter for independent sessions and retains live work", () => {
+    const root = makeAgent({ id: "coordinator", workspaceId: "workspace-a" });
+    const extra = makeAgent({
+      id: "independent",
+      workspaceId: "workspace-a",
+      createdAt: new Date(AGENT_TIMESTAMP.getTime() + 1),
+    });
+    const cutoff = AGENT_TIMESTAMP.getTime() + 1;
+    expect(tree([root, extra], [], new Set(), true, cutoff)).toEqual([]);
+    expect(
+      tree([root, { ...extra, status: "running" }], [], new Set(), true, cutoff).map(
+        (node) => node.key,
+      ),
+    ).toEqual(["agent:independent"]);
   });
   it("places Claude-native descendants under their own provider parent and honors capability and hidden state", () => {
     const root = makeAgent({ id: "parent", workspaceId: "workspace-a" });

@@ -98,7 +98,8 @@ Sidebar workspaces default to **Last activity**. Display → Sort also offers
 Sidebar thread trees show recorded coordinator/child relationships, including
 nested managed and provider-native children. Click a thread to open it, or its
 chevron to collapse its descendants. Provider-native children are refreshed when
-the workspace opens; independent sessions are not grouped by title. The tree does
+the workspace opens. Additional independent sessions, including imports, have their
+own named rows even without children; independent sessions are not grouped by title. The tree does
 not change [parentage or archive behavior](agent-lifecycle.md#relationships).
 
 Completed responses show a changed-files card from saved provider edit events and

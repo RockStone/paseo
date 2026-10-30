@@ -117,9 +117,12 @@ export function buildSidebarThreadTree(input: SidebarThreadTreeInput): SidebarTh
     );
   };
   const roots: SidebarThreadNode[] = [];
+  const primary = sidebarWorkspaceTarget(input.agents, input.workspaceId);
   for (const id of workspaceRootAgentIds(input.agents, input.workspaceId)) {
     const node = materializeThread(graph, `agent:${id}`, new Set(), compareActivity);
-    if (node && node.children.length > 0) roots.push(node);
+    // The workspace row already represents the primary agent. Other sessions need their own
+    // row even when they have no children, as with imports into an existing workspace.
+    if (node && (node.children.length > 0 || id !== primary?.agentId)) roots.push(node);
   }
   return roots.sort((left, right) => compareActivity(left.key, right.key));
 }
