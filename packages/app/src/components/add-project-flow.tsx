@@ -402,6 +402,15 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const resultsRef = useRef<ScrollView>(null);
   const submissionInFlightRef = useRef(false);
   const browseInFlightRef = useRef(false);
+  const [isBrowsing, setIsBrowsing] = useState(false);
+  const browsePageRef = useRef<AddProjectPage | null>(page);
+  browsePageRef.current = page;
+  useEffect(() => {
+    browsePageRef.current = page;
+    return () => {
+      browsePageRef.current = null;
+    };
+  }, [page]);
   const query = page.kind === "new-directory-name" || page.kind === "method" ? "" : page.query;
   const pageInputValueRef = useRef(page.kind === "method" ? "" : pageInput(page));
   pageInputValueRef.current = page.kind === "method" ? "" : pageInput(page);
@@ -524,15 +533,25 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const browse = useCallback(async () => {
     if (!hostId || !isLocalDaemon || browseInFlightRef.current) return;
     browseInFlightRef.current = true;
+    setIsBrowsing(true);
+    setState((current) => setPageStatus(current, "method", { error: null }));
     try {
       const path = await pickDirectory();
-      if (path) await openAddedProject(path, "method");
+      const currentPage = browsePageRef.current;
+      if (path && currentPage?.kind === "method" && currentPage.hostId === hostId) {
+        await openAddedProject(path, "method");
+      }
     } catch {
-      setState((current) =>
-        setPageStatus(current, "method", { error: "Unable to browse for a directory" }),
-      );
+      if (browsePageRef.current?.kind === "method") {
+        setState((current) =>
+          setPageStatus(current, "method", {
+            error: "Unable to open the folder picker. Try again or use Search for directory.",
+          }),
+        );
+      }
     } finally {
       browseInFlightRef.current = false;
+      setIsBrowsing(false);
     }
   }, [hostId, isLocalDaemon, openAddedProject]);
 
@@ -634,10 +653,13 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       if (!host) return [];
       return buildAddProjectMethods(host).map((method) => ({
         id: method.id,
-        title: method.label,
-        subtitle: method.description,
+        title: method.id === "browse" && isBrowsing ? "Waiting for folder picker…" : method.label,
+        subtitle:
+          method.id === "browse" && isBrowsing
+            ? "Choose a folder in the dialog, or use Search for directory"
+            : method.description,
         icon: methodIcon(method.id),
-        disabled: method.disabled,
+        disabled: method.disabled || (method.id === "browse" && isBrowsing),
         testID: `add-project-flow-method-${method.id}`,
         select: () => selectMethod(method.id),
       }));
@@ -723,6 +745,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     directoryPaths,
     githubQuery.data,
     host,
+    isBrowsing,
     onClose,
     openAddedProject,
     page,

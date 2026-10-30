@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -31,9 +32,14 @@ import {
 import { expectOpenedProject } from "../support/helpers/project-picker-ui";
 import { connectSeedClient } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
+import { installLocalDesktopHost } from "../support/helpers/local-desktop-host";
 
 const SECONDARY_HOST_ID = "add-project-flow-secondary";
 const SECONDARY_HOST_LABEL = "Secondary Host";
+
+async function browseCallCount(page: Page): Promise<number> {
+  return page.evaluate(() => (window as unknown as Window & { browseCalls: number }).browseCalls);
+}
 
 async function expectProjectDirectory(pathname: string): Promise<void> {
   await expect.poll(async () => (await stat(pathname)).isDirectory()).toBe(true);
@@ -68,6 +74,123 @@ async function expectProjectHasNoWorkspaces(projectId: string): Promise<void> {
 
 test.describe("Add Project command-center flow", () => {
   test.describe.configure({ timeout: 180_000 });
+
+  test("Browse opens the desktop picker on every attempt after cancellation", async ({ page }) => {
+    await installLocalDesktopHost(page, "/tmp");
+    await gotoAppShell(page);
+    await page.evaluate(() => {
+      const desktop = window.paseoDesktop!;
+      (window as unknown as Window & { browseCalls: number }).browseCalls = 0;
+      desktop.dialog = {
+        open: async () => {
+          (window as unknown as Window & { browseCalls: number }).browseCalls += 1;
+          return null;
+        },
+      };
+    });
+    await openAddProjectFlow(page);
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      await addProjectFlowMethod(page, "browse").click();
+      await expect.poll(() => browseCallCount(page)).toBe(attempt);
+    }
+  });
+
+  test("Browse shows pending feedback, handles failure, and retries a selection", async ({
+    page,
+    projectPickerFixture,
+  }, testInfo) => {
+    await installLocalDesktopHost(page, "/tmp");
+    await gotoAppShell(page);
+    await page.evaluate(() => {
+      const state = { resolve: null, reject: null } as {
+        resolve: ((value: string | null) => void) | null;
+        reject: ((error: Error) => void) | null;
+      };
+      (window as unknown as Window & { browseTest?: typeof state }).browseTest = state;
+      window.paseoDesktop!.dialog = {
+        open: () =>
+          new Promise<string | null>((resolve, reject) => {
+            state.resolve = resolve;
+            state.reject = reject;
+          }),
+      };
+    });
+    await openAddProjectFlow(page);
+    const browse = addProjectFlowMethod(page, "browse");
+    await browse.click();
+    await expect(browse).toContainText("Waiting for folder picker");
+    await expect(browse).toBeDisabled();
+    await expect(addProjectFlowMethod(page, "directory-search")).toBeEnabled();
+    await testInfo.attach("browse-pending", {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    });
+    await page.evaluate(() =>
+      (
+        window as unknown as Window & { browseTest: { reject: (error: Error) => void } }
+      ).browseTest.reject(new Error("Picker failed")),
+    );
+    await expect(page.getByTestId("add-project-flow-error")).toContainText(
+      "Try again or use Search for directory",
+    );
+    await expect(browse).toBeEnabled();
+    await browse.click();
+    await expect(page.getByTestId("add-project-flow-error")).toHaveCount(0);
+    await page.evaluate(
+      (directory) =>
+        (
+          window as unknown as Window & { browseTest: { resolve: (value: string | null) => void } }
+        ).browseTest.resolve(directory),
+      projectPickerFixture.projectPath,
+    );
+    const projectId = await expectOpenedProject(page, projectPickerFixture.projectName);
+    projectPickerFixture.rememberProjectId(projectId);
+    await expectNewWorkspaceForAddedProject(page, {
+      serverId: getServerId(),
+      projectId,
+      projectName: projectPickerFixture.projectName,
+      projectPath: projectPickerFixture.projectPath,
+    });
+  });
+
+  test("Browse ignores a late selection after leaving the method or closing the flow", async ({
+    page,
+  }) => {
+    await installLocalDesktopHost(page, "/tmp");
+    await gotoAppShell(page);
+    await page.evaluate(() => {
+      window.paseoDesktop!.dialog = {
+        open: () =>
+          new Promise<string | null>((resolve) => {
+            (window as unknown as Window & { finishBrowse?: (path: string) => void }).finishBrowse =
+              resolve;
+          }),
+      };
+    });
+    await openAddProjectFlow(page);
+    await addProjectFlowMethod(page, "browse").click();
+    await expect(addProjectFlowMethod(page, "browse")).toBeDisabled();
+    await chooseAddProjectMethod(page, "directory-search");
+    await addProjectFlowInput(page).fill("keep this search");
+    await page.evaluate(() =>
+      (window as unknown as Window & { finishBrowse: (path: string) => void }).finishBrowse("/tmp"),
+    );
+    await expectAddProjectPage(page, "directory-search");
+    await expect(addProjectFlowInput(page)).toHaveValue("keep this search");
+    await expect(page).not.toHaveURL(/\/new\?/);
+    await page.keyboard.press("Escape");
+    await addProjectFlowMethod(page, "browse").click();
+    await expect(addProjectFlowMethod(page, "browse")).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(addProjectFlow(page)).toHaveCount(0);
+    await openAddProjectFlow(page);
+    await page.evaluate(() =>
+      (window as unknown as Window & { finishBrowse: (path: string) => void }).finishBrowse("/tmp"),
+    );
+    await expectAddProjectPage(page, "method");
+    await expect(addProjectFlowMethod(page, "browse")).toBeEnabled();
+    await expect(page).not.toHaveURL(/\/new\?/);
+  });
 
   test("method selection shows the daemon's available project sources without search", async ({
     page,
