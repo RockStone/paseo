@@ -885,6 +885,131 @@ describe("processTimelineResponse", () => {
     ]);
   });
 
+  it.each(["loading", "completed"] as const)(
+    "keeps the newest %s compaction across bootstrap and live rows",
+    (status) => {
+      const currentHead = hydrateStreamState(
+        [
+          {
+            event: {
+              type: "timeline",
+              provider: "claude",
+              item: { type: "user_message", text: "Live incoming", messageId: "live" },
+            },
+            timestamp: new Date(7000),
+            timelineCursor: { epoch: "epoch-1", seq: 7 },
+          },
+          {
+            event: {
+              type: "timeline",
+              provider: "claude",
+              item: { type: "compaction", status, trigger: "auto" },
+            },
+            timestamp: new Date(8000),
+            timelineCursor: { epoch: "epoch-1", seq: 8 },
+          },
+        ],
+        { source: "canonical" },
+      );
+      const entries = [
+        { type: "compaction", status: "completed", trigger: "manual" },
+        { type: "compaction", status: "loading" },
+        { type: "user_message", text: "First incoming", messageId: "first" },
+        { type: "compaction", status: "loading" },
+        { type: "user_message", text: "Second incoming", messageId: "second" },
+        { type: "compaction", status: "loading" },
+      ] satisfies Array<Extract<AgentStreamEventPayload, { type: "timeline" }>["item"]>;
+      const result = processTimelineResponse({
+        ...baseTimelineInput,
+        currentHead,
+        isInitializing: true,
+        hasActiveInitDeferred: true,
+        payload: {
+          ...baseTimelineInput.payload,
+          direction: "tail",
+          reset: false,
+          epoch: "epoch-1",
+          startCursor: { seq: 1 },
+          endCursor: { seq: 6 },
+          entries: entries.map((item, index) => ({
+            provider: "claude",
+            item,
+            seqStart: index + 1,
+            seqEnd: index + 1,
+            timestamp: new Date((index + 1) * 1000).toISOString(),
+          })),
+        },
+      });
+      const rows = [...result.tail, ...result.head];
+      expect(rows.filter((item) => item.kind === "compaction")).toEqual([
+        expect.objectContaining({ status: "completed", trigger: "manual" }),
+        expect.objectContaining({
+          status,
+          trigger: "auto",
+          timelineCursor: { epoch: "epoch-1", seq: 8 },
+        }),
+      ]);
+      expect(rows.filter((item) => item.kind === "user_message").map((item) => item.text)).toEqual([
+        "First incoming",
+        "Second incoming",
+        "Live incoming",
+      ]);
+      if (status === "loading") {
+        expect(rows.at(-1)).toMatchObject({ kind: "compaction", status });
+      }
+    },
+  );
+
+  it("does not revive a loading compaction when its older page arrives after completion", () => {
+    const currentTail = hydrateStreamState(
+      [
+        {
+          event: {
+            type: "timeline",
+            provider: "claude",
+            item: { type: "compaction", status: "completed", trigger: "auto" },
+          },
+          timestamp: new Date(3000),
+          timelineCursor: { epoch: "epoch-1", seq: 3 },
+        },
+      ],
+      { source: "canonical" },
+    );
+    const result = processTimelineResponse({
+      ...baseTimelineInput,
+      currentTail,
+      currentCursor: { epoch: "epoch-1", startSeq: 3, endSeq: 3 },
+      payload: {
+        ...baseTimelineInput.payload,
+        direction: "before",
+        epoch: "epoch-1",
+        startCursor: { seq: 1 },
+        endCursor: { seq: 2 },
+        entries: [
+          {
+            provider: "claude",
+            item: { type: "compaction", status: "loading" },
+            seqStart: 1,
+            seqEnd: 1,
+            timestamp: new Date(1000).toISOString(),
+          },
+          {
+            provider: "claude",
+            item: { type: "user_message", text: "Incoming", messageId: "incoming" },
+            seqStart: 2,
+            seqEnd: 2,
+            timestamp: new Date(2000).toISOString(),
+          },
+        ],
+      },
+    });
+    expect(result.tail.filter((item) => item.kind === "compaction")).toEqual(currentTail);
+    expect(
+      result.tail.filter((item) => item.kind === "user_message").map((item) => item.text),
+    ).toEqual(["Incoming"]);
+    expect(result.cursor).toEqual({ epoch: "epoch-1", startSeq: 1, endSeq: 3 });
+  });
+
   it("replaces a painted replica with an empty authoritative timeline", () => {
     const result = processTimelineResponse({
       ...baseTimelineInput,

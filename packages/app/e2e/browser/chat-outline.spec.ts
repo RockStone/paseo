@@ -27,6 +27,8 @@ import {
 import { createCreationScenario } from "../support/helpers/creation";
 import { seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
+import type { AgentTimelineItem } from "@getpaseo/protocol/agent-types";
+import type { FetchAgentTimelineResponseMessage } from "@getpaseo/protocol/messages";
 import {
   attachPromptTimelineEvidence,
   expectPromptsDrawnByPlugin,
@@ -51,6 +53,95 @@ import {
 // for chrome-width changes elsewhere to stay out of these tests.
 const WIDE_VIEWPORT = { width: 1440, height: 900 };
 const LOADED_TURNS = 16;
+
+function withCompactionMarkers(raw: string | Buffer, agentId: string, completed: boolean) {
+  const envelope = JSON.parse(raw.toString());
+  if (
+    envelope.message?.type !== "fetch_agent_timeline_response" ||
+    envelope.message.payload?.agentId !== agentId
+  ) {
+    return raw;
+  }
+  const payload: FetchAgentTimelineResponseMessage["payload"] = envelope.message.payload;
+  const items: AgentTimelineItem[] = [
+    { type: "compaction", status: "completed", trigger: "manual" },
+  ];
+  for (let index = 0; index < 5; index++) {
+    items.push(
+      {
+        type: "tool_call",
+        callId: `incoming-${index}`,
+        name: "agent_message",
+        status: "completed",
+        error: null,
+        detail: { type: "plain_text", text: `Incoming message ${index}` },
+        agentMessage: {
+          event: "message",
+          sender: { id: `worker-${index}`, title: `Worker ${index}` },
+          text: `Incoming message ${index}`,
+        },
+      },
+      { type: "compaction", status: "loading" },
+    );
+  }
+  if (completed) {
+    items.push(
+      { type: "compaction", status: "completed", trigger: "auto" },
+      { type: "assistant_message", text: "Work continued after compaction." },
+    );
+  }
+  payload.entries = items.map((item, index) => ({
+    item,
+    provider: "mock",
+    turnId: `fixture-turn-${index}`,
+    timestamp: new Date(1000 + index).toISOString(),
+    seqStart: index + 1,
+    seqEnd: index + 1,
+    sourceSeqRanges: [{ startSeq: index + 1, endSeq: index + 1 }],
+    collapsed: [],
+  }));
+  payload.startCursor = { epoch: payload.epoch, seq: 1 };
+  payload.endCursor = { epoch: payload.epoch, seq: items.length };
+  payload.window = { minSeq: 1, maxSeq: items.length, nextSeq: items.length + 1 };
+  payload.hasOlder = false;
+  payload.hasNewer = false;
+  return JSON.stringify(envelope);
+}
+
+test("shows only the latest pending compaction and clears it after completion", async ({
+  page,
+}, testInfo) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "compaction-markers-",
+    title: "Compaction markers",
+    initialPrompt: "Prepare the compaction fixture",
+  });
+  let completed = false;
+  try {
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
+      const server = ws.connectToServer();
+      ws.onMessage((raw) => server.send(raw));
+      server.onMessage((raw) => ws.send(withCompactionMarkers(raw, agent.agentId, completed)));
+    });
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await openAgentTimeline(page, agent);
+    await expect(page.getByText("Message received", { exact: true })).toHaveCount(5);
+    await page.screenshot({ path: testInfo.outputPath("compaction-before-check.png") });
+    await expect(page.getByText("Compacting...", { exact: true })).toHaveCount(1);
+    await page.screenshot({ path: testInfo.outputPath("compaction-latest.png") });
+    completed = true;
+    await page.reload();
+    await expect(page.getByText("Work continued after compaction.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Compacting...", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Context automatically compacted", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("Context manually compacted", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("Message received", { exact: true })).toHaveCount(5);
+    await page.screenshot({ path: testInfo.outputPath("compaction-completed.png") });
+  } finally {
+    await agent.cleanup();
+  }
+});
 
 function withCompactionIntro(raw: string | Buffer, agentId: string, intro: string) {
   const envelope = JSON.parse(raw.toString());

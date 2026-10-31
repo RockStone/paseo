@@ -657,6 +657,10 @@ function mergePrependedCanonicalTail(olderTail: StreamItem[], currentTail: Strea
   if (currentTail.length === 0) {
     return olderTail;
   }
+  // A later compaction marker supersedes pending markers from an older history page.
+  if (currentTail.some((item) => item.kind === "compaction")) {
+    olderTail = olderTail.filter((item) => item.kind !== "compaction" || item.status !== "loading");
+  }
 
   const remainingOlder: StreamItem[] = [];
   let reconciledCurrent = currentTail;

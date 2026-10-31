@@ -424,7 +424,7 @@ function todoTimeline(
 function compactionTimeline(
   status: "loading" | "completed",
   trigger?: "auto" | "manual",
-): AgentStreamEventPayload {
+): Extract<AgentStreamEventPayload, { type: "timeline" }> {
   return {
     type: "timeline",
     provider: "pi",
@@ -1518,6 +1518,97 @@ describe("stream reducer canonical tool calls", () => {
       state.some((item) => item.kind === "compaction" && item.status === "loading"),
       false,
     );
+  });
+
+  it("keeps only the latest loading compaction after messages interrupt the turn", () => {
+    let state: StreamItem[] = [];
+    for (let index = 0; index < 5; index++) {
+      state = reduceStreamUpdate(
+        state,
+        {
+          type: "timeline",
+          provider: "claude",
+          turnId: `turn-${index}`,
+          item: { type: "user_message", text: `Incoming ${index}`, messageId: `incoming-${index}` },
+        },
+        new Date(index * 2),
+      );
+      state = reduceStreamUpdate(
+        state,
+        {
+          ...compactionTimeline("loading", "auto"),
+          turnId: `turn-${index}`,
+        },
+        new Date(index * 2 + 1),
+      );
+      const markers = state.filter((item) => item.kind === "compaction");
+      expect(markers).toHaveLength(1);
+      expect(markers[0]).toMatchObject({ status: "loading", turnId: `turn-${index}` });
+      expect(state.at(-1)).toBe(markers[0]);
+    }
+    expect(state.filter((item) => item.kind === "user_message")).toHaveLength(5);
+    expect(state.filter((item) => item.kind === "user_message").map((item) => item.turnId)).toEqual(
+      ["turn-0", "turn-1", "turn-2", "turn-3", "turn-4"],
+    );
+    const loading = state.at(-1);
+    state = reduceStreamUpdate(state, compactionTimeline("completed"), new Date(20));
+    state = reduceStreamUpdate(
+      state,
+      { type: "timeline", provider: "claude", item: { type: "reasoning", text: "Work resumed" } },
+      new Date(21),
+    );
+    expect(state.filter((item) => item.kind === "compaction")).toEqual([
+      expect.objectContaining({ id: loading?.id, status: "completed", trigger: "auto" }),
+    ]);
+    expect(state.some((item) => item.kind === "compaction" && item.status === "loading")).toBe(
+      false,
+    );
+  });
+
+  it("repairs legacy loading markers on completion without changing earlier messages or completed compactions", () => {
+    const completed = {
+      kind: "compaction",
+      id: "past",
+      timestamp: new Date(0),
+      status: "completed",
+      turnId: "past-turn",
+      trigger: "manual",
+    } satisfies StreamItem;
+    const pending = (id: string, time: number): StreamItem => ({
+      kind: "compaction",
+      id,
+      timestamp: new Date(time),
+      status: "loading",
+      trigger: "auto",
+    });
+    const message = createUserMessage({
+      id: "message",
+      text: "Incoming message",
+      turnId: "original-turn",
+      timestamp: new Date(2),
+    });
+    const dirty = [completed, pending("old", 1), message, pending("latest", 3)];
+    const result = reduceStreamUpdate(
+      dirty,
+      { ...compactionTimeline("completed"), turnId: "current-turn" },
+      new Date(4),
+      { timelineCursor: { epoch: "epoch", seq: 40 } },
+    );
+    expect(result.filter((item) => item.kind === "compaction")).toEqual([
+      completed,
+      expect.objectContaining({
+        id: "latest",
+        status: "completed",
+        trigger: "auto",
+        turnId: "current-turn",
+        timelineCursor: { epoch: "epoch", seq: 40 },
+      }),
+    ]);
+    expect(result[0]).toBe(completed);
+    expect(result[1]).toBe(message);
+    expect(
+      dirty.filter((item) => item.kind === "compaction" && item.status === "loading"),
+    ).toHaveLength(2);
   });
 
   it("renders Claude TodoWrite as todo_list and suppresses tool call badge", () => {

@@ -498,23 +498,8 @@ function mergeRetainedLifecycleItem(tail: StreamItem[], retained: StreamItem): S
     };
     return next;
   }
-  if (retained.kind === "compaction" && retained.status === "completed") {
-    const tailIndex = tail.findIndex(
-      (item) => item.kind === "compaction" && item.status === "loading",
-    );
-    const existing = tail[tailIndex];
-    if (tailIndex < 0 || !existing || existing.kind !== "compaction") {
-      return null;
-    }
-    const next = [...tail];
-    next[tailIndex] = {
-      ...existing,
-      timelineCursor: retained.timelineCursor,
-      status: "completed",
-      trigger: retained.trigger ?? existing.trigger,
-      preTokens: retained.preTokens ?? existing.preTokens,
-    };
-    return next;
+  if (retained.kind === "compaction" && tail.some(isLoadingCompaction)) {
+    return reconcileCompactionMarker(tail, retained);
   }
   return null;
 }
@@ -538,10 +523,21 @@ function reconcileReplacementHeadAgainstTail(
   retainedHead: StreamItem[],
 ): { tail: StreamItem[]; head: StreamItem[] } {
   let reconciledTail = tail;
+  let reconciledHead = retainedHead;
   const reconciledHeadIndexes = new Set<number>();
   for (const [headIndex, item] of retainedHead.entries()) {
     const nextTail = mergeRetainedLifecycleItem(reconciledTail, item);
     if (!nextTail) {
+      continue;
+    }
+    if (isLoadingCompaction(item)) {
+      // Keep the newer marker after the live messages preceding it in the head.
+      reconciledTail = nextTail.slice(0, -1);
+      reconciledHead = [
+        ...reconciledHead.slice(0, headIndex),
+        ...nextTail.slice(-1),
+        ...reconciledHead.slice(headIndex + 1),
+      ];
       continue;
     }
     reconciledTail = nextTail;
@@ -551,7 +547,7 @@ function reconcileReplacementHeadAgainstTail(
   const tailIds = new Set(reconciledTail.map((item) => item.id));
   return {
     tail: reconciledTail,
-    head: retainedHead.filter(
+    head: reconciledHead.filter(
       (item, index) =>
         !reconciledHeadIndexes.has(index) &&
         (item.kind === "assistant_message" || !tailIds.has(item.id)),
@@ -1495,23 +1491,6 @@ function reduceTimelineCompaction(
   timestamp: Date,
   timelineCursor?: TimelinePosition,
 ): StreamItem[] {
-  if (item.status === "completed") {
-    const loadingIdx = state.findIndex((s) => s.kind === "compaction" && s.status === "loading");
-    const existing = loadingIdx >= 0 ? state[loadingIdx] : undefined;
-    if (loadingIdx >= 0 && existing && existing.kind === "compaction") {
-      const updated: CompactionItem = {
-        ...existing,
-        ...(timelineCursor ? { timelineCursor } : {}),
-        status: "completed",
-        trigger: item.trigger ?? existing.trigger,
-        preTokens: item.preTokens ?? existing.preTokens,
-      };
-      return [...state.slice(0, loadingIdx), updated, ...state.slice(loadingIdx + 1)];
-    }
-    if (loadingIdx >= 0) {
-      return state;
-    }
-  }
   const compaction: CompactionItem = {
     kind: "compaction",
     id: createUniqueTimelineId(state, "compaction", item.status, timestamp),
@@ -1521,7 +1500,37 @@ function reduceTimelineCompaction(
     trigger: item.trigger,
     preTokens: item.preTokens,
   };
-  return [...state, compaction];
+  return reconcileCompactionMarker(state, compaction);
+}
+
+function isLoadingCompaction(item: StreamItem): item is CompactionItem {
+  return item.kind === "compaction" && item.status === "loading";
+}
+
+/** Turn interruptions can repeat one pending compaction around incoming messages. */
+function reconcileCompactionMarker(state: StreamItem[], incoming: CompactionItem): StreamItem[] {
+  let latest: CompactionItem | undefined;
+  for (const row of state) {
+    if (isLoadingCompaction(row)) latest = row;
+  }
+  if (!latest) return [...state, incoming];
+  const metadata = {
+    trigger: incoming.trigger ?? latest.trigger,
+    preTokens: incoming.preTokens ?? latest.preTokens,
+  };
+  if (incoming.status === "loading") {
+    return [...state.filter((row) => !isLoadingCompaction(row)), { ...incoming, ...metadata }];
+  }
+  const completed: CompactionItem = {
+    ...latest,
+    ...metadata,
+    ...(incoming.timelineCursor ? { timelineCursor: incoming.timelineCursor } : {}),
+    status: "completed",
+  };
+  return state.flatMap<StreamItem>((row) => {
+    if (!isLoadingCompaction(row)) return [row];
+    return row === latest ? [completed] : [];
+  });
 }
 
 function reduceTimelineEvent(
@@ -1658,10 +1667,12 @@ function applyTimelineTurnId(
   }
 
   if (!event.turnId || items === previous) return items;
+  // Compaction reconciliation removes older markers, shifting unchanged rows' indexes.
+  const retainedCompactionRows = event.item.type === "compaction" ? new Set(previous) : null;
   // Assign membership only to rows written by this event, before finalizing
   // unrelated reasoning rows. Late lifecycle updates can replace an earlier row.
   return items.map((item, index) =>
-    item === previous[index] || item.turnId === event.turnId
+    (retainedCompactionRows?.has(item) ?? item === previous[index]) || item.turnId === event.turnId
       ? item
       : ({ ...item, turnId: event.turnId } as StreamItem),
   );
