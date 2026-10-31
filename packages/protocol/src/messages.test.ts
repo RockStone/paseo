@@ -24,6 +24,11 @@ test("provider subagent descriptors accept optional native identity without chan
     toolCallId: "toolu_launch",
   };
   expect(ProviderSubagentDescriptorPayloadSchema.parse(descriptor).nativeId).toBeUndefined();
+  expect(ProviderSubagentDescriptorPayloadSchema.parse(descriptor).aliases).toBeUndefined();
+  expect(
+    ProviderSubagentDescriptorPayloadSchema.parse({ ...descriptor, aliases: ["toolu_resume"] })
+      .aliases,
+  ).toEqual(["toolu_resume"]);
   expect(
     ProviderSubagentDescriptorPayloadSchema.parse({ ...descriptor, nativeId: "a563f2a0dc7f150e1" }),
   ).toMatchObject({ id: "toolu_launch", nativeId: "a563f2a0dc7f150e1" });

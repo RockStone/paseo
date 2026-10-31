@@ -2,6 +2,29 @@ import { describe, expect, test } from "vitest";
 import { ProviderSubagentStore } from "./store.js";
 
 describe("ProviderSubagentStore", () => {
+  test("serves old resume references from the canonical child without duplicating rows", () => {
+    const store = new ProviderSubagentStore();
+    store.apply("parent", "claude", {
+      type: "upsert",
+      id: "launch",
+      aliases: ["resume"],
+      status: "running",
+    });
+    store.apply("parent", "claude", {
+      type: "timeline",
+      id: "launch",
+      item: { type: "assistant_message", text: "Continued" },
+    });
+    expect(store.list("parent")).toHaveLength(1);
+    expect(store.get("parent", "resume")?.id).toBe("launch");
+    expect(store.fetchTimeline("parent", "resume").rows).toEqual(
+      store.fetchTimeline("parent", "launch").rows,
+    );
+    expect(store.get("other-parent", "resume")).toBeNull();
+    store.deleteParent("parent");
+    expect(store.get("parent", "resume")).toBeNull();
+  });
+
   test("preserves native identity across partial updates and allows clearing it", () => {
     const store = new ProviderSubagentStore();
     store.apply("parent", "claude", {

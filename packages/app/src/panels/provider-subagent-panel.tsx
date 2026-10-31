@@ -23,6 +23,7 @@ import { useSubagentSheetTab } from "@/subagents/sheet-tab";
 import { SubagentsTrack } from "@/subagents/track";
 import {
   providerSubagentKey,
+  resolveProviderSubagentKey,
   providerSubagentLifecycleStatus,
   refreshProviderSubagents,
   observeProviderSubagentTimeline,
@@ -88,7 +89,10 @@ function useProviderSubagentDescriptor(
 ): PanelDescriptor {
   const descriptor = useProviderSubagentStore((state) =>
     state.descriptors.get(
-      providerSubagentKey(context.serverId, target.parentAgentId, target.subagentId),
+      resolveProviderSubagentKey(
+        state,
+        providerSubagentKey(context.serverId, target.parentAgentId, target.subagentId),
+      ),
     ),
   );
   const parentProvider = useSessionStore(
@@ -119,7 +123,9 @@ function ProviderSubagentPanel() {
   const { t } = useTranslation();
   const { serverId, workspaceId, tabId, target, openFileInWorkspace, openTab } = usePaneContext();
   invariant(target.kind === "provider_subagent", "ProviderSubagentPanel requires provider target");
-  const key = providerSubagentKey(serverId, target.parentAgentId, target.subagentId);
+  const requestedKey = providerSubagentKey(serverId, target.parentAgentId, target.subagentId);
+  const key = useProviderSubagentStore((state) => resolveProviderSubagentKey(state, requestedKey));
+  const subagentId = key.slice(key.lastIndexOf("\0") + 1);
   const streamId = `provider:${encodeURIComponent(target.parentAgentId)}:${encodeURIComponent(target.subagentId)}`;
   const { descriptor, timeline } = useProviderSubagentStore(
     useShallow((state) => ({
@@ -142,7 +148,7 @@ function ProviderSubagentPanel() {
   const childRows = useSubagentsForParent({
     serverId,
     parentAgentId: target.parentAgentId,
-    providerParentSubagentId: target.subagentId,
+    providerParentSubagentId: subagentId,
   });
   const childTrackClearance = resolveChildTrackClearance(childRows.length, isCompact);
   const sheetTabFor = useSubagentSheetTab(
@@ -150,8 +156,8 @@ function ProviderSubagentPanel() {
     tabId,
   );
   const openProviderChild = useCallback(
-    (parentAgentId: string, subagentId: string) => {
-      openTab({ kind: "provider_subagent", parentAgentId, subagentId });
+    (parentAgentId: string, childSubagentId: string) => {
+      openTab({ kind: "provider_subagent", parentAgentId, subagentId: childSubagentId });
     },
     [openTab],
   );
@@ -167,18 +173,18 @@ function ProviderSubagentPanel() {
       client,
       serverId,
       parentAgentId: target.parentAgentId,
-      subagentId: target.subagentId,
+      subagentId,
       limit: TIMELINE_FETCH_PAGE_SIZE,
       reportError: (error) => {
         console.error("[ProviderSubagentTimeline] Failed to refresh child history", {
           error,
           serverId,
           parentAgentId: target.parentAgentId,
-          subagentId: target.subagentId,
+          subagentId,
         });
       },
     });
-  }, [client, supported, serverId, target.parentAgentId, target.subagentId]);
+  }, [client, supported, serverId, target.parentAgentId, subagentId]);
 
   const loadOlder = useCallback((): boolean => {
     if (!client || !supported || isLoadingOlder || !timeline?.hasOlder || !timeline.epoch) {
@@ -188,7 +194,7 @@ function ProviderSubagentPanel() {
     if (firstSeq === null) return false;
     setIsLoadingOlder(true);
     void client
-      .fetchProviderSubagentTimeline(target.parentAgentId, target.subagentId, {
+      .fetchProviderSubagentTimeline(target.parentAgentId, subagentId, {
         direction: "before",
         cursor: { epoch: timeline.epoch, seq: firstSeq },
         limit: TIMELINE_FETCH_PAGE_SIZE,
@@ -200,15 +206,7 @@ function ProviderSubagentPanel() {
       .catch(() => undefined)
       .finally(() => setIsLoadingOlder(false));
     return true;
-  }, [
-    client,
-    isLoadingOlder,
-    serverId,
-    supported,
-    target.parentAgentId,
-    target.subagentId,
-    timeline,
-  ]);
+  }, [client, isLoadingOlder, serverId, supported, target.parentAgentId, subagentId, timeline]);
   const firstTimelineSeq = timeline?.cursor?.startSeq ?? null;
   const progressKey =
     timeline?.epoch && firstTimelineSeq !== null ? `${timeline.epoch}:${firstTimelineSeq}` : null;

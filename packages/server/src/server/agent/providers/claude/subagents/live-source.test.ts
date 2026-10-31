@@ -50,6 +50,37 @@ function taskProgress(usage: Record<string, number>, taskId = "a1730a6215e1f5cf6
 }
 
 describe("ClaudeTaskProtocolSource", () => {
+  it("keeps a replayed child on its original reference when SendMessage resumes it", () => {
+    const source = new ClaudeTaskProtocolSource();
+    source.restore([
+      {
+        kind: "declared",
+        id: "toolu_original",
+        nativeId: "a1730a6215e1f5cf6",
+        title: "general-purpose",
+      },
+      { kind: "status", id: "toolu_original", status: "canceled" },
+    ]);
+
+    const resumed = source.observe(
+      taskStarted({ tool_use_id: "toolu_sendmessage", prompt: "Continue", is_backgrounded: true }),
+    );
+    expect(resumed).toEqual([
+      { kind: "status", id: "toolu_original", status: "running" },
+      { kind: "aliases", id: "toolu_original", aliases: ["toolu_sendmessage"] },
+      {
+        kind: "timeline",
+        id: "toolu_original",
+        item: { type: "user_message", text: "Continue" },
+      },
+    ]);
+    expect(source.resolveSubagentId("toolu_sendmessage")).toBe("toolu_original");
+    expect(source.resolveSubagentId("toolu_original")).toBe("toolu_original");
+    expect(source.observe(taskNotification("completed"))).toEqual([
+      { kind: "status", id: "toolu_original", status: "completed" },
+    ]);
+  });
+
   it("declares a subagent from its announcement, keyed by the Task tool_use id", () => {
     const source = new ClaudeTaskProtocolSource();
 
@@ -121,6 +152,11 @@ describe("ClaudeTaskProtocolSource", () => {
     });
     expect(resumed).toEqual([
       { kind: "status", id: "toolu_original", status: "running" },
+      {
+        kind: "aliases",
+        id: "toolu_original",
+        aliases: ["toolu_resumed"],
+      },
       {
         kind: "timeline",
         id: "toolu_original",

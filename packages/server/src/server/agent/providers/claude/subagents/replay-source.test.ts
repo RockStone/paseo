@@ -6,6 +6,10 @@ import {
 } from "../../provider-image-output.js";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { describe, expect, it } from "vitest";
+import { appendFile, mkdir, mkdtemp, rename, rm, utimes, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { ClaudeSubagentTranscriptSource } from "./transcript-source.js";
 
 import {
   ProviderSubagentStore,
@@ -22,6 +26,124 @@ import {
 
 const TOOL_USE_ID = "toolu_01DgLoPMW9";
 const AGENT_ID = "a1730a6215e1f5cf6";
+
+describe("background child transcript observation", () => {
+  it("ignores stale finished metadata, recovers late files, and accepts a new completion", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "paseo-child-recovery-"));
+    const directory = path.join(root, "subagents");
+    const events: SubagentObservation[] = [];
+    const errors: unknown[] = [];
+    const source = new ClaudeSubagentTranscriptSource({
+      convertEntry: () => [],
+      emit: (items) => events.push(...items),
+      reportError: (error) => errors.push(error),
+    });
+    try {
+      await source.track({ directory, id: TOOL_USE_ID, nativeId: AGENT_ID });
+      await mkdir(directory);
+      const meta = path.join(directory, `agent-${AGENT_ID}.meta.json`);
+      const file = path.join(directory, `agent-${AGENT_ID}.jsonl`);
+      await writeFile(meta, JSON.stringify({ finished: true }));
+      await utimes(meta, new Date(0), new Date(0));
+      await writeFile(file, "");
+      await source.flush();
+      expect(events).toEqual([]);
+      await writeFile(meta, JSON.stringify({ finished: true, toolUseId: TOOL_USE_ID }));
+      const future = new Date(Date.now() + 1000);
+      await utimes(meta, future, future);
+      await source.flush();
+      expect(events).toEqual([{ kind: "status", id: TOOL_USE_ID, status: "completed" }]);
+      await source.flush();
+      expect(events).toHaveLength(1);
+      expect(errors).toEqual([]);
+    } finally {
+      await source.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("retries a failed conversion without losing later records", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "paseo-child-retry-"));
+    const events: SubagentObservation[] = [];
+    const errors: unknown[] = [];
+    let fails = true;
+    const source = new ClaudeSubagentTranscriptSource({
+      convertEntry: (entry) => {
+        if (fails) {
+          fails = false;
+          throw new Error("Temporary conversion failure");
+        }
+        return [{ type: "assistant_message", text: String(entry.uuid) }];
+      },
+      emit: (items) => events.push(...items),
+      reportError: (error) => errors.push(error),
+    });
+    try {
+      const rows =
+        ["first", "second"]
+          .map((uuid) => JSON.stringify({ type: "assistant", agentId: AGENT_ID, uuid }))
+          .join("\n") + "\n";
+      await writeFile(path.join(root, `agent-${AGENT_ID}.jsonl`), rows);
+      await source.track({ directory: root, id: TOOL_USE_ID, nativeId: AGENT_ID });
+      await source.flush();
+      expect(events.map((event) => (event.kind === "timeline" ? event.item : null))).toEqual([
+        { type: "assistant_message", text: "first" },
+        { type: "assistant_message", text: "second" },
+      ]);
+      expect(errors).toEqual([new Error("Temporary conversion failure")]);
+    } finally {
+      await source.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reads background work once, waits for complete records and stops on close", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "paseo-child-transcript-"));
+    const directory = path.join(root, "subagents");
+    await mkdir(directory);
+    const events: SubagentObservation[] = [];
+    const errors: unknown[] = [];
+    const source = new ClaudeSubagentTranscriptSource({
+      convertEntry: (entry) => [{ type: "assistant_message", text: String(entry.uuid) }],
+      emit: (observations) => events.push(...observations),
+      reportError: (error) => errors.push(error),
+    });
+    const entry = (uuid: string) =>
+      JSON.stringify({ type: "assistant", isSidechain: true, agentId: AGENT_ID, uuid });
+    const file = path.join(directory, `agent-${AGENT_ID}.jsonl`);
+    try {
+      source.remember({ type: "assistant", agentId: AGENT_ID, uuid: "replayed" });
+      await writeFile(file, entry("replayed") + "\n" + entry("new"));
+      await source.track({ directory, id: TOOL_USE_ID, nativeId: AGENT_ID });
+      expect(events).toEqual([]);
+      await appendFile(file, "\n");
+      await source.flush();
+      expect(events).toEqual([
+        { kind: "timeline", id: TOOL_USE_ID, item: { type: "assistant_message", text: "new" } },
+      ]);
+      await writeFile(
+        file + ".replacement",
+        entry("replayed") + "\n" + entry("new") + "\n" + entry("replacement") + "\n",
+      );
+      await rename(file + ".replacement", file);
+      await source.flush();
+      expect(
+        events.filter((event) => event.kind === "timeline").map((event) => event.item),
+      ).toEqual([
+        { type: "assistant_message", text: "new" },
+        { type: "assistant_message", text: "replacement" },
+      ]);
+      await source.close();
+      await appendFile(file, entry("after-close") + "\n");
+      await source.flush();
+      expect(events).toHaveLength(2);
+      expect(errors).toEqual([]);
+    } finally {
+      await source.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
 
 function emptyParent(): ClaudeReplayParentFacts {
   return { toolCalls: new Map(), linksByAgentId: new Map(), outcomesByToolCallId: new Map() };

@@ -5,6 +5,11 @@ import type { ProviderSubagentStatus } from "../../../provider-subagents/store.j
 import { resolveObservedClaudeModelId } from "../models.js";
 import type { SubagentObservation } from "./observation.js";
 import {
+  readClaudeSubagentRuntime,
+  readClaudeSubagentUsage,
+  type ClaudeReplayEntry,
+} from "./replay-source.js";
+import {
   buildClaudeSubagentSubtitle,
   type ClaudeSubagentPresentationFacts,
   type ClaudeSubagentUsage,
@@ -186,6 +191,7 @@ export class ClaudeTaskProtocolSource {
   /** Claude facts stay inside the provider boundary; clients receive one compact subtitle. */
   private readonly presentationById = new Map<string, ClaudeSubagentPresentationFacts>();
   private readonly lastSubtitleById = new Map<string, string>();
+  private readonly aliasesById = new Map<string, Set<string>>();
   private sawTaskStarted = false;
   private sawAnyTask = false;
   private readonly getToolInput: (toolUseId: string) => AgentMetadata | null | undefined;
@@ -218,6 +224,62 @@ export class ClaudeTaskProtocolSource {
     return this.sawAnyTask;
   }
 
+  /** Replay proves identity and ownership, never live activity in this process. */
+  restore(
+    observations: readonly SubagentObservation[],
+    toolOwners: ReadonlyMap<string, string> = new Map(),
+  ): void {
+    for (const observation of observations) {
+      if (observation.kind === "declared" && observation.nativeId) {
+        this.subagentIdByTaskId.set(observation.nativeId, observation.id);
+        this.canonicalIdByToolUseId.set(observation.id, observation.id);
+        this.declaredIds.add(observation.id);
+        this.idsWithExistingParentToolCard.add(observation.id);
+        this.presentationById.set(observation.id, { title: observation.title });
+        for (const alias of observation.aliases ?? []) this.addAlias(observation.id, alias);
+      } else if (observation.kind === "status") {
+        this.lastStatusById.set(observation.id, observation.status);
+      }
+    }
+    for (const [toolUseId, owner] of toolOwners)
+      this.ownerSubagentIdByToolUseId.set(toolUseId, owner);
+  }
+
+  isBackgrounded(id: string): boolean {
+    return this.backgroundedIds.has(id);
+  }
+
+  observeTranscriptStatus(id: string, status: ProviderSubagentStatus): SubagentObservation[] {
+    if (!this.backgroundedIds.has(id) || this.lastStatusById.get(id) !== "running") return [];
+    this.lastStatusById.set(id, status);
+    return [{ kind: "status", id, status }];
+  }
+
+  observeTranscriptEntry(entry: ClaudeReplayEntry): SubagentObservation[] {
+    const id =
+      typeof entry.agentId === "string" ? this.subagentIdByTaskId.get(entry.agentId) : undefined;
+    if (!id || entry.type !== "assistant") return [];
+    const observations: SubagentObservation[] = [];
+    const content = entry.message?.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type !== "tool_use" || typeof block.id !== "string") continue;
+        this.ownerSubagentIdByToolUseId.set(block.id, id);
+        const childId = this.resolveSubagentId(block.id);
+        if (childId && childId !== id)
+          observations.push({ kind: "parent", id: childId, parentSubagentId: id });
+      }
+    }
+    const usage = readClaudeSubagentUsage(entry);
+    observations.push(
+      ...this.updatePresentation(id, {
+        ...readClaudeSubagentRuntime(entry),
+        ...(usage ? { usage } : {}),
+      }),
+    );
+    return observations;
+  }
+
   /**
    * Whether this source declared the given subagent. Callers route frames through this before
    * attributing anything to an id: a frame for a task that was never declared belongs to work
@@ -237,6 +299,17 @@ export class ClaudeTaskProtocolSource {
   isDeclaredTask(taskId: string): boolean {
     const subagentId = this.subagentIdByTaskId.get(taskId);
     return subagentId !== undefined && this.declaredIds.has(subagentId);
+  }
+
+  resolveTaskId(taskId: string): string | undefined {
+    return this.subagentIdByTaskId.get(taskId);
+  }
+
+  resolveNativeId(id: string): string | undefined {
+    for (const [nativeId, canonicalId] of this.subagentIdByTaskId) {
+      if (canonicalId === id) return nativeId;
+    }
+    return undefined;
   }
 
   /** Resolve a non-subagent task (for example local_bash) to its emitting sidechain. */
@@ -287,6 +360,7 @@ export class ClaudeTaskProtocolSource {
     this.lastStatusById.clear();
     this.presentationById.clear();
     this.lastSubtitleById.clear();
+    this.aliasesById.clear();
     this.sawTaskStarted = false;
     this.sawAnyTask = false;
   }
@@ -350,11 +424,18 @@ export class ClaudeTaskProtocolSource {
     toolUseId: string,
     existingId: string,
   ): SubagentObservation[] {
-    this.canonicalIdByToolUseId.set(toolUseId, existingId);
     const observations: SubagentObservation[] = [];
     if (this.lastStatusById.get(existingId) !== "running") {
       this.lastStatusById.set(existingId, "running");
       observations.push({ kind: "status", id: existingId, status: "running" });
+    }
+    if (toolUseId !== existingId && !this.aliasesById.get(existingId)?.has(toolUseId)) {
+      this.addAlias(existingId, toolUseId);
+      observations.push({
+        kind: "aliases",
+        id: existingId,
+        aliases: [...this.aliasesById.get(existingId)!],
+      });
     }
     const prompt =
       message.task_type === CLAUDE_WORKFLOW_TASK_TYPE
@@ -368,6 +449,13 @@ export class ClaudeTaskProtocolSource {
       });
     }
     return observations;
+  }
+
+  private addAlias(id: string, alias: string): void {
+    this.canonicalIdByToolUseId.set(alias, id);
+    const aliases = this.aliasesById.get(id) ?? new Set<string>();
+    aliases.add(alias);
+    this.aliasesById.set(id, aliases);
   }
 
   private observeNewTaskStart(

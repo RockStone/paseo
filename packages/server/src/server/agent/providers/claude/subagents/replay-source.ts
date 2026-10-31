@@ -22,6 +22,7 @@ const ClaudeSubagentMetaSchema = z.object({
   description: z.string().optional().catch(undefined),
   toolUseId: z.string().optional().catch(undefined),
   spawnDepth: z.number().optional().catch(undefined),
+  finished: z.boolean().optional().catch(undefined),
 });
 
 export type ClaudeSubagentMeta = z.infer<typeof ClaudeSubagentMetaSchema>;
@@ -45,7 +46,8 @@ export function parseClaudeSubagentMeta(contents: string): ClaudeSubagentMeta | 
     meta.agentType !== undefined ||
     meta.description !== undefined ||
     meta.toolUseId !== undefined ||
-    meta.spawnDepth !== undefined;
+    meta.spawnDepth !== undefined ||
+    meta.finished !== undefined;
   return hasAnyField ? meta : null;
 }
 
@@ -65,7 +67,10 @@ export interface ClaudeReplayEntry {
  * Effort is replay-only: the SDK's live assistant message does not carry it, and it can be
  * silently downgraded for the selected model, so any live value would be a guess.
  */
-function readRuntime(entry: ClaudeReplayEntry): { model?: string; effort?: string } {
+export function readClaudeSubagentRuntime(entry: ClaudeReplayEntry): {
+  model?: string;
+  effort?: string;
+} {
   if (entry.type !== "assistant") return {};
   const effort = typeof entry.effort === "string" ? entry.effort.trim() : "";
   const rawModel = entry.message?.model;
@@ -121,7 +126,7 @@ function readTotalTokens(raw: unknown): number | undefined {
  *
  * The last assistant entry's summed usage matches Claude Code's live `total_tokens` definition.
  */
-function readUsage(entry: ClaudeReplayEntry): ClaudeSubagentUsage | null {
+export function readClaudeSubagentUsage(entry: ClaudeReplayEntry): ClaudeSubagentUsage | null {
   if (entry.type !== "assistant") return null;
   const totalTokens = readTotalTokens(entry.message?.usage);
   return totalTokens === undefined ? null : { totalTokens };
@@ -137,11 +142,18 @@ export interface ClaudeReplaySubagentInput {
 
 export interface ClaudeReplayParentFacts {
   /** Task `tool_use` id -> identity declared in the parent's tool input. */
-  toolCalls: ReadonlyMap<string, { title?: string; description?: string }>;
+  toolCalls: ReadonlyMap<string, ClaudeReplayToolCallFacts>;
+  resumeTargets?: ReadonlyMap<string, string>;
   /** agentId -> tool call, recovered by scraping tool-result text. Legacy fallback only. */
   linksByAgentId: ReadonlyMap<string, { toolCallId: string; failed: boolean }>;
   /** Task `tool_use` id -> outcome. Usable once meta.json supplies the link directly. */
   outcomesByToolCallId: ReadonlyMap<string, { failed: boolean }>;
+}
+
+export interface ClaudeReplayToolCallFacts {
+  title?: string;
+  description?: string;
+  background?: boolean;
 }
 
 interface ParentLink {
@@ -180,7 +192,8 @@ function resolveParentLink(
   if (metaToolUseId && parent.toolCalls.has(metaToolUseId)) {
     const outcome = parent.outcomesByToolCallId.get(metaToolUseId);
     let status: ProviderSubagentStatus | null = null;
-    if (outcome) status = outcome.failed ? "failed" : "completed";
+    if (outcome?.failed) status = "failed";
+    else if (outcome && !parent.toolCalls.get(metaToolUseId)?.background) status = "completed";
     return {
       id: metaToolUseId,
       toolCallId: metaToolUseId,
@@ -190,10 +203,13 @@ function resolveParentLink(
 
   const scraped = parent.linksByAgentId.get(subagent.agentId);
   if (scraped && parent.toolCalls.has(scraped.toolCallId)) {
+    let status: ProviderSubagentStatus | null = null;
+    if (scraped.failed) status = "failed";
+    else if (!parent.toolCalls.get(scraped.toolCallId)?.background) status = "completed";
     return {
       id: scraped.toolCallId,
       toolCallId: scraped.toolCallId,
-      status: scraped.failed ? "failed" : "completed",
+      status,
     };
   }
 
@@ -275,8 +291,8 @@ async function observeSubagent(
     if (!seenEntry) firstTimestamp = timestamp;
     seenEntry = true;
     lastTimestamp = timestamp;
-    Object.assign(runtime, readRuntime(entry));
-    usage = readUsage(entry) ?? usage;
+    Object.assign(runtime, readClaudeSubagentRuntime(entry));
+    usage = readClaudeSubagentUsage(entry) ?? usage;
     if (entry.type === "assistant") {
       childTerminalStatus = entry.message?.stop_reason === "end_turn" ? "completed" : null;
     }
@@ -288,6 +304,7 @@ async function observeSubagent(
   const observations = [
     declareSubagent(subagent, link, toolCall, parentSubagentId, firstTimestamp),
   ];
+  attachReplayAliases(observations[0], parent, subagent.agentId);
   const subtitle = observeSubtitle(
     link,
     toolCall?.title ?? subagent.meta?.agentType,
@@ -302,10 +319,29 @@ async function observeSubagent(
   observations.push({
     kind: "status",
     id: link.id,
-    status: link.status ?? childTerminalStatus ?? "canceled",
+    status: replayTerminalStatus(link, subagent.meta, childTerminalStatus),
     ...(lastTimestamp ? { timestamp: lastTimestamp } : {}),
   });
   return observations;
+}
+
+function attachReplayAliases(
+  declaration: SubagentObservation | undefined,
+  parent: ClaudeReplayParentFacts,
+  agentId: string,
+): void {
+  const aliases = [...(parent.resumeTargets ?? [])]
+    .filter(([, nativeId]) => nativeId === agentId)
+    .map(([toolUseId]) => toolUseId);
+  if (declaration?.kind === "declared" && aliases.length > 0) declaration.aliases = aliases;
+}
+
+function replayTerminalStatus(
+  link: ParentLink,
+  meta: ClaudeSubagentMeta | null,
+  childTerminalStatus: ProviderSubagentStatus | null,
+): ProviderSubagentStatus {
+  return link.status ?? (meta?.finished === true ? "completed" : childTerminalStatus) ?? "canceled";
 }
 
 function recordReplayToolOwners(

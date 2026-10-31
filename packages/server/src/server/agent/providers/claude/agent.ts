@@ -57,11 +57,16 @@ import {
   ClaudeTaskProtocolSource,
   type ClaudeHookObservationInput,
 } from "./subagents/live-source.js";
-import { observeReplaySubagents, type ClaudeReplayParentFacts } from "./subagents/replay-source.js";
+import {
+  observeReplaySubagents,
+  type ClaudeReplayParentFacts,
+  type ClaudeReplayToolCallFacts,
+} from "./subagents/replay-source.js";
 import { foldSubagentObservations, type SubagentObservation } from "./subagents/observation.js";
 import { observeReplayWorkflows } from "./subagents/workflow-replay-source.js";
 import { limitAgentTimelineItemContent } from "../../agent-timeline-content.js";
 import { readClaudeWorkflowResultFile } from "./subagents/workflow-output.js";
+import { ClaudeSubagentTranscriptSource } from "./subagents/transcript-source.js";
 import { buildClaudeFeatures, claudeModelSupportsFastMode } from "./feature-definitions.js";
 import {
   buildBinaryDiagnosticRows,
@@ -2308,6 +2313,7 @@ class ClaudeAgentSession implements AgentSession {
   private planResumeMode: PermissionMode | null = null;
   private availableModes: AgentMode[] = DEFAULT_MODES;
   private toolUseCache = new Map<string, ToolUseCacheEntry>();
+  private readonly subagentToolUseCaches = new Map<string, Map<string, ToolUseCacheEntry>>();
   private readonly settledToolUseIds = new Set<string>();
   private toolUseIndexToId = new Map<number, string>();
   private toolUseInputBuffers = new Map<string, string>();
@@ -2325,6 +2331,30 @@ class ClaudeAgentSession implements AgentSession {
     getToolInput: (toolUseId) => this.toolUseCache.get(toolUseId)?.input ?? null,
     readWorkflowResult: readClaudeWorkflowResultFile,
   });
+  private subagentTranscriptSource = this.createSubagentTranscriptSource();
+
+  private createSubagentTranscriptSource(): ClaudeSubagentTranscriptSource {
+    return new ClaudeSubagentTranscriptSource({
+      convertEntry: (entry) => this.convertSubagentHistoryEntry(entry),
+      emit: (observations) => {
+        if (this.closed) return;
+        const accepted = observations.flatMap((observation) =>
+          observation.kind === "status"
+            ? this.taskProtocolSource.observeTranscriptStatus(observation.id, observation.status)
+            : [observation],
+        );
+        this.dispatchEvents(
+          foldSubagentObservations(accepted).map((event) => ({
+            type: "provider_subagent",
+            provider: "claude",
+            event,
+          })),
+        );
+      },
+      reportError: (error) =>
+        this.logger.warn({ err: error }, "Failed to observe Claude child transcript"),
+    });
+  }
   /**
    * Subagent tool calls Claude has already answered while the child still runs, with the input
    * they were launched with and the turn that answered them. A background child is answered at
@@ -3017,6 +3047,7 @@ class ClaudeAgentSession implements AgentSession {
     );
     this.closed = true;
     await this.ensureHistoryReady();
+    await this.subagentTranscriptSource.close();
     this.rejectAllPendingPermissions(new Error("Claude session closed"));
     this.cancelCurrentTurn?.();
     this.subscribers.clear();
@@ -3108,7 +3139,7 @@ class ClaudeAgentSession implements AgentSession {
     await this.ensureHistoryReady();
     const target = this.resolveConversationRewindTarget(input.messageId);
     if (target.kind === "fresh-session") {
-      this.startFreshConversationSession();
+      await this.startFreshConversationSession();
       return;
     }
     const currentSessionId = this.claudeSessionId;
@@ -3304,6 +3335,10 @@ class ClaudeAgentSession implements AgentSession {
       await previousReady;
       await this.retireQuery();
       if (this.closed) return;
+      await this.subagentTranscriptSource.close();
+      this.subagentToolUseCaches.clear();
+      this.subagentTranscriptSource = this.createSubagentTranscriptSource();
+      this.taskProtocolSource.reset();
       const oldSessionId = this.claudeSessionId;
       this.claudeSessionId = sessionId;
       this.pendingFreshSessionId = null;
@@ -3341,7 +3376,11 @@ class ClaudeAgentSession implements AgentSession {
     return rebind;
   }
 
-  private startFreshConversationSession(): void {
+  private async startFreshConversationSession(): Promise<void> {
+    await this.subagentTranscriptSource.close();
+    this.subagentToolUseCaches.clear();
+    this.subagentTranscriptSource = this.createSubagentTranscriptSource();
+    this.taskProtocolSource.reset();
     this.historySessionId = null;
     this.historyReady = Promise.resolve();
     const sessionId = randomUUID();
@@ -4399,6 +4438,9 @@ class ClaudeAgentSession implements AgentSession {
     }
 
     this.dispatchEvents(events);
+    await this.trackBackgroundSubagentTranscript(message).catch((error) => {
+      this.logger.warn({ err: error }, "Failed to locate Claude child transcripts");
+    });
   }
 
   private async refreshEffectiveCompactionWindow(): Promise<void> {
@@ -4611,6 +4653,7 @@ class ClaudeAgentSession implements AgentSession {
     // Subagent identity and lifecycle are announced by Claude Code's task protocol, so they are
     // read rather than inferred from sidechain frames. `task_started` precedes the child's first
     // frame, so the descriptor exists before any timeline item lands on it.
+    await this.flushBeforeSubagentDeclaration(message);
     const subagentObservations = this.taskProtocolSource.observe(message);
     for (const event of foldSubagentObservations(subagentObservations)) {
       events.push({ type: "provider_subagent", provider: "claude", event });
@@ -4774,6 +4817,13 @@ class ClaudeAgentSession implements AgentSession {
     parentToolUseId: string,
   ): AgentStreamEvent[] {
     const canonicalSubagentId = this.taskProtocolSource.resolveSubagentId(parentToolUseId);
+    if (canonicalSubagentId && this.taskProtocolSource.isBackgrounded(canonicalSubagentId))
+      return [];
+    const nativeId = canonicalSubagentId
+      ? this.taskProtocolSource.resolveNativeId(canonicalSubagentId)
+      : undefined;
+    if (nativeId)
+      this.subagentTranscriptSource.remember({ ...toObjectRecord(message), agentId: nativeId });
     // Once a CLI announces its tasks it announces all of them, so a frame for one that was never
     // declared is work the filter already rejected — a workflow child, ambient housekeeping, a
     // grandchild announced in someone else's session. Attributing it anyway materializes exactly
@@ -4798,6 +4848,36 @@ class ClaudeAgentSession implements AgentSession {
       return event;
     });
     return [...runtimeEvents, ...sidechainEvents];
+  }
+
+  private async flushBeforeSubagentDeclaration(message: SDKMessage): Promise<void> {
+    if (message.type === "system" && message.subtype === "task_started")
+      await this.subagentTranscriptSource.flush();
+  }
+
+  private async trackBackgroundSubagentTranscript(message: SDKMessage): Promise<void> {
+    if (message.type !== "system") return;
+    const record = toObjectRecord(message);
+    const startsTask = message.subtype === "task_started" && record?.task_type !== "local_workflow";
+    const movesToBackground =
+      message.subtype === "task_updated" && toObjectRecord(record?.patch)?.is_backgrounded === true;
+    if (!startsTask && !movesToBackground) return;
+    const nativeId = readNonEmptyString(record?.task_id);
+    const id = nativeId ? this.taskProtocolSource.resolveTaskId(nativeId) : undefined;
+    if (!id || !nativeId || !this.taskProtocolSource.isBackgrounded(id) || !this.claudeSessionId)
+      return;
+    const historyPath = await this.resolveHistoryPath(this.claudeSessionId);
+    if (!historyPath || this.closed) return;
+    await this.subagentTranscriptSource.track({
+      directory: path.join(
+        path.dirname(historyPath),
+        path.basename(historyPath, ".jsonl"),
+        "subagents",
+      ),
+      id,
+      nativeId,
+      prompt: readNonEmptyString(record?.prompt) ?? undefined,
+    });
   }
 
   /**
@@ -5583,7 +5663,10 @@ class ClaudeAgentSession implements AgentSession {
     const subagentReplay = await observeReplaySubagents({
       subagents,
       parent: parentFacts,
-      convertEntry: (entry) => this.convertHistoryEntry(entry),
+      convertEntry: (entry) => {
+        this.subagentTranscriptSource.remember(entry);
+        return this.convertSubagentHistoryEntry(entry);
+      },
     });
     const observations = [
       ...subagentReplay.observations,
@@ -5594,6 +5677,7 @@ class ClaudeAgentSession implements AgentSession {
         convertEntry: (entry) => this.convertHistoryEntry(entry),
       })),
     ];
+    this.taskProtocolSource.restore(observations, subagentReplay.toolOwners);
     const restoredProviderSubagentIds = new Set(
       observations
         .filter((observation) => observation.kind === "declared")
@@ -5689,9 +5773,30 @@ class ClaudeAgentSession implements AgentSession {
     });
   }
 
-  private async convertHistoryEntry(entry: ClaudeHistoryEntry): Promise<AgentTimelineItem[]> {
+  private async convertSubagentHistoryEntry(
+    entry: ClaudeHistoryEntry,
+  ): Promise<AgentTimelineItem[]> {
+    if (!this.replayingHistory) {
+      this.dispatchEvents(
+        foldSubagentObservations(this.taskProtocolSource.observeTranscriptEntry(entry)).map(
+          (event) => ({ type: "provider_subagent", provider: "claude", event }),
+        ),
+      );
+    }
+    const nativeId = typeof entry.agentId === "string" ? entry.agentId : "";
+    const cache = this.subagentToolUseCaches.get(nativeId) ?? new Map<string, ToolUseCacheEntry>();
+    this.subagentToolUseCaches.set(nativeId, cache);
+    return this.convertHistoryEntry(entry, cache);
+  }
+
+  private async convertHistoryEntry(
+    entry: ClaudeHistoryEntry,
+    toolUseCache = this.toolUseCache,
+  ): Promise<AgentTimelineItem[]> {
     return (
-      await convertClaudeHistoryEntry(entry, (content) => this.mapBlocksToTimeline(content))
+      await convertClaudeHistoryEntry(entry, (content) =>
+        this.mapBlocksToTimeline(content, { toolUseCache }),
+      )
     ).map(limitAgentTimelineItemContent);
   }
 
@@ -5713,6 +5818,7 @@ class ClaudeAgentSession implements AgentSession {
       textMessageType?: "assistant_message" | "user_message";
       suppressAssistantText?: boolean;
       suppressReasoning?: boolean;
+      toolUseCache?: Map<string, ToolUseCacheEntry>;
     },
   ): Promise<AgentTimelineItem[]> {
     const textMessageType = options?.textMessageType ?? "assistant_message";
@@ -5747,6 +5853,7 @@ class ClaudeAgentSession implements AgentSession {
         textMessageType,
         suppressText,
         suppressReasoning,
+        toolUseCache: options?.toolUseCache ?? this.toolUseCache,
       });
     }
 
@@ -5791,6 +5898,7 @@ class ClaudeAgentSession implements AgentSession {
       textMessageType: "assistant_message" | "user_message";
       suppressText: boolean;
       suppressReasoning: boolean;
+      toolUseCache: Map<string, ToolUseCacheEntry>;
     },
   ): Promise<void> {
     switch (block.type) {
@@ -5807,7 +5915,7 @@ class ClaudeAgentSession implements AgentSession {
       case "tool_use":
       case "server_tool_use":
       case "mcp_tool_use":
-        this.handleToolUseStart(block, context.items);
+        this.handleToolUseStart(block, context.items, context.toolUseCache);
         break;
       case "tool_result":
       case "mcp_tool_result":
@@ -5816,7 +5924,7 @@ class ClaudeAgentSession implements AgentSession {
       case "code_execution_tool_result":
       case "bash_code_execution_tool_result":
       case "text_editor_code_execution_tool_result":
-        await this.handleToolResult(block, context.items);
+        await this.handleToolResult(block, context.items, context.toolUseCache);
         break;
       default:
         break;
@@ -5841,8 +5949,12 @@ class ClaudeAgentSession implements AgentSession {
     return true;
   }
 
-  private handleToolUseStart(block: ClaudeContentChunk, items: AgentTimelineItem[]): void {
-    const entry = this.upsertToolUseEntry(block);
+  private handleToolUseStart(
+    block: ClaudeContentChunk,
+    items: AgentTimelineItem[],
+    cache: Map<string, ToolUseCacheEntry>,
+  ): void {
+    const entry = this.upsertToolUseEntry(block, cache);
     if (!entry) {
       return;
     }
@@ -5850,7 +5962,7 @@ class ClaudeAgentSession implements AgentSession {
       return;
     }
     entry.started = true;
-    this.toolUseCache.set(entry.id, entry);
+    cache.set(entry.id, entry);
     this.pushToolCall(
       mapClaudeRunningToolCall({
         name: entry.name,
@@ -5865,9 +5977,9 @@ class ClaudeAgentSession implements AgentSession {
   private async handleToolResult(
     block: ClaudeContentChunk,
     items: AgentTimelineItem[],
+    cache: Map<string, ToolUseCacheEntry>,
   ): Promise<void> {
-    const entry =
-      typeof block.tool_use_id === "string" ? this.toolUseCache.get(block.tool_use_id) : undefined;
+    const entry = typeof block.tool_use_id === "string" ? cache.get(block.tool_use_id) : undefined;
     const blockToolName = typeof block.tool_name === "string" ? block.tool_name : undefined;
     const toolName = entry?.name ?? blockToolName ?? "tool";
     const callId =
@@ -5907,7 +6019,7 @@ class ClaudeAgentSession implements AgentSession {
     }
 
     if (typeof block.tool_use_id === "string") {
-      this.toolUseCache.delete(block.tool_use_id);
+      cache.delete(block.tool_use_id);
     }
   }
 
@@ -6153,13 +6265,16 @@ class ClaudeAgentSession implements AgentSession {
     }
   }
 
-  private upsertToolUseEntry(block: ClaudeContentChunk): ToolUseCacheEntry | null {
+  private upsertToolUseEntry(
+    block: ClaudeContentChunk,
+    cache: Map<string, ToolUseCacheEntry>,
+  ): ToolUseCacheEntry | null {
     const id = typeof block.id === "string" ? block.id : undefined;
     if (!id) {
       return null;
     }
     if (this.settledToolUseIds.has(id)) return null;
-    const existing = this.toolUseCache.get(id) ?? createDefaultToolUseCacheEntry(id, block);
+    const existing = cache.get(id) ?? createDefaultToolUseCacheEntry(id, block);
 
     if (typeof block.name === "string" && block.name.length > 0) {
       existing.name = block.name;
@@ -6181,7 +6296,7 @@ class ClaudeAgentSession implements AgentSession {
       }
     }
 
-    this.toolUseCache.set(id, existing);
+    cache.set(id, existing);
     return existing;
   }
 
@@ -6453,7 +6568,8 @@ function labelReplayedSubagentCard(
 async function readClaudeReplayParentFacts(
   entries: Iterable<ClaudeHistoryEntry> | AsyncIterable<ClaudeHistoryEntry>,
 ): Promise<ClaudeReplayParentFacts> {
-  const toolCalls = new Map<string, { title?: string; description?: string }>();
+  const toolCalls = new Map<string, ClaudeReplayToolCallFacts>();
+  const resumeTargets = new Map<string, string>();
   const linksByAgentId = new Map<string, { toolCallId: string; failed: boolean }>();
   const outcomes = new Map<string, { failed: boolean }>();
   for await (const entry of entries) {
@@ -6461,19 +6577,7 @@ async function readClaudeReplayParentFacts(
     if (!Array.isArray(content)) continue;
     for (const value of content) {
       const block = toObjectRecord(value);
-      if (
-        block?.type === "tool_use" &&
-        (block.name === "Task" || block.name === "Agent") &&
-        typeof block.id === "string"
-      ) {
-        const input = toObjectRecord(block.input);
-        const title = readNonEmptyString(input?.name) ?? readNonEmptyString(input?.subagent_type);
-        const description = readNonEmptyString(input?.description);
-        toolCalls.set(block.id, {
-          ...(title ? { title } : {}),
-          ...(description ? { description } : {}),
-        });
-      }
+      if (block?.type === "tool_use") recordClaudeReplayToolUse(block, toolCalls, resumeTargets);
       if (block?.type !== "tool_result" || typeof block.tool_use_id !== "string") continue;
       outcomes.set(block.tool_use_id, { failed: block.is_error === true });
       const agentId = readLegacyClaudeSubagentId(block.content);
@@ -6486,6 +6590,7 @@ async function readClaudeReplayParentFacts(
   }
   return {
     toolCalls,
+    resumeTargets,
     linksByAgentId,
     outcomesByToolCallId: new Map([...outcomes].filter(([id]) => toolCalls.has(id))),
   };
@@ -6493,6 +6598,29 @@ async function readClaudeReplayParentFacts(
 
 function readLegacyClaudeSubagentId(content: unknown): string | undefined {
   return /agentId:\s*([\w-]+)/.exec(JSON.stringify(content))?.[1];
+}
+
+function recordClaudeReplayToolUse(
+  block: Record<string, unknown>,
+  toolCalls: Map<string, ClaudeReplayToolCallFacts>,
+  resumeTargets: Map<string, string>,
+): void {
+  if (typeof block.id !== "string") return;
+  const input = toObjectRecord(block.input);
+  if (block.name === "Task" || block.name === "Agent") {
+    const title = readNonEmptyString(input?.name) ?? readNonEmptyString(input?.subagent_type);
+    const description = readNonEmptyString(input?.description);
+    toolCalls.set(block.id, {
+      ...(title ? { title } : {}),
+      ...(description ? { description } : {}),
+      ...(input?.run_in_background === true ? { background: true } : {}),
+    });
+    const resume = readNonEmptyString(input?.resume);
+    if (resume) resumeTargets.set(block.id, resume);
+  } else if (block.name === "SendMessage") {
+    const recipient = readNonEmptyString(input?.to) ?? readNonEmptyString(input?.recipient);
+    if (recipient) resumeTargets.set(block.id, recipient);
+  }
 }
 
 interface ClaudeHistoryEntry {

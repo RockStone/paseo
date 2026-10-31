@@ -12,6 +12,7 @@ export type ProviderSubagentStatus = "running" | "completed" | "failed" | "cance
 export interface ProviderSubagentDescriptor {
   id: string;
   nativeId?: string | null;
+  aliases?: string[];
   parentAgentId: string;
   /** Direct provider-subagent parent. Null identifies a child of the managed agent. */
   parentSubagentId: string | null;
@@ -31,6 +32,7 @@ export type ProviderSubagentInputEvent =
       type: "upsert";
       id: string;
       nativeId?: string | null;
+      aliases?: string[];
       title?: string | null;
       description?: string | null;
       /**
@@ -77,6 +79,14 @@ function stickyField<T>(next: T | undefined, previous: T | null | undefined): T 
   return next === undefined ? (previous ?? null) : next;
 }
 
+function mergeAliases(
+  next: string[] | undefined,
+  previous: ProviderSubagentDescriptor | undefined,
+): Pick<ProviderSubagentDescriptor, "aliases"> {
+  const aliases = next ?? previous?.aliases;
+  return aliases ? { aliases } : {};
+}
+
 export class ProviderSubagentStore {
   private readonly descriptors = new Map<string, ProviderSubagentDescriptor>();
   private readonly timelines = new InMemoryAgentTimelineStore();
@@ -119,6 +129,7 @@ export class ProviderSubagentStore {
     const subagent: ProviderSubagentDescriptor = {
       id: event.id,
       ...(nativeId === null ? {} : { nativeId }),
+      ...mergeAliases(event.aliases, previous),
       parentAgentId,
       provider,
       title: stickyField(event.title, previous?.title),
@@ -146,7 +157,11 @@ export class ProviderSubagentStore {
   }
 
   get(parentAgentId: string, subagentId: string): ProviderSubagentDescriptor | null {
-    return this.descriptors.get(storeKey(parentAgentId, subagentId)) ?? null;
+    return (
+      this.descriptors.get(storeKey(parentAgentId, subagentId)) ??
+      this.list(parentAgentId).find((child) => child.aliases?.includes(subagentId)) ??
+      null
+    );
   }
 
   fetchTimeline(
@@ -154,7 +169,8 @@ export class ProviderSubagentStore {
     subagentId: string,
     options?: AgentTimelineFetchOptions,
   ): AgentTimelineFetchResult {
-    return this.timelines.fetch(storeKey(parentAgentId, subagentId), options);
+    const canonicalId = this.get(parentAgentId, subagentId)?.id ?? subagentId;
+    return this.timelines.fetch(storeKey(parentAgentId, canonicalId), options);
   }
 
   deleteParent(parentAgentId: string): ProviderSubagentStoreEvent[] {

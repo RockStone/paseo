@@ -20,6 +20,7 @@ export type SubagentObservation =
       kind: "declared";
       id: string;
       nativeId?: string;
+      aliases?: string[];
       /** Subagent type, e.g. "Explore". Identical across a fan-out — not the task. */
       title?: string;
       /** The task this child was given. What actually distinguishes it from its siblings. */
@@ -30,6 +31,8 @@ export type SubagentObservation =
       timestamp?: string;
     }
   | { kind: "status"; id: string; status: ProviderSubagentStatus; timestamp?: string }
+  | { kind: "aliases"; id: string; aliases: string[] }
+  | { kind: "parent"; id: string; parentSubagentId: string }
   /** Complete provider-owned secondary label. Clients display this without parsing it. */
   | { kind: "subtitle"; id: string; subtitle: string; timestamp?: string }
   | { kind: "timeline"; id: string; item: AgentTimelineItem; timestamp?: string };
@@ -48,6 +51,18 @@ export function foldSubagentObservations(
 ): ProviderSubagentInputEvent[] {
   const events: ProviderSubagentInputEvent[] = [];
   for (const observation of observations) {
+    if (observation.kind === "parent") {
+      events.push({
+        type: "upsert",
+        id: observation.id,
+        parentSubagentId: observation.parentSubagentId,
+      });
+      continue;
+    }
+    if (observation.kind === "aliases") {
+      events.push({ type: "upsert", id: observation.id, aliases: observation.aliases });
+      continue;
+    }
     if (observation.kind === "timeline") {
       events.push({
         type: "timeline",
@@ -85,6 +100,7 @@ export function foldSubagentObservations(
       id: observation.id,
       status: "running",
       ...(observation.nativeId === undefined ? {} : { nativeId: observation.nativeId }),
+      ...(observation.aliases === undefined ? {} : { aliases: observation.aliases }),
       ...(observation.title === undefined ? {} : { title: observation.title }),
       ...(observation.description === undefined ? {} : { description: observation.description }),
       ...(observation.toolCallId === undefined ? {} : { toolCallId: observation.toolCallId }),

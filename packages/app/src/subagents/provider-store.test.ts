@@ -5,6 +5,7 @@ import {
   observeProviderSubagentTimeline,
   providerSubagentKey,
   refreshProviderSubagents,
+  resolveProviderSubagentKey,
   resyncProviderSubagents,
   useProviderSubagentStore,
 } from "./provider-store";
@@ -16,6 +17,7 @@ const SUBAGENT_ID = "child-1";
 afterEach(() => {
   useProviderSubagentStore.setState({
     descriptors: new Map(),
+    references: new Map(),
     timelines: new Map(),
     hiddenFromTrack: new Set(),
     trackedParents: new Set(),
@@ -23,6 +25,41 @@ afterEach(() => {
 });
 
 describe("provider subagent client store", () => {
+  test("resolves a restored resume tab to one canonical row and removes stale aliases", () => {
+    const subagents = useProviderSubagentStore.getState();
+    const child: ProviderSubagentDescriptorPayload = {
+      id: SUBAGENT_ID,
+      nativeId: "a_child",
+      aliases: ["toolu_resumed"],
+      parentAgentId: PARENT_ID,
+      provider: "claude",
+      title: "Explore",
+      description: "Inspect",
+      status: "running",
+      createdAt: "2026-10-31T00:00:00Z",
+      updatedAt: "2026-10-31T00:00:00Z",
+      toolCallId: SUBAGENT_ID,
+    };
+    subagents.replaceList(SERVER_ID, PARENT_ID, [child]);
+    const aliasKey = providerSubagentKey(SERVER_ID, PARENT_ID, "toolu_resumed");
+    const key = providerSubagentKey(SERVER_ID, PARENT_ID, SUBAGENT_ID);
+    expect(resolveProviderSubagentKey(useProviderSubagentStore.getState(), aliasKey)).toBe(key);
+    expect([...useProviderSubagentStore.getState().descriptors.values()]).toEqual([child]);
+    subagents.applyUpdate(SERVER_ID, {
+      kind: "upsert",
+      subagent: { ...child, status: "completed" },
+    });
+    expect(useProviderSubagentStore.getState().descriptors.get(key)?.status).toBe("completed");
+    subagents.applyUpdate(SERVER_ID, {
+      kind: "remove",
+      parentAgentId: PARENT_ID,
+      subagentId: SUBAGENT_ID,
+    });
+    expect(resolveProviderSubagentKey(useProviderSubagentStore.getState(), aliasKey)).toBe(
+      aliasKey,
+    );
+  });
+
   test("builds a shared stream model from ordered provider updates", () => {
     const subagents = useProviderSubagentStore.getState();
     subagents.applyUpdate(SERVER_ID, {

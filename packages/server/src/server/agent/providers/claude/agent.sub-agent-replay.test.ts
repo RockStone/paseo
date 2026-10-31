@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -10,6 +17,7 @@ import { createTestLogger } from "../../../../test-utils/test-logger.js";
 import type { AgentStreamEvent } from "../../agent-sdk-types.js";
 import { ClaudeAgentClient } from "./agent.js";
 import { claudeProjectDirSync } from "./project-dir.js";
+import { ProviderSubagentStore } from "../../provider-subagents/store.js";
 
 /**
  * Replay coverage for provider subagents rebuilt from a persisted session.
@@ -260,6 +268,171 @@ describe("ClaudeAgentSession persisted subagent replay", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  test("keeps a resumed background child in one row and reads its tools and handback after the parent turn", async () => {
+    const childLogger = vi.spyOn(logger, "child").mockReturnValue(logger);
+    const warnings = vi.spyOn(logger, "warn");
+    const resumedId = "toolu_sendmessage_resume";
+    writeSession({
+      parentLines: [
+        parentEntry([
+          {
+            type: "tool_use",
+            id: TOOL_USE_ID,
+            name: "Agent",
+            input: {
+              subagent_type: "general-purpose",
+              description: "Summarize the docs",
+              run_in_background: true,
+            },
+          },
+        ]),
+        taskToolResult(),
+        parentEntry([
+          {
+            type: "tool_use",
+            id: resumedId,
+            name: "SendMessage",
+            input: { to: AGENT_ID, message: "Continue the task" },
+          },
+        ]),
+      ],
+      meta: JSON.stringify({ toolUseId: TOOL_USE_ID }),
+    });
+    const pending: { resolve?: (value: { done: true; value: undefined }) => void } = {};
+    const frames = [
+      { type: "system", subtype: "init", session_id: "replay-session", permissionMode: "default" },
+      {
+        type: "system",
+        subtype: "task_started",
+        task_id: AGENT_ID,
+        tool_use_id: resumedId,
+        task_type: "local_agent",
+        subagent_type: "general-purpose",
+        is_backgrounded: true,
+        prompt: "Continue the task",
+      },
+      { type: "result", subtype: "success", usage: {}, total_cost_usd: 0 },
+    ];
+    queryFactory.mockImplementationOnce(() => ({
+      next: async () =>
+        frames.length
+          ? { done: false, value: frames.shift() }
+          : new Promise((resolve) => {
+              pending.resolve = resolve;
+            }),
+      close: () => pending.resolve?.({ done: true, value: undefined }),
+      setPermissionMode: async () => undefined,
+      supportedModels: async () => [],
+      supportedCommands: async () => [],
+      getContextUsage: async () => ({ rawMaxTokens: 200000 }),
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    }));
+    const session = await new ClaudeAgentClient({
+      logger,
+      queryFactory,
+      resolveBinary: async () => "/test/claude/bin",
+      resolveVersion: async () => "2.1.292",
+    }).resumeSession({ provider: "claude", sessionId: "replay-session" }, { cwd });
+    const store = new ProviderSubagentStore();
+    const consume = (event: AgentStreamEvent) => {
+      if (event.type === "provider_subagent") store.apply("parent", event.provider, event.event);
+    };
+    const unsubscribe = session.subscribe(consume);
+    const directory = path.join(
+      claudeProjectDirSync(cwd, { configDir }),
+      "replay-session",
+      "subagents",
+    );
+    const file = path.join(directory, `agent-${AGENT_ID}.jsonl`);
+    const append = (uuid: string, type: string, content: unknown) =>
+      appendFileSync(
+        file,
+        "\n" +
+          JSON.stringify({
+            type,
+            uuid,
+            agentId: AGENT_ID,
+            isSidechain: true,
+            message: { content },
+          }) +
+          "\n",
+      );
+    try {
+      for await (const event of session.streamHistory()) consume(event);
+      await session.run("Continue coordinating");
+      expect(store.list("parent")).toHaveLength(1);
+      expect(store.get("parent", resumedId)).toMatchObject({
+        id: TOOL_USE_ID,
+        nativeId: AGENT_ID,
+        status: "running",
+      });
+      append("resumed-prompt", "user", "Continue the task");
+      append("child-bash", "assistant", [
+        { type: "tool_use", id: "child_bash", name: "Bash", input: { command: "printf resumed" } },
+      ]);
+      await vi.waitFor(
+        () => {
+          expect(warnings.mock.calls).toEqual([]);
+          expect(store.fetchTimeline("parent", TOOL_USE_ID).rows).toContainEqual(
+            expect.objectContaining({
+              item: expect.objectContaining({
+                type: "tool_call",
+                callId: "child_bash",
+                status: "running",
+              }),
+            }),
+          );
+        },
+        { timeout: 5000 },
+      );
+      append("child-bash-result", "user", [
+        { type: "tool_result", tool_use_id: "child_bash", content: "resumed" },
+      ]);
+      append("child-handback", "assistant", [
+        {
+          type: "tool_use",
+          id: "handback",
+          name: "SubagentHandback",
+          input: { message: "Resumed work is complete" },
+        },
+      ]);
+      append("child-handback-result", "user", [
+        { type: "tool_result", tool_use_id: "handback", content: "Delivered" },
+      ]);
+      await vi.waitFor(() => expect(store.get("parent", resumedId)?.status).toBe("completed"), {
+        timeout: 5000,
+      });
+      const items = store.fetchTimeline("parent", TOOL_USE_ID).rows.map((row) => row.item);
+      expect(items).toContainEqual(
+        expect.objectContaining({
+          type: "tool_call",
+          callId: "child_bash",
+          name: "Bash",
+          status: "completed",
+          detail: expect.objectContaining({ command: "printf resumed" }),
+        }),
+      );
+      expect(items.filter((item) => item.type === "user_message")).toEqual([
+        { type: "user_message", text: "Continue the task" },
+      ]);
+      expect(
+        items.filter(
+          (item) => item.type === "assistant_message" && item.text === "Resumed work is complete",
+        ),
+      ).toHaveLength(1);
+      expect(store.fetchTimeline("parent", resumedId).rows).toEqual(
+        store.fetchTimeline("parent", TOOL_USE_ID).rows,
+      );
+    } finally {
+      unsubscribe();
+      await session.close();
+      warnings.mockRestore();
+      childLogger.mockRestore();
+    }
   });
 
   test.each(["system", "user", "queue-operation"] as const)(
