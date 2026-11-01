@@ -542,10 +542,10 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
         await openAddedProject(path, "method");
       }
     } catch {
-      if (browsePageRef.current?.kind === "method") {
+      if (browsePageRef.current?.kind === "method" && browsePageRef.current.hostId === hostId) {
         setState((current) =>
-          setPageStatus(current, "method", {
-            error: "Unable to open the folder picker. Try again or use Search for directory.",
+          setPageStatus(openDirectorySearchPage(current, hostId), "directory-search", {
+            error: "The folder picker is unavailable. Search for a directory instead.",
           }),
         );
       }

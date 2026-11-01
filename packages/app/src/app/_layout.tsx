@@ -458,6 +458,12 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
     () => [rowStyle, !isCompactLayout && { paddingLeft: insets.left, paddingRight: insets.right }],
     [insets.left, insets.right, isCompactLayout],
   );
+  // Electron's native drag rectangles ignore the preview's DOM stacking.
+  // Suppress covered window regions while the sidebar owns the pointer.
+  const workspaceContentProps = useMemo(
+    () => (isWeb && sidebarPreview.open ? { dataSet: { windowContent: "true" } } : {}),
+    [sidebarPreview.open],
+  );
   const workspaceChrome = (
     <View style={workspaceChromeStyle}>
       <WorkspaceLayoutModePublisher />
@@ -472,7 +478,9 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
         <WindowChromeRegion
           corners={isCompactLayout && chromeEnabled ? "both" : appChromeLayout.contentCorners}
         >
-          <View style={flexStyle}>{children}</View>
+          <View style={layoutStyles.workspaceContent} {...workspaceContentProps}>
+            {children}
+          </View>
         </WindowChromeRegion>
       </WorkspaceExplorerOpenGesture>
     </View>
@@ -1003,6 +1011,10 @@ export default function RootLayout() {
 }
 
 const layoutStyles = StyleSheet.create((theme) => ({
+  workspaceContent: {
+    flex: 1,
+    zIndex: 0,
+  },
   sidebarFrame: {
     flexDirection: "row",
   },

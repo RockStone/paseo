@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => Promise<unknown>>(),
@@ -32,11 +33,17 @@ vi.mock("electron-log", () => ({ default: { info: mocks.info, error: mocks.error
 import { registerDialogHandlers } from "./dialogs.js";
 
 const sender = {};
+const windowEvents = new EventEmitter();
+Object.assign(mocks.owner, {
+  on: windowEvents.on.bind(windowEvents),
+  removeListener: windowEvents.removeListener.bind(windowEvents),
+});
 const open = (options: object = { directory: true }) =>
   mocks.handlers.get("paseo:dialog:open")!({ sender }, options);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  windowEvents.removeAllListeners();
   mocks.owner.isDestroyed.mockReturnValue(false);
   mocks.owner.isMinimized.mockReturnValue(false);
   mocks.owner.isVisible.mockReturnValue(true);
@@ -44,6 +51,8 @@ beforeEach(() => {
   mocks.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/repo/project"] });
   registerDialogHandlers();
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe("native file picker", () => {
   it("focuses the requesting window before opening its sheet at Home", async () => {
@@ -103,4 +112,76 @@ describe("native file picker", () => {
     await expect(open()).rejects.toThrow("no longer available");
     expect(mocks.showOpenDialog).not.toHaveBeenCalled();
   });
+
+  it.skipIf(process.platform !== "darwin")(
+    "recovers when AppKit never presents or settles the picker",
+    async () => {
+      vi.useFakeTimers();
+      let finish!: (value: unknown) => void;
+      mocks.showOpenDialog.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const result = open();
+      const rejected = expect(result).rejects.toThrow("did not respond");
+      await vi.advanceTimersByTimeAsync(10_000);
+      await rejected;
+      expect(windowEvents.eventNames()).toEqual([]);
+      await expect(open()).resolves.toBe("/repo/project");
+      finish({ canceled: false, filePaths: ["/late-selection"] });
+      await vi.advanceTimersByTimeAsync(0);
+    },
+  );
+
+  it.skipIf(process.platform !== "darwin")(
+    "does not time out a visible sheet or queue duplicate pickers",
+    async () => {
+      vi.useFakeTimers();
+      let finish!: (value: unknown) => void;
+      mocks.showOpenDialog.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const result = open();
+      windowEvents.emit("sheet-begin");
+      await vi.advanceTimersByTimeAsync(120_000);
+      await expect(open()).rejects.toThrow("already open");
+      expect(mocks.showOpenDialog).toHaveBeenCalledOnce();
+      windowEvents.emit("sheet-end");
+      finish({ canceled: false, filePaths: ["/chosen-project"] });
+      await expect(result).resolves.toBe("/chosen-project");
+      expect(windowEvents.eventNames()).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it.skipIf(process.platform !== "darwin")(
+    "recovers if a closed sheet never returns a result",
+    async () => {
+      vi.useFakeTimers();
+      mocks.showOpenDialog.mockImplementationOnce(() => new Promise(() => {}));
+      const result = open();
+      windowEvents.emit("sheet-begin");
+      windowEvents.emit("sheet-end");
+      const rejected = expect(result).rejects.toThrow("did not respond");
+      await vi.advanceTimersByTimeAsync(10_000);
+      await rejected;
+      await expect(open()).resolves.toBe("/repo/project");
+    },
+  );
+
+  it.skipIf(process.platform !== "darwin")(
+    "settles pending pickers when their owner closes",
+    async () => {
+      mocks.showOpenDialog.mockImplementationOnce(() => new Promise(() => {}));
+      const result = open();
+      windowEvents.emit("closed");
+      await expect(result).rejects.toThrow("window was closed");
+      expect(windowEvents.eventNames()).toEqual([]);
+    },
+  );
 });

@@ -28,6 +28,44 @@ function resolveDialogType(kind: AskOptions["kind"]): "warning" | "error" | "que
   return "question";
 }
 
+const OPEN_DIALOG_PRESENTATION_TIMEOUT_MS = 10_000;
+const pendingOpenDialogs = new WeakSet<BrowserWindow>();
+
+function showOpenDialog(
+  win: BrowserWindow,
+  options: Electron.OpenDialogOptions,
+): Promise<Electron.OpenDialogReturnValue> {
+  if (process.platform !== "darwin") return dialog.showOpenDialog(win, options);
+
+  // AppKit can fail to connect to openAndSavePanelService without settling
+  // Electron's promise. Time presentation only; choosing in a visible sheet has no deadline.
+  let timer: ReturnType<typeof setTimeout>;
+  let cleanup = () => {};
+  const result = new Promise<Electron.OpenDialogReturnValue>((resolve, reject) => {
+    const clear = () => clearTimeout(timer);
+    const arm = () => {
+      clear();
+      timer = setTimeout(
+        () => reject(new Error("The native file picker did not respond.")),
+        OPEN_DIALOG_PRESENTATION_TIMEOUT_MS,
+      );
+    };
+    const closed = () => reject(new Error("The file picker window was closed."));
+    win.on("sheet-begin", clear);
+    win.on("sheet-end", arm);
+    win.on("closed", closed);
+    cleanup = () => {
+      clear();
+      win.removeListener("sheet-begin", clear);
+      win.removeListener("sheet-end", arm);
+      win.removeListener("closed", closed);
+    };
+    arm();
+    dialog.showOpenDialog(win, options).then(resolve, reject);
+  });
+  return result.finally(() => cleanup());
+}
+
 export function registerDialogHandlers(): void {
   ipcMain.handle("paseo:dialog:ask", async (event, message: string, options?: AskOptions) => {
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -68,6 +106,9 @@ export function registerDialogHandlers(): void {
     if (!win || win.isDestroyed()) {
       throw new Error("The window requesting the file picker is no longer available.");
     }
+    if (pendingOpenDialogs.has(win)) {
+      throw new Error("A file picker is already open for this window.");
+    }
     if (win.isMinimized()) win.restore();
     if (!win.isVisible()) win.show();
     if (process.platform === "darwin") app.focus({ steal: true });
@@ -84,8 +125,9 @@ export function registerDialogHandlers(): void {
       directory: options.directory === true,
     });
     let result: Electron.OpenDialogReturnValue;
+    pendingOpenDialogs.add(win);
     try {
-      result = await dialog.showOpenDialog(win, {
+      result = await showOpenDialog(win, {
         title: options.title,
         // Electron 43+ otherwise starts in Downloads, even for directory pickers.
         defaultPath: options.defaultPath ?? (options.directory ? app.getPath("home") : undefined),
@@ -99,6 +141,8 @@ export function registerDialogHandlers(): void {
         error,
       );
       throw error;
+    } finally {
+      pendingOpenDialogs.delete(win);
     }
     log.info("[dialog] open settled", {
       windowId: win.id,

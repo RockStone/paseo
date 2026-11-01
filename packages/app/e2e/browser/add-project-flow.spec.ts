@@ -131,8 +131,10 @@ test.describe("Add Project command-center flow", () => {
       ).browseTest.reject(new Error("Picker failed")),
     );
     await expect(page.getByTestId("add-project-flow-error")).toContainText(
-      "Try again or use Search for directory",
+      "Search for a directory instead",
     );
+    await expectAddProjectPage(page, "directory-search");
+    await addProjectFlowBack(page).click();
     await expect(browse).toBeEnabled();
     await browse.click();
     await expect(page.getByTestId("add-project-flow-error")).toHaveCount(0);

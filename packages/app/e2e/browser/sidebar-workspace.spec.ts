@@ -24,8 +24,74 @@ import { projectEquivalenceViewKey } from "../support/helpers/project-view-key";
 import { escapeRegex } from "../support/helpers/regex";
 import { openFilesPanel } from "../support/helpers/workspace-tabs";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+import { installLocalDesktopHost } from "../support/helpers/local-desktop-host";
 
 const GITHUB_REMOTE_URL = "https://github.com/test-owner/test-repo.git";
+
+test("edge sidebar keeps pointer ownership over the workspace tab row", async ({
+  page,
+}, testInfo) => {
+  await installLocalDesktopHost(page, "/tmp");
+  await page.addInitScript(() => {
+    window.paseoDesktop!.platform = "darwin";
+  });
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "sidebar-preview-tabs-",
+    title: "Sidebar overlap",
+  });
+  try {
+    await openAgentRoute(page, agent);
+    await expect(page.getByTestId(`workspace-tab-agent_${agent.agentId}`)).toBeVisible();
+    await page.getByTestId("menu-button").filter({ visible: true }).first().click();
+    const edge = page.getByTestId("sidebar-edge-trigger");
+    await expect(edge).toBeVisible();
+    await edge.hover();
+    const preview = page.getByTestId("sidebar-edge-preview");
+    await expect(preview).toBeVisible();
+    const navigation = preview.getByTestId("sidebar-global-new-workspace");
+    const box = await navigation.boundingBox();
+    expect(box).not.toBeNull();
+    await expect
+      .poll(() =>
+        navigation.evaluate((node) => {
+          const rect = node.getBoundingClientRect();
+          const sidebar = node.closest('[data-testid="sidebar-edge-preview"]');
+          let count = 0;
+          for (const candidate of document.querySelectorAll("*")) {
+            if (sidebar?.contains(candidate)) continue;
+            const bounds = candidate.getBoundingClientRect();
+            if (
+              getComputedStyle(candidate).getPropertyValue("-webkit-app-region") === "drag" &&
+              bounds.left < rect.right &&
+              bounds.right > rect.left &&
+              bounds.top < rect.bottom &&
+              bounds.bottom > rect.top
+            )
+              count += 1;
+          }
+          return count;
+        }),
+      )
+      .toBe(0);
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2, { steps: 20 });
+    await expect(preview).toBeVisible();
+    await expect
+      .poll(() =>
+        navigation.evaluate((node) => {
+          const rect = node.getBoundingClientRect();
+          return node.contains(
+            document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2),
+          );
+        }),
+      )
+      .toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("sidebar-over-workspace-tabs.png") });
+    await navigation.click();
+    await expect(page).toHaveURL((url) => url.pathname === "/new");
+  } finally {
+    await agent.cleanup();
+  }
+});
 
 test("idle coordinator background tasks keep workspace and tab indicators running", async ({
   page,

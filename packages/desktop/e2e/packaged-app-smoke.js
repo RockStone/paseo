@@ -940,6 +940,33 @@ async function assertMacSidebarLayout(options) {
   await edge.hover();
   await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
   await assertAligned();
+  const previewNavigation = page.getByTestId("sidebar-global-new-workspace");
+  const coveredDragRegions = await previewNavigation.evaluate((navigation) => {
+    const rect = navigation.getBoundingClientRect();
+    const preview = navigation.closest('[data-testid="sidebar-edge-preview"]');
+    let count = 0;
+    for (const node of document.querySelectorAll("*")) {
+      if (preview.contains(node)) continue;
+      const bounds = node.getBoundingClientRect();
+      if (
+        getComputedStyle(node).getPropertyValue("-webkit-app-region") === "drag" &&
+        bounds.left < rect.right &&
+        bounds.right > rect.left &&
+        bounds.top < rect.bottom &&
+        bounds.bottom > rect.top
+      )
+        count += 1;
+    }
+    return count;
+  });
+  assert.equal(coveredDragRegions, 0, "Workspace drag regions must not cover sidebar navigation");
+  await previewNavigation.hover();
+  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  const artifactDir = process.env.PASEO_DESKTOP_SMOKE_ARTIFACT_DIR?.trim();
+  if (artifactDir) {
+    fs.mkdirSync(artifactDir, { recursive: true });
+    await page.screenshot({ path: path.join(artifactDir, "sidebar-over-workspace-tabs.png") });
+  }
   await page.mouse.move(width - 40, 400);
   await page.getByTestId("sidebar-edge-preview").waitFor({ state: "detached" });
   await page.keyboard.press("Meta+b");
