@@ -114,6 +114,10 @@ When Mo requests an APK, use `npm run build:apk:arm64` for an ARM64 build: write
 
 See [docs/development.md](docs/development.md) for full setup, build sync requirements, and debugging.
 
+## Paseoi fix delivery
+
+After every Paseoi code fix, complete the [custom desktop delivery procedure](docs/development.md#paseoi-custom-desktop-build): rebuild the signed app, replace `/Applications/Paseoi.app`, and verify the installed bundle. Do not stop after source validation or wait for a separate installation request. Leave the running app and managed daemon alone; the user relaunches when ready. Documentation-only changes and explicit source-only requests do not require rebuilding.
+
 ## Release branches
 
 When the user says "this goes to next", create or

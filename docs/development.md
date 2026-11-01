@@ -148,12 +148,25 @@ npm ci
 npm run build:custom:desktop
 ```
 
-Every custom rebuild must be delivered: run the packaged smoke test, replace
-`/Applications/Paseoi.app`, and verify the installed version and files. Preserve a
-rollback copy and leave the running app and managed daemon alone. Then review the
-task diff, commit it in focused feature groups, and push the current branch. Preserve
-unrelated work. Report source validation, installation, and push results separately;
-an installed bundle takes effect when the user relaunches the app.
+After every Paseoi code fix, complete delivery without waiting for a separate
+rebuild or installation request. Documentation-only changes and explicit
+source-only requests are exempt.
+
+1. Run the relevant focused tests, typecheck, and lint.
+2. Increase the custom revision above the installed version and rebuild with
+   `npm run build:custom:desktop`, using the persistent signing identity.
+3. Run `node packages/desktop/e2e/packaged-app-smoke.js --app <built Paseoi.app>` with
+   isolated app data and daemon state. Keep its daemon off the live listener.
+4. Preserve the installed bundle as a rollback copy. Stage the tested build,
+   verify its signature, and replace `/Applications/Paseoi.app`.
+5. Verify the installed version, signing identity, and file contents against the
+   tested build. Confirm the running app and managed daemon were not restarted.
+6. Review the task diff, commit focused changes, and push the current branch.
+   Preserve unrelated work.
+
+Report source validation, installation, rollback location, and push results
+separately. Leave the running app and managed daemon alone; the installed bundle
+takes effect when the user relaunches the app.
 
 The output is `packages/desktop/release/mac-arm64/Paseoi.app` on Apple
 Silicon. The app is named Paseoi and uses the root `Paseoi.icns` for its bundle and
