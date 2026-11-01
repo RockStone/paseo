@@ -1545,7 +1545,7 @@ describe("createWebStreamStrategy", () => {
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
-  it("keeps the retained viewport mounted while inactive and reconciles it once on return", async () => {
+  it("keeps the retained viewport mounted and restores its bottom or reading position on return", async () => {
     interface ResizeObservation {
       callback: ResizeObserverCallback;
       disconnect: ReturnType<typeof vi.fn>;
@@ -1672,6 +1672,20 @@ describe("createWebStreamStrategy", () => {
     expect(scrollTo).not.toHaveBeenCalled();
 
     act(() => root?.render(renderWithActivity(false)));
+    scrollContainer.scrollTop = 400;
+    act(() => scrollContainer.dispatchEvent(new Event("scroll")));
+    act(() => root?.render(renderWithActivity(true)));
+    act(() => notifyResize(scrollContainer, contentNode));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1500, behavior: "auto" });
+
+    act(() => root?.render(renderWithActivity(false)));
+    act(() => root?.render(renderWithActivity(true)));
+    scrollTo.mockClear();
+    scrollContainer.scrollTop = 400;
+    act(() => notifyResize(scrollContainer, contentNode));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1500, behavior: "auto" });
+
+    act(() => root?.render(renderWithActivity(false)));
     scrollTo.mockClear();
     Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 2200 });
     act(() => root?.render(renderWithActivity(true)));
@@ -1710,5 +1724,21 @@ describe("createWebStreamStrategy", () => {
     });
     expect(container.querySelector('[data-testid="agent-chat-scroll"]')).toBe(scrollContainer);
     expect(scrollTo).toHaveBeenCalledWith({ top: 2200, behavior: "auto" });
+
+    firstRow.getBoundingClientRect = () =>
+      ({ top: -scrollContainer.scrollTop, height: 1000 }) as DOMRect;
+    secondRow.getBoundingClientRect = () =>
+      ({ top: 1000 - scrollContainer.scrollTop, height: 1200 }) as DOMRect;
+    act(() => notifyResize(scrollContainer, contentNode));
+    act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -900 }));
+      scrollContainer.scrollTop = 800;
+      scrollContainer.dispatchEvent(new Event("scroll"));
+    });
+    act(() => root?.render(renderWithActivity(false)));
+    scrollContainer.scrollTop = 200;
+    act(() => root?.render(renderWithActivity(true)));
+    act(() => notifyResize(scrollContainer, contentNode));
+    expect(scrollContainer.scrollTop).toBe(800);
   });
 });

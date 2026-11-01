@@ -335,6 +335,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     return value;
   }, []);
   const lastKnownScrollTopRef = useRef(0);
+  const suspendedReadingOffsetRef = useRef<number | null>(null);
   const mouseScrollGestureRef = useRef<
     | { kind: "scrollbar"; pointerId: number }
     | {
@@ -631,8 +632,17 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
 
   useLayoutEffect(() => {
     if (isActive) {
+      const savedOffset = suspendedReadingOffsetRef.current;
+      suspendedReadingOffsetRef.current = null;
+      const container = scrollContainerRef.current;
+      if (savedOffset !== null && container && !followOutputRef.current) {
+        container.scrollTop = savedOffset;
+        lastKnownScrollTopRef.current = container.scrollTop;
+        virtualOffsetListener.current?.(container.scrollTop, false);
+      }
       return;
     }
+    suspendedReadingOffsetRef.current = lastKnownScrollTopRef.current;
     cancelPendingStickToBottom();
     historyStartSettleSchedulerRef.current?.cancel();
     clearMouseScrollGesture();
@@ -909,7 +919,13 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       return;
     }
     lastActiveFollowOutputLayoutRef.current = layout;
-    if (!followOutputRef.current || resumedUnchangedLayout) return;
+    // Hiding a retained viewport can clamp its offset without changing its layout.
+    const hasRetainedScrollOffset =
+      resumedUnchangedLayout &&
+      scrollContainerRef.current &&
+      Math.abs(scrollContainerRef.current.scrollTop - lastKnownScrollTopRef.current) <=
+        USER_SCROLL_DELTA_EPSILON;
+    if (!followOutputRef.current || hasRetainedScrollOffset) return;
     cancelPendingStickToBottom();
     scrollMessagesToBottom("auto");
   }, [
@@ -976,7 +992,13 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
         reportReadingPosition();
         const previousGeometry = lastObservedViewportGeometryRef.current;
         lastObservedViewportGeometryRef.current = nextGeometry;
-        if (previousGeometry && observedViewportGeometriesEqual(previousGeometry, nextGeometry)) {
+        const hasRetainedPosition =
+          !followOutputRef.current || isScrollContainerAtBottom(scrollContainer);
+        if (
+          previousGeometry &&
+          observedViewportGeometriesEqual(previousGeometry, nextGeometry) &&
+          hasRetainedPosition
+        ) {
           return;
         }
       } else {

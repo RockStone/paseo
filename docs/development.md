@@ -31,7 +31,11 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 ## Paseoi custom desktop build
 
-The stable v0.14.0 integration branch is `pasio/v0.14.0`; `pasio/v0.14.0-beta.1` and `pasio/v0.13.0` retain the previous custom builds. The build adds desktop/browser selection replies. Select
+The stable v0.14.0 integration branch is `paseoi/v0.14.0`; `pasio/v0.14.0-beta.1` and `pasio/v0.13.0` retain the previous custom builds.
+Keep the stable branch in the main checkout. Detach temporary build worktrees
+before switching it back; Git rejects a branch already checked out in another worktree.
+
+The build adds desktop/browser selection replies. Select
 chat text, including Thinking, commands, tool output, or assistant messages, and
 release the drag to show **Copy | Reply**. Choose **Reply** to append an editable Markdown quote to the current draft, then
 type your comment. **Copy**, beside Reply with a divider, writes the selected excerpt
@@ -192,7 +196,7 @@ smoke after packaging changes.
 
 Keep `upstream` pointed at `getpaseo/paseo` and `origin` at `RockStone/paseo`.
 For a new official release, fetch its tag and merge it into a new
-`pasio/vX.Y.Z` branch cut from the current Paseoi branch. Resolve conflicts, run
+`paseoi/vX.Y.Z` branch cut from the current Paseoi branch. Resolve conflicts, run
 typecheck, lint, and the focused tests for every file both sides changed, then
 rebuild. Drop a build
 compatibility commit if upstream has already fixed it. Keep each updated custom

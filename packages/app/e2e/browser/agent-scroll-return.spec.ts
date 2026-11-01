@@ -17,6 +17,7 @@ import {
   expectTimelinePromptVisible,
   openAgentTimeline,
   seedLongMockAgentTimeline,
+  userScrollsTimelineToHistoryStart,
 } from "../support/helpers/timeline-pagination";
 import { switchWorkspaceViaSidebar } from "../support/helpers/workspace-ui";
 
@@ -58,6 +59,60 @@ function armDelayedScrollForHiddenChat(page: Page): Promise<void> {
     });
 }
 
+test("desktop workspaces keep independent bottom and reading positions", async ({ page }) => {
+  test.setTimeout(240_000);
+  const first = await seedLongMockAgentTimeline({ turns: 30 });
+  const second = await seedLongMockAgentTimeline({ turns: 30 });
+  const switchTo = (workspace: MockAgentWorkspace) =>
+    switchWorkspaceViaSidebar({
+      page,
+      serverId: getServerId(),
+      workspaceId: workspace.workspaceId,
+    });
+
+  try {
+    await page.addInitScript(() => {
+      Object.assign(globalThis, {
+        __PASEO_E2E_WEB_PARTIAL_VIRTUALIZATION_THRESHOLD: 10,
+        __PASEO_E2E_WEB_MOUNTED_RECENT_STREAM_ITEMS: 6,
+      });
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openAgentTimeline(page, first);
+    await expectTimelinePromptVisible(page, first.newestPrompt);
+    await userScrollsTimelineToHistoryStart(page);
+    await expect(page.locator("#agent-chat-scroll-web-dom-virtualized:visible")).toBeVisible();
+    await page.getByTestId("scroll-to-bottom-button").filter({ visible: true }).click();
+    await expectChatAtBottom(page);
+    await switchTo(second);
+    await expectTimelinePromptVisible(page, second.newestPrompt);
+    await userScrollsTimelineToHistoryStart(page);
+    await page.getByTestId("scroll-to-bottom-button").filter({ visible: true }).click();
+    await expectChatAtBottom(page);
+    const secondPosition = await scrollChatAwayFromBottom(page, {
+      deltaY: -900,
+      minDistanceFromBottom: 300,
+    });
+
+    await switchTo(first);
+    await expectChatAtBottom(page);
+    const firstPosition = await scrollChatAwayFromBottom(page, {
+      deltaY: -600,
+      minDistanceFromBottom: 300,
+    });
+    await switchTo(second);
+    await expect
+      .poll(async () => Math.abs((await readScrollMetrics(page)).offsetY - secondPosition.offsetY))
+      .toBeLessThanOrEqual(24);
+    await switchTo(first);
+    await expect
+      .poll(async () => Math.abs((await readScrollMetrics(page)).offsetY - firstPosition.offsetY))
+      .toBeLessThanOrEqual(24);
+  } finally {
+    await Promise.allSettled([first.cleanup(), second.cleanup()]);
+  }
+});
+
 test("pointer jitter cannot turn geometry changes into scroll intent", async ({ page }) => {
   test.setTimeout(240_000);
   const longChat = await seedLongMockAgentTimeline({ turns: 30 });
@@ -70,6 +125,11 @@ test("pointer jitter cannot turn geometry changes into scroll intent", async ({ 
     await expectChatAtBottom(page);
 
     const scroll = page.locator('[data-testid="agent-chat-scroll"]:visible').first();
+    // Selection intentionally pauses following; this gesture tests geometry changes alone.
+    await page.addStyleTag({
+      content:
+        '[data-testid="agent-chat-scroll"], [data-testid="agent-chat-scroll"] * { user-select: none !important; }',
+    });
     const bounds = await scroll.boundingBox();
     expect(bounds, "Expected visible chat scroll bounds").not.toBeNull();
     await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
@@ -79,6 +139,7 @@ test("pointer jitter cannot turn geometry changes into scroll intent", async ({ 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.mouse.move(410, bounds!.y + bounds!.height / 2 - 3);
     await page.mouse.up();
+    expect(await page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
 
     await longChat.client.sendAgentMessage(longChat.agentId, backgroundPrompt);
     await longChat.client.waitForFinish(longChat.agentId, 20_000);
