@@ -389,8 +389,12 @@ function shouldPreserveSemanticElement(range: Range, element: Element): boolean 
   }
   if (tag === "li") {
     if (hasSelectedListMarker(range, element)) return true;
-    // CSS list markers are outside text nodes. Starting inside a semantic item
-    // excludes its marker even when all of the label's characters are selected.
+    // A drag across complete items can start in their text: CSS markers have no
+    // text node to select. Preserve the first marker along with the rest of the list.
+    const list = element.parentElement;
+    const spansListItems = list && selectedListItems(list, range).length > 1;
+    if (spansListItems) return hasSelectedAllContents(range, element);
+    // Keep a text selection from a single item as a snippet.
     if (
       element.tagName === "LI" &&
       range.startContainer !== element &&

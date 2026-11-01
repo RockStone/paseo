@@ -3,6 +3,7 @@ import {
   createAssistantSelectionClipboardContent,
   createTranscriptSelectionClipboardContent,
 } from "./content.web";
+import { appendQuotedReply } from "./reply";
 
 const fixture = `
   <div data-testid="assistant-message">
@@ -391,8 +392,10 @@ describe("assistant selection copy ranges", () => {
 
     const content = copyAcross(message, "Install it:", "Done.");
 
-    expect(content?.plainText).toBe("Install it:\n\n```sh\nbrew install foo\n```\n\n2. Done.");
-    expect(content?.html).toContain("<div>2. Done.</div>");
+    expect(content?.plainText).toBe(
+      "1. Install it:\n\n    ```sh\n    brew install foo\n    ```\n\n2. Done.",
+    );
+    expect(content?.html).toMatch(/<div>2\.\s+Done\.\s*<\/div>/);
   });
 
   it("retains nested markers when a drag includes the complete outer item", () => {
@@ -781,6 +784,29 @@ describe("semantic library output", () => {
     expect(createAssistantSelectionClipboardContent(selection)?.html).not.toContain("<strong>");
     host.remove();
   });
+});
+
+it("preserves the first bullet when replying to a complete linked list selected from its text", () => {
+  const message = mountFixture();
+  message.innerHTML = [
+    "<ul>",
+    '<li><a href="docs/migrations/one-currency/plan.md">plan.md</a>: the economics, wallet and architecture.</li>',
+    '<li><a href="docs/migrations/one-currency/goal.md">goal.md</a>: task specs and the full inventory of affected code.</li>',
+    '<li><a href="docs/drive.md">drive.md</a>: the board.</li>',
+    '<li><a href="docs/owner-todo.md">owner-todo.md</a>: OT-126.</li>',
+    "</ul>",
+  ].join("");
+  const content = copyAcross(message, "plan.md", ": OT-126.");
+  const expected = [
+    "- [plan.md](docs/migrations/one-currency/plan.md): the economics, wallet and architecture.",
+    "- [goal.md](docs/migrations/one-currency/goal.md): task specs and the full inventory of affected code.",
+    "- [drive.md](docs/drive.md): the board.",
+    "- [owner-todo.md](docs/owner-todo.md): OT-126.",
+  ];
+  expect(content?.plainText).toBe(expected.join("\n"));
+  expect(appendQuotedReply("", content?.plainText ?? "")).toBe(
+    expected.map((line) => `> ${line}`).join("\n") + "\n\n",
+  );
 });
 
 it("copies native semantic ordered lists with their original numbers", () => {

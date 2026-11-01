@@ -713,21 +713,21 @@ test("copying an assistant selection preserves Markdown structure and links", as
     await copySelection(page);
 
     const midListClipboard = await readRichClipboard(page);
-    expect(midListClipboard.plainText).toBe("Seventh item\n\n8. Eighth item");
+    expect(midListClipboard.plainText).toBe("7. Seventh item\n8. Eighth item");
     expect(midListClipboard.html).toContain("<div>8. Eighth item</div>");
 
     await selectAssistantTextRange(page, "Inner eight", "Inner nine");
     await copySelection(page);
 
     const nestedListClipboard = await readRichClipboard(page);
-    expect(nestedListClipboard.plainText).toBe("Inner eight\n\n9. Inner nine");
+    expect(nestedListClipboard.plainText).toBe("8. Inner eight\n9. Inner nine");
     expect(nestedListClipboard.html).toContain("<div>9. Inner nine</div>");
 
     await selectAssistantTextRange(page, "Seventh item", "Nested list:");
     await copySelection(page);
 
     const crossBlockClipboard = await readRichClipboard(page);
-    expect(crossBlockClipboard.plainText).toBe("Seventh item\n\n8. Eighth item\n\nNested list:");
+    expect(crossBlockClipboard.plainText).toBe("7. Seventh item\n8. Eighth item\n\nNested list:");
     expect(crossBlockClipboard.html).toContain("<div>8. Eighth item</div>");
 
     await selectAssistantText(page, "Current");
@@ -865,6 +865,46 @@ test("copying a selection across an assistant image keeps its Markdown source an
     await copySelection(page);
 
     expect((await readRichClipboard(page)).plainText).toBe("After the");
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("replying to a selected linked list keeps every bullet without extra paragraph breaks", async ({
+  page,
+}, testInfo) => {
+  const items = [
+    "- [plan.md](docs/migrations/one-currency/plan.md): the economics, wallet and architecture.",
+    "- [goal.md](docs/migrations/one-currency/goal.md): task specs and the full inventory of affected code.",
+    "- [drive.md](docs/drive.md): the board.",
+    "- [owner-todo.md](docs/owner-todo.md): OT-126.",
+  ];
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "assistant-selection-list-reply-",
+    title: "Reply to a linked list",
+    initialPrompt: "Show the project files.",
+    featureValues: { mockAssistantResponse: `Files:\n\n${items.join("\n")}` },
+  });
+  try {
+    await agent.client.waitForAgentUpsert(
+      agent.agentId,
+      (snapshot) => snapshot.status === "idle",
+      30_000,
+    );
+    await openAgentRoute(page, agent);
+    const composer = composerLocator(page);
+    await expect(composer).toBeVisible();
+    await selectAssistantTextRange(page, "plan.md", "OT-126.");
+    const reply = page.getByTestId("reply-to-selection");
+    await expect(reply).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("linked-list-selection.png") });
+    await reply.click();
+    await expect(composer).toHaveAttribute(
+      "data-markdown",
+      items.map((item) => `> ${item}`).join("\n") + "\n\n",
+    );
+    await expect(composer).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath("linked-list-reply.png") });
   } finally {
     await agent.cleanup();
   }
