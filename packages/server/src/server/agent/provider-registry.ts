@@ -1,4 +1,4 @@
-import { readClaudeToken } from "./providers/claude/authentication.js";
+import { createClaudeOAuthSource } from "./providers/claude/authentication.js";
 import type { Logger } from "pino";
 import type { ProviderOptions, ToolPolicy } from "@getpaseo/protocol/agent-types";
 
@@ -187,14 +187,15 @@ const HUB_E2E_PROVIDER_CONTRACT: ProviderContract = {
   },
 };
 
+// One per daemon so a failed Claude login stays remembered across client rebuilds.
+const claudeOAuthSource = createClaudeOAuthSource();
+
 const PROVIDER_CLIENT_FACTORIES: Record<string, ProviderClientFactory> = {
   claude: (logger, runtimeSettings, options) =>
     new ClaudeAgentClient({
       logger,
       runtimeSettings,
-      loadOAuthToken: options?.customProvider
-        ? undefined
-        : async () => (await readClaudeToken())?.token ?? null,
+      oauthSource: options?.customProvider ? undefined : claudeOAuthSource,
     }),
   codex: (logger, runtimeSettings, options) =>
     new CodexAppServerAgentClient(logger, runtimeSettings, {

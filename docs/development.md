@@ -138,8 +138,11 @@ to the current agent; the agent reviews and performs Git operations. Composer
 drafts and attachments stay intact.
 
 Claude sessions retain the `Paseo` entrypoint used by earlier custom builds.
-Explicit launch hooks can override it. This launch label does not refresh OAuth
-credentials or grant the separate Usage scope.
+Explicit launch hooks can override it. This launch label does not affect
+credentials. Agents launch on the CLI's own login so the CLI refreshes it for
+Usage; the stored setup-token, which lacks the Usage scope, is injected only when
+that login is missing or failed to refresh. See
+[Unattended sessions in Paseoi](../public-docs/claude-code.md#unattended-sessions-in-paseoi).
 
 Build a locally signed macOS app for your machine:
 

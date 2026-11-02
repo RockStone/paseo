@@ -1,4 +1,5 @@
-import { claudeTokenCanSupplyEnvironment } from "./authentication.js";
+import { isProviderAuthenticationFailure } from "@getpaseo/protocol/authentication-failure";
+import { type ClaudeOAuthSource, claudeTokenCanSupplyEnvironment } from "./authentication.js";
 import { extractUserImageSources } from "../provider-image-output.js";
 import { setImmediate } from "node:timers/promises";
 import { ClaudeRuntimeSafety } from "./runtime-safety.js";
@@ -477,7 +478,7 @@ interface ClaudeAgentClientOptions {
   resolveBinary?: () => Promise<string>;
   resolveVersion?: (signal?: AbortSignal) => Promise<string>;
   rewindSdk?: ClaudeRewindSdk;
-  loadOAuthToken?: () => Promise<string | null>;
+  oauthSource?: ClaudeOAuthSource;
 }
 
 type ClaudeImportDescriptorResult =
@@ -495,7 +496,7 @@ interface ClaudeAgentSessionOptions {
   queryFactory?: ClaudeQueryFactory;
   resolveBinary: () => Promise<string>;
   rewindSdk?: ClaudeRewindSdk;
-  loadOAuthToken?: () => Promise<string | null>;
+  oauthSource?: ClaudeOAuthSource;
 }
 
 type ClaudeThinkingEffort = "low" | "medium" | "high" | "xhigh" | "max";
@@ -605,6 +606,9 @@ interface ClaudeOptionsLogSummary {
 }
 
 const MAX_RECENT_STDERR_CHARS = 4000;
+// Deliberately not an authentication failure: the agent recovers on the next message.
+const CLAUDE_LOGIN_FALLBACK_MESSAGE =
+  "Claude's own login on this host could not be refreshed, so this agent now uses the stored setup-token. Send your message again.";
 const STDERR_FLUSH_WAIT_MS = 150;
 const STDERR_FLUSH_POLL_INTERVAL_MS = 10;
 
@@ -1618,7 +1622,7 @@ export class ClaudeAgentClient implements AgentClient {
   private readonly resolveBinary: () => Promise<string>;
   private readonly resolveVersion: (signal?: AbortSignal) => Promise<string>;
   private readonly rewindSdk: ClaudeRewindSdk;
-  private readonly loadOAuthToken?: () => Promise<string | null>;
+  private readonly oauthSource?: ClaudeOAuthSource;
   private readonly scheduleImportDescriptors = createImportDescriptorScheduler(
     (candidate: ClaudeSessionCandidate, signal) => this.readImportDescriptor(candidate, signal),
   );
@@ -1640,7 +1644,7 @@ export class ClaudeAgentClient implements AgentClient {
       options.resolveVersion ??
       ((signal) => resolveClaudeCodeVersion(this.runtimeSettings, signal));
     this.rewindSdk = options.rewindSdk ?? realClaudeRewindSdk;
-    this.loadOAuthToken = options.loadOAuthToken;
+    this.oauthSource = options.oauthSource;
   }
 
   resolveConfiguredModel(model: AgentModelDefinition): AgentModelDefinition {
@@ -1663,7 +1667,7 @@ export class ClaudeAgentClient implements AgentClient {
       queryFactory: this.queryFactory,
       resolveBinary: this.resolveBinary,
       rewindSdk: this.rewindSdk,
-      loadOAuthToken: this.loadOAuthToken,
+      oauthSource: this.oauthSource,
     });
   }
 
@@ -1693,7 +1697,7 @@ export class ClaudeAgentClient implements AgentClient {
       queryFactory: this.queryFactory,
       resolveBinary: this.resolveBinary,
       rewindSdk: this.rewindSdk,
-      loadOAuthToken: this.loadOAuthToken,
+      oauthSource: this.oauthSource,
     });
     await session.ensureHistoryReady();
     return session;
@@ -2456,7 +2460,9 @@ class ClaudeAgentSession implements AgentSession {
   private readonly emittedUserMessageIds = new Set<string>();
   private readonly rewindTurnAnchors: ClaudeRewindTurnAnchor[] = [];
   private readonly rewindSdk: ClaudeRewindSdk;
-  private readonly loadOAuthToken?: () => Promise<string | null>;
+  private readonly oauthSource?: ClaudeOAuthSource;
+  /** The CLI's own login the running process relies on, when no setup-token was injected. */
+  private launchLogin: { fingerprint: string; fallbackAvailable: boolean } | null = null;
   private pendingFreshSessionId: string | null = null;
   private recentStderr = "";
   private closed = false;
@@ -2474,7 +2480,7 @@ class ClaudeAgentSession implements AgentSession {
     this.queryFactory = options.queryFactory;
     this.resolveBinary = options.resolveBinary;
     this.rewindSdk = options.rewindSdk ?? realClaudeRewindSdk;
-    this.loadOAuthToken = options.loadOAuthToken;
+    this.oauthSource = options.oauthSource;
     this.contextUsage = new ClaudeContextUsageState(
       getClaudeContextWindowMaxTokens(this.config.model),
     );
@@ -3742,10 +3748,35 @@ class ClaudeAgentSession implements AgentSession {
 
   private async buildAuthenticatedSdkEnv(): Promise<Record<string, string>> {
     const env = { ...this.harnessEnvironment };
-    if (!this.loadOAuthToken || !claudeTokenCanSupplyEnvironment(env)) return env;
-    const token = await this.loadOAuthToken();
-    if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
+    this.launchLogin = null;
+    if (!this.oauthSource || !claudeTokenCanSupplyEnvironment(env)) return env;
+    const launch = await this.oauthSource.resolve();
+    if (launch.token) env.CLAUDE_CODE_OAUTH_TOKEN = launch.token;
+    else if (launch.loginFingerprint)
+      this.launchLogin = {
+        fingerprint: launch.loginFingerprint,
+        fallbackAvailable: launch.fallbackAvailable,
+      };
     return env;
+  }
+
+  // The CLI could not use or refresh its own login. Relaunch on the stored setup-token from the
+  // next turn; the failed turn is not replayed because Claude already recorded its prompt.
+  private fallBackFromFailedLogin(errorMessage: string, diagnostic: string | undefined): string {
+    const login = this.launchLogin;
+    if (
+      !login ||
+      !this.oauthSource ||
+      !(
+        isProviderAuthenticationFailure("claude", errorMessage) ||
+        isProviderAuthenticationFailure("claude", diagnostic)
+      )
+    )
+      return errorMessage;
+    this.launchLogin = null;
+    this.oauthSource.markLoginFailed(login.fingerprint);
+    this.queryRestartNeeded = true;
+    return login.fallbackAvailable ? CLAUDE_LOGIN_FALLBACK_MESSAGE : errorMessage;
   }
 
   private async buildOptions(permissionMode: PermissionMode): Promise<ClaudeOptions> {
@@ -3978,10 +4009,13 @@ class ClaudeAgentSession implements AgentSession {
   private buildTurnFailedEvent(
     errorMessage: string,
   ): Extract<AgentStreamEvent, { type: "turn_failed" }> {
-    const normalized = errorMessage.trim() || "Claude run failed";
+    const diagnostic = this.getRecentStderrDiagnostic();
+    const normalized = this.fallBackFromFailedLogin(
+      errorMessage.trim() || "Claude run failed",
+      diagnostic,
+    );
     const exitCodeMatch = normalized.match(/\bcode\s+(\d+)\b/i);
     const code = exitCodeMatch ? exitCodeMatch[1] : undefined;
-    const diagnostic = this.getRecentStderrDiagnostic();
     return {
       type: "turn_failed",
       provider: "claude",

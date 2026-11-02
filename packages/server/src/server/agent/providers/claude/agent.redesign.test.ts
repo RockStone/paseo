@@ -4,6 +4,8 @@ import type { Logger } from "pino";
 import { createTestLogger } from "../../../../test-utils/test-logger.js";
 import { asInternals } from "../../../test-utils/class-mocks.js";
 import { ClaudeAgentClient, readEventIdentifiers } from "./agent.js";
+import { createClaudeOAuthSource } from "./authentication.js";
+import { isProviderAuthenticationFailure } from "@getpaseo/protocol/authentication-failure";
 import { streamSession } from "../test-utils/session-stream-adapter.js";
 import type { AgentStreamEvent, AgentTimelineItem } from "../../agent-sdk-types.js";
 
@@ -2119,19 +2121,23 @@ test("does not use stream_event uuid as assistant message identity when message_
 
 test("host OAuth credentials reach the SDK without entering persistence or overriding explicit auth", async () => {
   const hostToken = "sk-ant-oat01-SYNTHETIC_HOST_TOKEN";
-  const loadOAuthToken = vi.fn(async () => hostToken);
+  const resolve = vi.fn(async () => ({
+    token: hostToken,
+    loginFingerprint: null,
+    fallbackAvailable: false,
+  }));
   const queryMock = createBaseQueryMock(vi.fn(async () => ({ done: true, value: undefined })));
   sdkQueryFactory.mockImplementation(() => queryMock);
   const client = new ClaudeAgentClient({
     logger: createTestLogger(),
     queryFactory: sdkQueryFactory,
     resolveBinary: async () => "/test/claude/bin",
-    loadOAuthToken,
+    oauthSource: { resolve, markLoginFailed: vi.fn() },
   });
   const session = await client.createSession({ provider: "claude", cwd: process.cwd() });
   try {
     await session.startTurn("test credential delivery");
-    expect(loadOAuthToken).toHaveBeenCalledTimes(1);
+    expect(resolve).toHaveBeenCalledTimes(1);
     expect(sdkQueryFactory.mock.calls[0]?.[0]?.options?.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe(
       hostToken,
     );
@@ -2140,19 +2146,91 @@ test("host OAuth credentials reach the SDK without entering persistence or overr
     await session.close();
   }
   sdkQueryFactory.mockClear();
-  loadOAuthToken.mockClear();
+  resolve.mockClear();
   const explicit = await client.createSession(
     { provider: "claude", cwd: process.cwd() },
     { env: { ANTHROPIC_BASE_URL: "https://example.invalid" } },
   );
   try {
     await explicit.startTurn("test custom endpoint");
-    expect(loadOAuthToken).not.toHaveBeenCalled();
+    expect(resolve).not.toHaveBeenCalled();
     expect(
       sdkQueryFactory.mock.calls[0]?.[0]?.options?.env?.CLAUDE_CODE_OAUTH_TOKEN,
     ).toBeUndefined();
   } finally {
     await explicit.close();
+  }
+});
+
+test("a Claude login that fails to refresh hands the next turn to the stored setup-token", async () => {
+  const hostToken = "sk-ant-oat01-SYNTHETIC_FALLBACK_TOKEN";
+  const oauthSource = createClaudeOAuthSource({
+    readLogin: async () => ({ refreshable: true, fingerprint: "login-a" }),
+    readToken: async () => ({
+      token: hostToken,
+      savedAt: "2026-10-23T00:00:00.000Z",
+      renewBy: "2027-10-23T00:00:00.000Z",
+    }),
+  });
+  sdkQueryFactory.mockImplementation(() => createPendingQueryMock());
+  const client = new ClaudeAgentClient({
+    logger: createTestLogger(),
+    queryFactory: sdkQueryFactory,
+    resolveBinary: async () => "/test/claude/bin",
+    oauthSource,
+  });
+  const session = await client.createSession({ provider: "claude", cwd: process.cwd() });
+  const internal = asInternals<{
+    routeSdkMessageFromPump(message: Record<string, unknown>): Promise<void>;
+  }>(session);
+  const events: AgentStreamEvent[] = [];
+  session.subscribe((event) => events.push(event));
+  try {
+    await session.startTurn("hello");
+    expect(
+      sdkQueryFactory.mock.calls[0]?.[0]?.options?.env?.CLAUDE_CODE_OAUTH_TOKEN,
+    ).toBeUndefined();
+    await internal.routeSdkMessageFromPump({
+      type: "assistant",
+      error: "authentication_failed",
+      uuid: "auth-error",
+      message: { content: [{ type: "text", text: "Failed to authenticate" }] },
+    });
+    await internal.routeSdkMessageFromPump({
+      type: "result",
+      subtype: "error_during_execution",
+      errors: [],
+      usage: buildUsage(),
+      total_cost_usd: 0,
+    });
+    const failure = events.find((event) => event.type === "turn_failed");
+    expect(failure).toMatchObject({ error: expect.stringContaining("setup-token") });
+    // The agent recovers on its own, so it does not count toward the authentication warning.
+    expect(
+      isProviderAuthenticationFailure(
+        "claude",
+        failure?.type === "turn_failed" ? failure.error : null,
+      ),
+    ).toBe(false);
+
+    await session.startTurn("hello again");
+    expect(sdkQueryFactory).toHaveBeenCalledTimes(2);
+    expect(sdkQueryFactory.mock.calls[1]?.[0]?.options?.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe(
+      hostToken,
+    );
+  } finally {
+    await session.close();
+  }
+  // The failure is remembered for the same login across sessions.
+  sdkQueryFactory.mockClear();
+  const next = await client.createSession({ provider: "claude", cwd: process.cwd() });
+  try {
+    await next.startTurn("new agent");
+    expect(sdkQueryFactory.mock.calls[0]?.[0]?.options?.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe(
+      hostToken,
+    );
+  } finally {
+    await next.close();
   }
 });
 

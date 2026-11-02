@@ -6,6 +6,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   claudeAuthenticationStatus,
   claudeTokenCanSupplyEnvironment,
+  createClaudeOAuthSource,
+  readClaudeLogin,
   readClaudeToken,
   saveClaudeToken,
 } from "./authentication.js";
@@ -78,6 +80,66 @@ test("keychain errors cannot surface credential output", async () => {
 test("a missing credential leaves the normal Claude login available", async () => {
   fixture.code = 44;
   expect(await readClaudeToken()).toBeNull();
+});
+
+test("the CLI's own login is read for rotation metadata only", async () => {
+  const login = {
+    claudeAiOauth: {
+      accessToken: "sk-ant-oat01-SYNTHETIC_ACCESS",
+      refreshToken: "sk-ant-ort01-SYNTHETIC_REFRESH",
+      expiresAt: 1_790_000_000_000,
+    },
+  };
+  fixture.output = JSON.stringify(login);
+  const first = await readClaudeLogin();
+  expect(first).toEqual({ refreshable: true, fingerprint: expect.any(String) });
+  expect(JSON.stringify(first)).not.toContain("SYNTHETIC");
+  expect(fixture.calls[0]).toContain("Claude Code-credentials");
+  login.claudeAiOauth.expiresAt += 1;
+  fixture.output = JSON.stringify(login);
+  expect((await readClaudeLogin())?.fingerprint).not.toBe(first?.fingerprint);
+  fixture.output = JSON.stringify({ claudeAiOauth: { accessToken: "sk-ant-oat01-ONLY" } });
+  expect((await readClaudeLogin())?.refreshable).toBe(false);
+  fixture.code = 44;
+  expect(await readClaudeLogin()).toBeNull();
+});
+
+test("the setup-token is a fallback for a refreshable login until that login changes", async () => {
+  let login: { refreshable: boolean; fingerprint: string } | null = {
+    refreshable: true,
+    fingerprint: "login-a",
+  };
+  const readToken = vi.fn(async () => record);
+  const source = createClaudeOAuthSource({ readLogin: async () => login, readToken });
+  expect(await source.resolve()).toEqual({
+    token: null,
+    loginFingerprint: "login-a",
+    fallbackAvailable: true,
+  });
+  source.markLoginFailed("login-a");
+  expect(await source.resolve()).toEqual({
+    token: record.token,
+    loginFingerprint: null,
+    fallbackAvailable: false,
+  });
+  login = { refreshable: true, fingerprint: "login-b" };
+  expect((await source.resolve()).token).toBeNull();
+  login = { refreshable: false, fingerprint: "login-c" };
+  expect((await source.resolve()).token).toBe(record.token);
+  login = null;
+  expect((await source.resolve()).token).toBe(record.token);
+  const unreadable = createClaudeOAuthSource({
+    readLogin: async () => {
+      throw new Error("locked");
+    },
+    readToken,
+  });
+  expect((await unreadable.resolve()).token).toBe(record.token);
+  const noFallback = createClaudeOAuthSource({
+    readLogin: async () => ({ refreshable: true, fingerprint: "login-a" }),
+    readToken: async () => null,
+  });
+  expect((await noFallback.resolve()).fallbackAvailable).toBe(false);
 });
 
 test("renewal reminders and authentication failures expose metadata only", async () => {

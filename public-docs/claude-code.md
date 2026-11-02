@@ -31,10 +31,15 @@ On macOS, the custom Paseoi build can use a long-lived subscription token from
 (service `sh.paseoi.claude-oauth`, account `default`), outside your repository and agent instructions.
 The setup command prints the token but does not save it for you.
 
-The stored token applies when the default Claude provider launches its next process. Saving or
-removing it does not interrupt running agents. Explicit credential environment variables,
-profiles, custom configuration directories, third-party endpoints, and derived providers retain
-their own authentication. Restoring authentication alone does not replay failed work.
+When the Claude CLI on the host has a refreshable login of its own, Paseoi launches agents on that
+login so the CLI keeps it fresh and Usage can read it. The stored token is the fallback. Paseoi
+uses it when that login is missing, and after an agent reports that the login could not be
+refreshed. That turn fails and asks you to send the message again. The agent's next message and
+later launches use the token until the login changes, for example after `claude auth login`.
+Restarting the daemon also retries the login. Either credential applies when the default Claude
+provider launches its next process, so saving or removing the token does not interrupt running
+agents. Explicit credential environment variables, profiles, custom configuration directories,
+third-party endpoints, and derived providers retain their own authentication. Restoring authentication alone does not replay failed work.
 
 Set the renewal reminder to the token's issue date plus one year. The default assumes you generated
 it today; this is a reminder date, not a server-verified expiry. Paseoi checks once per hour while
