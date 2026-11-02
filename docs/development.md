@@ -164,14 +164,16 @@ source-only requests are exempt.
    `npm run build:custom:desktop`, using the persistent signing identity.
 3. Run `node packages/desktop/e2e/packaged-app-smoke.js --app <built Paseoi.app>` with
    isolated app data and daemon state. Keep its daemon off the live listener.
-4. Preserve the installed bundle as a rollback copy. Stage the tested build,
-   verify its signature, and replace `/Applications/Paseoi.app`.
+4. Stage the tested build, verify its signature, and replace `/Applications/Paseoi.app`.
+   Don't keep rollback copies of the bundle, and delete `packages/desktop/release`
+   after installing; each copy takes about 500 MB. Roll back by rebuilding from the
+   previous commit or branch.
 5. Verify the installed version, signing identity, and file contents against the
    tested build. Confirm the running app and managed daemon were not restarted.
 6. Review the task diff, commit focused changes, and push the current branch.
    Preserve unrelated work.
 
-Report source validation, installation, rollback location, and push results
+Report source validation, installation, and push results
 separately. Leave the running app and managed daemon alone; the installed bundle
 takes effect when the user relaunches the app.
 
