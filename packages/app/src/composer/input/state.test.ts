@@ -20,6 +20,7 @@ import {
   resolveAlternateSendAction,
   runAlternateSendAction,
   runDefaultSendAction,
+  runExpandedSendKey,
   runMessageInputKeyboardAction,
   shouldShowSplitControl,
   stopRealtimeVoice,
@@ -800,22 +801,16 @@ describe("expanded editor keys", () => {
       ...modifiers,
     });
 
-  it("writes a newline on Enter and Shift+Enter and leaves Cmd/Ctrl+Enter to send", () => {
+  it("writes a newline on Enter and Shift+Enter", () => {
     expect(key("Enter")).toBe("newline");
     expect(key("Enter", { shiftKey: true })).toBe("newline");
-    expect(key("Enter", { metaKey: true })).toBeNull();
-    expect(key("Enter", { ctrlKey: true })).toBeNull();
-    expect(
-      resolveMessageInputEnterAction({
-        submitOnEnter: true,
-        sendShortcut: "mod-enter",
-        shiftKey: false,
-        metaKey: true,
-        ctrlKey: false,
-        isAgentRunning: true,
-        onQueue: () => undefined,
-      }),
-    ).toBe("default-send");
+  });
+
+  it("sends on Cmd/Ctrl+Enter and takes the alternate send on Cmd/Ctrl+Shift+Enter", () => {
+    expect(key("Enter", { metaKey: true })).toBe("send");
+    expect(key("Enter", { ctrlKey: true })).toBe("send");
+    expect(key("Enter", { metaKey: true, shiftKey: true })).toBe("alternate-send");
+    expect(key("Enter", { ctrlKey: true, shiftKey: true })).toBe("alternate-send");
   });
 
   it("indents on Tab, outdents on Shift+Tab, and collapses on Escape", () => {
@@ -825,6 +820,61 @@ describe("expanded editor keys", () => {
     expect(key("Escape")).toBe("collapse");
     expect(key("Escape", { metaKey: true })).toBeNull();
     expect(key("a")).toBeNull();
+  });
+});
+
+describe("expanded send keys", () => {
+  function sendKey(action: "send" | "alternate-send", canSubmit: boolean) {
+    const calls: string[] = [];
+    runExpandedSendKey(action, {
+      canSubmit,
+      preventDefault: () => calls.push("preventDefault"),
+      handleDefaultSendAction: () => calls.push("default"),
+      handleAlternateSendAction: () => calls.push("alternate"),
+    });
+    return calls;
+  }
+
+  it("runs the matching send action", () => {
+    expect(sendKey("send", true)).toEqual(["preventDefault", "default"]);
+    expect(sendKey("alternate-send", true)).toEqual(["preventDefault", "alternate"]);
+  });
+
+  it("still consumes the key when nothing can be sent, so the editor adds no blank line", () => {
+    expect(sendKey("send", false)).toEqual(["preventDefault"]);
+    expect(sendKey("alternate-send", false)).toEqual(["preventDefault"]);
+  });
+
+  it("steers on Cmd+Enter and queues on Cmd+Shift+Enter with the default Steer behavior", () => {
+    const calls: string[] = [];
+    const ctx = {
+      defaultSendBehavior: "steer" as const,
+      isAgentRunning: true,
+      onQueue: () => undefined,
+      handleSendMessage: () => calls.push("send"),
+      handleQueueMessage: () => calls.push("queue"),
+    };
+    const run = (shiftKey: boolean) =>
+      runExpandedSendKey(shiftKey ? "alternate-send" : "send", {
+        canSubmit: true,
+        preventDefault: () => undefined,
+        handleDefaultSendAction: () => runDefaultSendAction(ctx),
+        handleAlternateSendAction: () => runAlternateSendAction(ctx),
+      });
+    const resolve = (shiftKey: boolean) => {
+      const action = resolveExpandedEditorKey({
+        key: "Enter",
+        shiftKey,
+        metaKey: true,
+        ctrlKey: false,
+        altKey: false,
+      });
+      if (action !== "send" && action !== "alternate-send") throw new Error(String(action));
+      return action === "alternate-send";
+    };
+    run(resolve(false));
+    run(resolve(true));
+    expect(calls).toEqual(["send", "queue"]);
   });
 });
 
@@ -856,6 +906,14 @@ describe("indentLines", () => {
     expect(indentLines("  a\n   b\nc", { start: 2, end: 9 }, "out")).toEqual({
       text: "a\n b\nc",
       selection: { start: 0, end: 5 },
+    });
+  });
+
+  it("leaves blank lines empty when indenting a multi-line selection", () => {
+    const text = "a\n\nb";
+    expect(indentLines(text, { start: 0, end: text.length }, "in")).toEqual({
+      text: "  a\n\n  b",
+      selection: { start: 2, end: 8 },
     });
   });
 

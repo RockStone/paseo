@@ -192,11 +192,19 @@ export function shouldShowSplitControl(input: {
   return input.split || input.overflowing;
 }
 
-export type ExpandedEditorKey = "collapse" | "indent" | "outdent" | "newline";
+export type ExpandedEditorKey =
+  | "collapse"
+  | "indent"
+  | "outdent"
+  | "newline"
+  | "send"
+  | "alternate-send";
 
 /**
  * Keys the expanded composer takes as an editor before the inline composer's handling.
  * An open suggestion popover has already claimed its keys by the time this runs.
+ * Enter writes here, so Cmd/Ctrl+Enter takes the send plain Enter performs inline and
+ * Cmd/Ctrl+Shift+Enter takes the alternate one (queue or steer, whichever is not default).
  */
 export function resolveExpandedEditorKey(event: {
   key: string;
@@ -209,8 +217,30 @@ export function resolveExpandedEditorKey(event: {
   if (event.key === "Escape" && !command && !event.shiftKey && !event.altKey) return "collapse";
   if (event.key === "Tab" && !command && !event.altKey)
     return event.shiftKey ? "outdent" : "indent";
-  if (event.key === "Enter" && !command) return "newline";
+  if (event.key === "Enter") {
+    if (!command) return "newline";
+    return event.shiftKey ? "alternate-send" : "send";
+  }
   return null;
+}
+
+/**
+ * Cmd/Ctrl(+Shift)+Enter in the expanded editor. The key is consumed even when nothing can
+ * be sent, or the editor's own Mod-Enter binding would insert a blank line.
+ */
+export function runExpandedSendKey(
+  action: "send" | "alternate-send",
+  ctx: {
+    canSubmit: boolean;
+    preventDefault: () => void;
+    handleDefaultSendAction: () => void;
+    handleAlternateSendAction: () => void;
+  },
+): void {
+  ctx.preventDefault();
+  if (!ctx.canSubmit) return;
+  if (action === "alternate-send") ctx.handleAlternateSendAction();
+  else ctx.handleDefaultSendAction();
 }
 
 export type MessageInputEnterAction = "alternate-send" | "default-send";

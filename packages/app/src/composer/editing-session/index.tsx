@@ -99,6 +99,13 @@ export class ComposerEditingSession {
     this.split = split;
     for (const listener of this.listeners) listener();
   }
+  /**
+   * The dock reports whether it can split. Losing that (a compact window, fullscreen, an
+   * archived agent) drops the request, so widening again lands in the normal layout.
+   */
+  syncSplitAvailability = (available: boolean) => {
+    if (!available) this.setSplit(false);
+  };
 }
 
 interface TabSessions {

@@ -12,8 +12,11 @@ import { formatAgentModeLabel } from "@/agent-controls/labels";
 import { getAgentControlHintKey } from "@/composer/agent-controls/utils";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
-import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
-import { resolveNextAgentModeId } from "@/composer/agent-controls/mode";
+import type {
+  KeyboardActionDefinition,
+  KeyboardActionTrigger,
+} from "@/keyboard/keyboard-action-dispatcher";
+import { leavesModeCycleToEditor, resolveNextAgentModeId } from "@/composer/agent-controls/mode";
 import { useComposerKeyboardScope } from "@/composer/keyboard-scope";
 import { useComposerSurface } from "@/composer/dock";
 import { useComposerControlLayout } from "@/composer/agent-controls/layout-context";
@@ -90,7 +93,6 @@ export function AgentModeControl({
   const { presentation } = useComposerControlLayout();
   const { t } = useTranslation();
   const { isActiveComposer } = useComposerKeyboardScope();
-  // Shift+Tab outdents in the expanded editor; the mode picker still cycles modes.
   const isSplit = useComposerSurface().split;
   const cycleShortcutKeys = useShortcutKeys("cycle-agent-mode");
   const anchorRef = useRef<View>(null);
@@ -141,21 +143,22 @@ export function AgentModeControl({
   );
 
   const handleKeyboardAction = useCallback(
-    (action: KeyboardActionDefinition): boolean => {
+    (action: KeyboardActionDefinition, trigger?: KeyboardActionTrigger): boolean => {
       if (action.id !== "message-input.mode-cycle") return false;
       if (disabled || !isActiveComposer) return false;
+      if (leavesModeCycleToEditor(isSplit, trigger)) return false;
       const nextModeId = resolveNextAgentModeId({ modeOptions, selectedMode: selectedModeId });
       if (!nextModeId) return false;
       onSelectMode(nextModeId);
       return true;
     },
-    [disabled, isActiveComposer, modeOptions, onSelectMode, selectedModeId],
+    [disabled, isActiveComposer, isSplit, modeOptions, onSelectMode, selectedModeId],
   );
 
   useKeyboardActionHandler({
     handlerId: keyboardHandlerIdRef.current,
     actions: ["message-input.mode-cycle"],
-    enabled: isActiveComposer && !disabled && !isSplit && modeOptions.length > 1,
+    enabled: isActiveComposer && !disabled && modeOptions.length > 1,
     priority: 200,
     handle: handleKeyboardAction,
   });

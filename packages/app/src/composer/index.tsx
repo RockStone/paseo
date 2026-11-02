@@ -18,6 +18,7 @@ import {
 } from "./editing-session";
 import type { ComposerTextSource } from "./text-source";
 import { useComposerSurface } from "./dock";
+import { readFocusedComposerCaret } from "./input/caret-geometry";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useStore } from "zustand";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
@@ -133,7 +134,10 @@ import { resolveAgentControlsMode } from "@/composer/agent-controls/mode";
 import { resolveComposerInputMode, type ComposerInputMode } from "@/composer/input-mode";
 import { resolveActiveSendBehavior } from "./input/state";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
-import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
+import type {
+  KeyboardActionDefinition,
+  KeyboardActionTrigger,
+} from "@/keyboard/keyboard-action-dispatcher";
 import type { MessageInputKeyboardActionKind } from "@/keyboard/actions";
 import { submitAgentInput } from "@/composer/submit";
 import { ComposerRecall } from "@/composer/recall";
@@ -589,6 +593,7 @@ function focusMessageInputWithPlatformStrategy(messageInputRef: {
 
 interface DispatchComposerKeyboardActionArgs {
   action: KeyboardActionDefinition;
+  trigger: KeyboardActionTrigger | undefined;
   isPaneFocused: boolean;
   messageInputRef: { current: MessageInputRef | null };
   isAgentRunning: boolean;
@@ -603,6 +608,7 @@ interface DispatchComposerKeyboardActionArgs {
 function dispatchComposerKeyboardAction(args: DispatchComposerKeyboardActionArgs): boolean {
   const {
     action,
+    trigger,
     isPaneFocused,
     messageInputRef,
     isAgentRunning,
@@ -615,7 +621,11 @@ function dispatchComposerKeyboardAction(args: DispatchComposerKeyboardActionArgs
   if (!isPaneFocused) return false;
 
   if (action.id === "agent.interrupt") {
-    if (messageInputRef.current?.runKeyboardAction("dictation-cancel")) return true;
+    if (messageInputRef.current?.runKeyboardAction("dictation-cancel")) {
+      // The editor would collapse on the same Escape; one press does one thing.
+      if (isEditingExpanded) trigger?.preventDefault();
+      return true;
+    }
     // Leave the key to the editor; interrupting stays one Escape away once collapsed.
     if (isEditingExpanded) return false;
     if (!isAgentRunning || isCancellingAgent || !isConnected) return false;
@@ -646,16 +656,20 @@ function ComposerKeyboardRegistration({
   focusMessageInputForKeyboardAction,
   isMessageInputFocused,
   handlerId,
-}: Omit<DispatchComposerKeyboardActionArgs, "action" | "isPaneFocused" | "isEditingExpanded"> & {
+}: Omit<
+  DispatchComposerKeyboardActionArgs,
+  "action" | "trigger" | "isPaneFocused" | "isEditingExpanded"
+> & {
   isMessageInputFocused: boolean;
   handlerId: string;
 }) {
   const { isActiveComposer } = useComposerKeyboardScope();
   const isEditingExpanded = useComposerSurface().split && isMessageInputFocused;
   const handleKeyboardAction = useCallback(
-    (action: KeyboardActionDefinition): boolean =>
+    (action: KeyboardActionDefinition, trigger?: KeyboardActionTrigger): boolean =>
       dispatchComposerKeyboardAction({
         action,
+        trigger,
         isPaneFocused: isActiveComposer,
         messageInputRef,
         isAgentRunning,
@@ -699,12 +713,14 @@ function ComposerKeyboardRegistration({
 
 function ComposerAutocomplete(props: React.ComponentProps<typeof AutocompletePopover>) {
   const { isActiveComposer } = useComposerKeyboardScope();
-  // A split composer starts at the top of its column, with no room above for the list.
-  const placement = useComposerSurface().split ? "inside-top" : "above";
+  // A split composer starts at the top of its column, with no room above for the list, so
+  // the list floats inside it on the side away from the caret.
+  const isSplit = useComposerSurface().split;
   return (
     <AutocompletePopover
       {...props}
-      placement={placement}
+      placement={isSplit ? "inside" : "above"}
+      readCaret={isSplit ? readFocusedComposerCaret : undefined}
       visible={isActiveComposer && props.visible}
     />
   );

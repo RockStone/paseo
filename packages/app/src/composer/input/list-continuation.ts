@@ -184,6 +184,21 @@ function mapIndentOffset(offset: number, edits: LineEdit[]): number {
   return mapped;
 }
 
+function resolveLineEdit(
+  text: string,
+  at: number,
+  direction: "in" | "out",
+  multiLine: boolean,
+): LineEdit | null {
+  if (direction === "in") {
+    // Blank lines between indented ones stay empty instead of gaining trailing spaces.
+    const isEmpty = at === text.length || text[at] === "\n";
+    return multiLine && isEmpty ? null : { at, removed: 0, inserted: INDENT.length };
+  }
+  const removed = text[at] === "\t" ? 1 : (/^ {1,2}/.exec(text.slice(at, at + 2))?.[0].length ?? 0);
+  return removed > 0 ? { at, removed, inserted: 0 } : null;
+}
+
 /**
  * Tab and Shift+Tab in the expanded composer. A selection or a list item moves its whole
  * lines by two spaces; a caret in plain text gets two spaces, as in a code editor. Returns
@@ -214,16 +229,9 @@ export function indentLines(
     lineStarts.push(next);
     index = text.indexOf("\n", next);
   }
-  const edits: LineEdit[] = [];
-  for (const at of lineStarts) {
-    if (direction === "in") {
-      edits.push({ at, removed: 0, inserted: INDENT.length });
-      continue;
-    }
-    const removed =
-      text[at] === "\t" ? 1 : (/^ {1,2}/.exec(text.slice(at, at + 2))?.[0].length ?? 0);
-    if (removed > 0) edits.push({ at, removed, inserted: 0 });
-  }
+  const edits = lineStarts.flatMap(
+    (at) => resolveLineEdit(text, at, direction, lineStarts.length > 1) ?? [],
+  );
   if (edits.length === 0) return null;
   let next = text;
   for (const edit of edits.toReversed()) {

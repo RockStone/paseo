@@ -216,4 +216,44 @@ describe("keyboard-action-dispatcher", () => {
     expect(replacementHandle).toHaveBeenCalledOnce();
     expect(oldHandle).not.toHaveBeenCalled();
   });
+
+  it("hands each handler the key press that triggered the action", () => {
+    const action: KeyboardActionDefinition = {
+      id: "message-input.mode-cycle",
+      scope: "message-input",
+    };
+    const seen: (string | undefined)[] = [];
+    dispatcher.registerHandler({
+      handlerId: "fallback",
+      actions: [action.id],
+      enabled: true,
+      priority: 100,
+      handle: (_action, trigger) => {
+        seen.push(`fallback:${trigger?.key}`);
+        return true;
+      },
+    });
+    dispatcher.registerHandler({
+      handlerId: "steps-aside",
+      actions: [action.id],
+      enabled: true,
+      priority: 200,
+      handle: (_action, trigger) => {
+        seen.push(`steps-aside:${trigger?.key}`);
+        return trigger?.key !== "Tab";
+      },
+    });
+    const trigger = {
+      key: "Tab",
+      shiftKey: true,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      preventDefault: () => undefined,
+    };
+
+    expect(dispatcher.dispatch(action, trigger)).toBe(true);
+    expect(dispatcher.dispatch(action)).toBe(true);
+    expect(seen).toEqual(["steps-aside:Tab", "fallback:Tab", "steps-aside:undefined"]);
+  });
 });

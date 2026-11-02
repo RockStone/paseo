@@ -138,4 +138,17 @@ describe("composer editing sessions", () => {
     expect(changes).toEqual([true, false]);
     expect(tabNotifications).toEqual([]);
   });
+
+  it("drops the split request once the dock cannot split, so widening again stays normal", () => {
+    const sessions = new ComposerEditingSessions();
+    const chat = sessions.get(workspace, "tab-1", target, "chat");
+    const { syncSplitAvailability } = chat;
+    chat.setSplit(true);
+    syncSplitAvailability(true);
+    expect(chat.getSplit()).toBe(true);
+    syncSplitAvailability(false);
+    expect(chat.getSplit()).toBe(false);
+    syncSplitAvailability(true);
+    expect(chat.getSplit()).toBe(false);
+  });
 });

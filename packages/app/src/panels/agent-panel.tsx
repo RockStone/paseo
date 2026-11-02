@@ -1301,6 +1301,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       fullscreen={isComposerFullscreen}
       splittable={showsComposer && hasActiveComposer}
       split={isComposerSplitRequested}
+      onSplitAvailabilityChange={composerEditingSession.syncSplitAvailability}
     >
       {dockContent}
       {composerSection}
@@ -1377,16 +1378,23 @@ function ChatSurface({
   fullscreen,
   splittable,
   split,
+  onSplitAvailabilityChange,
 }: {
   children: [ReactNode, ReactNode, ReactNode];
   disabled: boolean;
   fullscreen: boolean;
   splittable: boolean;
   split: boolean;
+  onSplitAvailabilityChange: (available: boolean) => void;
 }) {
   return (
     <FileDropZone style={styles.container} disabled={disabled}>
-      <ComposerDock fullscreen={fullscreen} splittable={splittable} split={split}>
+      <ComposerDock
+        fullscreen={fullscreen}
+        splittable={splittable}
+        split={split}
+        onSplitAvailabilityChange={onSplitAvailabilityChange}
+      >
         {children}
       </ComposerDock>
     </FileDropZone>

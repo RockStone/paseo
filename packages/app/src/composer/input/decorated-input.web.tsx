@@ -94,6 +94,11 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
           if (!view) return;
           view.dispatch({ selection: boundedSelection(selection, view.state.doc.length) });
         },
+        revealSelection: () => {
+          const view = editor.current;
+          if (!view) return;
+          view.dispatch({ effects: EditorView.scrollIntoView(view.state.selection.main.head) });
+        },
         reset: () => {
           const view = editor.current;
           if (!view) return;

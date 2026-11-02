@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import type {
   KeyboardActionDefinition,
   KeyboardActionId,
+  KeyboardActionTrigger,
 } from "@/keyboard/keyboard-action-dispatcher";
 import { useKeyboardActionDispatcher } from "@/keyboard/keyboard-action-dispatcher-context";
 
@@ -12,7 +13,7 @@ interface UseKeyboardActionHandlerInput {
   enabled: boolean;
   priority: number;
   isActive?: () => boolean;
-  handle: (action: KeyboardActionDefinition) => boolean;
+  handle: (action: KeyboardActionDefinition, trigger?: KeyboardActionTrigger) => boolean;
 }
 
 /**
@@ -57,7 +58,7 @@ export function useKeyboardActionHandler(input: UseKeyboardActionHandlerInput) {
         if (!current.enabled) return false;
         return current.isActive ? current.isActive() : true;
       },
-      handle: (action) => inputRef.current.handle(action),
+      handle: (action, trigger) => inputRef.current.handle(action, trigger),
     });
   }, [actionsKey, input.handlerId, input.priority, keyboardActionDispatcher]);
 }

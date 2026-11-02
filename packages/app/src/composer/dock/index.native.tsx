@@ -122,6 +122,8 @@ interface ComposerDockProps {
   /** The split layout is web-only; native docks keep the composer below the content. */
   splittable?: boolean;
   split?: boolean;
+  /** Never called: native never offers split, so there is no request to drop. */
+  onSplitAvailabilityChange?: (available: boolean) => void;
 }
 
 /** The stationary viewport, translated surface, and bounded composer are one owner. */

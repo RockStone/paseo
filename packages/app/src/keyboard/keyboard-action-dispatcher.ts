@@ -115,13 +115,26 @@ export type KeyboardActionDefinition =
   | { id: "workspace.rename"; scope: KeyboardActionScope }
   | { id: "workspace.setup.show"; scope: KeyboardActionScope };
 
+/**
+ * The key press that triggered a dispatch, when one did. Handlers read it to step aside for a
+ * particular key without blocking the action's other bindings, or to consume the key.
+ */
+export interface KeyboardActionTrigger {
+  key: string;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  preventDefault(): void;
+}
+
 export interface KeyboardActionHandler {
   handlerId: string;
   actions: readonly KeyboardActionId[];
   enabled: boolean;
   priority: number;
   isActive?: () => boolean;
-  handle: (action: KeyboardActionDefinition) => boolean;
+  handle: (action: KeyboardActionDefinition, trigger?: KeyboardActionTrigger) => boolean;
 }
 
 type KeyboardActionRegistryEntry = KeyboardActionHandler & {
@@ -149,7 +162,7 @@ export function createKeyboardActionDispatcher() {
       };
     },
 
-    dispatch(action: KeyboardActionDefinition): boolean {
+    dispatch(action: KeyboardActionDefinition, trigger?: KeyboardActionTrigger): boolean {
       const candidates = Array.from(handlers.values())
         .filter((handler) => handler.actions.includes(action.id))
         .filter((handler) => handler.enabled)
@@ -162,7 +175,7 @@ export function createKeyboardActionDispatcher() {
         });
 
       for (const handler of candidates) {
-        if (handler.handle(action)) {
+        if (handler.handle(action, trigger)) {
           return true;
         }
       }

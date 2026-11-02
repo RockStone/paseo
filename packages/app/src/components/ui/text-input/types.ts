@@ -10,6 +10,8 @@ export interface EditingTextInputHandle {
   getSelection?(): { start: number; end: number };
   replaceText(text: string, selection?: { start: number; end: number }): void;
   setSelection(selection: { start: number; end: number }): void;
+  /** Scroll the caret into view, for editors that scroll their own content. */
+  revealSelection?(): void;
   /** Clear the editor and reset its intrinsic layout, preserving focus intent. */
   reset(): void;
   getNativeRef(): unknown;

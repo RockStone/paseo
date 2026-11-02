@@ -5,8 +5,12 @@ import {
   expectComposerDraftSelection,
   expectComposerFocused,
   expectComposerVisible,
+  expectQueuedMessageButton,
   selectComposerDraftRange,
+  startRunningMockAgent,
 } from "../support/helpers/composer";
+import { gateNextAgentMessage } from "../support/helpers/agent-message-gate";
+import { expectAgentReadyToInterrupt } from "../support/helpers/agent-stream";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 
 const SCREENSHOT_DIR = process.env.PASEO_COMPOSER_SPLIT_SCREENSHOT_DIR;
@@ -47,6 +51,16 @@ async function openMockAgent(page: Page, title: string, initialPrompt?: string) 
     ).toBeVisible({ timeout: 30_000 });
   }
   return agent;
+}
+
+/** The editor line holding `text`, and the visible box of the editor that scrolls it. */
+async function readLineInEditor(page: Page, text: string) {
+  const line = await composerLocator(page).locator(".cm-line", { hasText: text }).boundingBox();
+  const scroller = await composerLocator(page)
+    .locator("xpath=ancestor::*[contains(@class,'cm-scroller')][1]")
+    .boundingBox();
+  if (!line || !scroller) throw new Error("composer line is not laid out");
+  return { line, scroller };
 }
 
 /** The scrolling editor box and the chat area it shares with the transcript. */
@@ -126,6 +140,22 @@ test.describe("composer split view", () => {
       await expect(splitColumn(page)).toHaveCount(0);
       await expectComposerFocused(page);
       await expectComposerDraft(page, LONG_DRAFT);
+
+      // A caret at the end of the expanded draft stays in view once the editor is capped again.
+      await splitToggle(page, "Expand composer").click();
+      await expect(splitColumn(page)).toBeVisible();
+      await input.press("ControlOrMeta+End");
+      await expectComposerDraftSelection(page, LONG_DRAFT.length, LONG_DRAFT.length);
+      await splitToggle(page, "Collapse composer").click();
+      await expect(splitColumn(page)).toHaveCount(0);
+      await expect
+        .poll(async () => {
+          const { line, scroller } = await readLineInEditor(page, "Line 30 of");
+          return (
+            line.y >= scroller.y - 1 && line.y + line.height <= scroller.y + scroller.height + 1
+          );
+        })
+        .toBe(true);
     } finally {
       await agent.cleanup();
     }
@@ -153,6 +183,13 @@ test.describe("composer split view", () => {
       await input.press("Enter");
       await expect(input).toHaveAttribute("data-markdown", "1. one\nPlain text\n");
       await expect(page.getByTestId("user-message")).toHaveCount(0);
+      await expect(splitColumn(page)).toBeVisible();
+
+      // With nothing to send, the send keys still write nothing.
+      await input.fill("");
+      await input.press("ControlOrMeta+Enter");
+      await input.press("ControlOrMeta+Shift+Enter");
+      await expect(input).toHaveAttribute("data-markdown", "");
       await expect(splitColumn(page)).toBeVisible();
 
       await input.fill("Sent from the expanded composer");
@@ -187,14 +224,34 @@ test.describe("composer split view", () => {
       await expect(popover.getByText("/mock", { exact: true }).first()).toBeVisible({
         timeout: 30_000,
       });
-      // The list floats inside the full-height composer, not above the pane.
+      // The list floats inside the full-height composer, not above the pane, and below a
+      // caret on the first line.
       const popoverBox = await popover.boundingBox();
       const columnBox = await splitColumn(page).boundingBox();
       expect(popoverBox!.y).toBeGreaterThanOrEqual(columnBox!.y);
+      const topCaret = await readLineInEditor(page, "/moc");
+      expect(popoverBox!.y).toBeGreaterThan(topCaret.line.y + topCaret.line.height);
       await input.press("Enter");
       await expect(input).toHaveAttribute("data-markdown", /^\/mock /);
       await expect(splitColumn(page)).toBeVisible();
 
+      // A caret low in the editor puts the list above it.
+      await input.fill(`${LONG_DRAFT}\n@README`);
+      await expect(page.getByTestId("autocomplete-option-file:README.md")).toBeVisible({
+        timeout: 30_000,
+      });
+      const bottomCaret = await readLineInEditor(page, "@README");
+      expect(bottomCaret.line.y).toBeGreaterThan(
+        bottomCaret.scroller.y + bottomCaret.scroller.height / 2,
+      );
+      await expect
+        .poll(async () => {
+          const box = await popover.filter({ visible: true }).boundingBox();
+          return box ? box.y + box.height : Number.POSITIVE_INFINITY;
+        })
+        .toBeLessThan(bottomCaret.line.y);
+      await input.press("Escape");
+      await expect(popover.filter({ visible: true })).toHaveCount(0);
       await input.fill("/moc");
       await expect(popover.getByText("/mock", { exact: true }).first()).toBeVisible();
       await input.press("Escape");
@@ -202,6 +259,50 @@ test.describe("composer split view", () => {
       await expect(splitColumn(page)).toBeVisible();
       await input.press("Escape");
       await expect(splitColumn(page)).toHaveCount(0);
+    } finally {
+      await agent.cleanup();
+    }
+  });
+
+  test("steers on Cmd/Ctrl+Enter and queues on Cmd/Ctrl+Shift+Enter while the agent runs", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    const gate = await gateNextAgentMessage(page);
+    const agent = await startRunningMockAgent(page, {
+      prefix: `composer-split-running-${testInfo.workerIndex}-`,
+      model: "one-minute-stream",
+      prompt: "Keep this turn active while the composer is expanded.",
+    });
+    try {
+      await expectAgentReadyToInterrupt(page);
+      const input = composerLocator(page);
+
+      const queuedPrompt = "Queue this from the expanded composer.";
+      await input.fill(LONG_DRAFT);
+      await splitToggle(page, "Expand composer").click();
+      await expect(splitColumn(page)).toBeVisible();
+      await input.fill(queuedPrompt);
+      await input.press("ControlOrMeta+Shift+Enter");
+      await expectQueuedMessageButton(page);
+      await expectComposerDraft(page, "");
+      await expect(splitColumn(page)).toHaveCount(0);
+      expect(gate.requestCount()).toBe(0);
+
+      const steeredPrompt = "Steer this from the expanded composer.";
+      await input.fill(LONG_DRAFT);
+      await splitToggle(page, "Expand composer").click();
+      await expect(splitColumn(page)).toBeVisible();
+      await input.fill(steeredPrompt);
+      await input.press("ControlOrMeta+Enter");
+      const request = await gate.waitForRequest();
+      expect(request.text).toBe(steeredPrompt);
+      expect(request.activeTurnBehavior).toBe("steer");
+      gate.accept();
+      await expect(page.getByTestId("user-message").filter({ hasText: steeredPrompt })).toHaveCount(
+        1,
+      );
+      await expectQueuedMessageButton(page);
     } finally {
       await agent.cleanup();
     }

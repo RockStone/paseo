@@ -98,13 +98,20 @@ On wide desktop/browser layouts the chat composer's text area stops growing at 3
 chat pane (at least 140px) and scrolls, leaving the transcript most of the pane. Once a
 draft reaches that cap, the corner button (**Expand composer**) moves the composer beside
 the transcript at full height, with the agent pills above it. **Collapse composer**,
-Escape, or sending returns to the normal layout; the draft, caret, and focus carry over.
-While expanded, Enter behaves like Shift+Enter, Tab and Shift+Tab indent and outdent by
-two spaces (so Shift+Tab does not cycle the mode), and Cmd+Enter/Ctrl+Enter sends. An open
-suggestion list still takes Enter, Tab, and Escape. The expanded send key is fixed: the
-**Send shortcut** setting and Settings → Shortcuts do not change it, because sending is
-handled by the editor rather than the shortcut registry. Phones, native apps, and
-new-agent drafts keep their previous cap and have no split.
+Escape, or sending returns to the normal layout; the draft, caret, and focus carry over,
+and the capped editor scrolls back to the caret. Narrowing the window to a compact
+layout, going fullscreen, or archiving the agent also drops the split, so widening again
+does not bring it back. While expanded, Enter behaves like Shift+Enter and Tab and
+Shift+Tab indent and outdent by two spaces; blank lines stay empty. Shift+Tab does not
+cycle the mode there, but a cycle shortcut rebound to another key still does.
+Cmd+Enter/Ctrl+Enter sends the way a tap on Send does, and Cmd+Shift+Enter/Ctrl+Shift+Enter
+the way holding Send does: with the default **Steer** behavior, it queues while the agent
+runs. An Escape that cancels dictation only cancels it. An open
+suggestion list still takes Enter, Tab, and Escape, and floats in the half of the editor
+away from the caret. The expanded send keys are fixed: the **Send shortcut** setting and
+Settings → Shortcuts do not change them, because sending is handled by the editor rather
+than the shortcut registry. Phones, native apps, and new-agent drafts keep their previous
+cap and have no split.
 
 Image previews brighten on hover and reveal a light, top-right delete control.
 Touch layouts keep the control visible. Adding or pasting an image inserts a

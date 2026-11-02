@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentMode } from "@getpaseo/protocol/agent-types";
-import { resolveAgentControlsMode, resolveNextAgentModeId } from "./mode";
+import { leavesModeCycleToEditor, resolveAgentControlsMode, resolveNextAgentModeId } from "./mode";
 
 const PLAN_MODE = { id: "plan", label: "Plan" } satisfies AgentMode;
 
@@ -65,5 +65,29 @@ describe("resolveNextAgentModeId", () => {
   it("returns null when there are fewer than two modes", () => {
     expect(resolveNextAgentModeId({ modeOptions: [], selectedMode: "" })).toBeNull();
     expect(resolveNextAgentModeId({ modeOptions: [PLAN_MODE], selectedMode: "plan" })).toBeNull();
+  });
+});
+
+describe("leavesModeCycleToEditor", () => {
+  const press = (key: string, modifiers: { shiftKey?: boolean; metaKey?: boolean } = {}) => ({
+    key,
+    shiftKey: false,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    ...modifiers,
+  });
+
+  it("steps aside for Shift+Tab only while the composer is expanded", () => {
+    expect(leavesModeCycleToEditor(true, press("Tab", { shiftKey: true }))).toBe(true);
+    expect(leavesModeCycleToEditor(false, press("Tab", { shiftKey: true }))).toBe(false);
+  });
+
+  it("keeps a rebound cycle shortcut and dispatches without a key working while expanded", () => {
+    expect(leavesModeCycleToEditor(true, press("m", { metaKey: true }))).toBe(false);
+    expect(leavesModeCycleToEditor(true, press("Tab", { shiftKey: true, metaKey: true }))).toBe(
+      false,
+    );
+    expect(leavesModeCycleToEditor(true, undefined)).toBe(false);
   });
 });

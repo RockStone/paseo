@@ -100,6 +100,7 @@ import {
   shouldShowSplitControl,
   runAlternateSendAction,
   runDefaultSendAction,
+  runExpandedSendKey,
   runMessageInputKeyboardAction,
   stopRealtimeVoice,
 } from "./state";
@@ -232,6 +233,8 @@ type WebTextInputKeyPressEvent = Pick<
       altKey?: boolean;
       // Web-only: present on DOM KeyboardEvent during IME composition (CJK input).
       isComposing?: boolean;
+      // Web-only: a window shortcut already consumed the key.
+      defaultPrevented?: boolean;
       keyCode?: number;
     }
   >,
@@ -461,8 +464,19 @@ function handleExpandedEditorKeyPress(
     altKey: Boolean(altKey),
   });
   if (action === "collapse") {
+    // A shortcut that already used this Escape (cancelling dictation) leaves the layout alone.
+    if (!event.nativeEvent.defaultPrevented) ctx.collapse();
     event.preventDefault();
-    ctx.collapse();
+    return true;
+  }
+  if (action === "send" || action === "alternate-send") {
+    runExpandedSendKey(action, {
+      canSubmit:
+        ctx.submitOnEnter && !ctx.isSubmitDisabled && !ctx.isSubmitLoading && !ctx.disabled,
+      preventDefault: () => event.preventDefault(),
+      handleDefaultSendAction: ctx.handleDefaultSendAction,
+      handleAlternateSendAction: ctx.handleAlternateSendAction,
+    });
     return true;
   }
   if (action === "indent" || action === "outdent") {
@@ -510,8 +524,7 @@ function handleDesktopKeyPressImpl(
 
   const action = resolveMessageInputEnterAction({
     submitOnEnter: ctx.submitOnEnter,
-    // Enter writes in the expanded editor, so only Cmd/Ctrl+Enter sends.
-    sendShortcut: ctx.expanded ? "mod-enter" : ctx.sendShortcut,
+    sendShortcut: ctx.sendShortcut,
     shiftKey: shiftKey ?? false,
     metaKey: metaKey ?? false,
     ctrlKey: ctrlKey ?? false,
@@ -1490,6 +1503,23 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       editingSession.setFullscreen(false);
       editingSession.setSplit(false);
     }, [editingSession]);
+    // The capped editor keeps the scroll offset it had at full height, which can leave the
+    // caret below the fold. Reveal it once the collapsed layout has settled.
+    const wasSplitRef = useRef(isSplit);
+    useEffect(() => {
+      const wasSplit = wasSplitRef.current;
+      wasSplitRef.current = isSplit;
+      if (!wasSplit || isSplit) return undefined;
+      let settled = 0;
+      const reveal = () => textInputRef.current?.revealSelection?.();
+      const frame = requestAnimationFrame(() => {
+        settled = requestAnimationFrame(reveal);
+      });
+      return () => {
+        cancelAnimationFrame(frame);
+        cancelAnimationFrame(settled);
+      };
+    }, [isSplit]);
 
     // The conversation sizes itself against the inline composer; fullscreen covers it.
     const handleComposerLayout = useCallback(

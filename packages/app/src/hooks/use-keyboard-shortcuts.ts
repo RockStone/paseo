@@ -166,7 +166,7 @@ export function useKeyboardShortcuts({
       case "none":
         return false;
       case "dispatch":
-        return keyboardActionDispatcher.dispatch(action.action);
+        return keyboardActionDispatcher.dispatch(action.action, event ?? undefined);
       case "navigate-workspace":
         keyboardWorkspaceSelectionRef.current = {
           serverId: action.serverId,

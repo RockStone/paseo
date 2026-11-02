@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getAutocompleteFallbackIndex, orderAutocompleteOptions } from "./autocomplete-utils";
+import {
+  getAutocompleteFallbackIndex,
+  orderAutocompleteOptions,
+  resolveInsideAutocompleteLayout,
+} from "./autocomplete-utils";
 
 const OPTIONS = ["alpha", "beta", "gamma"];
 
@@ -22,5 +26,28 @@ describe("getAutocompleteFallbackIndex", () => {
 
   it("picks top item when below-input ordering is used", () => {
     expect(getAutocompleteFallbackIndex(3, "below-input")).toBe(0);
+  });
+});
+
+describe("resolveInsideAutocompleteLayout", () => {
+  const editor = { top: 100, bottom: 900 };
+
+  it("floats at the bottom of the editor, short of the caret line, while the caret is in the top half", () => {
+    expect(
+      resolveInsideAutocompleteLayout({ editor, caret: { top: 120, bottom: 140 }, offset: 12 }),
+    ).toEqual({ edge: "bottom", maxHeight: 736 });
+  });
+
+  it("floats at the top of the editor, short of the caret line, while the caret is in the bottom half", () => {
+    expect(
+      resolveInsideAutocompleteLayout({ editor, caret: { top: 600, bottom: 620 }, offset: 12 }),
+    ).toEqual({ edge: "top", maxHeight: 476 });
+  });
+
+  it("keeps to the top half without a caret", () => {
+    expect(resolveInsideAutocompleteLayout({ editor, caret: null, offset: 12 })).toEqual({
+      edge: "top",
+      maxHeight: 400,
+    });
   });
 });

@@ -2,7 +2,7 @@ export { ComposerDockBackground } from "./internal/background";
 export { ComposerFullscreenBody, ComposerFullscreenFooter } from "./internal/fullscreen";
 export { useComposerSurface, type ComposerSurface } from "./internal/surface";
 import { ScrollView } from "@/components/ui/scroll-view";
-import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { resolveInlineComposerCapacity } from "./internal/capacity";
@@ -20,6 +20,8 @@ interface ComposerDockProps {
   splittable?: boolean;
   /** The composer asked to sit beside the content; honored on wide layouts only. */
   split?: boolean;
+  /** Told whenever split becomes available or unavailable, so the owner can drop a request. */
+  onSplitAvailabilityChange?: (available: boolean) => void;
 }
 
 export function ComposerDock({
@@ -28,6 +30,7 @@ export function ComposerDock({
   fullscreen = false,
   splittable = false,
   split = false,
+  onSplitAvailabilityChange,
 }: ComposerDockProps) {
   const compact = useIsCompactFormFactor();
   const [surfaceSize, setSurfaceSize] = useState<{ width: number; height: number }>();
@@ -39,6 +42,11 @@ export function ComposerDock({
   );
   const splitAvailable = splittable && !compact && !centered && !fullscreen;
   const isSplit = splitAvailable && split;
+  const latestAvailabilityListener = useRef(onSplitAvailabilityChange);
+  latestAvailabilityListener.current = onSplitAvailabilityChange;
+  useEffect(() => {
+    latestAvailabilityListener.current?.(splitAvailable);
+  }, [splitAvailable]);
   const surface = useMemo(
     (): ComposerSurface => ({ height: surfaceSize?.height, splitAvailable, split: isSplit }),
     [surfaceSize?.height, splitAvailable, isSplit],
