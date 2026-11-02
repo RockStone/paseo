@@ -31,7 +31,9 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 ## Paseoi custom desktop build
 
-The stable v0.14.0 integration branch is `paseoi/v0.14.0`; `pasio/v0.14.0-beta.1` and `pasio/v0.13.0` retain the previous custom builds.
+The current integration branch is `paseoi/v0.15.0-beta.1`; `paseoi/v0.14.0`, `pasio/v0.14.0-beta.1`, and `pasio/v0.13.0` retain the previous custom builds.
+Back up `~/.paseo/config.json` before installing a newer build. Older daemons reject settings that
+newer builds save, so rolling back means restoring that backup.
 Keep the stable branch in the main checkout. Detach temporary build worktrees
 before switching it back; Git rejects a branch already checked out in another worktree.
 

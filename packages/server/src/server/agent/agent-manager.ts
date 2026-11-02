@@ -2787,6 +2787,10 @@ export class AgentManager {
       agent.pendingReplacement = false;
       const errorMsg = error instanceof Error ? error.message : "Failed to start turn";
       const imageSources = await submittedImageSources;
+      // A cancel can settle the run while image sources are still being saved.
+      if (pendingRun.settled) {
+        throw error;
+      }
       this.runs.settleForegroundStart(pendingRun, { status: "failed", error: errorMsg });
       try {
         // A terminal rejection belongs after the submitted prompt even though no provider turn exists.
@@ -5176,7 +5180,8 @@ export class AgentManager {
     this.recordPreparedSubmittedPrompt(
       agent,
       prompt,
-      await extractUserImageSources(prompt),
+      // The provider already accepted the prompt; a failed preview save must not fail the send.
+      await extractUserImageSources(prompt).catch(() => []),
       clientMessageId,
       outcome,
       options,
