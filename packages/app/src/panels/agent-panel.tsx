@@ -24,7 +24,7 @@ import { SelectionReplyContext, insertQuotedReply } from "@/assistant-selection-
 import { useAgentStreamTail } from "@/agent-stream/use-agent-stream-tail";
 import { AgentStreamView, type AgentStreamViewHandle } from "@/agent-stream/view";
 import { ArchivedAgentCallout } from "@/components/archived-agent-callout";
-import { ComposerDock } from "@/composer/dock";
+import { ComposerDock, useComposerSurface } from "@/composer/dock";
 import { FileDropZone } from "@/components/file-drop/file-drop-zone";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RetainedChatContent } from "./retained-chat-content";
@@ -33,6 +33,7 @@ import { AgentCommandsProvider } from "@/agent-commands";
 import {
   useComposerEditingSession,
   useComposerFullscreen,
+  useComposerSplitRequest,
   type ComposerEditingSession,
 } from "@/composer/editing-session";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
@@ -1117,6 +1118,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   // The dock lays out fullscreen for the same session the composer edits in.
   const composerEditingSession = useComposerEditingSession("chat");
   const isComposerFullscreen = useComposerFullscreen(composerEditingSession);
+  const isComposerSplitRequested = useComposerSplitRequest(composerEditingSession);
   const subagentRows = useSubagentsForParent({ serverId, parentAgentId: agentId });
   const tasks = useSessionStore((state): TodoEntry[] | undefined =>
     state.sessions[serverId]?.agentTasks.get(agentId),
@@ -1202,28 +1204,47 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     },
     [composerEditingSession, replaceText, textSource],
   );
+  const agentTracks = hasActiveComposer ? (
+    <AgentTracks
+      cwd={cwd}
+      serverId={serverId}
+      workspaceId={workspaceId}
+      agentId={agentId}
+      parentAgentId={parentPillAgentId}
+      subagentRows={subagentRows}
+      tasks={tasks}
+      archiveFinishedStatus={archiveFinishedSubagents.status}
+      onArchiveFinished={archiveFinishedSubagents.archiveFinished}
+      hasPluginComposerPills={hasPluginComposerPills}
+    />
+  ) : null;
   const parentCallout = parentAgentId ? (
     <ParentAgentCallout serverId={serverId} parentAgentId={parentAgentId} />
   ) : null;
+  // The column wrapper is always present, so the composer keeps its place in the tree when
+  // the tracks move above it in split.
   const composerSection = showsComposer ? (
-    <RenderProfile id={`AgentComposerSection:${agentId}`}>
-      <AgentComposerSection
-        agentId={agentId}
-        serverId={serverId}
-        isPaneFocused={isPaneFocused}
-        isArchivingCurrentAgent={isArchivingCurrentAgent}
-        archivedAt={agentState.archivedAt}
-        cwd={cwd}
-        isSubmitLoading={false}
-        agentInputDraft={agentInputDraft}
-        replyFocusKey={replyFocusKey}
-        editingSession={composerEditingSession}
-        onAttentionInputFocus={onAttentionInputFocus}
-        onAttentionPromptSend={onAttentionPromptSend}
-        onComposerHeightChange={handleComposerHeightChange}
-        onMessageSent={handleMessageSent}
-      />
-    </RenderProfile>
+    <ComposerColumn>
+      <SplitAwareSlot column="composer">{agentTracks}</SplitAwareSlot>
+      <RenderProfile id={`AgentComposerSection:${agentId}`}>
+        <AgentComposerSection
+          agentId={agentId}
+          serverId={serverId}
+          isPaneFocused={isPaneFocused}
+          isArchivingCurrentAgent={isArchivingCurrentAgent}
+          archivedAt={agentState.archivedAt}
+          cwd={cwd}
+          isSubmitLoading={false}
+          agentInputDraft={agentInputDraft}
+          replyFocusKey={replyFocusKey}
+          editingSession={composerEditingSession}
+          onAttentionInputFocus={onAttentionInputFocus}
+          onAttentionPromptSend={onAttentionPromptSend}
+          onComposerHeightChange={handleComposerHeightChange}
+          onMessageSent={handleMessageSent}
+        />
+      </RenderProfile>
+    </ComposerColumn>
   ) : (
     parentCallout
   );
@@ -1248,20 +1269,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
           onOpenWorkspaceFile={onOpenWorkspaceFile}
         />
       </RenderProfile>
-      {hasActiveComposer ? (
-        <AgentTracks
-          cwd={cwd}
-          serverId={serverId}
-          workspaceId={workspaceId}
-          agentId={agentId}
-          parentAgentId={parentPillAgentId}
-          subagentRows={subagentRows}
-          tasks={tasks}
-          archiveFinishedStatus={archiveFinishedSubagents.status}
-          onArchiveFinished={archiveFinishedSubagents.archiveFinished}
-          hasPluginComposerPills={hasPluginComposerPills}
-        />
-      ) : null}
+      <SplitAwareSlot column="content">{agentTracks}</SplitAwareSlot>
     </View>
   );
 
@@ -1288,7 +1296,12 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   );
 
   const dock = (
-    <ChatSurface disabled={isArchivingCurrentAgent} fullscreen={isComposerFullscreen}>
+    <ChatSurface
+      disabled={isArchivingCurrentAgent}
+      fullscreen={isComposerFullscreen}
+      splittable={showsComposer && hasActiveComposer}
+      split={isComposerSplitRequested}
+    >
       {dockContent}
       {composerSection}
       {dockOverlay}
@@ -1362,15 +1375,48 @@ function ChatSurface({
   children,
   disabled,
   fullscreen,
+  splittable,
+  split,
 }: {
   children: [ReactNode, ReactNode, ReactNode];
   disabled: boolean;
   fullscreen: boolean;
+  splittable: boolean;
+  split: boolean;
 }) {
   return (
     <FileDropZone style={styles.container} disabled={disabled}>
-      <ComposerDock fullscreen={fullscreen}>{children}</ComposerDock>
+      <ComposerDock fullscreen={fullscreen} splittable={splittable} split={split}>
+        {children}
+      </ComposerDock>
     </FileDropZone>
+  );
+}
+
+/** Renders its children only in the column the dock currently gives them. */
+function SplitAwareSlot({
+  column,
+  children,
+}: {
+  column: "content" | "composer";
+  children: ReactNode;
+}) {
+  const { split } = useComposerSurface();
+  return split === (column === "composer") ? children : null;
+}
+
+/**
+ * The composer's place in the dock. In split the agent tracks (parent, subagents, tasks,
+ * branch and history pills) sit above the composer instead of under the transcript.
+ */
+function ComposerColumn({ children }: { children: ReactNode }) {
+  const { split } = useComposerSurface();
+  return (
+    <View
+      style={split ? animatedStaticStyles.splitComposerColumn : animatedStaticStyles.composerColumn}
+    >
+      {children}
+    </View>
   );
 }
 
@@ -1444,8 +1490,12 @@ const AgentStreamSection = memo(function AgentStreamSection({
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const { status: checkoutStatus } = useCheckoutStatusQuery({ serverId, cwd: agent.cwd ?? "" });
   const hasBranchPill = checkoutStatus?.isGit && !checkoutStatus.error;
+  // In split the tracks head the composer column, so nothing floats over the transcript.
+  const isComposerSplit = useComposerSurface().split;
   const hasVisibleComposerTracks =
-    hasActiveComposer && (hasVisibleAgentTracks || hasWorkspaceDiffStat || hasBranchPill);
+    hasActiveComposer &&
+    !isComposerSplit &&
+    (hasVisibleAgentTracks || hasWorkspaceDiffStat || hasBranchPill);
   const bottomOverlayTailClearance = hasVisibleComposerTracks
     ? resolveComposerTrackTailClearance(isCompactFormFactor)
     : 0;
@@ -1788,6 +1838,17 @@ const animatedStaticStyles = RNStyleSheet.create({
     flexShrink: 1,
     // Content-sized inline; fills the dock's fullscreen slot.
     flexGrow: 1,
+  },
+  // Passes the dock slot's bound through to the composer in every mode.
+  composerColumn: {
+    width: "100%",
+    flexShrink: 1,
+    flexGrow: 1,
+    minHeight: 0,
+  },
+  splitComposerColumn: {
+    flex: 1,
+    minHeight: 0,
   },
 });
 

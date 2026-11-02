@@ -1,5 +1,6 @@
 import {
   continueNumberedList,
+  indentLines,
   numberedListChanges,
   normalizeNumberedList,
 } from "./list-continuation";
@@ -11,13 +12,16 @@ import {
   resolveActiveSendBehavior,
   resolveComposerSurfacePresentation,
   resolveComposerSurfaceText,
+  resolveExpandedEditorKey,
   resolveGlyphRailOffset,
+  resolveMaxInputHeight,
   resolveMessageInputEnterAction,
   resolveRetainedSelection,
   resolveAlternateSendAction,
   runAlternateSendAction,
   runDefaultSendAction,
   runMessageInputKeyboardAction,
+  shouldShowSplitControl,
   stopRealtimeVoice,
 } from "./state";
 
@@ -723,5 +727,139 @@ it("keeps literal code and splits a numbered item at its cursor", () => {
   expect(continueNumberedList("1. word", { start: 3, end: 3 })).toEqual({
     text: "1. \n2. word",
     selection: { start: 7, end: 7 },
+  });
+});
+
+describe("composer height cap", () => {
+  const wide = { compact: false, windowHeight: 1000 };
+
+  it("caps a splittable composer at thirty percent of the pane, not the window", () => {
+    expect(resolveMaxInputHeight({ ...wide, paneHeight: 900, splitAvailable: true })).toBe(270);
+    expect(resolveMaxInputHeight({ ...wide, paneHeight: 620, splitAvailable: true })).toBe(186);
+  });
+
+  it("never caps a splittable composer below the floor", () => {
+    expect(resolveMaxInputHeight({ ...wide, paneHeight: 300, splitAvailable: true })).toBe(140);
+    expect(resolveMaxInputHeight({ ...wide, paneHeight: 0, splitAvailable: true })).toBe(140);
+  });
+
+  it("measures the window until the pane has laid out", () => {
+    expect(resolveMaxInputHeight({ ...wide, paneHeight: undefined, splitAvailable: true })).toBe(
+      300,
+    );
+  });
+
+  it("keeps half the window where the composer cannot split, and a fixed cap on phones", () => {
+    expect(resolveMaxInputHeight({ ...wide, paneHeight: 900, splitAvailable: false })).toBe(500);
+    expect(
+      resolveMaxInputHeight({
+        compact: true,
+        windowHeight: 800,
+        paneHeight: 700,
+        splitAvailable: false,
+      }),
+    ).toBe(160);
+  });
+});
+
+describe("split control", () => {
+  const base = {
+    splitAvailable: true,
+    split: false,
+    overflowing: false,
+    readOnly: false,
+    overlayVisible: false,
+  };
+
+  it("offers Expand only once the draft reaches the cap", () => {
+    expect(shouldShowSplitControl(base)).toBe(false);
+    expect(shouldShowSplitControl({ ...base, overflowing: true })).toBe(true);
+  });
+
+  it("keeps Collapse while split, whatever the draft's length", () => {
+    expect(shouldShowSplitControl({ ...base, split: true })).toBe(true);
+  });
+
+  it("hides on surfaces that cannot split, read-only drafts, and voice overlays", () => {
+    expect(shouldShowSplitControl({ ...base, overflowing: true, splitAvailable: false })).toBe(
+      false,
+    );
+    expect(shouldShowSplitControl({ ...base, overflowing: true, readOnly: true })).toBe(false);
+    expect(shouldShowSplitControl({ ...base, split: true, overlayVisible: true })).toBe(false);
+  });
+});
+
+describe("expanded editor keys", () => {
+  const key = (name: string, modifiers: Partial<Record<string, boolean>> = {}) =>
+    resolveExpandedEditorKey({
+      key: name,
+      shiftKey: false,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      ...modifiers,
+    });
+
+  it("writes a newline on Enter and Shift+Enter and leaves Cmd/Ctrl+Enter to send", () => {
+    expect(key("Enter")).toBe("newline");
+    expect(key("Enter", { shiftKey: true })).toBe("newline");
+    expect(key("Enter", { metaKey: true })).toBeNull();
+    expect(key("Enter", { ctrlKey: true })).toBeNull();
+    expect(
+      resolveMessageInputEnterAction({
+        submitOnEnter: true,
+        sendShortcut: "mod-enter",
+        shiftKey: false,
+        metaKey: true,
+        ctrlKey: false,
+        isAgentRunning: true,
+        onQueue: () => undefined,
+      }),
+    ).toBe("default-send");
+  });
+
+  it("indents on Tab, outdents on Shift+Tab, and collapses on Escape", () => {
+    expect(key("Tab")).toBe("indent");
+    expect(key("Tab", { shiftKey: true })).toBe("outdent");
+    expect(key("Tab", { metaKey: true })).toBeNull();
+    expect(key("Escape")).toBe("collapse");
+    expect(key("Escape", { metaKey: true })).toBeNull();
+    expect(key("a")).toBeNull();
+  });
+});
+
+describe("indentLines", () => {
+  it("moves the list item under the caret by two spaces and keeps the caret on its text", () => {
+    expect(indentLines("1. one\n2. two", { start: 12, end: 12 }, "in")).toEqual({
+      text: "1. one\n  2. two",
+      selection: { start: 14, end: 14 },
+    });
+    expect(indentLines("1. one\n  2. two", { start: 14, end: 14 }, "out")).toEqual({
+      text: "1. one\n2. two",
+      selection: { start: 12, end: 12 },
+    });
+  });
+
+  it("inserts two spaces at a caret in plain text", () => {
+    expect(indentLines("ab", { start: 1, end: 1 }, "in")).toEqual({
+      text: "a  b",
+      selection: { start: 3, end: 3 },
+    });
+  });
+
+  it("moves every selected line, but not a line the selection only touches at its start", () => {
+    const text = "a\n b\nc";
+    expect(indentLines(text, { start: 0, end: 5 }, "in")).toEqual({
+      text: "  a\n   b\nc",
+      selection: { start: 2, end: 9 },
+    });
+    expect(indentLines("  a\n   b\nc", { start: 2, end: 9 }, "out")).toEqual({
+      text: "a\n b\nc",
+      selection: { start: 0, end: 5 },
+    });
+  });
+
+  it("returns null when there is nothing to outdent", () => {
+    expect(indentLines("- item", { start: 3, end: 3 }, "out")).toBeNull();
   });
 });

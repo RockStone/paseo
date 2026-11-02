@@ -163,3 +163,80 @@ export function continueNumberedList(text: string, selection: { start: number; e
     selection: { start: caret, end: caret },
   });
 }
+
+const INDENT = "  ";
+const LIST_ITEM_LINE = /^[ \t]*(?:>[ \t]*)*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
+
+interface LineEdit {
+  at: number;
+  removed: number;
+  inserted: number;
+}
+
+function mapIndentOffset(offset: number, edits: LineEdit[]): number {
+  let mapped = offset;
+  for (const edit of edits) {
+    if (offset < edit.at) break;
+    if (edit.inserted > 0) mapped += edit.inserted;
+    else if (offset >= edit.at + edit.removed) mapped -= edit.removed;
+    else mapped -= offset - edit.at;
+  }
+  return mapped;
+}
+
+/**
+ * Tab and Shift+Tab in the expanded composer. A selection or a list item moves its whole
+ * lines by two spaces; a caret in plain text gets two spaces, as in a code editor. Returns
+ * null when nothing would change.
+ */
+export function indentLines(
+  text: string,
+  selection: { start: number; end: number },
+  direction: "in" | "out",
+): { text: string; selection: { start: number; end: number } } | null {
+  const start = Math.min(selection.start, selection.end);
+  const end = Math.max(selection.start, selection.end);
+  const firstLineStart = text.lastIndexOf("\n", start - 1) + 1;
+  const firstLineEnd = text.indexOf("\n", start);
+  const firstLine = text.slice(firstLineStart, firstLineEnd < 0 ? text.length : firstLineEnd);
+  if (direction === "in" && start === end && !LIST_ITEM_LINE.test(firstLine)) {
+    const caret = start + INDENT.length;
+    return {
+      text: text.slice(0, start) + INDENT + text.slice(end),
+      selection: { start: caret, end: caret },
+    };
+  }
+  const lineStarts = [firstLineStart];
+  for (let index = text.indexOf("\n", firstLineStart); index >= 0; ) {
+    const next = index + 1;
+    // A selection that ends at the start of a line does not include that line.
+    if (next > end || (next === end && end > start)) break;
+    lineStarts.push(next);
+    index = text.indexOf("\n", next);
+  }
+  const edits: LineEdit[] = [];
+  for (const at of lineStarts) {
+    if (direction === "in") {
+      edits.push({ at, removed: 0, inserted: INDENT.length });
+      continue;
+    }
+    const removed =
+      text[at] === "\t" ? 1 : (/^ {1,2}/.exec(text.slice(at, at + 2))?.[0].length ?? 0);
+    if (removed > 0) edits.push({ at, removed, inserted: 0 });
+  }
+  if (edits.length === 0) return null;
+  let next = text;
+  for (const edit of edits.toReversed()) {
+    next =
+      next.slice(0, edit.at) +
+      (edit.inserted > 0 ? INDENT : "") +
+      next.slice(edit.at + edit.removed);
+  }
+  return {
+    text: next,
+    selection: {
+      start: mapIndentOffset(selection.start, edits),
+      end: mapIndentOffset(selection.end, edits),
+    },
+  };
+}

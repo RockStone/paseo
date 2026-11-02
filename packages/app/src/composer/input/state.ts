@@ -152,6 +152,67 @@ export function runAlternateSendAction(ctx: SendActionContext): void {
   runDefaultSendAction(ctx);
 }
 
+export const DEFAULT_MAX_INPUT_HEIGHT = 160;
+const MAX_INPUT_VIEWPORT_RATIO = 0.5;
+const SPLITTABLE_MAX_INPUT_RATIO = 0.3;
+export const SPLITTABLE_MAX_INPUT_FLOOR = 140;
+
+/**
+ * The tallest the inline text area grows before it scrolls. Where the dock can split,
+ * the cap leaves most of the pane to the conversation, since Expand gives the draft
+ * room on demand. Other wide surfaces have no way out of the cap, so they keep half
+ * the window. Phones keep a fixed cap.
+ */
+export function resolveMaxInputHeight(input: {
+  windowHeight: number;
+  paneHeight: number | undefined;
+  compact: boolean;
+  splitAvailable: boolean;
+}): number {
+  if (input.compact) return DEFAULT_MAX_INPUT_HEIGHT;
+  if (input.splitAvailable) {
+    const height = input.paneHeight ?? input.windowHeight;
+    if (!Number.isFinite(height) || height <= 0) return SPLITTABLE_MAX_INPUT_FLOOR;
+    return Math.max(SPLITTABLE_MAX_INPUT_FLOOR, Math.floor(height * SPLITTABLE_MAX_INPUT_RATIO));
+  }
+  const { windowHeight } = input;
+  if (!Number.isFinite(windowHeight) || windowHeight <= 0) return DEFAULT_MAX_INPUT_HEIGHT;
+  return Math.max(DEFAULT_MAX_INPUT_HEIGHT, Math.floor(windowHeight * MAX_INPUT_VIEWPORT_RATIO));
+}
+
+/** Expand appears once the draft reaches the cap; Collapse stays for as long as it is split. */
+export function shouldShowSplitControl(input: {
+  splitAvailable: boolean;
+  split: boolean;
+  overflowing: boolean;
+  readOnly: boolean;
+  overlayVisible: boolean;
+}): boolean {
+  if (!input.splitAvailable || input.readOnly || input.overlayVisible) return false;
+  return input.split || input.overflowing;
+}
+
+export type ExpandedEditorKey = "collapse" | "indent" | "outdent" | "newline";
+
+/**
+ * Keys the expanded composer takes as an editor before the inline composer's handling.
+ * An open suggestion popover has already claimed its keys by the time this runs.
+ */
+export function resolveExpandedEditorKey(event: {
+  key: string;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+}): ExpandedEditorKey | null {
+  const command = event.metaKey || event.ctrlKey;
+  if (event.key === "Escape" && !command && !event.shiftKey && !event.altKey) return "collapse";
+  if (event.key === "Tab" && !command && !event.altKey)
+    return event.shiftKey ? "outdent" : "indent";
+  if (event.key === "Enter" && !command) return "newline";
+  return null;
+}
+
 export type MessageInputEnterAction = "alternate-send" | "default-send";
 
 export interface MessageInputEnterContext {

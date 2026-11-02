@@ -1,4 +1,4 @@
-import { continueNumberedList, normalizeNumberedList } from "./list-continuation";
+import { continueNumberedList, indentLines, normalizeNumberedList } from "./list-continuation";
 import type { SendShortcut } from "@/hooks/use-settings";
 import {
   useComposerEditingSession,
@@ -67,6 +67,7 @@ import { RenderProfile } from "@/utils/render-profiler";
 import { useComposerHeight } from "./height";
 import { useTypingFocus } from "./typing-focus";
 import { ComposerInputPresentation } from "./presentation";
+import { useComposerSurface } from "@/composer/dock";
 import { resolveComposerInputMode, type ComposerInputMode } from "@/composer/input-mode";
 import type { NativePastedFile } from "@/composer/native-pasted-image";
 import {
@@ -92,8 +93,11 @@ import {
   resolveAlternateSendAction,
   resolveComposerSurfacePresentation,
   resolveComposerSurfaceText,
+  resolveExpandedEditorKey,
+  resolveMaxInputHeight,
   resolveMessageInputEnterAction,
   resolveRetainedSelection,
+  shouldShowSplitControl,
   runAlternateSendAction,
   runDefaultSendAction,
   runMessageInputKeyboardAction,
@@ -218,8 +222,6 @@ export interface MessageInputRef {
 
 const MIN_INPUT_HEIGHT_MOBILE = 30;
 const MIN_INPUT_HEIGHT_DESKTOP = 46;
-const DEFAULT_MAX_INPUT_HEIGHT = 160;
-const MAX_INPUT_VIEWPORT_RATIO = 0.5;
 const MIN_INPUT_HEIGHT = isWeb ? MIN_INPUT_HEIGHT_DESKTOP : MIN_INPUT_HEIGHT_MOBILE;
 type WebTextInputKeyPressEvent = Pick<
   NativeSyntheticEvent<
@@ -425,6 +427,65 @@ interface DesktopKeyPressContext {
   disabled: boolean;
   handleAlternateSendAction: () => void;
   handleDefaultSendAction: () => void;
+  /** The composer sits beside the transcript and edits like a document. */
+  expanded: boolean;
+  collapse: () => void;
+}
+
+/** The host's handlers (suggestions, recall) see every key first. */
+function runKeyPressCallback(
+  event: WebTextInputKeyPressEvent,
+  ctx: DesktopKeyPressContext,
+): boolean {
+  if (!ctx.onKeyPressCallback) return false;
+  const { shiftKey, metaKey, ctrlKey, altKey } = event.nativeEvent;
+  return ctx.onKeyPressCallback({
+    key: event.nativeEvent.key,
+    hasModifier: Boolean(shiftKey || metaKey || ctrlKey || altKey),
+    preventDefault: () => event.preventDefault(),
+    input: ctx.input,
+  });
+}
+
+/** Returns true when the expanded editor consumed the key. */
+function handleExpandedEditorKeyPress(
+  event: WebTextInputKeyPressEvent,
+  ctx: DesktopKeyPressContext,
+): boolean {
+  const { shiftKey, metaKey, ctrlKey, altKey } = event.nativeEvent;
+  const action = resolveExpandedEditorKey({
+    key: event.nativeEvent.key,
+    shiftKey: Boolean(shiftKey),
+    metaKey: Boolean(metaKey),
+    ctrlKey: Boolean(ctrlKey),
+    altKey: Boolean(altKey),
+  });
+  if (action === "collapse") {
+    event.preventDefault();
+    ctx.collapse();
+    return true;
+  }
+  if (action === "indent" || action === "outdent") {
+    // Tab never leaves the editor while it is expanded, even when nothing moves.
+    event.preventDefault();
+    const edit = indentLines(
+      ctx.input.text,
+      ctx.input.selection,
+      action === "indent" ? "in" : "out",
+    );
+    if (edit) ctx.replaceText(edit.text, edit.selection);
+    return true;
+  }
+  if (action === "newline") {
+    // Enter is Shift+Enter here: continue a numbered list, or let the editor break the line.
+    const continuation = continueNumberedList(ctx.input.text, ctx.input.selection);
+    if (continuation) {
+      event.preventDefault();
+      ctx.replaceText(continuation.text, continuation.selection);
+    }
+    return true;
+  }
+  return false;
 }
 
 function handleDesktopKeyPressImpl(
@@ -433,18 +494,10 @@ function handleDesktopKeyPressImpl(
 ): void {
   if (isImeComposingKeyboardEvent(event.nativeEvent)) return;
 
-  const { shiftKey, metaKey, ctrlKey, altKey } = event.nativeEvent;
+  const { shiftKey, metaKey, ctrlKey } = event.nativeEvent;
 
-  if (ctx.onKeyPressCallback) {
-    const handled = ctx.onKeyPressCallback({
-      key: event.nativeEvent.key,
-      hasModifier: Boolean(shiftKey || metaKey || ctrlKey || altKey),
-      preventDefault: () => event.preventDefault(),
-      input: ctx.input,
-    });
-    if (handled) return;
-  }
-
+  if (runKeyPressCallback(event, ctx)) return;
+  if (ctx.expanded && handleExpandedEditorKeyPress(event, ctx)) return;
   if (event.nativeEvent.key !== "Enter") return;
   if (shiftKey) {
     const continuation = continueNumberedList(ctx.input.text, ctx.input.selection);
@@ -457,7 +510,8 @@ function handleDesktopKeyPressImpl(
 
   const action = resolveMessageInputEnterAction({
     submitOnEnter: ctx.submitOnEnter,
-    sendShortcut: ctx.sendShortcut,
+    // Enter writes in the expanded editor, so only Cmd/Ctrl+Enter sends.
+    sendShortcut: ctx.expanded ? "mod-enter" : ctx.sendShortcut,
     shiftKey: shiftKey ?? false,
     metaKey: metaKey ?? false,
     ctrlKey: ctrlKey ?? false,
@@ -676,7 +730,8 @@ interface ComposerTextSurfaceProps {
   ) => void;
   onPasteImages: ((files: readonly NativePastedFile[]) => void) | undefined;
   onPasteError: (message: string) => void;
-  fullscreen: boolean;
+  /** Fullscreen or split: the editor fills its slot instead of growing with its text. */
+  fill: boolean;
   compact: boolean;
   onRenderedLinesChange: (lines: number) => void;
   focusHintVisible: boolean;
@@ -717,8 +772,8 @@ function ComposerTextSurface(props: ComposerTextSurfaceProps): React.ReactElemen
     );
   }
   return (
-    <View style={[styles.textInputScrollWrapper, props.fullscreen && styles.fullscreenTextSurface]}>
-      {!isWeb && props.compact && !props.fullscreen ? (
+    <View style={[styles.textInputScrollWrapper, props.fill && styles.fullscreenTextSurface]}>
+      {!isWeb && props.compact && !props.fill ? (
         <Text
           accessible={false}
           pointerEvents="none"
@@ -796,6 +851,17 @@ function VoiceButtonTooltip({
         <VoiceTooltipBody voiceTooltipText={voiceTooltipText} shortcut={shortcut} />
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+/** Enter writes in the expanded editor, so the toolbar says which keys send. */
+function ExpandedSendHint() {
+  const { t } = useTranslation();
+  const shortcut = getShortcutOs() === "mac" ? "⌘↩" : "Ctrl+↩";
+  return (
+    <Text style={styles.expandedSendHint} testID="composer-expanded-send-hint">
+      {t("composer.input.expandedSendHint", { shortcut })}
+    </Text>
   );
 }
 
@@ -1060,12 +1126,6 @@ function computeIsDictationStartEnabled(
   return (isReadyForDictation ?? isConnected) && !disabled;
 }
 
-function resolveMaxInputHeight(windowHeight: number, compact: boolean): number {
-  if (compact) return DEFAULT_MAX_INPUT_HEIGHT;
-  if (!Number.isFinite(windowHeight) || windowHeight <= 0) return DEFAULT_MAX_INPUT_HEIGHT;
-  return Math.max(DEFAULT_MAX_INPUT_HEIGHT, Math.floor(windowHeight * MAX_INPUT_VIEWPORT_RATIO));
-}
-
 function isTextAreaLike(v: unknown): v is TextAreaHandle {
   return typeof v === "object" && v !== null && "scrollHeight" in v;
 }
@@ -1297,8 +1357,18 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const { height: windowHeight } = useWindowDimensions();
     const editingSession = useComposerEditingSession(inputMode, props.editingSession);
     const isFullscreen = useComposerFullscreen(editingSession);
+    const composerSurface = useComposerSurface();
+    // Split comes from the dock, which honors the session's request only on wide layouts.
+    const isSplit = composerSurface.split;
+    // Both modes fill a slot instead of growing with the text.
+    const fillsSlot = isFullscreen || isSplit;
     const [renderedLines, setRenderedLines] = useState(1);
-    const maxInputHeight = resolveMaxInputHeight(windowHeight, isCompact);
+    const maxInputHeight = resolveMaxInputHeight({
+      windowHeight,
+      paneHeight: composerSurface.height,
+      compact: isCompact,
+      splitAvailable: composerSurface.splitAvailable,
+    });
     const buttonIconSize = isWeb ? ICON_SIZE.md : ICON_SIZE.lg;
     const toast = useToast();
     const voice = useVoiceOptional();
@@ -1401,7 +1471,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       minHeight: MIN_INPUT_HEIGHT,
       maxHeight: maxInputHeight,
       onRenderedLinesChange: setRenderedLines,
-      presentationKey: isFullscreen,
+      presentationKey: fillsSlot,
     });
     const { style: composerHeightStyle, scrollEnabled: isComposerScrollEnabled } = composerHeight;
     const measuredComposerHeight = composerHeight.mode === "measured" ? composerHeight : undefined;
@@ -1410,6 +1480,16 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
     const exitFullscreen = useCallback(() => editingSession.setFullscreen(false), [editingSession]);
     const enterFullscreen = useCallback(() => editingSession.setFullscreen(true), [editingSession]);
+    const collapseSplit = useCallback(() => editingSession.setSplit(false), [editingSession]);
+    const toggleSplit = useCallback(
+      () => editingSession.setSplit(!editingSession.getSplit()),
+      [editingSession],
+    );
+    // Sending leaves every enlarged layout for the normal one under the new message.
+    const leaveEnlargedLayout = useCallback(() => {
+      editingSession.setFullscreen(false);
+      editingSession.setSplit(false);
+    }, [editingSession]);
 
     // The conversation sizes itself against the inline composer; fullscreen covers it.
     const handleComposerLayout = useCallback(
@@ -1733,7 +1813,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         onSubmit,
         onMinimizeHeight: minimizeInputHeight,
         preserveHeightOnSubmit,
-        exitFullscreen,
+        exitFullscreen: leaveEnlargedLayout,
       });
     }, [
       allowEmptySubmit,
@@ -1745,7 +1825,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       minimizeInputHeight,
       preserveHeightOnSubmit,
       updateLiveTextPresence,
-      exitFullscreen,
+      leaveEnlargedLayout,
     ]);
 
     const handleQueueMessage = useCallback(
@@ -1757,9 +1837,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           onQueue,
           replaceText,
           onMinimizeHeight: minimizeInputHeight,
-          exitFullscreen,
+          exitFullscreen: leaveEnlargedLayout,
         }),
-      [attachments, cwd, onQueue, replaceText, minimizeInputHeight, exitFullscreen],
+      [attachments, cwd, onQueue, replaceText, minimizeInputHeight, leaveEnlargedLayout],
     );
 
     const handleDefaultSendAction = useCallback(() => {
@@ -1837,9 +1917,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           disabled,
           handleAlternateSendAction,
           handleDefaultSendAction,
+          expanded: isSplit,
+          collapse: collapseSplit,
         });
       },
       [
+        isSplit,
+        collapseSplit,
         shouldHandleWebKeyPress,
         replaceText,
         onKeyPressCallback,
@@ -1980,15 +2064,30 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       void handleStopRealtimeVoice();
     }, [handleStopRealtimeVoice]);
 
+    const showSplitControl = shouldShowSplitControl({
+      splitAvailable: composerSurface.splitAvailable,
+      split: isSplit,
+      overflowing: isComposerScrollEnabled,
+      readOnly,
+      overlayVisible: showOverlay,
+    });
     const inputWrapperCombinedStyle = useMemo(
       () => [
         styles.inputWrapper,
         isCompact && !isFullscreen && styles.inputWrapperCompact,
+        isSplit && styles.inputWrapperSplit,
         readOnly && styles.inputWrapperReadOnly,
         inputWrapperStyle,
         { opacity: surfacePresentation.input.opacity },
       ],
-      [inputWrapperStyle, isCompact, isFullscreen, readOnly, surfacePresentation.input.opacity],
+      [
+        inputWrapperStyle,
+        isCompact,
+        isFullscreen,
+        isSplit,
+        readOnly,
+        surfacePresentation.input.opacity,
+      ],
     );
     // `withUnistyles` maps this component's `style` into a `.hash > *` child
     // rule, which ties on specificity with react-native-web's own
@@ -1999,10 +2098,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       () => [
         styles.textInput,
         mode.isMonospace && styles.textInputMonospace,
-        isFullscreen ? styles.fullscreenTextInput : composerHeightStyle,
+        fillsSlot ? styles.fullscreenTextInput : composerHeightStyle,
         isCompact && !isFullscreen && styles.compactTextInput,
+        // Same reserved band as compact, only while the control shows: it appears once the
+        // draft is already at the cap, so the extra wrapping cannot hide it again.
+        showSplitControl && styles.compactTextInput,
       ],
-      [composerHeightStyle, mode.isMonospace, isFullscreen, isCompact],
+      [composerHeightStyle, mode.isMonospace, fillsSlot, isFullscreen, isCompact, showSplitControl],
     );
     // Static content has no textarea to mirror, so it grows with its own text
     // instead of the measured input height.
@@ -2123,13 +2225,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
             editable={!isDictating && !isRealtimeVoiceForCurrentAgent && !disabled}
-            scrollEnabled={isComposerScrollEnabled}
+            scrollEnabled={isSplit || isComposerScrollEnabled}
             autoFocus={false}
             onKeyPress={shouldHandleWebKeyPress ? handleDesktopKeyPress : undefined}
             onSelectionChange={handleSelectionChange}
             onPasteImages={onPasteImages}
             onPasteError={handlePasteError}
-            fullscreen={isFullscreen}
+            fill={fillsSlot}
             compact={isCompact}
             onRenderedLinesChange={setRenderedLines}
             focusHintVisible={!isFullscreen && isWeb && !isInputFocused && !value}
@@ -2161,7 +2263,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         handleSelectionChange,
         onPasteImages,
         handlePasteError,
+        isSplit,
         isFullscreen,
+        fillsSlot,
         isCompact,
         isInputFocused,
         value,
@@ -2187,6 +2291,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
           {/* Right: voice button, contextual button (realtime/send/cancel) */}
           <View style={styles.rightButtonGroup}>
+            {isSplit ? <ExpandedSendHint /> : null}
             {beforeVoiceContent}
             <VoiceButtonTooltip
               visible={mode.showVoice}
@@ -2227,6 +2332,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         dictationToggleKeys,
         rightContent,
         sendButton,
+        isSplit,
       ],
     );
     const voiceOverlay = useMemo(
@@ -2277,7 +2383,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     return (
       <View
         ref={rootRef}
-        style={isFullscreen ? styles.fullscreenContainer : styles.container}
+        style={fillsSlot ? styles.fullscreenContainer : styles.container}
         testID="message-input-root"
         onLayout={handleComposerLayout}
       >
@@ -2305,6 +2411,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             renderedLines,
           )}
           onEnter={enterFullscreen}
+          split={isSplit}
+          showSplitButton={showSplitControl}
+          onToggleSplit={toggleSplit}
           overlay={voiceOverlay}
         />
       </View>
@@ -2358,6 +2467,17 @@ const styles = StyleSheet.create((theme: Theme) => ({
   // into it" without swapping the border colour, which reads as an error state.
   inputWrapperReadOnly: {
     borderStyle: "dotted",
+  },
+  // Beside the transcript the box takes the column's height; the editor fills what the
+  // attachments and toolbar leave.
+  inputWrapperSplit: {
+    flex: 1,
+    minHeight: 0,
+  },
+  expandedSendHint: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foregroundMuted,
+    marginRight: theme.spacing[2],
   },
   // The band the fullscreen glyph sits in is the input's own padding, so a tap
   // anywhere in it (under the glyph, or where the glyph would be) is a tap on the

@@ -17,6 +17,7 @@ import {
   type ComposerEditingSession,
 } from "./editing-session";
 import type { ComposerTextSource } from "./text-source";
+import { useComposerSurface } from "./dock";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useStore } from "zustand";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
@@ -595,6 +596,8 @@ interface DispatchComposerKeyboardActionArgs {
   isConnected: boolean;
   handleCancelAgent: () => void;
   focusMessageInputForKeyboardAction: () => void;
+  /** Escape in the expanded editor collapses it, after any open suggestions close. */
+  isEditingExpanded: boolean;
 }
 
 function dispatchComposerKeyboardAction(args: DispatchComposerKeyboardActionArgs): boolean {
@@ -607,11 +610,14 @@ function dispatchComposerKeyboardAction(args: DispatchComposerKeyboardActionArgs
     isConnected,
     handleCancelAgent,
     focusMessageInputForKeyboardAction,
+    isEditingExpanded,
   } = args;
   if (!isPaneFocused) return false;
 
   if (action.id === "agent.interrupt") {
     if (messageInputRef.current?.runKeyboardAction("dictation-cancel")) return true;
+    // Leave the key to the editor; interrupting stays one Escape away once collapsed.
+    if (isEditingExpanded) return false;
     if (!isAgentRunning || isCancellingAgent || !isConnected) return false;
     handleCancelAgent();
     return true;
@@ -640,11 +646,12 @@ function ComposerKeyboardRegistration({
   focusMessageInputForKeyboardAction,
   isMessageInputFocused,
   handlerId,
-}: Omit<DispatchComposerKeyboardActionArgs, "action" | "isPaneFocused"> & {
+}: Omit<DispatchComposerKeyboardActionArgs, "action" | "isPaneFocused" | "isEditingExpanded"> & {
   isMessageInputFocused: boolean;
   handlerId: string;
 }) {
   const { isActiveComposer } = useComposerKeyboardScope();
+  const isEditingExpanded = useComposerSurface().split && isMessageInputFocused;
   const handleKeyboardAction = useCallback(
     (action: KeyboardActionDefinition): boolean =>
       dispatchComposerKeyboardAction({
@@ -656,11 +663,13 @@ function ComposerKeyboardRegistration({
         isConnected,
         handleCancelAgent,
         focusMessageInputForKeyboardAction,
+        isEditingExpanded,
       }),
     [
       focusMessageInputForKeyboardAction,
       handleCancelAgent,
       isActiveComposer,
+      isEditingExpanded,
       isAgentRunning,
       isCancellingAgent,
       isConnected,
@@ -690,7 +699,15 @@ function ComposerKeyboardRegistration({
 
 function ComposerAutocomplete(props: React.ComponentProps<typeof AutocompletePopover>) {
   const { isActiveComposer } = useComposerKeyboardScope();
-  return <AutocompletePopover {...props} visible={isActiveComposer && props.visible} />;
+  // A split composer starts at the top of its column, with no room above for the list.
+  const placement = useComposerSurface().split ? "inside-top" : "above";
+  return (
+    <AutocompletePopover
+      {...props}
+      placement={placement}
+      visible={isActiveComposer && props.visible}
+    />
+  );
 }
 
 function resolveMessageInputPassthroughAction(
@@ -1455,6 +1472,7 @@ function ComposerContentImpl({
   const [pendingNativeImagePastes, setPendingNativeImagePastes] = useState(0);
   const editingSession = useComposerEditingSession(inputMode, providedEditingSession);
   const isFullscreen = useComposerFullscreen(editingSession);
+  const isSplit = useComposerSurface().split;
   const [sendError, setSendError] = useState<string | null>(null);
   const [isMessageInputFocused, setIsMessageInputFocused] = useState(false);
   const [isGithubPickerOpen, setIsGithubPickerOpen] = useState(false);
@@ -2567,21 +2585,31 @@ function ComposerContentImpl({
 
   // Fullscreen fills the dock slot: the chain down to the input stretches and drops
   // the inline padding, which the fullscreen presentation supplies itself.
+  // Split fills the column the same way but keeps the inline padding and width.
   const inputAreaContainerStyle = useMemo(
     () => [
       styles.inputAreaContainer,
       isComposerLocked && styles.inputAreaLocked,
       isFullscreen && styles.inputAreaFullscreen,
+      isSplit && styles.splitFill,
     ],
-    [isComposerLocked, isFullscreen],
+    [isComposerLocked, isFullscreen, isSplit],
   );
   const inputAreaContentStyle = useMemo(
-    () => [styles.inputAreaContent, isFullscreen && styles.fullscreenFill],
-    [isFullscreen],
+    () => [
+      styles.inputAreaContent,
+      isFullscreen && styles.fullscreenFill,
+      isSplit && styles.splitFill,
+    ],
+    [isFullscreen, isSplit],
   );
   const messageInputContainerStyle = useMemo(
-    () => [styles.messageInputContainer, isFullscreen && styles.fullscreenFill],
-    [isFullscreen],
+    () => [
+      styles.messageInputContainer,
+      isFullscreen && styles.fullscreenFill,
+      isSplit && styles.splitFill,
+    ],
+    [isFullscreen, isSplit],
   );
 
   const attachmentTray = useMemo(
@@ -2727,7 +2755,9 @@ function ComposerContentImpl({
       />
       <View
         style={
-          isFullscreen ? animatedStaticStyles.fullscreenContainer : animatedStaticStyles.container
+          isFullscreen || isSplit
+            ? animatedStaticStyles.fullscreenContainer
+            : animatedStaticStyles.container
         }
       >
         <AttachmentLightbox
@@ -2898,6 +2928,10 @@ const styles = StyleSheet.create((theme: Theme) => ({
     flex: 1,
     minHeight: 0,
     maxWidth: "100%",
+  },
+  splitFill: {
+    flex: 1,
+    minHeight: 0,
   },
   inputAreaContent: {
     flexShrink: 1,

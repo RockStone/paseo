@@ -119,4 +119,23 @@ describe("composer editing sessions", () => {
     expect(sessions.isTabFullscreen(workspace, "tab-2")).toBe(false);
     expect(sessions.get(workspace, "tab-2", target, "chat").getFullscreen()).toBe(false);
   });
+
+  it("keeps each tab's split request apart without marking the tab fullscreen", () => {
+    const sessions = new ComposerEditingSessions();
+    const tabNotifications: number[] = [];
+    sessions.subscribe(() => tabNotifications.push(1));
+    const chat = sessions.get(workspace, "tab-1", target, "chat");
+    const other = sessions.get(workspace, "tab-2", target, "chat");
+    const changes: boolean[] = [];
+    chat.subscribe(() => changes.push(chat.getSplit()));
+    chat.setSplit(true);
+    chat.setSplit(true);
+    expect(chat.getSplit()).toBe(true);
+    expect(other.getSplit()).toBe(false);
+    expect(sessions.get(workspace, "tab-1", target, "chat").getSplit()).toBe(true);
+    expect(sessions.isTabFullscreen(workspace, "tab-1")).toBe(false);
+    chat.setSplit(false);
+    expect(changes).toEqual([true, false]);
+    expect(tabNotifications).toEqual([]);
+  });
 });

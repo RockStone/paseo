@@ -25,8 +25,15 @@ interface RelativeAnchorRect {
   x: number;
   y: number;
   width: number;
+  height: number;
   hostHeight: number;
 }
+
+/**
+ * Where the list floats: above the anchor, or over the top of an anchor too tall to have
+ * room above it (a composer that fills its column).
+ */
+export type AutocompletePlacement = "above" | "inside-top";
 
 interface AutocompletePopoverProps {
   header?: ReactNode;
@@ -40,6 +47,7 @@ interface AutocompletePopoverProps {
   errorMessage?: string;
   loadingText?: string;
   emptyText?: string;
+  placement?: AutocompletePlacement;
 }
 
 export function AutocompletePopover({
@@ -54,6 +62,7 @@ export function AutocompletePopover({
   errorMessage,
   loadingText,
   emptyText,
+  placement = "above",
 }: AutocompletePopoverProps): ReactElement | null {
   "use no memo";
   // React Compiler memoizes effect captures by reading SharedValue.value during render.
@@ -89,6 +98,7 @@ export function AutocompletePopover({
           x: anchorRect.x - hostRect.x,
           y: anchorRect.y - hostRect.y,
           width: anchorRect.width,
+          height: anchorRect.height,
           hostHeight: hostRect.height,
         });
         return undefined;
@@ -126,24 +136,34 @@ export function AutocompletePopover({
   // it with the anchor. Height changes only at keyboard boundaries.
   const baseStyle = useMemo(() => {
     if (!relativeAnchorRect) return null;
+    if (placement === "inside-top") {
+      return inlineUnistylesStyle({
+        position: "absolute" as const,
+        left: relativeAnchorRect.x + OFFSET_FROM_ANCHOR,
+        width: Math.max(0, relativeAnchorRect.width - OFFSET_FROM_ANCHOR * 2),
+        top: relativeAnchorRect.y + OFFSET_FROM_ANCHOR,
+      });
+    }
     return inlineUnistylesStyle({
       position: "absolute" as const,
       left: relativeAnchorRect.x,
       width: relativeAnchorRect.width,
       bottom: relativeAnchorRect.hostHeight - relativeAnchorRect.y + OFFSET_FROM_ANCHOR,
     });
-  }, [relativeAnchorRect]);
+  }, [placement, relativeAnchorRect]);
 
-  const anchorY = relativeAnchorRect?.y ?? 0;
+  // Above, the list may use the space up to the safe area. Inside the anchor, half its
+  // height leaves the lower text and the toolbar visible.
+  const availableHeight =
+    placement === "inside-top"
+      ? (relativeAnchorRect?.height ?? 0) / 2
+      : (relativeAnchorRect?.y ?? 0) - safeAreaInsets.top - OFFSET_FROM_ANCHOR * 2;
   const reservedLift = anchor.reservedLift;
   const heightStyle = useAnimatedStyle(
     () => ({
-      maxHeight: Math.max(
-        0,
-        anchorY - reservedLift.value - safeAreaInsets.top - OFFSET_FROM_ANCHOR * 2,
-      ),
+      maxHeight: Math.max(0, availableHeight - reservedLift.value),
     }),
-    [anchorY, reservedLift, safeAreaInsets.top],
+    [availableHeight, reservedLift],
   );
 
   const showPopover = canMeasure && relativeAnchorRect && baseStyle;

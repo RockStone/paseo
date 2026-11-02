@@ -28,6 +28,7 @@ import { getStatusDotColor } from "@/utils/status-dot-color";
 import { STATUS_INDICATOR_FILLED_DOT_SIZE } from "@/utils/status-indicator-geometry";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { COMPOSER_PILL_CLEARANCE, composerPillStyles } from "./pill-styles";
+import { useComposerSurface } from "./dock";
 import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
 
 /**
@@ -43,8 +44,15 @@ import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
  * the final footer clear without turning the overlay into a layout band.
  */
 export function ComposerTrackBar({ children }: { children: ReactNode }): ReactElement {
+  // Over the transcript the bar floats above the composer; in the split column it heads the
+  // composer in flow, and its panels open downward because there is no room above.
+  const { split } = useComposerSurface();
   return (
-    <View style={styles.bar} pointerEvents="box-none" dataSet={COMPOSER_PILLS_DATASET}>
+    <View
+      style={split ? styles.splitBar : styles.bar}
+      pointerEvents="box-none"
+      dataSet={COMPOSER_PILLS_DATASET}
+    >
       <View style={styles.track} pointerEvents="box-none">
         {children}
       </View>
@@ -442,6 +450,11 @@ const styles = StyleSheet.create((theme) => {
         xs: COMPOSER_PILL_CLEARANCE.compact,
         md: COMPOSER_PILL_CLEARANCE.wide,
       },
+    },
+    splitBar: {
+      alignItems: "center",
+      paddingHorizontal: theme.spacing[4],
+      paddingBottom: COMPOSER_PILL_CLEARANCE.wide,
     },
     track: {
       width: "100%",

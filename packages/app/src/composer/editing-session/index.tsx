@@ -30,6 +30,7 @@ export interface ComposerRetainedEditor {
  */
 export class ComposerEditingSession {
   private fullscreen = false;
+  private split = false;
   private editor: {
     getText(): string;
     /** The caret the editor last had while focused, or null once the text changed without it. */
@@ -41,6 +42,8 @@ export class ComposerEditingSession {
   private listeners = new Set<() => void>();
   constructor(private readonly onChange?: () => void) {}
   getFullscreen = () => this.fullscreen;
+  /** Whether the composer asked to sit beside the transcript; the dock decides whether it can. */
+  getSplit = () => this.split;
   attachEditor(editor: NonNullable<ComposerEditingSession["editor"]>) {
     this.editor = editor;
     return () => {
@@ -89,6 +92,12 @@ export class ComposerEditingSession {
     this.fullscreen = fullscreen;
     for (const listener of this.listeners) listener();
     this.onChange?.();
+  }
+  /** Only the dock and editor of this tab lay out differently, so tab chrome is not notified. */
+  setSplit(split: boolean) {
+    if (split === this.split) return;
+    this.split = split;
+    for (const listener of this.listeners) listener();
   }
 }
 
@@ -213,6 +222,9 @@ export function useComposerEditingSession(
 }
 export function useComposerFullscreen(session: ComposerEditingSession): boolean {
   return useSyncExternalStore(session.subscribe, session.getFullscreen, session.getFullscreen);
+}
+export function useComposerSplitRequest(session: ComposerEditingSession): boolean {
+  return useSyncExternalStore(session.subscribe, session.getSplit, session.getSplit);
 }
 /** Whether the composer of a workspace tab is fullscreen, for the chrome that tab sits under. */
 export function useComposerTabFullscreen(workspaceKey: string, tabId: string | null): boolean {

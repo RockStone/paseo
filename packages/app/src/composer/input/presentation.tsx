@@ -10,6 +10,7 @@ import { ICON_SIZE } from "@/styles/theme";
 import { StyleSheet } from "react-native-unistyles";
 import { useComposerFullscreenExit } from "./fullscreen-exit";
 import { resolveGlyphRailOffset } from "./state";
+import { ComposerSplitToggle } from "./split-toggle";
 
 const CONTROL_SIZE = 28;
 const FULLSCREEN_GLYPH_SIZE = ICON_SIZE.md;
@@ -39,6 +40,9 @@ export function ComposerInputPresentation({
   attachmentSlot,
   showFullscreenButton,
   onEnter,
+  split,
+  showSplitButton,
+  onToggleSplit,
   overlay,
 }: {
   fullscreen: boolean;
@@ -54,6 +58,10 @@ export function ComposerInputPresentation({
   attachmentSlot: ReactNode;
   showFullscreenButton: boolean;
   onEnter: () => void;
+  /** Beside the transcript: the same inline chrome, stretched to the column's height. */
+  split: boolean;
+  showSplitButton: boolean;
+  onToggleSplit: () => void;
   overlay: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -77,10 +85,13 @@ export function ComposerInputPresentation({
   // The toolbar row bleeds 6px past the input padding; the inline glyph sits on that edge.
   const enterStyle = useMemo(() => [styles.enterButton, { right: -6 + railOffset }], [railOffset]);
   const exitStyle = useMemo(() => [styles.iconButton, { marginRight: railOffset }], [railOffset]);
+  let rootStyle: ViewProps["style"] = styles.inline;
+  if (fullscreen) rootStyle = styles.fullscreen;
+  else if (split) rootStyle = styles.split;
   return (
     <View
       ref={exitScopeRef}
-      style={fullscreen ? styles.fullscreen : styles.inline}
+      style={rootStyle}
       testID={fullscreen ? "composer-fullscreen" : undefined}
     >
       {fullscreen ? (
@@ -99,15 +110,21 @@ export function ComposerInputPresentation({
           </Button>
         </View>
       ) : null}
-      <ComposerFullscreenBody fullscreen={fullscreen}>
+      {/* Split never happens on native, where the fullscreen body also owns the keyboard. */}
+      <ComposerFullscreenBody fullscreen={fullscreen || split}>
         <View
           ref={inputWrapperRef}
           style={fullscreen ? styles.fullscreenInputWrapper : inputWrapperStyle}
           pointerEvents={inputPointerEvents}
         >
           {fullscreen ? null : attachmentSlot}
-          <View style={fullscreen ? styles.fullscreenTextSurface : styles.inlineTextSurface}>
+          <View
+            style={fullscreen || split ? styles.fullscreenTextSurface : styles.inlineTextSurface}
+          >
             {surface}
+            {showSplitButton && !fullscreen ? (
+              <ComposerSplitToggle split={split} onToggle={onToggleSplit} />
+            ) : null}
             {showFullscreenButton && !fullscreen ? (
               <Button
                 variant="ghost"
@@ -139,6 +156,7 @@ export function ComposerInputPresentation({
 
 const styles = StyleSheet.create((theme) => ({
   inline: { flexShrink: 1, position: "relative" },
+  split: { flex: 1, minHeight: 0, position: "relative" },
   inlineTextSurface: { flexShrink: 1, position: "relative" },
   iconButton: {
     width: CONTROL_SIZE,

@@ -1,6 +1,7 @@
 import { ComposerDockBackground } from "./internal/background";
 export { ComposerDockBackground } from "./internal/background";
 export { ComposerFullscreenBody, ComposerFullscreenFooter } from "./internal/fullscreen";
+export { useComposerSurface, type ComposerSurface } from "./internal/surface";
 import { ScrollView } from "@/components/ui/scroll-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -118,6 +119,9 @@ interface ComposerDockProps {
    * surface stops translating. The screen that owns the chrome hides it.
    */
   fullscreen?: boolean;
+  /** The split layout is web-only; native docks keep the composer below the content. */
+  splittable?: boolean;
+  split?: boolean;
 }
 
 /** The stationary viewport, translated surface, and bounded composer are one owner. */

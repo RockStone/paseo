@@ -83,7 +83,7 @@ names at the caret; their link targets stay hidden. Code spans, bold, and italic
 text hide their markers after a space follows the closing marker. Shift+Enter continues numbered lists; Shift+Enter on an
 empty item ends the list. Inserting or removing items renumbers that list while keeping
 its starting number, nested lists, and literal code separate. Numbering changes share
-the edit's Undo step. Enter sends the message. The reference's saved context
+the edit's Undo step. Enter sends the message, except in the expanded composer below. The reference's saved context
 is sent only while its complete source remains in the draft. Removing the inline name removes its
 outgoing context. Sent messages render Markdown and show saved reference details
 on hover instead of duplicate attachment cards. File mentions use `@` links and
@@ -93,6 +93,18 @@ work. Native input continues to edit plain Markdown.
 Escape dismisses the active `/`, `@`, `@@`, or `##` suggestion list without
 changing the draft. That trigger stays dismissed while you finish its text;
 leaving it and typing a new trigger opens suggestions again.
+
+On wide desktop/browser layouts the chat composer's text area stops growing at 30% of the
+chat pane (at least 140px) and scrolls, leaving the transcript most of the pane. Once a
+draft reaches that cap, the corner button (**Expand composer**) moves the composer beside
+the transcript at full height, with the agent pills above it. **Collapse composer**,
+Escape, or sending returns to the normal layout; the draft, caret, and focus carry over.
+While expanded, Enter behaves like Shift+Enter, Tab and Shift+Tab indent and outdent by
+two spaces (so Shift+Tab does not cycle the mode), and Cmd+Enter/Ctrl+Enter sends. An open
+suggestion list still takes Enter, Tab, and Escape. The expanded send key is fixed: the
+**Send shortcut** setting and Settings → Shortcuts do not change it, because sending is
+handled by the editor rather than the shortcut registry. Phones, native apps, and
+new-agent drafts keep their previous cap and have no split.
 
 Image previews brighten on hover and reveal a light, top-right delete control.
 Touch layouts keep the control visible. Adding or pasting an image inserts a
