@@ -2276,6 +2276,8 @@ export const es: TranslationResources = {
     signInAgain: "Vuelve a iniciar sesión.",
     loginRejected: "Inicio de sesión rechazado (HTTP {{status}}). {{remedy}}",
     loginExpired: "La sesión caducó {{relativeTime}}. {{remedy}}",
+    claudeLoginExpired:
+      "El inicio de sesión de uso de Claude caducó {{relativeTime}}. Los agentes siguen funcionando. Abre claude en una terminal para actualizarlo; si te pide iniciar sesión, ejecuta claude auth login.",
     title: "Uso del plan",
     refresh: "Actualizar",
     refreshAll: "Actualizar todo",

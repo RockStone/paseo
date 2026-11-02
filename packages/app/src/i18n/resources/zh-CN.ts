@@ -2203,6 +2203,8 @@ export const zhCN: TranslationResources = {
     signInAgain: "请重新登录。",
     loginRejected: "登录被拒绝（HTTP {{status}}）。{{remedy}}",
     loginExpired: "登录已于{{relativeTime}}过期。{{remedy}}",
+    claudeLoginExpired:
+      "Claude 用量登录已于{{relativeTime}}过期。智能体不受影响。在终端中打开 claude 即可刷新；如果提示登录，请运行 claude auth login。",
     title: "套餐用量",
     refresh: "刷新",
     refreshAll: "全部刷新",

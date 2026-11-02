@@ -60,7 +60,7 @@ test("lists built-in and subprocess usage; validates input and isolates fetch er
       "available",
     );
     expect(legacy.providers.find((provider) => provider.status === "unavailable")?.error).toBe(
-      "Login expired 1h ago. Run claude to refresh it.",
+      "Claude usage login expired 1h ago. Agents keep working. Open claude in a terminal to refresh it; if it asks you to sign in, run claude auth login.",
     );
     await client.patchDaemonConfig({ pluginsEnabled: true });
     await client.installDirectoryPlugin(subprocessDirectory, "fixture-directory");

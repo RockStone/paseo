@@ -2236,6 +2236,8 @@ export const ko: TranslationResources = {
     signInAgain: "다시 로그인하세요.",
     loginRejected: "로그인이 거부되었습니다 (HTTP {{status}}). {{remedy}}",
     loginExpired: "로그인이 {{relativeTime}}에 만료되었습니다. {{remedy}}",
+    claudeLoginExpired:
+      "Claude 사용량 로그인이 {{relativeTime}}에 만료되었습니다. 에이전트는 계속 작동합니다. 터미널에서 claude를 열어 새로 고치세요. 로그인하라는 메시지가 나오면 claude auth login을 실행하세요.",
     title: "플랜 사용량",
     refresh: "새로 고침",
     refreshAll: "모두 새로 고침",

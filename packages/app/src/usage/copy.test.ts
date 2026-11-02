@@ -4,9 +4,13 @@ import { usageCopy } from "./copy";
 test.each([
   [
     { kind: "expired", expiresAt: "2026-10-01T09:00:00Z", refreshedBy: "claude" },
-    "Login expired 3h ago. Run claude to refresh it.",
+    "Claude usage login expired 3h ago. Agents keep working. Open claude in a terminal to refresh it; if it asks you to sign in, run claude auth login.",
   ],
   [{ kind: "expired", expiresAt: "2026-10-01T09:00:00Z" }, "Login expired 3h ago. Sign in again."],
+  [
+    { kind: "expired", expiresAt: "2026-10-01T09:00:00Z", refreshedBy: "codex" },
+    "Login expired 3h ago. Run codex to refresh it.",
+  ],
   [
     { kind: "rejected", status: 403, refreshedBy: "codex" },
     "Login rejected (HTTP 403). Run codex to refresh it.",

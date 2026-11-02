@@ -2253,6 +2253,8 @@ export const en = {
     signInAgain: "Sign in again.",
     loginRejected: "Login rejected (HTTP {{status}}). {{remedy}}",
     loginExpired: "Login expired {{relativeTime}}. {{remedy}}",
+    claudeLoginExpired:
+      "Claude usage login expired {{relativeTime}}. Agents keep working. Open claude in a terminal to refresh it; if it asks you to sign in, run claude auth login.",
     title: "Plan usage",
     refresh: "Refresh",
     refreshAll: "Refresh all",

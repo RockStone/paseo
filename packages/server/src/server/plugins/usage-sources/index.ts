@@ -396,6 +396,8 @@ function legacyProblem(problem: UsageProblem, now: number): string {
   if (elapsed >= 86_400_000) ago = `${Math.floor(elapsed / 86_400_000)}d ago`;
   else if (elapsed >= 3_600_000) ago = `${Math.floor(elapsed / 3_600_000)}h ago`;
   else if (elapsed >= 60_000) ago = `${Math.floor(elapsed / 60_000)}m ago`;
+  if (problem.refreshedBy === "claude")
+    return `Claude usage login expired ${ago}. Agents keep working. Open claude in a terminal to refresh it; if it asks you to sign in, run claude auth login.`;
   return `Login expired ${ago}. ${remedy}`;
 }
 

@@ -2225,6 +2225,8 @@ export const ar: TranslationResources = {
     signInAgain: "سجّل الدخول مجددًا.",
     loginRejected: "تم رفض تسجيل الدخول (HTTP {{status}}). {{remedy}}",
     loginExpired: "انتهت صلاحية تسجيل الدخول {{relativeTime}}. {{remedy}}",
+    claudeLoginExpired:
+      "انتهت صلاحية تسجيل دخول استخدام Claude {{relativeTime}}. يواصل الوكلاء العمل. افتح claude في الطرفية لتحديثه؛ وإذا طُلب منك تسجيل الدخول، فشغّل claude auth login.",
     title: "استخدام الخطة",
     refresh: "تحديث",
     refreshAll: "تحديث الكل",
