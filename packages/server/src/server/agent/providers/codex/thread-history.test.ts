@@ -139,7 +139,7 @@ describe("Codex thread history", () => {
     appServer.assertNoErrors();
   });
 
-  test("a page too big to send shows a warning row and stops loading", async () => {
+  test("a page too big to send retries smaller pages, then warns at the item that cannot fit", async () => {
     const answers = Array.from({ length: 120 }, (_, index) =>
       agentItem(`agent-${index}`, `Answer ${index}`),
     );
@@ -155,11 +155,12 @@ describe("Codex thread history", () => {
     );
     const loaded = [
       { type: "user_message", text: "One", messageId: "user-1" },
-      ...answers.slice(0, 99).map((answer) => ({
+      ...answers.map((answer) => ({
         type: "assistant_message",
         text: answer.text,
         messageId: answer.id,
       })),
+      { type: "user_message", text: "Two", messageId: "user-2" },
       {
         type: "notification",
         level: "warning",
