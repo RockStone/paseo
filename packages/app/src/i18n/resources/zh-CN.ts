@@ -193,7 +193,6 @@ export const zhCN: TranslationResources = {
       exitFullscreen: "退出全屏",
       expandComposer: "展开输入框",
       collapseComposer: "收起输入框",
-      expandedSendHint: "{{shortcut}} 发送",
       focusHint: "{{shortcut}} 聚焦",
       addAttachment: "添加附件",
       interruptAgent: "中断 Agent",

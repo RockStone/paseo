@@ -194,7 +194,6 @@ export const ja: TranslationResources = {
       exitFullscreen: "全画面表示を終了",
       expandComposer: "入力欄を広げる",
       collapseComposer: "入力欄を元に戻す",
-      expandedSendHint: "{{shortcut}} で送信",
       focusHint: "{{shortcut}}でフォーカス",
       addAttachment: "添付ファイルを追加",
       interruptAgent: "エージェントを中断",

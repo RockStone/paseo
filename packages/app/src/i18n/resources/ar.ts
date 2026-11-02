@@ -193,7 +193,6 @@ export const ar: TranslationResources = {
       exitFullscreen: "الخروج من ملء الشاشة",
       expandComposer: "توسيع محرر الرسالة",
       collapseComposer: "طي محرر الرسالة",
-      expandedSendHint: "{{shortcut}} للإرسال",
       focusHint: "{{shortcut}}للتركيز",
       addAttachment: "إضافة مرفق",
       interruptAgent: "عامل المقاطعة",

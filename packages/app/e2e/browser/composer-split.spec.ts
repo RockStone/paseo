@@ -127,7 +127,10 @@ test.describe("composer split view", () => {
       expect(transcript!.x + transcript!.width).toBeLessThanOrEqual(column!.x + 1);
       expect(Math.abs(column!.width - split.dock.width / 2)).toBeLessThan(2);
       expect(split.editor.height).toBeGreaterThan(split.dock.height * 0.6);
-      await expect(page.getByTestId("composer-expanded-send-hint")).toBeVisible();
+      // Enter writes while expanded, so the Send tooltip names the key that sends.
+      await page.getByRole("button", { name: "Send message", exact: true }).hover();
+      await expect(page.getByRole("tooltip")).toContainText(/⌘|Ctrl/);
+      await page.mouse.move(0, 0);
       // The branch and history pills head the composer column instead of floating over the
       // transcript.
       const branchPill = splitColumn(page).getByTestId("composer-branch-pill");

@@ -196,7 +196,6 @@ export const es: TranslationResources = {
       exitFullscreen: "Salir de pantalla completa",
       expandComposer: "Ampliar el editor",
       collapseComposer: "Contraer el editor",
-      expandedSendHint: "{{shortcut}} para enviar",
       focusHint: "{{shortcut}}para enfocar",
       addAttachment: "Agregar archivo adjunto",
       interruptAgent: "agente de interrupción",

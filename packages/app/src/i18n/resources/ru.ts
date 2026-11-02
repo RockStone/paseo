@@ -194,7 +194,6 @@ export const ru: TranslationResources = {
       exitFullscreen: "Выйти из полноэкранного режима",
       expandComposer: "Развернуть поле ввода",
       collapseComposer: "Свернуть поле ввода",
-      expandedSendHint: "{{shortcut}} — отправить",
       focusHint: "{{shortcut}}, для фокуса",
       addAttachment: "Добавить вложение",
       interruptAgent: "Прервать агента",

@@ -867,17 +867,6 @@ function VoiceButtonTooltip({
   );
 }
 
-/** Enter writes in the expanded editor, so the toolbar says which keys send. */
-function ExpandedSendHint() {
-  const { t } = useTranslation();
-  const shortcut = getShortcutOs() === "mac" ? "⌘↩" : "Ctrl+↩";
-  return (
-    <Text style={styles.expandedSendHint} testID="composer-expanded-send-hint">
-      {t("composer.input.expandedSendHint", { shortcut })}
-    </Text>
-  );
-}
-
 function SendButtonTooltip({
   shouldShow,
   canPressLoadingButton,
@@ -2203,7 +2192,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           submitLabel={submitLabel}
           submitButtonTestID={submitButtonTestID}
           buttonIconSize={buttonIconSize}
-          sendKeys={resolveSendKeys(sendShortcut)}
+          sendKeys={isSplit ? MOD_ENTER_SEND_KEYS : resolveSendKeys(sendShortcut)}
           sendTooltipLabel={sendTooltipLabel}
         />
       ),
@@ -2224,6 +2213,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         submitLabel,
         submitButtonTestID,
         buttonIconSize,
+        isSplit,
         sendShortcut,
         sendTooltipLabel,
       ],
@@ -2318,7 +2308,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
           {/* Right: voice button, contextual button (realtime/send/cancel) */}
           <View style={styles.rightButtonGroup}>
-            {isSplit ? <ExpandedSendHint /> : null}
             {beforeVoiceContent}
             <VoiceButtonTooltip
               visible={mode.showVoice}
@@ -2359,7 +2348,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         dictationToggleKeys,
         rightContent,
         sendButton,
-        isSplit,
       ],
     );
     const voiceOverlay = useMemo(
@@ -2500,11 +2488,6 @@ const styles = StyleSheet.create((theme: Theme) => ({
   inputWrapperSplit: {
     flex: 1,
     minHeight: 0,
-  },
-  expandedSendHint: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.foregroundMuted,
-    marginRight: theme.spacing[2],
   },
   // The band the fullscreen glyph sits in is the input's own padding, so a tap
   // anywhere in it (under the glyph, or where the glyph would be) is a tap on the

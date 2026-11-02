@@ -196,7 +196,6 @@ export const ptBR: TranslationResources = {
       exitFullscreen: "Sair da tela cheia",
       expandComposer: "Expandir o editor",
       collapseComposer: "Recolher o editor",
-      expandedSendHint: "{{shortcut}} para enviar",
       focusHint: "{{shortcut}} para focar",
       addAttachment: "Adicionar anexo",
       interruptAgent: "Interromper agente",

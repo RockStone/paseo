@@ -191,7 +191,6 @@ export const en = {
       exitFullscreen: "Exit fullscreen",
       expandComposer: "Expand composer",
       collapseComposer: "Collapse composer",
-      expandedSendHint: "{{shortcut}} to send",
       focusHint: "{{shortcut}} to focus",
       addAttachment: "Add attachment",
       interruptAgent: "Interrupt agent",
