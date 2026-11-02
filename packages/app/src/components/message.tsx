@@ -440,6 +440,7 @@ function ReplayedUserMessage(props: UserMessageProps) {
       .map((source) => `![Image](${source.replace(/\)/g, "%29")})`)
       .join("\n\n"),
     { serverId: props.serverId, workspaceRoot: props.workspaceRoot, client: props.client },
+    undefined,
     { preserveImageOccurrences: true },
   );
   let imageRecoveryStatus: UserMessageProps["imageRecoveryStatus"];
@@ -1336,6 +1337,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       <MarkdownRenderer
         text={revealedMessage}
         imageLayout="gallery"
+        agentCommands
         streaming={phase !== "complete" || revealedMessage.length < renderedMessage.text.length}
         client={client}
         workspaceRoot={workspaceRoot}

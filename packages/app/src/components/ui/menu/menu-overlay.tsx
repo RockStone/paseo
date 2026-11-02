@@ -1,7 +1,9 @@
+import { Modal } from "@/components/ui/modal";
 import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactElement,
@@ -11,7 +13,6 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   Dimensions,
-  Modal,
   Platform,
   Pressable,
   View,
@@ -47,56 +48,41 @@ const contentEntering = new Keyframe({
   100: { opacity: 1, transform: [{ scale: 1 }] },
 }).duration(CONTENT_ENTERING_DURATION_MS);
 
+/** `contentEntering` for the browser's own animation engine. Both default to linear easing. */
+const WEB_CONTENT_ENTERING_KEYFRAMES: PropertyIndexedKeyframes = {
+  opacity: [0, 1],
+  transform: ["scale(0.97)", "scale(1)"],
+};
+
+/** Web plays the same keyframes itself; see `useWebContentEntering`. */
+const nativeContentEntering = isWeb ? undefined : contentEntering;
+
 const contentExiting = new Keyframe({
   0: { opacity: 1, transform: [{ scale: 1 }] },
   100: { opacity: 0, transform: [{ scale: 0.97 }] },
 }).duration(100);
 
-function releaseFixedMenuHeight(surfaceNativeID: string): void {
-  if (!isWeb) return;
-  document.getElementById(surfaceNativeID)?.style.removeProperty("height");
-}
-
 /**
- * Reanimated's web entering animation leaves an inline height snapshot on the measured surface.
- * Once the menu is open, height must return to content-sized so rows can grow in place — and so
- * a submenu page taller than the page it replaced is not clipped to the old height.
- *
- * `revision` is what makes that second case work: bump it whenever the rendered content changes
- * identity (a page push, for instance) and the snapshot is released again.
+ * On web the surface enters through the Web Animations API rather than Reanimated. Reanimated's
+ * web path snapshots an element's rect when a custom keyframe ends and, when it cleans the keyframe
+ * up 750ms after the start, writes that rect back as inline top/left/width/height. A surface that
+ * moved or resized in between — content that grew once its data arrived — snapped back to the old
+ * rect and stayed there, clipped or hanging past its anchor. A Web Animation leaves no inline style.
  */
-function useReleaseFixedMenuHeight({
-  contentSize,
-  enabled,
+function useWebContentEntering({
+  placed,
   surfaceNativeID,
-  revision,
 }: {
-  contentSize: Size | null;
-  enabled: boolean;
+  placed: boolean;
   surfaceNativeID: string;
-  revision?: string | number;
 }): void {
-  useEffect(() => {
-    if (!enabled) return undefined;
-
-    const release = () => {
-      releaseFixedMenuHeight(surfaceNativeID);
-      if (typeof requestAnimationFrame === "function") {
-        requestAnimationFrame(() => releaseFixedMenuHeight(surfaceNativeID));
-      }
-    };
-    const timers: ReturnType<typeof setTimeout>[] = [
-      setTimeout(release, CONTENT_ENTERING_DURATION_MS),
-    ];
-
-    if (contentSize) {
-      timers.push(setTimeout(release, 0));
-    }
-
-    return () => {
-      for (const timer of timers) clearTimeout(timer);
-    };
-  }, [contentSize, enabled, surfaceNativeID, revision]);
+  useLayoutEffect(() => {
+    if (!isWeb || !placed || typeof document === "undefined") return undefined;
+    const animation = document
+      .getElementById(surfaceNativeID)
+      ?.animate(WEB_CONTENT_ENTERING_KEYFRAMES, CONTENT_ENTERING_DURATION_MS);
+    return () => animation?.cancel();
+  }, [placed, surfaceNativeID]);
 }
 
 /**
@@ -225,8 +211,6 @@ export interface AnchoredSurfaceProps {
   fullWidth?: boolean;
   horizontalPadding?: number;
   scrollable?: boolean;
-  /** Bump when the rendered content changes identity, so the height snapshot is released. */
-  revision?: string | number;
   /** A submenu sits inside its parent's overlay and must not paint a second backdrop. */
   backdrop?: boolean;
   /**
@@ -266,13 +250,14 @@ function useFocusFirstMenuItem({
   }, [enabled, surfaceNativeID]);
 }
 
+function canAnimateSurface(placed: boolean, animate: boolean | undefined): boolean {
+  return placed && animate !== false;
+}
+
 /**
  * One floating menu surface, positioned against an anchor. The root menu renders one of these
  * against its trigger; every open submenu renders another against the row that opened it.
  */
-function canAnimateSurface(placed: boolean, animate: boolean | undefined): boolean {
-  return placed && animate !== false;
-}
 
 export function AnchoredSurface({
   animate,
@@ -291,7 +276,6 @@ export function AnchoredSurface({
   fullWidth = false,
   horizontalPadding = 16,
   scrollable = false,
-  revision,
   backdrop = true,
   onPointerEnter,
   onPointerLeave,
@@ -302,34 +286,25 @@ export function AnchoredSurface({
 }: AnchoredSurfaceProps): ReactElement | null {
   const { t } = useTranslation();
   const surfaceNativeID = useId();
-  const { position, actualPlacement, contentSize, visibleContentSize, onContentLayout } =
-    useAnchoredPosition({
-      open,
-      anchorRect,
-      anchorRef,
-      side,
-      align,
-      offset,
-      scrollable,
-      maxHeight,
-    });
-
-  useReleaseFixedMenuHeight({
-    contentSize,
-    enabled: open,
-    surfaceNativeID,
-    revision,
+  const { position, actualPlacement, visibleContentSize, onContentLayout } = useAnchoredPosition({
+    open,
+    anchorRect,
+    anchorRef,
+    side,
+    align,
+    offset,
+    scrollable,
+    maxHeight,
   });
 
   // The surface is placed once both measurements land. Until then it sits off-screen so it can
-  // be measured, and it must not animate: Reanimated's web entering path snapshots the element's
-  // rect when the animation ends and writes that rect back as inline top/left when it cleans the
-  // keyframe up 750ms later. If the animation ends before placement, the snapshot is the
-  // off-screen rect and the menu jumps back off-screen. Remounting on placement starts the
-  // animation from the final position.
+  // be measured, and it must not animate: an entering animation that ran there would be over
+  // before anyone saw the menu. Remounting on placement starts the native animation from the
+  // final position; web starts its own animation on placement.
   const placed = position !== null;
 
   useFocusFirstMenuItem({ open, placed, manageFocus, surfaceNativeID });
+  useWebContentEntering({ placed: canAnimateSurface(placed, animate), surfaceNativeID });
 
   const frameStyle = useMemo<StyleProp<ViewStyle>>(() => {
     const { width: screenWidth } = Dimensions.get("window");
@@ -407,7 +382,7 @@ export function AnchoredSurface({
         dataSet={surfaceDataSet}
         style={styles.content}
         frameStyle={frameStyle}
-        entering={canAnimateSurface(placed, animate) ? contentEntering : undefined}
+        entering={canAnimateSurface(placed, animate) ? nativeContentEntering : undefined}
         exiting={
           !canAnimateSurface(placed, animate) || isWeb || !onExited
             ? undefined

@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { useAgentCommandsQuery } from "@/hooks/use-agent-commands-query";
+import { useAgentCommandsQuery } from "@/agent-commands/use-query";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { selectAgentTurnPresentation, useSessionStore } from "@/stores/session-store";
 import { dispatchComposerAgentMessage } from "@/composer/actions";

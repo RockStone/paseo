@@ -34,6 +34,10 @@ export interface SeedDaemonClient {
   writeProjectConfig: DaemonClient["writeProjectConfig"];
   listWorkspaceScripts: DaemonClient["listWorkspaceScripts"];
   getCheckoutStatus(cwd: string): Promise<CheckoutStatusResponse["payload"]>;
+  patchDaemonConfig(
+    config: import("@getpaseo/protocol/messages").MutableDaemonConfigPatch,
+  ): Promise<{ config: import("@getpaseo/protocol/messages").MutableDaemonConfig }>;
+  getDaemonConfig(): Promise<{ config: import("@getpaseo/protocol/messages").MutableDaemonConfig }>;
   connect(): Promise<void>;
   close(): Promise<void>;
   addProject(cwd: string): Promise<{

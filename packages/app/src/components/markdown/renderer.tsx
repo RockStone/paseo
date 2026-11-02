@@ -8,6 +8,7 @@ import {
   useAssistantFileLinkEnvironment,
 } from "@/assistant-file-links";
 import { useStableEvent } from "@/hooks/use-stable-event";
+import { matchCommandLink, useAgentCommandHints, type CommandHints } from "@/agent-commands";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import type { Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
@@ -44,6 +45,16 @@ const userStyle = markdownStyle(false, "user");
 const compactStyle = markdownStyle(true);
 const compactMutedStyle = markdownStyle(true, "default", true);
 
+function resolveMarkdownStyle(
+  compact: boolean,
+  muted: boolean,
+  variant: "default" | "user",
+): typeof regularStyle {
+  if (variant === "user") return userStyle;
+  if (compact) return muted ? compactMutedStyle : compactStyle;
+  return regularStyle;
+}
+
 export interface MarkdownRendererProps extends MarkdownImageContext {
   text: string;
   compact?: boolean;
@@ -53,6 +64,7 @@ export interface MarkdownRendererProps extends MarkdownImageContext {
   streaming?: boolean;
   onLinkPress?: (url: string) => unknown;
   imageLayout?: "gallery";
+  agentCommands?: boolean;
 }
 
 /** All Markdown surfaces share the same engine and source adaptation. */
@@ -83,13 +95,19 @@ export const MarkdownRenderer = memo(function MarkdownRenderer(props: MarkdownRe
       </View>
     );
   }
-  if (!streaming || boundary === 0) return <MarkdownPart {...props} />;
+  const Part = props.agentCommands ? CommandMarkdownPart : MarkdownPart;
+  if (!streaming || boundary === 0) return <Part {...props} />;
   return (
     <MarkdownBlockStack>
-      <MarkdownPart {...props} text={props.text.slice(0, boundary)} />
-      <MarkdownPart {...props} text={props.text.slice(boundary)} />
+      <Part {...props} text={props.text.slice(0, boundary)} />
+      <Part {...props} text={props.text.slice(boundary)} />
     </MarkdownBlockStack>
   );
+});
+
+const CommandMarkdownPart = memo(function CommandMarkdownPart(props: MarkdownRendererProps) {
+  const commandHints = useAgentCommandHints();
+  return <MarkdownPart {...props} commandHints={commandHints} />;
 });
 
 const MarkdownPart = memo(function MarkdownPart({
@@ -101,8 +119,10 @@ const MarkdownPart = memo(function MarkdownPart({
   streaming = false,
   onLinkPress,
   imageLayout,
+  agentCommands: _agentCommands,
+  commandHints = null,
   ...imageContext
-}: MarkdownRendererProps) {
+}: MarkdownRendererProps & { commandHints?: CommandHints | null }) {
   const environment = useAssistantFileLinkEnvironment();
   const actions = useAssistantFileLinkActions();
   const client =
@@ -111,14 +131,23 @@ const MarkdownPart = memo(function MarkdownPart({
       ? { readFile: environment.client.readFile.bind(environment.client) }
       : undefined);
   const { markdown, imageSources, linkRecognition, linkSource, imageOnly, imagePreviews } =
-    useMarkdownSource(text, {
-      workspaceRoot: environment.workspaceRoot,
-      serverId: environment.serverId,
-      ...imageContext,
-      client,
-    });
+    useMarkdownSource(
+      text,
+      {
+        workspaceRoot: environment.workspaceRoot,
+        serverId: environment.serverId,
+        ...imageContext,
+        client,
+      },
+      commandHints?.names,
+    );
   const [image, setImage] = useState<ImageLightboxSource | null>(null);
   const pressLink = useStableEvent(({ url, sourceType }: LinkPressEvent) => {
+    const command = commandHints && matchCommandLink(url, sourceType, commandHints.names);
+    if (command) {
+      commandHints.insert(command);
+      return;
+    }
     const source = linkSource(url, sourceType);
     if (onLinkPress && !actions.canResolveFile(source)) onLinkPress(url);
     else actions.open(source, "preferred");
@@ -140,9 +169,7 @@ const MarkdownPart = memo(function MarkdownPart({
       isWeb ? [{ kind: "markdown", id: "0", source: markdown }] : splitMermaidFences(markdown),
     [markdown],
   );
-  let uniStyle = compact ? compactStyle : regularStyle;
-  if (compact && muted) uniStyle = compactMutedStyle;
-  if (variant === "user") uniStyle = userStyle;
+  const uniStyle = resolveMarkdownStyle(compact, muted, variant);
   if (imageLayout === "gallery" && imageOnly) {
     return (
       <View

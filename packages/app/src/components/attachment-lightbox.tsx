@@ -1,5 +1,6 @@
+import { Modal } from "@/components/ui/modal";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native-unistyles";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -83,6 +84,8 @@ export function AttachmentLightbox({
   return (
     <Modal transparent animationType="fade" statusBarTranslucent visible onRequestClose={onClose}>
       <ModalRoot style={styles.root}>
+        {/* The modal is its own window: its insets are the window's, not the ones left where the
+            image was opened (inside a sheet tab, the bottom one is already spent). */}
         <SafeAreaProvider>
           <WindowChromeRootRegion corners="both">
             <View ref={setWebOverlayScope} style={styles.root}>

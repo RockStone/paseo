@@ -120,6 +120,8 @@ export function useSidebarAgentTree({
   return { roots, visibleTree, providerSupported };
 }
 
+const AGENT_TREE_POLICY = { kind: "pinned", limit: 5 } as const;
+
 export const SidebarAgentTree = memo(function SidebarAgentTree({
   serverId,
   workspaceId,
@@ -134,12 +136,17 @@ export const SidebarAgentTree = memo(function SidebarAgentTree({
   model: ReturnType<typeof useSidebarAgentTree>;
 }) {
   const { roots, visibleTree, providerSupported } = model;
-  const keys = useMemo(() => sidebarThreadKeys(visibleTree), [visibleTree]);
-  const { visibleItems, expanded, canToggle, toggleExpanded } = useLimitedSidebarGroup(keys, {
-    kind: "pinned",
-    limit: 5,
+  // The limited-group hook keys rows by workspace; every thread row shares this workspace.
+  const items = useMemo(
+    () => sidebarThreadKeys(visibleTree).map((key) => ({ serverId, workspaceId, key })),
+    [serverId, workspaceId, visibleTree],
+  );
+  const { visibleItems, expanded, canToggle, toggleExpanded } = useLimitedSidebarGroup({
+    items,
+    selection: null,
+    policy: AGENT_TREE_POLICY,
   });
-  const visibleKeys = useMemo(() => new Set(visibleItems), [visibleItems]);
+  const visibleKeys = useMemo(() => new Set(visibleItems.map((item) => item.key)), [visibleItems]);
   return (
     <>
       {active && providerSupported

@@ -38,12 +38,13 @@ export interface MarkdownImageContext {
 export function useMarkdownSource(
   text: string,
   context: MarkdownImageContext,
+  commandNames?: ReadonlySet<string>,
   options: { preserveImageOccurrences?: boolean } = {},
 ) {
   const occurrenceKey = useId();
   const prepared = useMemo(
-    () => prepareMarkdownSource(text, context.workspaceRoot, { supportsSvg: isWeb }),
-    [text, context.workspaceRoot],
+    () => prepareMarkdownSource(text, context.workspaceRoot, { supportsSvg: isWeb, commandNames }),
+    [text, context.workspaceRoot, commandNames],
   );
   const imageSources = prepared.images.map((image) => image.source);
   const sources = options.preserveImageOccurrences ? imageSources : [...new Set(imageSources)];
