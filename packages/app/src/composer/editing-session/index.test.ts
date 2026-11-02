@@ -9,6 +9,7 @@ describe("composer editing session", () => {
     let selection = { start: 0, end: 0 };
     const detach = session.attachEditor({
       getText: () => text,
+      getCaret: () => null,
       replaceText: (next, nextSelection) => {
         text = next;
         selection = nextSelection;
@@ -26,6 +27,41 @@ describe("composer editing session", () => {
     detach();
     session.insertCommand("/ignored");
     expect(text).toBe("draft typed since publication /review /test ");
+  });
+  it("edits the buffer around the remembered caret without taking focus", () => {
+    const session = new ComposerEditingSession();
+    let text = "before after";
+    let caret: { start: number; end: number } | null = { start: 6, end: 6 };
+    let focuses = 0;
+    expect(session.editAtCaret(() => ({ text: "ignored", caret: 0 }))).toBe(false);
+    const detach = session.attachEditor({
+      getText: () => text,
+      getCaret: () => caret,
+      replaceText: (next, selection) => {
+        text = next;
+        caret = selection;
+      },
+      focus: () => {
+        focuses += 1;
+      },
+    });
+    const seen: ({ start: number; end: number } | null)[] = [];
+    expect(
+      session.editAtCaret((current, at) => {
+        seen.push(at);
+        const position = at?.end ?? current.length;
+        return {
+          text: `${current.slice(0, position)}[x]${current.slice(position)}`,
+          caret: position + 3,
+        };
+      }),
+    ).toBe(true);
+    expect(seen).toEqual([{ start: 6, end: 6 }]);
+    expect(text).toBe("before[x] after");
+    expect(caret).toEqual({ start: 9, end: 9 });
+    expect(focuses).toBe(0);
+    detach();
+    expect(session.editAtCaret(() => ({ text: "ignored", caret: 0 }))).toBe(false);
   });
   it("publishes fullscreen changes once per transition", () => {
     const session = new ComposerEditingSession();

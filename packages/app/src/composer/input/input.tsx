@@ -1319,6 +1319,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const focusIntentRef = useRef(false);
     const valueRef = useRef(value);
     const selectionRef = useRef({ start: value.length, end: value.length });
+    // Clicking outside the editor blurs it, so actions started elsewhere (Reply to selected
+    // text) read the caret it had while focused. Paired with its text: once the text changes
+    // without the editor, the caret no longer means anything.
+    const rememberedCaretRef = useRef<{
+      text: string;
+      selection: { start: number; end: number };
+    } | null>(null);
     const paneFocusedRef = useRef(isPaneFocused);
     paneFocusedRef.current = isPaneFocused;
     const [webTextArea, setWebTextArea] = useState<HTMLElement | null>(null);
@@ -1369,6 +1376,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         const selection = resolveRetainedSelection(retained.selection, text.length);
         retainedSelectionRef.current = retained.selection;
         selectionRef.current = selection;
+        rememberedCaretRef.current = { text, selection };
         textInputRef.current?.setSelection(selection);
         if (retained.focused && hasFinePointer()) {
           focusIntentRef.current = true;
@@ -1417,6 +1425,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         valueRef.current = nextText;
         updateLiveTextPresence(nextText);
         selectionRef.current = selection ?? { start: nextText.length, end: nextText.length };
+        rememberedCaretRef.current = { text: nextText, selection: selectionRef.current };
         if (nextText === "") {
           textInputRef.current?.reset();
         } else {
@@ -1431,6 +1440,16 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       () =>
         editingSession.attachEditor({
           getText: () => textInputRef.current?.getText() ?? valueRef.current,
+          getCaret: () => {
+            const snapshot = getComposerInputSnapshot(
+              textInputRef.current,
+              valueRef.current,
+              selectionRef.current,
+            );
+            if (isInputFocusedRef.current) return snapshot.selection;
+            const remembered = rememberedCaretRef.current;
+            return remembered?.text === snapshot.text ? remembered.selection : null;
+          },
           replaceText,
           focus: () => textInputRef.current?.focus(),
         }),
@@ -1491,6 +1510,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       } else if (retainedSelection) {
         const selection = resolveRetainedSelection(retainedSelection, textReplacement.text.length);
         selectionRef.current = selection;
+        rememberedCaretRef.current = { text: textReplacement.text, selection };
         textInputRef.current?.replaceText(textReplacement.text, selection);
       } else {
         textInputRef.current?.replaceText(textReplacement.text);
@@ -1918,6 +1938,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const handleInputBlur = useCallback(() => {
       // A blur in the active pane is a dismissal; only hiding the pane preserves intent.
       if (paneFocusedRef.current) focusIntentRef.current = false;
+      const snapshot = getComposerInputSnapshot(
+        textInputRef.current,
+        valueRef.current,
+        selectionRef.current,
+      );
+      rememberedCaretRef.current = { text: snapshot.text, selection: snapshot.selection };
       isInputFocusedRef.current = false;
       setIsInputFocused(false);
       onFocusChange?.(false);

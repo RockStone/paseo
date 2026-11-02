@@ -3,7 +3,7 @@ import {
   createAssistantSelectionClipboardContent,
   createTranscriptSelectionClipboardContent,
 } from "./content.web";
-import { appendQuotedReply } from "./reply";
+import { insertQuotedReply } from "./reply";
 
 const fixture = `
   <div data-testid="assistant-message">
@@ -804,7 +804,7 @@ it("preserves the first bullet when replying to a complete linked list selected 
     "- [owner-todo.md](docs/owner-todo.md): OT-126.",
   ];
   expect(content?.plainText).toBe(expected.join("\n"));
-  expect(appendQuotedReply("", content?.plainText ?? "")).toBe(
+  expect(insertQuotedReply("", content?.plainText ?? "", null).text).toBe(
     expected.map((line) => `> ${line}`).join("\n") + "\n\n",
   );
 });

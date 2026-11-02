@@ -32,6 +32,8 @@ export class ComposerEditingSession {
   private fullscreen = false;
   private editor: {
     getText(): string;
+    /** The caret the editor last had while focused, or null once the text changed without it. */
+    getCaret(): ComposerSelection | null;
     replaceText(text: string, selection: ComposerSelection): void;
     focus(): void;
   } | null = null;
@@ -52,6 +54,20 @@ export class ComposerEditingSession {
     const nextText = `${text}${text && !/\s$/.test(text) ? " " : ""}${command} `;
     editor.replaceText(nextText, { start: nextText.length, end: nextText.length });
     editor.focus();
+  }
+  /**
+   * Rewrites the live buffer around the remembered caret and leaves the caret where the edit
+   * says. Focus is the caller's: a click that started outside the editor may still move it.
+   * Returns false when no editor is mounted.
+   */
+  editAtCaret(
+    edit: (text: string, caret: ComposerSelection | null) => { text: string; caret: number },
+  ): boolean {
+    const editor = this.editor;
+    if (!editor) return false;
+    const next = edit(editor.getText(), editor.getCaret());
+    editor.replaceText(next.text, { start: next.caret, end: next.caret });
+    return true;
   }
   /** Called by the unmounting editor; the next mount of this session takes it. */
   retainEditor(retained: ComposerRetainedEditor) {

@@ -988,6 +988,59 @@ test("replying to selected assistant text preserves the draft and focuses the co
   }
 });
 
+test("replying inserts the quote at the caret the composer had before it lost focus", async ({
+  page,
+}) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "assistant-selection-reply-caret-",
+    title: "Reply at the composer caret",
+    initialPrompt: "Explain the ports.",
+    featureValues: {
+      mockAssistantResponse:
+        "Docker ports are **PostgreSQL databases**.\n\nKeep the existing configuration.",
+    },
+  });
+  try {
+    await agent.client.waitForAgentUpsert(
+      agent.agentId,
+      (snapshot) => snapshot.status === "idle",
+      30_000,
+    );
+    await openAgentRoute(page, agent);
+    const composer = composerLocator(page);
+    const draft = "First line\nSecond line";
+    await composer.fill(draft);
+    await composer.press("ControlOrMeta+Home");
+    await composer.press("End");
+    await expect(composer).toHaveAttribute("data-selection-start", "10");
+    await composer.blur();
+    await expect(composer).not.toBeFocused();
+    await selectAssistantText(page, "PostgreSQL databases");
+    const reply = page.getByTestId("reply-to-selection");
+    await reply.click();
+    const firstQuote = "First line\n\n> PostgreSQL databases\n\n";
+    await expect(composer).toHaveAttribute("data-markdown", `${firstQuote}\n\nSecond line`);
+    await expect(composer).toBeFocused();
+    await expect(composer).toHaveAttribute("data-selection-start", String(firstQuote.length));
+    await composer.pressSequentially("Which port?");
+    const commented = `${firstQuote}Which port?\n\nSecond line`;
+    await expect(composer).toHaveAttribute("data-markdown", commented);
+    await composer.blur();
+    await selectAssistantText(page, "Keep the existing configuration.");
+    await reply.click();
+    await expect(composer).toHaveAttribute(
+      "data-markdown",
+      `${firstQuote}Which port?\n\n> Keep the existing configuration.\n\n\n\nSecond line`,
+    );
+    await expect(composer).toBeFocused();
+    // One Undo takes back the whole second quote and leaves the typed comment.
+    await composer.press("ControlOrMeta+z");
+    await expect(composer).toHaveAttribute("data-markdown", commented);
+  } finally {
+    await agent.cleanup();
+  }
+});
+
 test("clicking selected text dismisses the toolbar without breaking word or line selection", async ({
   page,
 }) => {

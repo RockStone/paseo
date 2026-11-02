@@ -40,9 +40,14 @@ before switching it back; Git rejects a branch already checked out in another wo
 
 The build adds desktop/browser selection replies. Select
 chat text, including Thinking, commands, tool output, or assistant messages, and
-release the drag to show **Copy | Reply**. Choose **Reply** to append an editable Markdown quote to the current draft, then
-type your comment. **Copy**, beside Reply with a divider, writes the selected excerpt
-to the clipboard with its Markdown and code spacing, then dismisses the toolbar.
+release the drag to show **Copy | Reply**. Choose **Reply** to insert an editable Markdown
+quote on its own lines at the caret the composer had before you clicked away, after any
+selected draft text and never inside a reference or other hidden Markdown. The caret then
+waits on an empty line below the quote for your comment, so the next Reply lands after it.
+Without a remembered caret, because the composer was never focused or the draft changed
+since, the quote goes at the end of the draft. One Undo removes the quote. **Copy**,
+beside Reply with a divider, writes the selected excerpt to the clipboard with its
+Markdown and code spacing, then dismisses the toolbar.
 Selecting transcript text pauses automatic scrolling until you scroll back to the
 bottom or use the down-arrow button. Copy and Reply keep the captured excerpt if
 streaming replaces the selected DOM. Switching back to a chat restores your reading

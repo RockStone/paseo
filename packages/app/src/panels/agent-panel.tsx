@@ -20,7 +20,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import invariant from "tiny-invariant";
 import { shallow, useShallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import { SelectionReplyContext, appendQuotedReply } from "@/assistant-selection-copy/reply";
+import { SelectionReplyContext, insertQuotedReply } from "@/assistant-selection-copy/reply";
 import { useAgentStreamTail } from "@/agent-stream/use-agent-stream-tail";
 import { AgentStreamView, type AgentStreamViewHandle } from "@/agent-stream/view";
 import { ArchivedAgentCallout } from "@/components/archived-agent-callout";
@@ -1194,10 +1194,13 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   const [replyFocusKey, setReplyFocusKey] = useState(0);
   const replyToSelection = useCallback(
     (text: string) => {
-      replaceText(appendQuotedReply(textSource.getSnapshot(), text));
+      const inserted = composerEditingSession.editAtCaret((draft, caret) =>
+        insertQuotedReply(draft, text, caret),
+      );
+      if (!inserted) replaceText(insertQuotedReply(textSource.getSnapshot(), text, null).text);
       setReplyFocusKey((key) => key + 1);
     },
-    [replaceText, textSource],
+    [composerEditingSession, replaceText, textSource],
   );
   const parentCallout = parentAgentId ? (
     <ParentAgentCallout serverId={serverId} parentAgentId={parentAgentId} />
