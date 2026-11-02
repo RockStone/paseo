@@ -1741,4 +1741,122 @@ describe("createWebStreamStrategy", () => {
     act(() => notifyResize(scrollContainer, contentNode));
     expect(scrollContainer.scrollTop).toBe(800);
   });
+
+  describe("new timeline rows", () => {
+    function mountDetachedReader() {
+      const scrollTo = vi.fn(function (this: HTMLElement, options?: ScrollToOptions | number) {
+        this.scrollTop = typeof options === "object" ? (options.top ?? 0) : 0;
+      });
+      HTMLElement.prototype.scrollTo = scrollTo;
+      const strategy = createWebStreamStrategy({ isMobileBreakpoint: true });
+      const baseInput: StreamRenderInput = {
+        agentId: "agent",
+        segments: {
+          historyVirtualized: [],
+          historyMounted: [userMessage(1), userMessage(2)],
+          liveHead: [],
+        },
+        boundary: { hasVirtualizedHistory: false, hasMountedHistory: true, hasLiveHead: false },
+        renderers: createRenderers(vi.fn()),
+        listEmptyComponent: null,
+        viewportRef: React.createRef<StreamViewportHandle>(),
+        routeBottomAnchorRequest: null,
+        isAuthoritativeHistoryReady: true,
+        onNearBottomChange: vi.fn(),
+        onNearHistoryStart: vi.fn().mockReturnValue(true),
+        isLoadingOlderHistory: false,
+        hasOlderHistory: false,
+        olderHistoryProgressKey: null,
+        scrollEnabled: true,
+        listStyle: null,
+        baseListContentContainerStyle: null,
+        forwardListContentContainerStyle: null,
+        contentMaxWidth: DEFAULT_CONTENT_MAX_WIDTH,
+      };
+      const render = (
+        rows: { historyMounted?: StreamItem[]; liveHead?: StreamItem[] } = {},
+        active = true,
+      ) => {
+        const historyMounted = rows.historyMounted ?? baseInput.segments.historyMounted;
+        const liveHead = rows.liveHead ?? [];
+        act(() =>
+          root?.render(
+            <RetainedPanelActivity active={active}>
+              {strategy.render({
+                ...baseInput,
+                segments: { historyVirtualized: [], historyMounted, liveHead },
+                boundary: { ...baseInput.boundary, hasLiveHead: liveHead.length > 0 },
+              })}
+            </RetainedPanelActivity>,
+          ),
+        );
+      };
+      container = document.createElement("div");
+      document.body.appendChild(container);
+      root = createRoot(container);
+      render();
+      const scrollContainer = container.querySelector('[data-testid="agent-chat-scroll"]');
+      if (!(scrollContainer instanceof HTMLElement)) {
+        throw new Error("Expected agent chat scroll container");
+      }
+      Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 500 });
+      Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 1500 });
+      scrollContainer.scrollTop = 1000;
+      act(() => scrollContainer.dispatchEvent(new Event("scroll")));
+      act(() => {
+        scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -400 }));
+        scrollContainer.scrollTop = 600;
+        scrollContainer.dispatchEvent(new Event("scroll"));
+      });
+      scrollTo.mockClear();
+      return { render, scrollContainer, scrollTo };
+    }
+
+    it("keeps a detached reader in place while rows arrive in the open chat", () => {
+      const { render, scrollContainer, scrollTo } = mountDetachedReader();
+
+      render({ historyMounted: [userMessage(1), { ...userMessage(2), text: "streamed" }] });
+      render({ historyMounted: [userMessage(0), userMessage(1), userMessage(2)] });
+      render({
+        historyMounted: [userMessage(0), userMessage(1), userMessage(2)],
+        liveHead: [userMessage(3)],
+      });
+      expect(scrollTo).not.toHaveBeenCalled();
+      expect(scrollContainer.scrollTop).toBe(600);
+    });
+
+    it("restores the reading offset on return unless new rows arrived while away", () => {
+      const { render, scrollContainer, scrollTo } = mountDetachedReader();
+
+      render({}, false);
+      scrollContainer.scrollTop = 0;
+      render({}, true);
+      expect(scrollTo).not.toHaveBeenCalled();
+      expect(scrollContainer.scrollTop).toBe(600);
+
+      render({}, false);
+      scrollContainer.scrollTop = 0;
+      render({ liveHead: [userMessage(3)] }, true);
+      expect(scrollTo).toHaveBeenCalledWith({ top: 1500, behavior: "auto" });
+      expect(scrollContainer.scrollTop).toBe(1500);
+    });
+
+    it("keeps the reading offset on return while a transcript selection is active", () => {
+      const { render, scrollContainer, scrollTo } = mountDetachedReader();
+      const row = scrollContainer.querySelector('[data-history-row-id="message-1"]');
+      if (!(row instanceof HTMLElement)) throw new Error("Expected transcript row");
+      const range = document.createRange();
+      range.selectNodeContents(row);
+      const selection = document.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      render({}, false);
+      scrollContainer.scrollTop = 0;
+      render({ liveHead: [userMessage(3)] }, true);
+      selection?.removeAllRanges();
+      expect(scrollTo).not.toHaveBeenCalled();
+      expect(scrollContainer.scrollTop).toBe(600);
+    });
+  });
 });

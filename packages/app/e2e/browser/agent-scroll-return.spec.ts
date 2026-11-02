@@ -245,6 +245,34 @@ test("a retained chat preserves an intentional reading position", async ({ page 
   }
 });
 
+test("a retained reading position yields to messages that arrived while away", async ({ page }) => {
+  test.setTimeout(240_000);
+  const longChat = await seedLongMockAgentTimeline({ turns: 30 });
+  const otherWorkspace = await seedMockAgentWorkspace({
+    repoPrefix: "scroll-return-new-messages-other-",
+    title: "Other workspace",
+    initialPrompt: "Open the other workspace",
+  });
+  const awayPrompt = "Reply while the reader is in another workspace";
+
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openAgentTimeline(page, longChat);
+    await expectTimelinePromptVisible(page, longChat.newestPrompt);
+    await scrollChatAwayFromBottom(page, { deltaY: -900, minDistanceFromBottom: 300 });
+
+    await openCompactWorkspace(page, otherWorkspace);
+    await longChat.client.sendAgentMessage(longChat.agentId, awayPrompt);
+    await longChat.client.waitForFinish(longChat.agentId, 20_000);
+    await openCompactWorkspace(page, longChat);
+
+    await expectTimelinePromptVisible(page, awayPrompt);
+    await expectChatAtBottom(page);
+  } finally {
+    await Promise.allSettled([longChat.cleanup(), otherWorkspace.cleanup()]);
+  }
+});
+
 test("editing keys in an embedded question keep output following", async ({ page }) => {
   test.setTimeout(240_000);
   const longChat = await seedLongMockAgentTimeline({ turns: 30 });

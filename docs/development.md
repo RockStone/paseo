@@ -44,7 +44,9 @@ type your comment. **Copy**, beside Reply with a divider, writes the selected ex
 to the clipboard with its Markdown and code spacing, then dismisses the toolbar.
 Selecting transcript text pauses automatic scrolling until you scroll back to the
 bottom or use the down-arrow button. Copy and Reply keep the captured excerpt if
-streaming replaces the selected DOM.
+streaming replaces the selected DOM. Switching back to a chat restores your reading
+position unless a new message arrived while you were away; then the chat opens at the
+bottom. An active selection keeps the position either way.
 Selections can span sections; code indentation and existing draft text are
 preserved. Native clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry

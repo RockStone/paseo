@@ -336,6 +336,9 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
   }, []);
   const lastKnownScrollTopRef = useRef(0);
   const suspendedReadingOffsetRef = useRef<number | null>(null);
+  const seenTailRowIdRef = useRef<string | null>(null);
+  const seenRowIdsRef = useRef<ReadonlySet<string> | null>(null);
+  const wasTimelineActiveRef = useRef(false);
   const mouseScrollGestureRef = useRef<
     | { kind: "scrollbar"; pointerId: number }
     | {
@@ -738,6 +741,59 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     onNearBottomChange,
     releaseReadingAnchor: readingAnchor.reset,
   });
+
+  const hasTranscriptSelection = useStableEvent(() => {
+    const selection = document.getSelection();
+    const content = contentRef.current;
+    if (!content || !selection || selection.isCollapsed || selection.rangeCount !== 1) return false;
+    const range = selection.getRangeAt(0);
+    return (
+      content.contains(range.startContainer) &&
+      content.contains(range.endContainer) &&
+      !isEditableEventTarget(range.startContainer.parentElement)
+    );
+  });
+
+  // A new message is a new last timeline row (user or assistant message, tool call,
+  // ...) that this viewport never showed while active. Returning to a retained chat
+  // with one lands at the bottom; otherwise the retained offset stays. Streaming into
+  // an existing row, prepended history, and rows folding into an earlier one are not
+  // new. A detached reader inside the chat keeps its position, as does a selection.
+  const followTimelineRowsAddedWhileAway = useStableEvent(() => {
+    const resumed = isActiveRef.current && !wasTimelineActiveRef.current;
+    wasTimelineActiveRef.current = isActiveRef.current;
+    if (!isActiveRef.current) return;
+    const tailRowId =
+      segments.liveHead.at(-1)?.id ??
+      segments.historyMounted.at(-1)?.id ??
+      segments.historyVirtualized.at(-1)?.id ??
+      null;
+    if (tailRowId === seenTailRowIdRef.current) return;
+    const seenRowIds = seenRowIdsRef.current;
+    seenTailRowIdRef.current = tailRowId;
+    seenRowIdsRef.current = new Set(
+      [...segments.historyVirtualized, ...segments.historyMounted, ...segments.liveHead].map(
+        (row) => row.id,
+      ),
+    );
+    if (
+      !resumed ||
+      !seenRowIds ||
+      tailRowId === null ||
+      seenRowIds.has(tailRowId) ||
+      followOutputRef.current ||
+      hasTranscriptSelection()
+    ) {
+      return;
+    }
+    setFollowOutput(true);
+    readingAnchor.reset();
+    forceStickToBottom();
+  });
+  // Runs after the retained offset restore, so a return with new rows overrides it.
+  useLayoutEffect(() => {
+    followTimelineRowsAddedWhileAway();
+  }, [followTimelineRowsAddedWhileAway, isActive, segments]);
 
   const reconcileReadingPosition = useStableEvent(() => {
     const container = scrollContainerRef.current;
@@ -1156,18 +1212,6 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       lastTouchClientYRef.current = null;
     };
     let selectionGesture: { followed: boolean; selected: boolean } | null = null;
-    const hasTranscriptSelection = () => {
-      const selection = document.getSelection();
-      const content = contentRef.current;
-      if (!content || !selection || selection.isCollapsed || selection.rangeCount !== 1)
-        return false;
-      const range = selection.getRangeAt(0);
-      return (
-        content.contains(range.startContainer) &&
-        content.contains(range.endContainer) &&
-        !isEditableEventTarget(range.startContainer.parentElement)
-      );
-    };
     const handleSelectionStart = (event: Event) => {
       if (
         !(event.target instanceof Node) ||
@@ -1242,6 +1286,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     clearMouseScrollGesture,
     clearUpwardInputEvidence,
     handleDomScroll,
+    hasTranscriptSelection,
     isActive,
     markUpwardInputEvidence,
     rearmHistoryStartFromUserIntent,
