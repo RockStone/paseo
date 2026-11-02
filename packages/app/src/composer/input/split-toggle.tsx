@@ -14,9 +14,10 @@ function keepEditorFocused(event: PointerEvent) {
 }
 
 /**
- * Expand and Collapse for the split composer, pinned to the top right of the text area
- * in the band the editor reserves for it. The press keeps the editor focused, so the
- * caret stays where the user left it across the toggle.
+ * Expand and Collapse for the split composer, floating over the top right of the text area
+ * without reserving a column: it stays translucent so the text under it reads, and turns
+ * solid on hover. The press keeps the editor focused, so the caret stays where the user
+ * left it across the toggle.
  */
 export function ComposerSplitToggle({ split, onToggle }: { split: boolean; onToggle: () => void }) {
   const { t } = useTranslation();
@@ -68,9 +69,11 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.surface2,
+    opacity: 0.5,
   },
   buttonHovered: {
     backgroundColor: theme.colors.surface3,
+    opacity: 1,
   },
   tooltipText: {
     fontSize: theme.fontSize.base,

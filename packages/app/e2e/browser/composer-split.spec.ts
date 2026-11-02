@@ -94,10 +94,17 @@ test.describe("composer split view", () => {
       const cap = Math.max(140, Math.floor(capped.dock.height * 0.3));
       expect(capped.editor.height).toBeLessThanOrEqual(cap + 1);
       expect(capped.editor.height).toBeGreaterThan(cap - 30);
-      // The control sits in the reserved band at the top right, beside the text.
+      // The control floats over the top right of the text; the editor reserves no column.
       const expandBox = await expand.boundingBox();
       expect(expandBox).not.toBeNull();
-      expect(expandBox!.x).toBeGreaterThan(capped.editor.x + capped.editor.width - 8);
+      expect(expandBox!.x).toBeLessThan(capped.editor.x + capped.editor.width);
+      expect(expandBox!.x + expandBox!.width).toBeGreaterThan(
+        capped.editor.x + capped.editor.width - 8,
+      );
+      await expect(expand).toHaveCSS("opacity", "0.5");
+      await expand.hover();
+      await expect(expand).toHaveCSS("opacity", "1");
+      await page.mouse.move(0, 0);
       await screenshot(page, "composer-normal.png", testInfo);
 
       await selectComposerDraftRange(page, 5, 9);

@@ -2130,11 +2130,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         mode.isMonospace && styles.textInputMonospace,
         fillsSlot ? styles.fullscreenTextInput : composerHeightStyle,
         isCompact && !isFullscreen && styles.compactTextInput,
-        // Same reserved band as compact, only while the control shows: it appears once the
-        // draft is already at the cap, so the extra wrapping cannot hide it again.
-        showSplitControl && styles.compactTextInput,
       ],
-      [composerHeightStyle, mode.isMonospace, fillsSlot, isFullscreen, isCompact, showSplitControl],
+      [composerHeightStyle, mode.isMonospace, fillsSlot, isFullscreen, isCompact],
     );
     // Static content has no textarea to mirror, so it grows with its own text
     // instead of the measured input height.
