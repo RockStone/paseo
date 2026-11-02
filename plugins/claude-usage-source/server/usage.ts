@@ -383,7 +383,14 @@ export async function discover(
     const harness = { pi: "Pi", omp: "OMP", claude: "Claude", keychain: "Claude" }[
       input.route.store
     ];
-    const fallback = { key: hashAccountKey(JSON.stringify(input.route)), harness, input };
+    const routeKey = JSON.stringify(input.route);
+    // An expired or rejected token cannot name its account. Keep the last identity this login
+    // had so the card keeps its ID and label instead of reappearing as a second, unnamed card.
+    const fallback = {
+      ...(knownIdentities.get(routeKey) ?? { key: hashAccountKey(routeKey) }),
+      harness,
+      input,
+    };
     if (credentials.expires !== undefined && credentials.expires <= (lookup.now ?? Date.now)()) {
       accounts.push(fallback);
       continue;
@@ -394,13 +401,34 @@ export async function discover(
         fetchApi,
         lookup.now ?? Date.now,
       );
-      accounts.push("status" in profile ? fallback : { ...profile, harness, input });
+      if ("status" in profile) {
+        accounts.push(fallback);
+        continue;
+      }
+      rememberIdentity(routeKey, profile);
+      accounts.push({ ...profile, harness, input });
     } catch {
       // Keep the login visible; fetching usage reports the vendor failure.
       accounts.push(fallback);
     }
   }
   return accounts;
+}
+
+const IDENTITY_MEMORY_LIMIT = 64;
+const knownIdentities = new Map<string, { key: string; label?: string }>();
+
+function rememberIdentity(routeKey: string, identity: { key: string; label?: string }): void {
+  knownIdentities.delete(routeKey);
+  knownIdentities.set(routeKey, {
+    key: identity.key,
+    ...(identity.label ? { label: identity.label } : {}),
+  });
+  while (knownIdentities.size > IDENTITY_MEMORY_LIMIT) {
+    const oldest = knownIdentities.keys().next().value;
+    if (oldest === undefined) break;
+    knownIdentities.delete(oldest);
+  }
 }
 
 function claudeKeychainRoute(lookup: ClaudeCredentialLookup) {

@@ -158,10 +158,11 @@ export class UsageSourceRegistry {
 
   private mergeKnown(): void {
     this.known.clear();
-    for (const reports of [
+    const discoveries = [
       this.defaults,
       ...[...this.byAgent.values()].map((agent) => agent.reports),
-    ]) {
+    ];
+    for (const reports of discoveries) {
       for (const [id, report] of reports) {
         if (this.sources.get(report.source.id) !== report.source) continue;
         const known = this.known.get(id);
@@ -175,10 +176,31 @@ export class UsageSourceRegistry {
         }
       }
     }
+    this.dropUnnamedDuplicates(discoveries);
     // Fetch freshness expires independently of successful snapshots. Retain only live identities.
     const active = this.activeCacheKeys();
     for (const key of this.successful.keys()) if (!active.has(key)) this.successful.delete(key);
     for (const key of this.cache.keys()) if (!active.has(key)) this.cache.delete(key);
+  }
+
+  // A login discovered while its token could not name the account gets a locator key and no
+  // label. Agent mappings live for the agent session, so a different discovery can know the same
+  // login under its named account. Show the named card only. Accounts that one discovery reports
+  // side by side stay distinct.
+  private dropUnnamedDuplicates(discoveries: ReadonlyMap<string, KnownReport>[]): void {
+    const named = [...this.known].filter(([, report]) => report.label !== undefined);
+    for (const [id, report] of this.known) {
+      if (report.label !== undefined) continue;
+      const duplicate = named.some(
+        ([otherId, other]) =>
+          other.source === report.source &&
+          !discoveries.some((reports) => reports.has(id) && reports.has(otherId)) &&
+          report.logins.every((login) =>
+            other.logins.some((existing) => loginKey(existing) === loginKey(login)),
+          ),
+      );
+      if (duplicate) this.known.delete(id);
+    }
   }
 
   private activeCacheKeys(): Set<string> {

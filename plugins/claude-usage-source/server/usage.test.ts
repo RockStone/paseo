@@ -866,7 +866,8 @@ function tokenLookup(accessToken: string) {
   const directory = mkdtempSync(join(tmpdir(), "claude-profile-token-"));
   tokenDirectories.push(directory);
   writeClaudeCredentials(directory, accessToken);
-  return { claudeHome: directory, home: directory };
+  // Never fall through to the developer's real Keychain login on macOS.
+  return { claudeHome: directory, home: directory, platform: "linux" as const };
 }
 
 it("discovers a Pi OAuth login independently of the CLI login", async () => {
@@ -937,7 +938,12 @@ async function accountFor(
   now: () => number,
   lookup: Parameters<typeof discover>[0] = {},
 ) {
-  const accounts = await discover({ kind: "global" }, { ...lookup, now }, fetchApi);
+  // Tests that do not opt into macOS never reach the developer's real Keychain login.
+  const accounts = await discover(
+    { kind: "global" },
+    { platform: "linux", ...lookup, now },
+    fetchApi,
+  );
   const account = accounts.find((candidate) => isDeepStrictEqual(candidate.input, input));
   if (!account) throw new Error("Expected discovered login");
   return { key: account.key, ...(account.label ? { label: account.label } : {}) };
@@ -1031,6 +1037,37 @@ it("says when a rate-limited login can retry and does not call the API before th
   now += 8 * 60_000;
   expect((await fetchUsage(input, api, lookup)).status).toBe("available");
   expect(usageCalls).toBe(2);
+});
+
+it("an expired or unreadable login keeps the account it last named", async () => {
+  const lookup = tokenLookup("remembered-valid-token");
+  const input = credentialInput(lookup.claudeHome);
+  const named = {
+    key: "remembered-account.org",
+    label: "remembered@example.test",
+    harness: "Claude",
+    input,
+  };
+  const profile: typeof fetch = async () =>
+    jsonResponse({
+      account: { uuid: "remembered-account", email: "remembered@example.test" },
+      organization: { uuid: "org" },
+    });
+  expect(await discover({ kind: "global" }, lookup, profile)).toContainEqual(named);
+
+  writeFileSync(
+    join(lookup.claudeHome, ".credentials.json"),
+    JSON.stringify({ claudeAiOauth: { accessToken: "remembered-expired", expiresAt: 0 } }),
+  );
+  const offline: typeof fetch = async () => {
+    throw new Error("expired token must not fetch");
+  };
+  expect(await discover({ kind: "global" }, lookup, offline)).toContainEqual(named);
+
+  writeClaudeCredentials(lookup.claudeHome, "remembered-unreachable-token");
+  expect(
+    await discover({ kind: "global" }, lookup, async () => new Response(null, { status: 500 })),
+  ).toContainEqual(named);
 });
 
 it("re-reads a refreshed login at the original locator", async () => {

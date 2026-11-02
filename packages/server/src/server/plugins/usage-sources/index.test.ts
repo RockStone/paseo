@@ -419,6 +419,34 @@ test("session discovery reuses accounts, separates launches, and retains live ag
   await expect(registry.listReports({ agentId: "one", reportIds: [] })).rejects.toThrow("agentId");
 });
 
+test("an unnamed card for a login another card already names is shown once", async () => {
+  const sessions = new Map([["agent", { provider: "claude", env: {}, sessionKey: "launch" }]]);
+  let named = true;
+  const registry = new UsageSourceRegistry(Date.now, 300_000, undefined, {
+    hasAgent: (id) => sessions.has(id),
+    usageSession: (id) => sessions.get(id) ?? null,
+  });
+  registry.register({
+    id: "claude",
+    label: "Claude",
+    discover: async () => [
+      named
+        ? { key: "account", label: "me@example.test", input: "login" }
+        : { key: "locator", input: "login" },
+    ],
+    fetch: async () => ({ status: "available", windows: [] }),
+  });
+  // The agent session caches its named mapping; the host's later discovery cannot name it.
+  await registry.listReports({ agentId: "agent" });
+  named = false;
+  expect((await registry.listReports()).map((r) => r.id)).toEqual(["claude:account"]);
+  // The reverse: an agent mapped while unnamed, then the host names the same login.
+  sessions.set("agent", { provider: "claude", env: {}, sessionKey: "relaunch" });
+  await registry.listReports({ agentId: "agent" });
+  named = true;
+  expect((await registry.listReports()).map((r) => r.id)).toEqual(["claude:account"]);
+});
+
 test("reports arrive independently and a hung fetch settles as an error before completion", async () => {
   const registry = new UsageSourceRegistry(Date.now, 300_000, undefined, undefined, 25);
   let finishSlow!: (value: unknown) => void;
