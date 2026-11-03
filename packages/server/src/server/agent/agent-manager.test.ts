@@ -5649,6 +5649,73 @@ test("session config drift events update state through the stream channel", asyn
   expect(persisted?.config?.modeId).toBe("build");
 });
 
+test("provider metadata events leave last activity alone; conversation events move it", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-metadata-activity-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  let capturedSession: TestAgentSession | null = null;
+  class MetadataEventClient extends TestAgentClient {
+    override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
+      capturedSession = new TestAgentSession(config);
+      return capturedSession;
+    }
+  }
+  const manager = new AgentManager({
+    clients: { codex: new MetadataEventClient() },
+    registry: storage,
+    logger,
+    idFactory: () => "00000000-0000-4000-8000-000000000134",
+  });
+
+  try {
+    const snapshot = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+    const session = capturedSession!;
+    const lastActivity = () => toAgentPayload(manager.getAgent(snapshot.id)!).lastActivityAt;
+    const before = lastActivity();
+
+    // What a provider emits when an idle session is resumed or its settings drift.
+    session.pushEvent({ type: "thread_started", provider: "codex", sessionId: session.id });
+    session.pushEvent({
+      type: "usage_updated",
+      provider: "codex",
+      usage: { inputTokens: 10, contextWindowMaxTokens: 200_000, contextWindowUsedTokens: 175 },
+    });
+    session.pushEvent({
+      type: "mode_changed",
+      provider: "codex",
+      currentModeId: "build",
+      availableModes: [{ id: "build", label: "Build" }],
+    });
+    session.pushEvent({
+      type: "thinking_option_changed",
+      provider: "codex",
+      thinkingOptionId: "high",
+    });
+    session.pushEvent({ type: "background_tasks_changed", provider: "codex", taskIds: [] });
+    await manager.flush();
+    expect(manager.getAgent(snapshot.id)?.currentModeId).toBe("build");
+    expect(lastActivity()).toBe(before);
+
+    session.pushEvent({ type: "background_tasks_changed", provider: "codex", taskIds: ["task-1"] });
+    await manager.flush();
+    const afterTask = lastActivity();
+    expect(Date.parse(afterTask!)).toBeGreaterThan(Date.parse(before!));
+
+    session.pushEvent({
+      type: "timeline",
+      provider: "codex",
+      item: { type: "assistant_message", text: "Still here" },
+    });
+    await manager.flush();
+    expect(Date.parse(lastActivity()!)).toBeGreaterThan(Date.parse(afterTask!));
+  } finally {
+    await manager.closeAgent("00000000-0000-4000-8000-000000000134");
+    await storage.flush();
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
 test("setLabels merges and persists labels", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-set-labels-"));
   const storagePath = join(workdir, "agents");

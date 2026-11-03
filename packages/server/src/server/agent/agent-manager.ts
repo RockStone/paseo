@@ -4268,9 +4268,11 @@ export class AgentManager {
     event: AgentStreamEvent,
   ): Promise<void> {
     if (event.type === "background_tasks_changed") {
+      // A resumed session restates its task list; only a change in it is activity.
+      const changed = !sameTaskIds(agent.backgroundTaskIds, event.taskIds);
       agent.backgroundTaskIds = event.taskIds;
       agent.backgroundTaskCount = event.taskIds.length;
-      this.touchActivity(agent);
+      if (changed) this.touchActivity(agent);
       this.emitState(agent);
       return;
     }
@@ -4675,7 +4677,7 @@ export class AgentManager {
 
     // Only update timestamp for live events, not history replay
     if (!options?.fromHistory) {
-      this.touchActivity(agent);
+      if (isConversationActivity(event)) this.touchActivity(agent);
       if (this.agentStreamCoalescer.handle(agent.id, event)) {
         this.traceCoalescerBuffered(agent, event, eventTurnId);
         return false;
@@ -5945,4 +5947,26 @@ export function commandMayHaveChangedExternalState(command: string): boolean {
     // ahead/behind counts can drift stale until the next refresh.
     /\bgit\s+fetch\b/.test(normalized)
   );
+}
+
+/**
+ * Provider metadata (a resumed thread, usage, mode/model/thinking drift) arrives whenever an idle
+ * session is reloaded, so it must not read as conversation activity in the sidebar.
+ */
+function isConversationActivity(event: AgentStreamEvent): boolean {
+  switch (event.type) {
+    case "thread_started":
+    case "usage_updated":
+    case "mode_changed":
+    case "model_changed":
+    case "thinking_option_changed":
+      return false;
+    default:
+      return true;
+  }
+}
+
+function sameTaskIds(previous: readonly string[] | undefined, next: readonly string[]): boolean {
+  const current = previous ?? [];
+  return current.length === next.length && current.every((id, index) => id === next[index]);
 }
