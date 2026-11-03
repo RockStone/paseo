@@ -1272,6 +1272,9 @@ export const ar: TranslationResources = {
         manual: "يدوي",
         lastActivity: "آخر نشاط",
         lastPrompt: "آخر طلب",
+        name: "الاسم",
+        descending: "تنازلي",
+        ascending: "تصاعدي",
         updateHost: "حدّث المضيفين لترتيب مساحات العمل",
       },
       grouping: {

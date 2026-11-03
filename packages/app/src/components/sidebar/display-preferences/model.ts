@@ -1,4 +1,4 @@
-import type { SidebarWorkspaceSort } from "@/stores/sidebar-view-store";
+import type { SidebarWorkspaceSort, WorkspaceSortDirection } from "@/stores/sidebar-view-store";
 import { useCallback, useMemo } from "react";
 import {
   useAppSettings,
@@ -22,6 +22,9 @@ export interface SidebarDisplayPreferences {
   grouping: SidebarGroupMode;
   workspaceSort: SidebarWorkspaceSort;
   setWorkspaceSort: (sort: SidebarWorkspaceSort) => void;
+  /** Read by every sort except Manual. */
+  workspaceSortDirection: WorkspaceSortDirection;
+  setWorkspaceSortDirection: (direction: WorkspaceSortDirection) => void;
   setGrouping: (mode: SidebarGroupMode) => void;
   titleSource: WorkspaceTitleSource;
   setTitleSource: (source: WorkspaceTitleSource) => void;
@@ -57,6 +60,8 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
   const toggleBackground = useSidebarViewStore((state) => state.toggleBackground);
   const workspaceSort = useSidebarViewStore((state) => state.workspaceSort);
   const setWorkspaceSort = useSidebarViewStore((state) => state.setWorkspaceSort);
+  const workspaceSortDirection = useSidebarViewStore((state) => state.workspaceSortDirection);
+  const setWorkspaceSortDirection = useSidebarViewStore((state) => state.setWorkspaceSortDirection);
   const grouping = useSidebarViewStore((state) => state.groupMode);
   const setGrouping = useSidebarViewStore((state) => state.setGroupMode);
   const hostFilters = useSidebarViewStore((state) => state.hostFilters);
@@ -118,6 +123,8 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
       grouping,
       workspaceSort,
       setWorkspaceSort,
+      workspaceSortDirection,
+      setWorkspaceSortDirection,
       setGrouping,
       titleSource: workspaceTitleSource,
       setTitleSource,
@@ -143,6 +150,8 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
       grouping,
       workspaceSort,
       setWorkspaceSort,
+      workspaceSortDirection,
+      setWorkspaceSortDirection,
       setGrouping,
       workspaceTitleSource,
       setTitleSource,

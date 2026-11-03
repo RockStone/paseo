@@ -49,6 +49,7 @@ import {
   hasActiveSidebarLabelFilter,
   SIDEBAR_UNLABELLED_LABEL_KEY,
   type SidebarGroupMode,
+  type SidebarWorkspaceSort,
 } from "@/stores/sidebar-view-store";
 import { workspaceLabelKey, type WorkspaceLabelColor } from "@getpaseo/protocol/workspace-labels";
 import type { WorkspaceTitleSource } from "@/hooks/use-settings";
@@ -323,9 +324,7 @@ export function SidebarDisplayPreferencesMenu(): ReactElement {
             <MenuSubTrigger
               id="sort"
               value={
-                workspaceSortSupported ||
-                preferences.workspaceSort === "manual" ||
-                preferences.workspaceSort === "lastActivity"
+                workspaceSortSupported || !HOST_TIMED_SORTS.has(preferences.workspaceSort)
                   ? t(`sidebar.display.sort.${preferences.workspaceSort}`)
                   : undefined
               }
@@ -399,6 +398,9 @@ export function SidebarDisplayPreferencesMenu(): ReactElement {
   );
 }
 
+/** The sorts that need timestamps only an updated host sends. Name and Manual are client-side. */
+const HOST_TIMED_SORTS: ReadonlySet<SidebarWorkspaceSort> = new Set(["created", "lastPrompt"]);
+
 function SortPage({
   preferences,
   automaticSortSupported,
@@ -407,7 +409,7 @@ function SortPage({
   automaticSortSupported: boolean;
 }): ReactElement {
   const { t } = useTranslation();
-  const { setWorkspaceSort } = preferences;
+  const { setWorkspaceSort, setWorkspaceSortDirection } = preferences;
   const selectLastActivity = useCallback(
     () => setWorkspaceSort("lastActivity"),
     [setWorkspaceSort],
@@ -415,6 +417,17 @@ function SortPage({
   const selectManual = useCallback(() => setWorkspaceSort("manual"), [setWorkspaceSort]);
   const selectCreated = useCallback(() => setWorkspaceSort("created"), [setWorkspaceSort]);
   const selectLastPrompt = useCallback(() => setWorkspaceSort("lastPrompt"), [setWorkspaceSort]);
+  const selectName = useCallback(() => setWorkspaceSort("name"), [setWorkspaceSort]);
+  const selectDescending = useCallback(
+    () => setWorkspaceSortDirection("descending"),
+    [setWorkspaceSortDirection],
+  );
+  const selectAscending = useCallback(
+    () => setWorkspaceSortDirection("ascending"),
+    [setWorkspaceSortDirection],
+  );
+  // Manual has no direction to pick, so the rows are absent rather than disabled.
+  const showDirection = preferences.workspaceSort !== "manual";
   return (
     <>
       <MenuItem
@@ -438,9 +451,30 @@ function SortPage({
             {t("sidebar.display.sort.lastPrompt")}
           </MenuItem>
         </>
-      ) : (
+      ) : null}
+      <MenuItem selected={preferences.workspaceSort === "name"} onSelect={selectName}>
+        {t("sidebar.display.sort.name")}
+      </MenuItem>
+      {automaticSortSupported ? null : (
         <MenuItem disabled>{t("sidebar.display.sort.updateHost")}</MenuItem>
       )}
+      {showDirection ? (
+        <>
+          <MenuSeparator />
+          <MenuItem
+            selected={preferences.workspaceSortDirection === "descending"}
+            onSelect={selectDescending}
+          >
+            {t("sidebar.display.sort.descending")}
+          </MenuItem>
+          <MenuItem
+            selected={preferences.workspaceSortDirection === "ascending"}
+            onSelect={selectAscending}
+          >
+            {t("sidebar.display.sort.ascending")}
+          </MenuItem>
+        </>
+      ) : null}
     </>
   );
 }

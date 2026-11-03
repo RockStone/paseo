@@ -728,6 +728,26 @@ it("a prompt changes only its project's structure and output preserves both proj
   expect(output[1]).toBe(after[1]);
 });
 
+it("orders by the branch a row shows when Name sorts ascending", () => {
+  const a = { ...createWorkspace({ id: "a", projectId: "p" }), name: "alpha" };
+  const b = {
+    ...createWorkspace({ id: "b", projectId: "p" }),
+    name: "beta",
+    gitRuntime: { currentBranch: "aardvark" },
+  };
+  const projects = new Map([[a.projectId, projectDescriptorFromTestWorkspace(a)]]);
+  const state = {
+    sessions: { [SERVER_ID]: { projects, workspaces: new Map([a, b].map((w) => [w.id, w])) } },
+  };
+  const keys = (titleSource: "title" | "branch") =>
+    createWorkspaceStructureProjectsSelector([SERVER_ID], "name", {
+      direction: "ascending",
+      titleSource,
+    })(state)[0].workspaceKeys;
+  expect(keys("title")).toEqual([`${SERVER_ID}:a`, `${SERVER_ID}:b`]);
+  expect(keys("branch")).toEqual([`${SERVER_ID}:b`, `${SERVER_ID}:a`]);
+});
+
 it("applies manual order only when requested without mutating the automatic baseline", () => {
   const project = {
     viewKey: "p",

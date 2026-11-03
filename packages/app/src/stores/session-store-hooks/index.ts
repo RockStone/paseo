@@ -1,4 +1,4 @@
-import type { WorkspaceSort } from "@/projects/workspace-structure";
+import type { WorkspaceSort, WorkspaceSortOptions } from "@/projects/workspace-structure";
 import { useMemo } from "react";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
@@ -102,10 +102,17 @@ export function useWorkspaceDirectory(
 export function useWorkspaceStructure(
   serverIds: string[],
   workspaceSort?: WorkspaceSort,
+  sortOptions?: WorkspaceSortOptions,
 ): WorkspaceStructure {
+  const direction = sortOptions?.direction;
+  const titleSource = sortOptions?.titleSource;
   const selectProjects = useMemo(
-    () => createWorkspaceStructureProjectsSelector(serverIds, workspaceSort),
-    [serverIds, workspaceSort],
+    () =>
+      createWorkspaceStructureProjectsSelector(serverIds, workspaceSort, {
+        direction,
+        titleSource,
+      }),
+    [serverIds, workspaceSort, direction, titleSource],
   );
   const projects = useStoreWithEqualityFn(
     useSessionStore,

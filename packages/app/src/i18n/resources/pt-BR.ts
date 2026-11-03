@@ -1300,6 +1300,9 @@ export const ptBR: TranslationResources = {
         manual: "Manual",
         lastActivity: "Última atividade",
         lastPrompt: "Último prompt",
+        name: "Nome",
+        descending: "Decrescente",
+        ascending: "Crescente",
         updateHost: "Atualize os hosts para ordenar os espaços de trabalho",
       },
       grouping: {

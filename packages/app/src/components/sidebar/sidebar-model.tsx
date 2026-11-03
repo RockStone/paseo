@@ -17,6 +17,7 @@ import {
   type SidebarWorkspacesListResult,
 } from "@/hooks/use-sidebar-workspaces-list";
 import { useSidebarWorkspaceEntries } from "@/hooks/use-sidebar-workspace-entries";
+import { useAppSettings } from "@/hooks/use-settings";
 import { usePinnedSidebarKeys, type PinnedSidebarGroups } from "@/hooks/use-sidebar-pins";
 import { useSidebarCollapsedSectionsStore } from "@/stores/sidebar-collapsed-sections-store";
 import {
@@ -68,7 +69,10 @@ export function SidebarModelProvider({
   children: ReactNode;
 }) {
   const { t } = useTranslation();
-  const list = useSidebarWorkspacesList({ enabled: active });
+  const {
+    settings: { workspaceTitleSource },
+  } = useAppSettings();
+  const list = useSidebarWorkspacesList({ enabled: active, workspaceTitleSource });
   const activeWorkspaceSelection = useActiveWorkspaceSelection();
   const showBackground = useSidebarViewStore((state) => state.showBackground);
   const groupMode = useSidebarViewStore((state) => state.groupMode);

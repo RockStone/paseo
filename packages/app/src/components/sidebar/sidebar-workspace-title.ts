@@ -2,16 +2,10 @@ import type { TFunction } from "i18next";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import type { WorkspaceTitleSource } from "@/hooks/use-settings";
 import { getStatusBucketLabel } from "@/hooks/sidebar-status-view-model";
+import { resolveSidebarWorkspacePrimaryLabel } from "@/projects/workspace-structure";
 
-export function resolveSidebarWorkspacePrimaryLabel(input: {
-  workspace: Pick<SidebarWorkspaceEntry, "name" | "currentBranch">;
-  workspaceTitleSource: WorkspaceTitleSource;
-}): string {
-  if (input.workspaceTitleSource === "branch") {
-    return input.workspace.currentBranch ?? input.workspace.name;
-  }
-  return input.workspace.name;
-}
+// Lives beside the workspace sort, which orders rows by this same title.
+export { resolveSidebarWorkspacePrimaryLabel };
 
 export function resolveSidebarWorkspaceAccessibilityLabel(input: {
   workspace: Pick<SidebarWorkspaceEntry, "name" | "currentBranch" | "statusBucket">;

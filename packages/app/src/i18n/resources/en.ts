@@ -1282,6 +1282,9 @@ export const en = {
         manual: "Manual",
         lastActivity: "Last activity",
         lastPrompt: "Last prompt",
+        name: "Name",
+        descending: "Descending",
+        ascending: "Ascending",
         updateHost: "Update hosts to sort workspaces",
       },
       grouping: {

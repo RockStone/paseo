@@ -1285,6 +1285,9 @@ export const ja: TranslationResources = {
         manual: "手動",
         lastActivity: "最終アクティビティ",
         lastPrompt: "最後のプロンプト",
+        name: "名前",
+        descending: "降順",
+        ascending: "昇順",
         updateHost: "ワークスペースを並べ替えるにはホストを更新してください",
       },
       grouping: {

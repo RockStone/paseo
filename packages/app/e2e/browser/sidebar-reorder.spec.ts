@@ -138,11 +138,27 @@ test("projects and pinned chats reorder while ordinary workspaces stay newest fi
 
 async function selectWorkspaceSort(
   page: Page,
-  name: "Manual" | "Created" | "Last prompt" | "Last activity",
+  name:
+    | "Manual"
+    | "Created"
+    | "Last prompt"
+    | "Last activity"
+    | "Name"
+    | "Ascending"
+    | "Descending",
 ) {
   await page.getByLabel("Display preferences", { exact: true }).click();
   await page.getByRole("menuitem", { name: /^Sort/ }).click();
   await page.getByRole("menuitem", { name, exact: true }).click();
+}
+
+async function expectSortDirectionChoices(page: Page, visible: boolean): Promise<void> {
+  await page.getByLabel("Display preferences", { exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Sort/ }).click();
+  for (const name of ["Descending", "Ascending"]) {
+    await expect(page.getByRole("menuitem", { name, exact: true })).toHaveCount(visible ? 1 : 0);
+  }
+  await page.keyboard.press("Escape");
 }
 
 async function reconnectSidebar(page: Page): Promise<void> {
@@ -213,6 +229,46 @@ test("Last activity is default; Created stays stable, Last prompt follows human 
     await expect.poll(() => rowTestIds(rows)).toEqual([newId, oldId]);
     await selectSidebarStatusGrouping(page);
     await expectNoWorkspaceSortChoice(page);
+  } finally {
+    await seed.cleanup();
+  }
+});
+
+test("Name sorts by title and the direction flips every sort except Manual", async ({ page }) => {
+  test.setTimeout(120_000);
+  const seed = await seedWorkspace({ repoPrefix: "sidebar-sort-name-", title: "Bravo" });
+  try {
+    const created = [];
+    for (const title of ["alpha", "Charlie"]) {
+      const result = await seed.client.createWorkspace({
+        source: { kind: "directory", path: seed.repoPath, projectId: seed.projectId },
+        title,
+      });
+      if (!result.workspace) throw new Error(result.error ?? "Workspace creation failed");
+      created.push(result.workspace.id);
+    }
+    const [alpha, charlie] = created;
+    const bravo = seed.workspaceId;
+    await gotoAppShell(page);
+    await waitForSidebarHydration(page);
+    const ids = [bravo, alpha, charlie].map((id) => `sidebar-workspace-row-${getServerId()}:${id}`);
+    const rows = page.locator(ids.map((id) => `[data-testid="${id}"]`).join(", "));
+    const order = (...workspaceIds: string[]) =>
+      workspaceIds.map((id) => `sidebar-workspace-row-${getServerId()}:${id}`);
+
+    await selectWorkspaceSort(page, "Name");
+    await expect.poll(() => rowTestIds(rows)).toEqual(order(charlie, bravo, alpha));
+    await selectWorkspaceSort(page, "Ascending");
+    await expect.poll(() => rowTestIds(rows)).toEqual(order(alpha, bravo, charlie));
+    await selectWorkspaceSort(page, "Created");
+    await expect.poll(() => rowTestIds(rows)).toEqual(order(bravo, alpha, charlie));
+    await reconnectSidebar(page);
+    await expect.poll(() => rowTestIds(rows)).toEqual(order(bravo, alpha, charlie));
+    await selectWorkspaceSort(page, "Descending");
+    await expect.poll(() => rowTestIds(rows)).toEqual(order(charlie, alpha, bravo));
+    await expectSortDirectionChoices(page, true);
+    await selectWorkspaceSort(page, "Manual");
+    await expectSortDirectionChoices(page, false);
   } finally {
     await seed.cleanup();
   }

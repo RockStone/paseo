@@ -15,12 +15,25 @@ import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import type { HostProfile } from "@/types/host-connection";
 import { WorkspaceShortcutTargetsSubscriber } from "./workspace-shortcut-targets-subscriber";
-import { SidebarModelProvider } from "./sidebar/sidebar-model";
+import { SidebarModelProvider as AppSidebarModelProvider } from "./sidebar/sidebar-model";
 import { defaultHostAppearance } from "@/hosts/appearance";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.hoisted(() => {
   (globalThis as unknown as { __DEV__: boolean }).__DEV__ = false;
 });
+
+// The sidebar model reads the workspace title source from app settings, which live in the query
+// cache the app provides above it.
+const queryClient = new QueryClient();
+
+function SidebarModelProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppSidebarModelProvider>{children}</AppSidebarModelProvider>
+    </QueryClientProvider>
+  );
+}
 
 function workspaceDescriptor(input: {
   id: string;

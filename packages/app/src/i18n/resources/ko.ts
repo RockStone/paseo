@@ -1279,6 +1279,9 @@ export const ko: TranslationResources = {
         manual: "수동",
         lastActivity: "최근 활동",
         lastPrompt: "마지막 프롬프트",
+        name: "이름",
+        descending: "내림차순",
+        ascending: "오름차순",
         updateHost: "작업 공간을 정렬하려면 호스트를 업데이트하세요",
       },
       grouping: {

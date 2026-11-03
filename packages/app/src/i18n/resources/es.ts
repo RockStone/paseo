@@ -1310,6 +1310,9 @@ export const es: TranslationResources = {
         manual: "Manual",
         lastActivity: "Última actividad",
         lastPrompt: "Último prompt",
+        name: "Nombre",
+        descending: "Descendente",
+        ascending: "Ascendente",
         updateHost: "Actualiza los hosts para ordenar los espacios de trabajo",
       },
       grouping: {

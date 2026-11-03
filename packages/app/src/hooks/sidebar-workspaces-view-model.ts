@@ -5,9 +5,11 @@ import { selectPrHintFromStatus } from "@/git/pr-hint";
 import { type HostProjectListItem } from "@/projects/host-project-model";
 import type { PendingCreateAttempt } from "@/stores/create-flow-store";
 import type { Agent, WorkspaceDescriptor } from "@/stores/session-store";
-import type {
-  WorkspaceStructureHostPlacement,
-  WorkspaceStructureProject,
+import {
+  normalizeCurrentBranch,
+  type WorkspaceSortDirection,
+  type WorkspaceStructureHostPlacement,
+  type WorkspaceStructureProject,
 } from "@/projects/workspace-structure";
 import { projectDisplayNameFromProjectId } from "@/utils/project-display-name";
 import { aggregateSidebarStateBuckets } from "@/utils/sidebar-agent-state";
@@ -33,11 +35,17 @@ export interface SidebarWorkspacePlacement {
   name: string;
 }
 
+/**
+ * Ties, including workspaces with no agents yet, keep the order they came in: callers hand this
+ * the Created order in the same direction, so a tie still reads newest- or oldest-first.
+ */
 export function orderSidebarWorkspacesByActivity(input: {
   workspaces: readonly SidebarWorkspacePlacement[];
   sessions: Readonly<Record<string, { agents: ReadonlyMap<string, Agent> } | undefined>>;
   activity: ReadonlyMap<string, Date>;
+  direction?: WorkspaceSortDirection;
 }): SidebarWorkspacePlacement[] {
+  const sign = input.direction === "ascending" ? 1 : -1;
   const latest = new Map<string, number>();
   const serverIds = new Set(input.workspaces.map((workspace) => workspace.serverId));
   for (const serverId of serverIds) {
@@ -51,7 +59,8 @@ export function orderSidebarWorkspacesByActivity(input: {
     }
   }
   return [...input.workspaces].sort(
-    (left, right) => (latest.get(right.workspaceKey) ?? 0) - (latest.get(left.workspaceKey) ?? 0),
+    (left, right) =>
+      sign * ((latest.get(left.workspaceKey) ?? 0) - (latest.get(right.workspaceKey) ?? 0)),
   );
 }
 
@@ -153,14 +162,6 @@ function projectNameForWorkspace(workspace: WorkspaceDescriptor): string {
     workspace.projectDisplayName ??
     projectDisplayNameFromProjectId(workspace.projectId)
   );
-}
-
-function normalizeCurrentBranch(currentBranch: string | null | undefined): string | null {
-  if (!currentBranch) {
-    return null;
-  }
-  const trimmed = currentBranch.trim();
-  return trimmed.length === 0 || trimmed === "HEAD" ? null : trimmed;
 }
 
 export function createSidebarWorkspaceEntry(input: {

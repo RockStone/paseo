@@ -10,6 +10,7 @@ import { useWorkspaceStructure } from "@/stores/session-store-hooks";
 import { getHostRuntimeStore, useHostRegistryLoaded, useHosts } from "@/runtime/host-runtime";
 import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
+import type { WorkspaceTitleSource } from "@/hooks/use-settings";
 import {
   orderSidebarWorkspacesByActivity,
   createSidebarWorkspacePlacementSelector,
@@ -101,6 +102,8 @@ export interface SidebarWorkspacesListResult {
 export function useSidebarWorkspacesList(options?: {
   hostFilters?: readonly string[];
   enabled?: boolean;
+  /** What the rows show as their title, which Name sorts by. Defaults to the workspace title. */
+  workspaceTitleSource?: WorkspaceTitleSource;
 }): SidebarWorkspacesListResult {
   const runtime = getHostRuntimeStore();
   const allHosts = useHosts();
@@ -143,16 +146,24 @@ export function useSidebarWorkspacesList(options?: {
   const directoryServerIds = useWorkspaceDirectoryServerIds(serverIds);
 
   const workspaceSort = useSidebarViewStore((state) => state.workspaceSort);
+  const workspaceSortDirection = useSidebarViewStore((state) => state.workspaceSortDirection);
   const groupMode = useSidebarViewStore((state) => state.groupMode);
   const sortSupport = useHostFeatureMap(directoryServerIds, "workspaceSortTimes");
   const workspaceSortSupported = [...sortSupport.values()].every(Boolean);
-  // Activity ties, including workspaces with no agents yet, keep newest-first order.
+  // Activity ties, including workspaces with no agents yet, keep Created order in the same
+  // direction.
   const structuralSort = workspaceSort === "lastActivity" ? "created" : workspaceSort;
+  // Manual and Name need nothing from the host; the time sorts need its timestamps.
   const sort =
-    groupMode === "project" && (structuralSort === "manual" || workspaceSortSupported)
+    groupMode === "project" &&
+    (structuralSort === "manual" || structuralSort === "name" || workspaceSortSupported)
       ? structuralSort
       : undefined;
-  const { projects: hostProjects } = useWorkspaceStructure(directoryServerIds, sort);
+  const { projects: hostProjects } = useWorkspaceStructure(directoryServerIds, sort, {
+    direction: sort === "manual" ? undefined : workspaceSortDirection,
+    // Only Name reads the title, so a title-source change elsewhere does not rebuild the order.
+    titleSource: sort === "name" ? options?.workspaceTitleSource : undefined,
+  });
 
   const selectPlacements = useMemo(createSidebarWorkspacePlacementSelector, []);
   const sidebarModel = useMemo(
@@ -169,6 +180,7 @@ export function useSidebarWorkspacesList(options?: {
         workspaces: sidebarModel.workspaces,
         sessions: state.sessions,
         activity: state.agentLastActivity,
+        direction: workspaceSortDirection,
       }).map((workspace) => workspace.workspaceKey),
     ),
   );

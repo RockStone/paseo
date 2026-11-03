@@ -971,6 +971,40 @@ describe("deriveProjectStatusBucket", () => {
 });
 
 describe("workspace ordering by last activity", () => {
+  it("puts the stalest workspace first when ascending and keeps ties in place", () => {
+    const workspaces = [
+      workspacePlacement({ workspaceId: "busy" }),
+      workspacePlacement({ workspaceId: "quiet" }),
+      workspacePlacement({ workspaceId: "empty-a" }),
+      workspacePlacement({ workspaceId: "empty-b" }),
+    ];
+    const sessions = {
+      srv: {
+        agents: new Map(
+          [
+            {
+              ...agent({ id: "busy", workspaceId: "busy", status: "idle" }),
+              lastActivityAt: new Date(3000),
+            },
+            {
+              ...agent({ id: "quiet", workspaceId: "quiet", status: "idle" }),
+              lastActivityAt: new Date(1000),
+            },
+          ].map((entry) => [entry.id, entry]),
+        ),
+      },
+    };
+    const order = (direction?: "ascending" | "descending") =>
+      orderSidebarWorkspacesByActivity({
+        workspaces,
+        sessions,
+        activity: new Map(),
+        direction,
+      }).map((entry) => entry.workspaceId);
+    expect(order()).toEqual(["busy", "quiet", "empty-a", "empty-b"]);
+    expect(order("descending")).toEqual(["busy", "quiet", "empty-a", "empty-b"]);
+    expect(order("ascending")).toEqual(["empty-a", "empty-b", "quiet", "busy"]);
+  });
   it("uses the newest activity from any live agent in each workspace", () => {
     const workspaces = [
       workspacePlacement({ workspaceId: "older" }),

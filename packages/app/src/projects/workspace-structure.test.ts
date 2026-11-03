@@ -224,3 +224,89 @@ test("time ties use workspace identity so renaming cannot move Created rows", ()
     buildWorkspaceStructureProjects({ sessions, workspaceSort: "created" })[0].workspaceKeys,
   ).toEqual(["h:a", "h:b"]);
 });
+
+test("ascending reverses the time sorts and keeps identity tie-breaks", () => {
+  const old = {
+    ...workspace("old", "p", "/p"),
+    createdAt: new Date("2026-01-01"),
+    lastUserMessageAt: new Date("2026-03-01"),
+  };
+  const fresh = {
+    ...workspace("fresh", "p", "/p"),
+    createdAt: new Date("2026-02-01"),
+    lastUserMessageAt: null,
+  };
+  const twin = { ...workspace("twin", "p", "/p"), createdAt: old.createdAt };
+  const sessions = [
+    {
+      serverId: "host",
+      projects: [project({ id: "p", key: "p", root: "/p" })],
+      workspaces: [twin, old, fresh],
+    },
+  ];
+  const keys = (
+    workspaceSort: "created" | "lastPrompt",
+    workspaceSortDirection: "ascending" | "descending",
+  ) =>
+    buildWorkspaceStructureProjects({ sessions, workspaceSort, workspaceSortDirection })[0]
+      .workspaceKeys;
+  expect(keys("created", "descending")).toEqual(["host:fresh", "host:old", "host:twin"]);
+  expect(keys("created", "ascending")).toEqual(["host:old", "host:twin", "host:fresh"]);
+  expect(keys("lastPrompt", "ascending")).toEqual(["host:twin", "host:fresh", "host:old"]);
+});
+
+test("Name sorts by the displayed title, case-insensitive and numeric", () => {
+  const named = (id: string, name: string, branch?: string): WorkspaceDescriptor => ({
+    ...workspace(id, "p", "/p"),
+    name,
+    ...(branch === undefined ? {} : { gitRuntime: { currentBranch: branch } }),
+  });
+  const sessions = [
+    {
+      serverId: "h",
+      projects: [project({ id: "p", key: "p", root: "/p" })],
+      workspaces: [
+        named("w10", "Task 10", "alpha"),
+        named("w2", "task 2", "HEAD"),
+        named("b", "beta", "zeta"),
+        named("b2", "Beta"),
+      ],
+    },
+  ];
+  const keys = (
+    workspaceSortDirection: "ascending" | "descending",
+    workspaceTitleSource?: "title" | "branch",
+  ) =>
+    buildWorkspaceStructureProjects({
+      sessions,
+      workspaceSort: "name",
+      workspaceSortDirection,
+      workspaceTitleSource,
+    })[0].workspaceKeys;
+
+  expect(keys("ascending")).toEqual(["h:b", "h:b2", "h:w2", "h:w10"]);
+  expect(keys("descending")).toEqual(["h:w10", "h:w2", "h:b", "h:b2"]);
+  // Branch titles: alpha, task 2 (detached HEAD falls back to the name), zeta, Beta.
+  expect(keys("ascending", "branch")).toEqual(["h:w10", "h:b2", "h:w2", "h:b"]);
+});
+
+test("Manual keeps its newest-first baseline whatever the direction says", () => {
+  const old = { ...workspace("old", "p", "/p"), createdAt: new Date("2026-01-01") };
+  const fresh = { ...workspace("fresh", "p", "/p"), createdAt: new Date("2026-02-01") };
+  const sessions = [
+    {
+      serverId: "h",
+      projects: [project({ id: "p", key: "p", root: "/p" })],
+      workspaces: [old, fresh],
+    },
+  ];
+  for (const workspaceSortDirection of ["ascending", "descending"] as const) {
+    expect(
+      buildWorkspaceStructureProjects({
+        sessions,
+        workspaceSort: "manual",
+        workspaceSortDirection,
+      })[0].workspaceKeys,
+    ).toEqual(["h:fresh", "h:old"]);
+  }
+});

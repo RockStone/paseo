@@ -1264,6 +1264,9 @@ export const zhCN: TranslationResources = {
         manual: "手动",
         lastActivity: "最近活动",
         lastPrompt: "最近提示词",
+        name: "名称",
+        descending: "降序",
+        ascending: "升序",
         updateHost: "请更新主机以排序工作区",
       },
       grouping: {

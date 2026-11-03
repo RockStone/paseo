@@ -33,6 +33,7 @@ describe("sidebar view store", () => {
   beforeEach(() => {
     useSidebarViewStore.setState({
       workspaceSort: "lastActivity",
+      workspaceSortDirection: "descending",
       showBackground: false,
       groupMode: "project",
       hostFilters: [],
@@ -87,6 +88,7 @@ describe("sidebar view store", () => {
       }),
     ).toEqual({
       workspaceSort: "lastActivity",
+      workspaceSortDirection: "descending",
       showBackground: false,
       groupMode: "status",
       hostFilters: [],
@@ -103,6 +105,7 @@ describe("sidebar view store", () => {
       }),
     ).toEqual({
       workspaceSort: "lastActivity",
+      workspaceSortDirection: "descending",
       showBackground: false,
       groupMode: "status",
       hostFilters: ["host-a"],
@@ -119,6 +122,7 @@ describe("sidebar view store", () => {
       }),
     ).toEqual({
       workspaceSort: "lastActivity",
+      workspaceSortDirection: "descending",
       showBackground: false,
       groupMode: "status",
       hostFilters: ["host-a", "host-b"],
@@ -231,6 +235,7 @@ describe("sidebar view store", () => {
       }),
     ).toEqual({
       workspaceSort: "lastActivity",
+      workspaceSortDirection: "descending",
       showBackground: false,
       groupMode: "project",
       hostFilters: ["host-a"],
@@ -242,6 +247,7 @@ describe("sidebar view store", () => {
   it("never keeps project filters from state the schema rejects", () => {
     expect(migrateSidebarViewState({ projectFilters: "project-a" })).toEqual({
       workspaceSort: "lastActivity",
+      workspaceSortDirection: "descending",
       showBackground: false,
       groupMode: "project",
       hostFilters: [],
@@ -305,9 +311,30 @@ it("retains the manual sorting preference on reload", () => {
   expect(migrateSidebarViewState({ workspaceSort: "manual" }).workspaceSort).toBe("manual");
 });
 
-it.each(["created", "lastPrompt", "manual", "lastActivity"] as const)(
+it.each(["created", "lastPrompt", "manual", "lastActivity", "name"] as const)(
   "preserves the explicit %s sorting preference",
   (workspaceSort) => {
     expect(migrateSidebarViewState({ workspaceSort }).workspaceSort).toBe(workspaceSort);
   },
 );
+
+it("defaults the sort direction to Descending and keeps a stored Ascending", () => {
+  expect(migrateSidebarViewState({ workspaceSort: "created" }).workspaceSortDirection).toBe(
+    "descending",
+  );
+  expect(
+    migrateSidebarViewState({ workspaceSort: "name", workspaceSortDirection: "ascending" }),
+  ).toMatchObject({ workspaceSort: "name", workspaceSortDirection: "ascending" });
+  expect(
+    migrateSidebarViewState({ workspaceSortDirection: "sideways" }).workspaceSortDirection,
+  ).toBe("descending");
+});
+
+it("sets the sort direction without touching the sort", () => {
+  useSidebarViewStore.setState({ workspaceSort: "name", workspaceSortDirection: "descending" });
+  useSidebarViewStore.getState().setWorkspaceSortDirection("ascending");
+  expect(useSidebarViewStore.getState()).toMatchObject({
+    workspaceSort: "name",
+    workspaceSortDirection: "ascending",
+  });
+});

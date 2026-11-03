@@ -72,6 +72,8 @@ async function expectSortingRequiresHostUpdate(page: Page) {
   ).toBeDisabled();
   await expect(page.getByRole("menuitem", { name: "Created", exact: true })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Last prompt", exact: true })).toHaveCount(0);
+  // Name needs nothing from the host, so an old host still offers it.
+  await expect(page.getByRole("menuitem", { name: "Name", exact: true })).toBeEnabled();
   await page.getByRole("menuitem", { name: "Manual", exact: true }).click();
   await page.getByLabel("Display preferences", { exact: true }).click();
   await expect(page.getByRole("menuitem", { name: /^Sort/ })).toContainText("Manual");
