@@ -137,7 +137,7 @@ interface SheetStatusMessagesProps {
   hasNoImportableProviders: boolean;
   isLoadingSessions: boolean;
   hasRows: boolean;
-  importErrored: boolean;
+  importError: string | null;
 }
 
 function SheetStatusMessages({
@@ -146,7 +146,7 @@ function SheetStatusMessages({
   hasNoImportableProviders,
   isLoadingSessions,
   hasRows,
-  importErrored,
+  importError,
 }: SheetStatusMessagesProps) {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
@@ -167,9 +167,7 @@ function SheetStatusMessages({
           <Text style={styles.statusText}>{t("importSession.status.loading")}</Text>
         </View>
       ) : null}
-      {importErrored ? (
-        <Text style={styles.statusText}>{t("importSession.status.failedImport")}</Text>
-      ) : null}
+      {importError ? <Text style={styles.statusText}>{importError}</Text> : null}
     </>
   );
 }
@@ -388,7 +386,7 @@ function hasListHeader(
     input.isSnapshotUnsupported ||
     input.hasNoImportableProviders ||
     (input.isLoadingSessions && !input.hasRows) ||
-    input.importErrored ||
+    Boolean(input.importError) ||
     input.hasProviderErrors
   );
 }
@@ -716,6 +714,10 @@ export function ImportSessionSheet({
       ? `${importMutation.variables.providerId}:${importMutation.variables.providerHandleId}`
       : null;
 
+  const importError = importMutation.isError
+    ? importMutation.error.message.trim() || t("importSession.status.failedImport")
+    : null;
+
   const handleImportSession = useCallback(
     (entry: FetchRecentProviderSessionEntry) => {
       importMutation.mutate(entry);
@@ -814,7 +816,7 @@ export function ImportSessionSheet({
     hasNoImportableProviders,
     isLoadingSessions,
     hasRows: visibleEntries.length > 0,
-    importErrored: importMutation.isError,
+    importError,
     hasProviderErrors: providerErrorRows.length > 0,
   });
   const listHeader = useMemo(
@@ -861,7 +863,7 @@ export function ImportSessionSheet({
             hasNoImportableProviders={hasNoImportableProviders}
             isLoadingSessions={isLoadingSessions}
             hasRows={visibleEntries.length > 0}
-            importErrored={importMutation.isError}
+            importError={importError}
           />
           {providerErrorRows.length > 0 ? (
             <ProviderErrorBanner rows={providerErrorRows} onRetry={handleRetryProvider} />
@@ -886,7 +888,7 @@ export function ImportSessionSheet({
       hasNoImportableProviders,
       isLoadingSessions,
       visibleEntries.length,
-      importMutation.isError,
+      importError,
       providerErrorRows,
       handleRetryProvider,
     ],

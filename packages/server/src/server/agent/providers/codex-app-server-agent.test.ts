@@ -7324,6 +7324,63 @@ describe("Codex app-server provider", () => {
 describe("Codex importable sessions", () => {
   const CODEX_THREAD_PAGE_CAP = 100;
 
+  test.each([false, true])(
+    "imports the saved thread name instead of its first prompt (empty history: %s)",
+    async (emptyHistory) => {
+      const title = "Generate four-view character pose";
+      const handlers = {
+        "thread/resume": () => ({ thread: { id: "named-thread", name: title } }),
+        "thread/read": () => ({
+          thread: {
+            turns: emptyHistory
+              ? []
+              : [
+                  {
+                    id: "turn-1",
+                    items: [
+                      {
+                        type: "userMessage",
+                        content: [{ type: "text", text: "[$imagegen](/path/to/SKILL.md)" }],
+                      },
+                    ],
+                  },
+                ],
+          },
+        }),
+      };
+      const appServers: FakeCodexAppServer[] = [];
+      const provider = new CodexAppServerAgentClient(createTestLogger());
+      Object.assign(castInternals<object>(provider), {
+        goalsEnabledPromise: Promise.resolve(false),
+        autoReviewEnabledPromise: Promise.resolve(false),
+        spawnAppServer: async () => {
+          const appServer = createFakeCodexAppServer(handlers);
+          appServers.push(appServer);
+          return appServer.child;
+        },
+      });
+      const manager = new AgentManager({
+        clients: { codex: provider },
+        logger: createTestLogger(),
+      });
+      let agentId: string | undefined;
+      try {
+        const imported = await manager.importProviderSession({
+          provider: "codex",
+          providerHandleId: "named-thread",
+          cwd: process.cwd(),
+          workspaceId: "imported-workspace",
+        });
+        agentId = imported.id;
+        expect(imported.config.title).toBe(title);
+        expect(imported.persistence?.metadata?.title).toBe(title);
+      } finally {
+        if (agentId) await manager.closeAgent(agentId);
+        for (const appServer of appServers) appServer.assertNoErrors();
+      }
+    },
+  );
+
   // Codex answers thread/list with at most 100 rows per response whatever limit
   // the caller asks for, and hands back a cursor for the remaining threads.
   function cappedThreadListHandler(threads: Array<Record<string, unknown>>) {

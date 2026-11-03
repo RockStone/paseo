@@ -680,7 +680,7 @@ test("runInImportWorkspace uses an active requested workspace without creating a
   expect(await workspaceRegistry.list()).toEqual([workspace]);
 });
 
-test("runInImportWorkspace reuses an active workspace for an untargeted import", async () => {
+test("runInImportWorkspace creates a separate workspace for each untargeted import in the same directory", async () => {
   const cwd = path.join(tmpDir, "active-import");
   mkdirSync(cwd);
   const workspace = await provisioning.createWorkspaceForDirectory(cwd);
@@ -690,11 +690,24 @@ test("runInImportWorkspace reuses an active workspace for an untargeted import",
     async (target) => target.workspaceId,
   );
 
-  expect(result).toEqual({ value: workspace.workspaceId, createdWorkspace: null });
-  expect(await workspaceRegistry.list()).toEqual([workspace]);
+  const second = await provisioning.runInImportWorkspace(
+    { cwd },
+    async (target) => target.workspaceId,
+  );
+
+  expect(result.value).not.toBe(workspace.workspaceId);
+  expect(result.value).toBe(result.createdWorkspace?.workspaceId);
+  expect(second.value).not.toBe(result.value);
+  expect(second.value).toBe(second.createdWorkspace?.workspaceId);
+  expect(result.createdWorkspace).toMatchObject({ cwd, projectId: workspace.projectId });
+  expect(await workspaceRegistry.list()).toEqual([
+    workspace,
+    result.createdWorkspace,
+    second.createdWorkspace,
+  ]);
 });
 
-test("runInImportWorkspace unarchives a workspace for an untargeted import", async () => {
+test("runInImportWorkspace creates a new workspace without restoring an archived match", async () => {
   const cwd = path.join(tmpDir, "archived-import");
   mkdirSync(cwd);
   const workspace = await provisioning.createWorkspaceForDirectory(cwd);
@@ -705,15 +718,17 @@ test("runInImportWorkspace unarchives a workspace for an untargeted import", asy
     async (target) => target.workspaceId,
   );
 
-  expect(result).toEqual({ value: workspace.workspaceId, createdWorkspace: null });
+  expect(result.value).not.toBe(workspace.workspaceId);
+  expect(result.value).toBe(result.createdWorkspace?.workspaceId);
+  expect(result.createdWorkspace).toMatchObject({ cwd, projectId: workspace.projectId });
   expect(await workspaceRegistry.get(workspace.workspaceId)).toMatchObject({
     workspaceId: workspace.workspaceId,
-    archivedAt: null,
+    archivedAt: ARCHIVED_AT,
   });
-  expect(await workspaceRegistry.list()).toHaveLength(1);
+  expect(await workspaceRegistry.list()).toHaveLength(2);
 });
 
-test("runInImportWorkspace leaves a reused workspace intact when import fails", async () => {
+test("runInImportWorkspace removes a failed import's workspace and preserves an existing match", async () => {
   const cwd = path.join(tmpDir, "failed-active-import");
   mkdirSync(cwd);
   const workspace = await provisioning.createWorkspaceForDirectory(cwd);

@@ -618,14 +618,15 @@ describe("ImportSessionSheet", () => {
     expect(fetchRecentProviderSessions).toHaveBeenCalledTimes(1);
   });
 
-  it("shows an import error state without closing when selected session import fails", async () => {
+  it("shows the actual import error and lets the user retry without closing the sheet", async () => {
     const fetchRecentProviderSessions = vi.fn(async () => ({
       requestId: "recent-provider-sessions",
       entries: [createProviderSessionEntry({ providerId: "claude", providerLabel: "Claude Code" })],
     }));
-    const importAgent = vi.fn(async () => {
-      throw new Error("import unavailable");
-    });
+    const importAgent = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Thread already has an active writer"))
+      .mockResolvedValueOnce(createImportedAgentSnapshot("agent-imported"));
     const onClose = vi.fn();
     const onImportedAgent = vi.fn();
 
@@ -643,7 +644,8 @@ describe("ImportSessionSheet", () => {
 
     fireEvent.click(await screen.findByTestId("import-session-session-claude-provider-thread-1"));
 
-    await screen.findByText("Could not import selected session.");
+    await screen.findByText("Thread already has an active writer");
+    expect(screen.queryByText("Could not import selected session.")).toBeNull();
     expect(importAgent).toHaveBeenCalledWith({
       providerId: "claude",
       providerHandleId: "provider-thread-1",
@@ -651,6 +653,11 @@ describe("ImportSessionSheet", () => {
     });
     expect(onImportedAgent).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("import-session-session-claude-provider-thread-1"));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(importAgent).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Thread already has an active writer")).toBeNull();
   });
 
   it("fans out one request per enabled provider when snapshot is supported", async () => {

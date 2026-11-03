@@ -8,6 +8,7 @@ import { expect, test, type Page } from "../support/fixtures";
 import { ImportSessionFlow } from "../support/helpers/import-session";
 import {
   connectNewWorkspaceDaemonClient,
+  countWorkspaceAgents,
   openProjectViaDaemon,
   type OpenedProject,
 } from "../support/helpers/new-workspace";
@@ -182,6 +183,11 @@ test("captures the compact import-session journey", async ({ page }, testInfo) =
   await test.step("the selected row imports and opens the hydrated transcript", async () => {
     await flow.importSession(scenario.importSessionId);
     await flow.expectTranscript("Review the invoice migration", "The fixture transcript is ready.");
+    expect(await countWorkspaceAgents(client, scenario.project.workspaceId)).toBe(0);
+    await expect(page).not.toHaveURL(new RegExp(scenario.project.workspaceId));
+    await expect(page.getByTestId("workspace-header-title").filter({ visible: true })).toHaveText(
+      "Invoice migration plan",
+    );
     await expect(page.getByRole("button", { name: "Open menu", exact: true })).toBeVisible();
     await capture(page, testInfo, "08-mobile-agent-after-import.png");
   });
@@ -196,10 +202,14 @@ test("captures the compact import-session journey", async ({ page }, testInfo) =
     await capture(page, testInfo, "10-mobile-workspace-show-all.png");
 
     await flow.importSession("fixture-root-03");
-    await flow.expectImportedIntoWorkspace(
-      scenario.reuseTarget.workspaceId,
-      "Review fixture item 3",
+    const agents = await client.fetchAgents();
+    const imported = agents.entries.find(
+      (entry) => entry.agent.cwd === scenario.unrelatedDirectory,
     );
+    if (!imported?.agent.workspaceId) throw new Error("Imported session has no workspace");
+    expect(imported.agent.workspaceId).not.toBe(scenario.reuseTarget.workspaceId);
+    expect(await countWorkspaceAgents(client, scenario.reuseTarget.workspaceId)).toBe(0);
+    await flow.expectImportedIntoWorkspace(imported.agent.workspaceId, "Review fixture item 3");
   });
 });
 

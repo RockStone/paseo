@@ -4730,6 +4730,15 @@ export class Session {
         logger: this.sessionLogger,
       });
       if (createdWorkspace) {
+        const title = snapshot.config.title?.trim();
+        if (title) {
+          await this.workspaceRegistry.update(createdWorkspace.workspaceId, (workspace) => ({
+            ...workspace,
+            title,
+            updatedAt: new Date().toISOString(),
+          }));
+          createdWorkspace.title = title;
+        }
         await this.registerWorkspaceForImportedAgent(createdWorkspace);
       }
       const agentPayload = await this.buildAgentPayload(snapshot);

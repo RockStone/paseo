@@ -3697,8 +3697,13 @@ export class CodexAppServerAgentSession implements AgentSession {
     }
   }
 
-  private rememberResolvedSandboxPolicy(response: unknown): void {
-    const sandbox = toObjectRecord(toObjectRecord(response)?.sandbox);
+  private rememberThreadMetadata(response: unknown): void {
+    const record = toObjectRecord(response);
+    const thread = toObjectRecord(record?.thread);
+    if (!this.config.title?.trim() && typeof thread?.name === "string" && thread.name.trim()) {
+      this.config.title = thread.name.trim();
+    }
+    const sandbox = toObjectRecord(record?.sandbox);
     this.resolvedSandboxPolicy = sandbox ?? null;
     if (sandbox?.type !== "workspaceWrite") return;
     this.resolvedWorkspaceWrite = readSandboxWorkspaceWrite(sandbox);
@@ -4103,7 +4108,7 @@ export class CodexAppServerAgentSession implements AgentSession {
         return;
       }
       const response = await this.client.request("thread/resume", params);
-      this.rememberResolvedSandboxPolicy(response);
+      this.rememberThreadMetadata(response);
     } catch (error) {
       const threadId = this.currentThreadId;
       const message = error instanceof Error ? error.message : String(error);
@@ -4116,7 +4121,7 @@ export class CodexAppServerAgentSession implements AgentSession {
           }
         }
         const response = await this.client.request("thread/resume", params);
-        this.rememberResolvedSandboxPolicy(response);
+        this.rememberThreadMetadata(response);
         this.logger.info({ threadId }, "Unarchived Codex thread to restore active Paseo agent");
         return;
       }
@@ -5356,7 +5361,7 @@ export class CodexAppServerAgentSession implements AgentSession {
 
     const { params, approvalPolicy, sandbox } = this.buildThreadStartRequest(model);
     const rawResponse = await this.client.request("thread/start", params);
-    this.rememberResolvedSandboxPolicy(rawResponse);
+    this.rememberThreadMetadata(rawResponse);
     const response = toObjectRecord(rawResponse);
     const threadRecord = toObjectRecord(response?.thread);
     const threadId = typeof threadRecord?.id === "string" ? threadRecord.id : undefined;
@@ -7460,12 +7465,18 @@ export class CodexAppServerAgentClient implements AgentClient {
   }
 
   async importSession(input: ImportProviderSessionInput, context: ImportProviderSessionContext) {
-    return importSessionFromPersistence({
+    const imported = await importSessionFromPersistence({
       provider: CODEX_PROVIDER,
       request: input,
       context,
       resumeSession: this.resumeSession.bind(this),
     });
+    const title = imported.session.describePersistence()?.metadata?.title;
+    if (typeof title === "string" && title.trim()) {
+      imported.config.title = title.trim();
+      imported.persistence.metadata = { ...imported.persistence.metadata, title: title.trim() };
+    }
+    return imported;
   }
 
   async getCatalogCacheKey(_options: FetchCatalogOptions): Promise<string> {
