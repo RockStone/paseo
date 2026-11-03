@@ -2255,8 +2255,8 @@ export const en = {
     signInAgain: "Sign in again.",
     loginRejected: "Login rejected (HTTP {{status}}). {{remedy}}",
     loginExpired: "Login expired {{relativeTime}}. {{remedy}}",
-    claudeLoginExpired:
-      "Claude usage login expired {{relativeTime}}. Agents keep working. Open claude in a terminal to refresh it; if it asks you to sign in, run claude auth login.",
+    claudeRefreshPending:
+      "Waiting for Claude to refresh its login. It refreshes the next time Claude runs; if it asks you to sign in, run claude auth login.",
     title: "Plan usage",
     refresh: "Refresh",
     refreshAll: "Refresh all",
@@ -2306,6 +2306,7 @@ export const en = {
       hoursAgo: "{{value}}h ago",
       minutesAgo: "{{value}}m ago",
       updated: "Updated {{relativeTime}}",
+      updatedUntilClaudeRuns: "Updated {{relativeTime}} · refreshes when Claude next runs",
     },
   },
   settings: {

@@ -2261,8 +2261,8 @@ export const ru: TranslationResources = {
     signInAgain: "Войдите снова.",
     loginRejected: "Вход отклонён (HTTP {{status}}). {{remedy}}",
     loginExpired: "Срок входа истёк {{relativeTime}}. {{remedy}}",
-    claudeLoginExpired:
-      "Срок входа для статистики Claude истёк {{relativeTime}}. Агенты продолжают работать. Откройте claude в терминале, чтобы обновить вход; если он попросит войти, выполните claude auth login.",
+    claudeRefreshPending:
+      "Ожидание, пока Claude обновит вход. Он обновится при следующем запуске Claude; если он попросит войти, выполните claude auth login.",
     title: "Использование плана",
     refresh: "Обновить",
     refreshAll: "Обновить всё",
@@ -2312,6 +2312,7 @@ export const ru: TranslationResources = {
       hoursAgo: "{{value}} ч назад",
       minutesAgo: "{{value}} мин назад",
       updated: "Обновлено {{relativeTime}}",
+      updatedUntilClaudeRuns: "Обновлено {{relativeTime}} · обновится при следующем запуске Claude",
     },
   },
   settings: {

@@ -4,7 +4,7 @@ import { usageCopy } from "./copy";
 test.each([
   [
     { kind: "expired", expiresAt: "2026-10-01T09:00:00Z", refreshedBy: "claude" },
-    "Claude usage login expired 3h ago. Agents keep working. Open claude in a terminal to refresh it; if it asks you to sign in, run claude auth login.",
+    "Waiting for Claude to refresh its login. It refreshes the next time Claude runs; if it asks you to sign in, run claude auth login.",
   ],
   [{ kind: "expired", expiresAt: "2026-10-01T09:00:00Z" }, "Login expired 3h ago. Sign in again."],
   [

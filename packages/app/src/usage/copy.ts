@@ -12,11 +12,10 @@ export const usageCopy = {
       : t("providerUsage.signInAgain");
     if (problem.kind === "rejected")
       return t("providerUsage.loginRejected", { status: problem.status, remedy });
+    // Agents do not depend on this login being fresh: idle logins expire, the CLI renews it on its
+    // next request, and Paseoi falls back to the stored setup-token when the CLI cannot refresh it.
+    if (problem.refreshedBy === "claude") return t("providerUsage.claudeRefreshPending");
     const relativeTime = formatAgo(problem.expiresAt, now.getTime(), t);
-    // Agents do not depend on this login being fresh: idle logins expire, and Paseoi falls back
-    // to the stored setup-token when the CLI cannot refresh it.
-    if (problem.refreshedBy === "claude")
-      return t("providerUsage.claudeLoginExpired", { relativeTime });
     return t("providerUsage.loginExpired", { relativeTime, remedy });
   },
   get clientUnavailable() {

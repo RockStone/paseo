@@ -2205,8 +2205,8 @@ export const zhCN: TranslationResources = {
     signInAgain: "请重新登录。",
     loginRejected: "登录被拒绝（HTTP {{status}}）。{{remedy}}",
     loginExpired: "登录已于{{relativeTime}}过期。{{remedy}}",
-    claudeLoginExpired:
-      "Claude 用量登录已于{{relativeTime}}过期。智能体不受影响。在终端中打开 claude 即可刷新；如果提示登录，请运行 claude auth login。",
+    claudeRefreshPending:
+      "正在等待 Claude 刷新登录。下次运行 Claude 时会自动刷新；如果提示登录，请运行 claude auth login。",
     title: "套餐用量",
     refresh: "刷新",
     refreshAll: "全部刷新",
@@ -2256,6 +2256,7 @@ export const zhCN: TranslationResources = {
       hoursAgo: "{{value}}小时前",
       minutesAgo: "{{value}}分钟前",
       updated: "更新于 {{relativeTime}}",
+      updatedUntilClaudeRuns: "更新于 {{relativeTime}} · 下次运行 Claude 时刷新",
     },
   },
   settings: {

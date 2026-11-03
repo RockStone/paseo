@@ -205,6 +205,27 @@ export function resolveUsageModalHostId(choice: UsageHostChoice): string | null 
   return picked?.serverId ?? resolveUsageHostId(choice) ?? connected[0]?.serverId ?? null;
 }
 
+/**
+ * The Claude CLI's short-lived OAuth login lapsed. Nothing is wrong: the CLI renews it the next time
+ * any Claude process makes a request, so the card waits instead of reporting an error.
+ */
+function isLapsedClaudeLogin(report: UsageReport): boolean {
+  return (
+    report.status === "unavailable" &&
+    report.problem.kind === "expired" &&
+    report.problem.refreshedBy === "claude"
+  );
+}
+
+function awaitsClaudeRefresh(entry: UsageReportEntry): boolean {
+  if (entry.report.status === "available") return false;
+  // COMPAT(usageLoginErrors): added in v0.11.0, remove after 2027-04-05 once daemon floor >= v0.11.0.
+  const reports = entry.loginErrors?.length
+    ? entry.loginErrors.map((login) => login.report)
+    : [entry.report];
+  return reports.every(isLapsedClaudeLogin);
+}
+
 /** Current outcome owns messages; only a successful poll owns values and freshness. */
 export function resolveUsageReport(entry: UsageReportEntry, t: TFunction) {
   const available = entry.report.status === "available";
@@ -212,17 +233,7 @@ export function resolveUsageReport(entry: UsageReportEntry, t: TFunction) {
   // Older daemons cannot provide history; a failed attempt is never a successful update.
   const snapshot = available ? null : (entry.lastSuccessful ?? null);
   const content = entry.report.status === "available" ? entry.report : (snapshot?.report ?? null);
-  const messages: string[] = [];
-  if (!available) {
-    if (entry.loginErrors)
-      messages.push(
-        ...entry.loginErrors.map(
-          (login) => `${login.harness}: ${usageProblemText(login.report, t)}`,
-        ),
-      );
-    // COMPAT(usageLoginErrors): added in v0.11.0, remove after 2027-04-05 once daemon floor >= v0.11.0.
-    else messages.push(usageProblemText(entry.report, t));
-  }
+  const awaitingClaudeRefresh = awaitsClaudeRefresh(entry);
   return {
     windows: content?.windows ?? [],
     balances: content?.balances ?? [],
@@ -234,8 +245,18 @@ export function resolveUsageReport(entry: UsageReportEntry, t: TFunction) {
       ? (entry.successfulAt ?? entry.fetchedAt)
       : (snapshot?.fetchedAt ?? null),
     retained: snapshot !== null,
-    messages,
+    messages: available || awaitingClaudeRefresh ? [] : failureMessages(entry, t),
+    awaitingClaudeRefresh,
   };
+}
+
+function failureMessages(entry: UsageReportEntry, t: TFunction): string[] {
+  if (entry.loginErrors)
+    return entry.loginErrors.map(
+      (login) => `${login.harness}: ${usageProblemText(login.report, t)}`,
+    );
+  // COMPAT(usageLoginErrors): added in v0.11.0, remove after 2027-04-05 once daemon floor >= v0.11.0.
+  return [usageProblemText(entry.report, t)];
 }
 
 function usageProblemText(report: UsageReport, t: TFunction): string {

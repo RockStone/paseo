@@ -2238,8 +2238,8 @@ export const ko: TranslationResources = {
     signInAgain: "다시 로그인하세요.",
     loginRejected: "로그인이 거부되었습니다 (HTTP {{status}}). {{remedy}}",
     loginExpired: "로그인이 {{relativeTime}}에 만료되었습니다. {{remedy}}",
-    claudeLoginExpired:
-      "Claude 사용량 로그인이 {{relativeTime}}에 만료되었습니다. 에이전트는 계속 작동합니다. 터미널에서 claude를 열어 새로 고치세요. 로그인하라는 메시지가 나오면 claude auth login을 실행하세요.",
+    claudeRefreshPending:
+      "Claude가 로그인을 새로 고치기를 기다리는 중입니다. 다음에 Claude가 실행될 때 새로 고쳐집니다. 로그인하라는 메시지가 나오면 claude auth login을 실행하세요.",
     title: "플랜 사용량",
     refresh: "새로 고침",
     refreshAll: "모두 새로 고침",
@@ -2289,6 +2289,7 @@ export const ko: TranslationResources = {
       hoursAgo: "{{value}}시간 전",
       minutesAgo: "{{value}}분 전",
       updated: "{{relativeTime}}에 업데이트됨",
+      updatedUntilClaudeRuns: "{{relativeTime}}에 업데이트됨 · 다음에 Claude가 실행되면 새로 고침",
     },
   },
   settings: {

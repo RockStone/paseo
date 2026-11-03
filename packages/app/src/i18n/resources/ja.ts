@@ -2249,8 +2249,8 @@ export const ja: TranslationResources = {
     signInAgain: "再度サインインしてください。",
     loginRejected: "ログインが拒否されました (HTTP {{status}})。{{remedy}}",
     loginExpired: "ログインは{{relativeTime}}に期限切れになりました。{{remedy}}",
-    claudeLoginExpired:
-      "Claude の使用量ログインは{{relativeTime}}に期限切れになりました。エージェントは引き続き動作します。ターミナルで claude を開くと更新されます。サインインを求められた場合は claude auth login を実行してください。",
+    claudeRefreshPending:
+      "Claude がログインを更新するのを待っています。次に Claude が実行されたときに更新されます。サインインを求められた場合は claude auth login を実行してください。",
     title: "プラン使用量",
     refresh: "更新",
     refreshAll: "すべて更新",
@@ -2300,6 +2300,7 @@ export const ja: TranslationResources = {
       hoursAgo: "{{value}}時間前",
       minutesAgo: "{{value}}分前",
       updated: "更新: {{relativeTime}}",
+      updatedUntilClaudeRuns: "更新: {{relativeTime}} · 次に Claude が実行されたときに更新",
     },
   },
   settings: {

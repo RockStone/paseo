@@ -2263,8 +2263,8 @@ export const ptBR: TranslationResources = {
     signInAgain: "Entre novamente.",
     loginRejected: "Login rejeitado (HTTP {{status}}). {{remedy}}",
     loginExpired: "O login expirou {{relativeTime}}. {{remedy}}",
-    claudeLoginExpired:
-      "O login de uso do Claude expirou {{relativeTime}}. Os agentes continuam funcionando. Abra o claude em um terminal para atualizá-lo; se ele pedir para entrar, execute claude auth login.",
+    claudeRefreshPending:
+      "Aguardando o Claude atualizar o login. Ele é atualizado na próxima vez que o Claude for executado; se ele pedir para entrar, execute claude auth login.",
     title: "Uso do plano",
     refresh: "Atualizar",
     refreshAll: "Atualizar tudo",
@@ -2314,6 +2314,8 @@ export const ptBR: TranslationResources = {
       hoursAgo: "há {{value}} h",
       minutesAgo: "há {{value}} min",
       updated: "Atualizado {{relativeTime}}",
+      updatedUntilClaudeRuns:
+        "Atualizado {{relativeTime}} · atualiza na próxima execução do Claude",
     },
   },
   settings: {

@@ -2227,8 +2227,8 @@ export const ar: TranslationResources = {
     signInAgain: "سجّل الدخول مجددًا.",
     loginRejected: "تم رفض تسجيل الدخول (HTTP {{status}}). {{remedy}}",
     loginExpired: "انتهت صلاحية تسجيل الدخول {{relativeTime}}. {{remedy}}",
-    claudeLoginExpired:
-      "انتهت صلاحية تسجيل دخول استخدام Claude {{relativeTime}}. يواصل الوكلاء العمل. افتح claude في الطرفية لتحديثه؛ وإذا طُلب منك تسجيل الدخول، فشغّل claude auth login.",
+    claudeRefreshPending:
+      "في انتظار أن يحدّث Claude تسجيل دخوله. يتحدّث في المرة التالية التي يعمل فيها Claude؛ وإذا طُلب منك تسجيل الدخول، فشغّل claude auth login.",
     title: "استخدام الخطة",
     refresh: "تحديث",
     refreshAll: "تحديث الكل",
@@ -2314,6 +2314,8 @@ export const ar: TranslationResources = {
       minutesAgo_many: "قبل {{value}} دقيقة",
       minutesAgo_other: "قبل {{value}} دقيقة",
       updated: "تم التحديث {{relativeTime}}",
+      updatedUntilClaudeRuns:
+        "تم التحديث {{relativeTime}} · يتحدّث عند تشغيل Claude في المرة التالية",
     },
   },
   settings: {

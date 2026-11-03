@@ -354,6 +354,7 @@ it("resolves retained usage and successful time without inventing old-daemon his
     successfulAt: success.fetchedAt,
     retained: true,
     messages: ["Rate limited"],
+    awaitingClaudeRefresh: false,
   });
   expect(resolveUsageReport({ ...failure, lastSuccessful: undefined }, i18n.t)).toEqual({
     windows: [],
@@ -363,6 +364,7 @@ it("resolves retained usage and successful time without inventing old-daemon his
     successfulAt: null,
     retained: false,
     messages: ["Rate limited"],
+    awaitingClaudeRefresh: false,
   });
   expect(resolveUsageReport(success, i18n.t)).toEqual({
     windows: success.report.status === "available" ? success.report.windows : [],
@@ -372,6 +374,104 @@ it("resolves retained usage and successful time without inventing old-daemon his
     successfulAt: success.fetchedAt,
     retained: false,
     messages: [],
+    awaitingClaudeRefresh: false,
+  });
+});
+
+describe("a lapsed Claude CLI login", () => {
+  const lapsed: UsageReportEntry["report"] = {
+    status: "unavailable",
+    problem: { kind: "expired", expiresAt: "2026-01-01T00:01:00.000Z", refreshedBy: "claude" },
+  };
+  const success = entry({
+    planLabel: "Max",
+    windows: [{ id: "weekly", label: "Weekly", usedPct: 42 }],
+  });
+  if (success.report.status !== "available") throw new Error("fixture must be available");
+  const waiting: UsageReportEntry = {
+    ...success,
+    fetchedAt: "2026-01-01T00:06:00.000Z",
+    report: lapsed,
+    lastSuccessful: { fetchedAt: success.fetchedAt, report: success.report },
+  };
+
+  it("keeps the last successful usage and shows no error", () => {
+    expect(resolveUsageReport(waiting, i18n.t)).toEqual({
+      windows: success.report.status === "available" ? success.report.windows : [],
+      balances: [],
+      details: [],
+      planLabel: "Max",
+      successfulAt: success.fetchedAt,
+      retained: true,
+      messages: [],
+      awaitingClaudeRefresh: true,
+    });
+  });
+
+  it("waits without an error before any successful report", () => {
+    expect(resolveUsageReport({ ...waiting, lastSuccessful: undefined }, i18n.t)).toMatchObject({
+      windows: [],
+      retained: false,
+      messages: [],
+      awaitingClaudeRefresh: true,
+    });
+  });
+
+  it("applies when every login is the lapsed Claude CLI login", () => {
+    expect(
+      resolveUsageReport(
+        {
+          ...waiting,
+          loginErrors: [
+            { harness: "Claude", report: lapsed },
+            { harness: "Claude", report: lapsed },
+          ],
+        },
+        i18n.t,
+      ),
+    ).toMatchObject({ messages: [], awaitingClaudeRefresh: true });
+  });
+
+  it("still reports a login that needs the user", () => {
+    expect(
+      resolveUsageReport(
+        {
+          ...waiting,
+          loginErrors: [
+            { harness: "Claude", report: lapsed },
+            {
+              harness: "Pi",
+              report: {
+                status: "unavailable",
+                problem: { kind: "rejected", status: 401, refreshedBy: "pi" },
+              },
+            },
+          ],
+        },
+        i18n.t,
+      ),
+    ).toMatchObject({
+      messages: [
+        "Claude: Waiting for Claude to refresh its login. It refreshes the next time Claude runs; if it asks you to sign in, run claude auth login.",
+        "Pi: Login rejected (HTTP 401). Run pi to refresh it.",
+      ],
+      awaitingClaudeRefresh: false,
+    });
+  });
+
+  it("does not cover logins other harnesses refresh", () => {
+    expect(
+      resolveUsageReport(
+        {
+          ...waiting,
+          report: {
+            status: "unavailable",
+            problem: { kind: "expired", expiresAt: "2026-01-01T00:01:00.000Z", refreshedBy: "pi" },
+          },
+        },
+        i18n.t,
+      ),
+    ).toMatchObject({ retained: true, awaitingClaudeRefresh: false });
   });
 });
 

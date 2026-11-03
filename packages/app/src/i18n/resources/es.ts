@@ -2278,8 +2278,8 @@ export const es: TranslationResources = {
     signInAgain: "Vuelve a iniciar sesión.",
     loginRejected: "Inicio de sesión rechazado (HTTP {{status}}). {{remedy}}",
     loginExpired: "La sesión caducó {{relativeTime}}. {{remedy}}",
-    claudeLoginExpired:
-      "El inicio de sesión de uso de Claude caducó {{relativeTime}}. Los agentes siguen funcionando. Abre claude en una terminal para actualizarlo; si te pide iniciar sesión, ejecuta claude auth login.",
+    claudeRefreshPending:
+      "Esperando a que Claude actualice su inicio de sesión. Se actualiza la próxima vez que se ejecute Claude; si te pide iniciar sesión, ejecuta claude auth login.",
     title: "Uso del plan",
     refresh: "Actualizar",
     refreshAll: "Actualizar todo",
@@ -2329,6 +2329,8 @@ export const es: TranslationResources = {
       hoursAgo: "hace {{value}} h",
       minutesAgo: "hace {{value}} min",
       updated: "Actualizado {{relativeTime}}",
+      updatedUntilClaudeRuns:
+        "Actualizado {{relativeTime}} · se actualiza la próxima vez que se ejecute Claude",
     },
   },
   settings: {

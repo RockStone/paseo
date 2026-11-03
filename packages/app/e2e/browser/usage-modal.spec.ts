@@ -376,16 +376,13 @@ test("expired login refreshes to windows with visible pin toggles", async ({ pag
   try {
     await gotoAppShell(page);
     await openUsageFromIcon(page);
-    await expect(
-      page.getByText("Claude: Login expired 1h ago. Run claude to refresh it.", { exact: true }),
-    ).toBeVisible();
+    const card = page.getByTestId("usage-report-login-journey:account");
+    await expect(card.getByTestId("usage-claude-refresh")).toBeVisible();
     await expect(page.getByText("Unavailable", { exact: true })).toBeVisible();
     await qaScreenshot(page, "usage-expired-login");
     await fixture.setReport(loginWindows);
     await refreshLoginUsage(page);
-    await expect(
-      page.getByText("Claude: Login expired 1h ago. Run claude to refresh it.", { exact: true }),
-    ).toHaveCount(0);
+    await expect(card.getByTestId("usage-claude-refresh")).toHaveCount(0);
     await expectPinnedUsage(page, ["31% 5h", "54% wk"]);
     const row = page.getByRole("checkbox", { name: /^Pin Claude Weekly, / });
     await expect(row).toBeChecked();
@@ -655,6 +652,44 @@ for (const compact of [false, true]) {
     }
   });
 }
+
+test("a lapsed Claude CLI login waits quietly and keeps the last usage", async ({ page }) => {
+  const lapsed: UsageReportEntry["report"] = {
+    status: "unavailable",
+    problem: { kind: "expired", expiresAt: "2026-01-01T00:00:00.000Z", refreshedBy: "claude" },
+  };
+  const fixture = await installLoginUsage(lapsed);
+  try {
+    await gotoAppShell(page);
+    await openUsageFromIcon(page);
+    const card = page.getByTestId("usage-report-login-journey:account");
+    await expect(card.getByTestId("usage-claude-refresh")).toHaveText(
+      "Waiting for Claude to refresh its login. It refreshes the next time Claude runs; if it asks you to sign in, run claude auth login.",
+    );
+    await expect(card.getByTestId("usage-login-error")).toHaveCount(0);
+
+    await fixture.setReport({
+      status: "available",
+      planLabel: "Max",
+      windows: [{ id: "weekly", label: "Weekly", usedPct: 42 }],
+    });
+    await refreshLoginUsage(page);
+    await expectLoginUsageOnly(page, "42% used");
+    await expect(card.getByTestId("usage-claude-refresh")).toHaveCount(0);
+
+    await fixture.setReport(lapsed);
+    await refreshLoginUsage(page);
+    await expect(card.getByText(/^42% used(?:$| ·)/)).toBeVisible();
+    await expect(card.getByText("Max", { exact: true })).toBeVisible();
+    await expect(card.getByTestId("usage-login-error")).toHaveCount(0);
+    await expect(card.getByText("Unavailable", { exact: true })).toHaveCount(0);
+    await expect(card.getByTestId("usage-claude-refresh")).toHaveText(
+      "Updated just now · refreshes when Claude next runs",
+    );
+  } finally {
+    await fixture.cleanup();
+  }
+});
 
 async function expectRetainedLoginUsage(page: Page, message: string) {
   const card = page.getByTestId("usage-report-login-journey:account");

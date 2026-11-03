@@ -24,8 +24,14 @@ import type { UsageReport, UsageReportEntry, UsageWindow } from "./types";
 import { UsageWindowBar } from "./window-bar";
 import { useRelativeTimeTick } from "./use-relative-time-tick";
 
-function statusText(report: UsageReport, t: TFunction): string | null {
+function statusText(
+  report: UsageReport,
+  resolved: { awaitingClaudeRefresh: boolean; retained: boolean },
+  t: TFunction,
+): string | null {
   if (report.status === "available") return null;
+  // While a lapsed Claude CLI login waits to be renewed, the last usage reads as current.
+  if (resolved.awaitingClaudeRefresh && resolved.retained) return null;
   return report.status === "error"
     ? t("providerUsage.status.error")
     : t("providerUsage.status.unavailable");
@@ -56,13 +62,15 @@ export function UsageCard({
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
   const { refresh, refreshState } = useReportRefresh(serverId, entry.id, agentId);
-  // Where there is no hover the freshness is printed on the card; elsewhere the Refresh tooltip.
-  const showsFreshnessInline = isNative || isCompact || !refreshable;
   const usage = entry.report;
-  const status = statusText(usage, t);
   const footer = entry.account.label ?? null;
-  const { windows, balances, details, planLabel, successfulAt, retained, messages } =
-    resolveUsageReport(entry, t);
+  const resolved = resolveUsageReport(entry, t);
+  const { windows, balances, details, planLabel, successfulAt, retained, messages } = resolved;
+  const { awaitingClaudeRefresh } = resolved;
+  const status = statusText(usage, resolved, t);
+  // Where there is no hover the freshness is printed on the card; elsewhere the Refresh tooltip.
+  // The Claude refresh note carries its own freshness.
+  const showsFreshnessInline = (isNative || isCompact || !refreshable) && !awaitingClaudeRefresh;
 
   const containerStyle = useMemo(
     () => [styles.container, compact ? styles.containerCompact : styles.containerPadded],
@@ -142,6 +150,8 @@ export function UsageCard({
           ))}
         </View>
       ) : null}
+
+      {awaitingClaudeRefresh ? <ClaudeRefreshNote successfulAt={successfulAt} /> : null}
 
       {footer || showsFreshnessInline ? (
         <View style={styles.footerRow}>
@@ -279,6 +289,23 @@ function UsageFreshness({
   );
 }
 
+/**
+ * Muted, not an error: the Claude CLI renews its login the next time Claude runs. Says when the
+ * usage on screen was fetched, or that there is none yet.
+ */
+function ClaudeRefreshNote({ successfulAt }: { successfulAt: string | null }) {
+  const { t } = useTranslation();
+  const now = useRelativeTimeTick({ enabled: successfulAt != null });
+  const relativeTime = formatAgo(successfulAt, now, t);
+  return (
+    <Text style={styles.note} testID="usage-claude-refresh">
+      {relativeTime
+        ? t("providerUsage.timing.updatedUntilClaudeRuns", { relativeTime })
+        : t("providerUsage.claudeRefreshPending")}
+    </Text>
+  );
+}
+
 // The Refresh glyph lands on the card's right rail and the header keeps its text height;
 // the button's larger hitbox overhangs both instead of pushing them.
 function iconHitboxOverhang(compact: boolean) {
@@ -357,6 +384,11 @@ const styles = StyleSheet.create((theme) => ({
   },
   error: {
     color: theme.colors.palette.red[300],
+    fontSize: theme.fontSize.sm,
+    lineHeight: theme.fontSize.sm * 1.4,
+  },
+  note: {
+    color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     lineHeight: theme.fontSize.sm * 1.4,
   },

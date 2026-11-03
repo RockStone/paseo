@@ -2276,8 +2276,8 @@ export const fr: TranslationResources = {
     signInAgain: "Reconnectez-vous.",
     loginRejected: "Connexion refusée (HTTP {{status}}). {{remedy}}",
     loginExpired: "Connexion expirée {{relativeTime}}. {{remedy}}",
-    claudeLoginExpired:
-      "La connexion d’usage Claude a expiré {{relativeTime}}. Les agents continuent de fonctionner. Ouvrez claude dans un terminal pour l’actualiser ; s’il vous demande de vous connecter, exécutez claude auth login.",
+    claudeRefreshPending:
+      "En attente de l’actualisation de la connexion de Claude. Elle s’actualise à la prochaine exécution de Claude ; s’il vous demande de vous connecter, exécutez claude auth login.",
     title: "Utilisation du forfait",
     refresh: "Actualiser",
     refreshAll: "Tout actualiser",
@@ -2327,6 +2327,8 @@ export const fr: TranslationResources = {
       hoursAgo: "il y a {{value}} h",
       minutesAgo: "il y a {{value}} min",
       updated: "Mis à jour {{relativeTime}}",
+      updatedUntilClaudeRuns:
+        "Mis à jour {{relativeTime}} · s’actualise à la prochaine exécution de Claude",
     },
   },
   settings: {
