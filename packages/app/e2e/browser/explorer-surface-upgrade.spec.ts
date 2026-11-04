@@ -51,6 +51,75 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
   }
 });
 
+test("a fast crossing reveals the sidebar with a slide and respects reduced motion", async ({
+  page,
+}) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-crossing-" });
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoWorkspace(page, workspace.workspaceId);
+    await waitForWorkspaceTabsVisible(page);
+    await page.keyboard.press(`${modifier}+b`);
+    const preview = page.getByTestId("sidebar-edge-preview");
+    await page.getByTestId("sidebar-edge-trigger").waitFor();
+    await page.mouse.move(250, 400);
+    await page.evaluate(() => {
+      // The event jumps past the six-pixel target, as a fast native crossing can.
+      window.dispatchEvent(
+        new PointerEvent("pointerout", {
+          clientX: -80,
+          clientY: 400,
+          relatedTarget: null,
+        }),
+      );
+      const content = document.querySelector('[data-testid="sidebar-preview-content"]');
+      const observer = new MutationObserver(() => {
+        const animation = content?.getAnimations()[0];
+        if (animation) {
+          animation.pause();
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, { subtree: true, attributes: true });
+    });
+    await expect(preview).toBeVisible();
+    const content = page.getByTestId("sidebar-preview-content");
+    const geometry = await content.evaluate((node) => {
+      const animation = node.getAnimations()[0];
+      if (!animation) throw new Error("Missing sidebar slide animation");
+      animation.pause();
+      animation.currentTime = 90;
+      const bounds = node.getBoundingClientRect();
+      const frame = node.parentElement!.getBoundingClientRect();
+      return { left: bounds.left, width: bounds.width, frameLeft: frame.left };
+    });
+    expect(geometry.frameLeft).toBe(0);
+    expect(geometry.left).toBeLessThan(0);
+    expect(geometry.left).toBeGreaterThan(-geometry.width);
+    await content.evaluate((node) => node.getAnimations()[0].finish());
+    await expect(content).toHaveCSS("transform", "none");
+    await page.keyboard.press("Escape");
+    await expect(preview).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.mouse.move(250, 400);
+    await page.evaluate(() =>
+      window.dispatchEvent(
+        new PointerEvent("pointerout", {
+          clientX: -80,
+          clientY: 400,
+          relatedTarget: null,
+        }),
+      ),
+    );
+    await expect(preview).toBeVisible();
+    expect(await content.evaluate((node) => node.getAnimations().length)).toBe(0);
+    await expect(content).toHaveCSS("transform", "none");
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 test("New workspace sidebar preview supports navigation and dragging conversations", async ({
   page,
 }) => {

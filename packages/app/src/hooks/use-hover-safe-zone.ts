@@ -77,9 +77,16 @@ export function useHoverSafeZone({
         return;
       }
       tracker.pointerMoved(point.x, point.y);
-      pollTimer = setTimeout(() => {
-        void pollPointer(generation);
-      }, 50);
+      if (
+        point.x < 0 ||
+        point.y < 0 ||
+        point.x > window.innerWidth ||
+        point.y > window.innerHeight
+      ) {
+        pollTimer = setTimeout(() => {
+          void pollPointer(generation);
+        }, 50);
+      } else stopPolling();
     }
 
     function handlePointerMove(event: PointerEvent) {
@@ -105,6 +112,12 @@ export function useHoverSafeZone({
     document.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerout", handlePointerOut);
     window.addEventListener("blur", handleBlur);
+    // Crossing can reveal the panel after the pointer already left the window;
+    // there may be no subsequent pointerout event to start native tracking.
+    if (readWindowPointer) {
+      outsideWindow = true;
+      void pollPointer(pointerGeneration);
+    }
     return () => {
       disposed = true;
       stopPolling();

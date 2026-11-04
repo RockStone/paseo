@@ -2,10 +2,12 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { useHoverSafeZone } from "./use-hover-safe-zone";
+import { useSidebarEdgeReveal } from "./use-sidebar-edge-reveal";
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 function sidebarRef() {
   const current = document.createElement("div");
@@ -89,4 +91,86 @@ test("a late native pointer result cannot dismiss the sidebar after the pointer 
     await vi.advanceTimersByTimeAsync(500);
   });
   expect(leave).not.toHaveBeenCalled();
+});
+
+test.each([
+  [250, -80],
+  [-80, 250],
+])("a fast crossing from x=%s to x=%s reveals without landing on the strip", (from, to) => {
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  const reveal = vi.fn();
+  renderHook(() =>
+    useSidebarEdgeReveal({ enabled: true, triggerRef: sidebarRef(), onReveal: reveal }),
+  );
+  act(() => {
+    document.dispatchEvent(new MouseEvent("pointermove", { clientX: from, clientY: 300 }));
+    document.dispatchEvent(new MouseEvent("pointermove", { clientX: to, clientY: 300 }));
+  });
+  expect(reveal).toHaveBeenCalledTimes(1);
+});
+
+test("native samples reveal on reentry from outside and stop after cleanup", async () => {
+  vi.useFakeTimers();
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  let point = { x: -80, y: 300 };
+  const read = vi.fn(async () => point);
+  const reveal = vi.fn();
+  const { unmount } = renderHook(() =>
+    useSidebarEdgeReveal({
+      enabled: true,
+      triggerRef: sidebarRef(),
+      onReveal: reveal,
+      readWindowPointer: read,
+    }),
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(40);
+  });
+  expect(reveal).not.toHaveBeenCalled();
+  point = { x: 90, y: 300 };
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(40);
+  });
+  expect(reveal).toHaveBeenCalledTimes(1);
+  unmount();
+  const reads = read.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(100);
+  expect(read).toHaveBeenCalledTimes(reads);
+});
+
+test("crossings outside the sidebar height and movement within the window do not reveal", () => {
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  const reveal = vi.fn();
+  renderHook(() =>
+    useSidebarEdgeReveal({ enabled: true, triggerRef: sidebarRef(), onReveal: reveal }),
+  );
+  act(() => {
+    for (const x of [250, -80, 100, 10]) {
+      document.dispatchEvent(new MouseEvent("pointermove", { clientX: x, clientY: 900 }));
+    }
+    document.dispatchEvent(new MouseEvent("pointermove", { clientX: 20, clientY: 300 }));
+  });
+  expect(reveal).not.toHaveBeenCalled();
+});
+
+test("a preview revealed after pointerout still tracks an outside pointer immediately", async () => {
+  vi.useFakeTimers();
+  const ref = sidebarRef();
+  const leave = vi.fn();
+  renderHook(() =>
+    useHoverSafeZone({
+      enabled: true,
+      triggerRef: ref,
+      contentRef: ref,
+      margin: 140,
+      leaveDelayMs: 180,
+      readWindowPointer: async () => ({ x: -200, y: 300 }),
+      onEnterSafeZone: () => {},
+      onLeaveSafeZone: leave,
+    }),
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(250);
+  });
+  expect(leave).toHaveBeenCalledTimes(1);
 });

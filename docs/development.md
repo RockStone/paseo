@@ -63,11 +63,13 @@ preserved. Native clients do not have this action. This adapts the selection int
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
 the PR's persistent annotation markers or separate comment editor.
 
-The hidden sidebar previews from the left window edge. In Electron, it stays open
-within half the sidebar's current width of the preview, including outside the
-window, then dismisses after a short grace period. Browsers cannot read the pointer outside their window and
-use the grace period alone. Clicking away, pressing Escape, or switching windows
-dismisses the preview.
+Crossing the left window edge in either direction reveals the hidden sidebar,
+including fast movements that skip the narrow edge target. The preview slides in
+over 180 ms and respects reduced-motion settings. In Electron, it stays open within
+half the sidebar's current width beyond the preview, including outside the window,
+then dismisses after a short grace period. Browsers cannot read the pointer outside
+their window and use the grace period alone. Clicking away, pressing Escape, or
+switching windows dismisses the preview.
 
 Answered inline Claude questions show the quoted questions and your responses
 together in a user bubble, including when you reopen the conversation.

@@ -15,6 +15,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -63,6 +64,7 @@ import {
 } from "@/components/desktop-sidebar-layout";
 import { isNative, isWeb } from "@/constants/platform";
 import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
+import { useSidebarEdgeReveal } from "@/hooks/use-sidebar-edge-reveal";
 import { readSidebarPreviewPointer } from "@/desktop/sidebar-preview-pointer";
 import { HorizontalScrollProvider } from "@/contexts/horizontal-scroll-context";
 import { SessionProvider } from "@/contexts/session-context";
@@ -601,11 +603,22 @@ function SidebarPreviewFrame({
   children: ReactNode;
 }) {
   const frameRef = useRef<View>(null);
+  const contentRef = useRef<View>(null);
   const [frameWidth, setFrameWidth] = useState(0);
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     setFrameWidth(event.nativeEvent.layout.width);
   }, []);
   const stayOpen = useCallback(() => {}, []);
+  // Keep the hover frame stationary while its contents slide into view.
+  useLayoutEffect(() => {
+    if (!isWeb || !preview || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const node = contentRef.current as unknown as HTMLElement | null;
+    const animation = node?.animate(
+      [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
+      { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+    );
+    return () => animation?.cancel();
+  }, [preview]);
   useHoverSafeZone({
     enabled: preview,
     triggerRef: frameRef,
@@ -642,16 +655,30 @@ function SidebarPreviewFrame({
       {...(isWeb ? { dataSet: { windowNoDrag: "true" } } : {})}
       testID={preview ? "sidebar-edge-preview" : undefined}
     >
-      {children}
+      <View
+        ref={contentRef}
+        style={preview ? layoutStyles.sidebarPreviewContent : layoutStyles.sidebarFrame}
+        testID="sidebar-preview-content"
+      >
+        {children}
+      </View>
     </View>
   );
 }
 
 function SidebarEdgeTrigger({ visible, onReveal }: { visible: boolean; onReveal: () => void }) {
+  const triggerRef = useRef<View>(null);
+  useSidebarEdgeReveal({
+    enabled: visible,
+    triggerRef,
+    onReveal,
+    readWindowPointer: readSidebarPreviewPointer,
+  });
   const mouseHandlers = useMemo(() => ({ onMouseEnter: onReveal }), [onReveal]);
   if (!visible) return null;
   return (
     <View
+      ref={triggerRef}
       style={layoutStyles.sidebarEdge}
       {...(isWeb ? { dataSet: { windowNoDrag: "true" } } : {})}
       {...(mouseHandlers as object)}
@@ -1062,6 +1089,9 @@ const layoutStyles = StyleSheet.create((theme) => ({
     bottom: 0,
     left: 0,
     zIndex: 30,
+  },
+  sidebarPreviewContent: {
+    flexDirection: "row",
     backgroundColor: theme.colors.surface0,
     borderRightWidth: theme.borderWidth[1],
     borderRightColor: theme.colors.border,

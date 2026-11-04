@@ -921,6 +921,15 @@ async function assertMacSidebarLayout(options) {
   const { page } = options;
   await openSmokeWorkspace(options);
   const width = await page.evaluate(() => window.innerWidth);
+  const settlePreview = async () => {
+    await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+    // CDP movement doesn't move the OS pointer. Reenter immediately so each
+    // synthetic reveal hands tracking back to DOM events before testing controls.
+    await page.mouse.move(100, 400);
+    await page
+      .getByTestId("sidebar-preview-content")
+      .evaluate((node) => Promise.all(node.getAnimations().map((animation) => animation.finished)));
+  };
   await page.mouse.click(width - 40, 100);
   const assertAligned = () =>
     page.waitForFunction(() => {
@@ -937,8 +946,17 @@ async function assertMacSidebarLayout(options) {
   await page.keyboard.press("Meta+b");
   const edge = page.getByTestId("sidebar-edge-trigger");
   await edge.waitFor({ state: "visible" });
-  await edge.hover();
-  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  await page.mouse.move(250, 400);
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new PointerEvent("pointerout", {
+        clientX: -80,
+        clientY: 400,
+        relatedTarget: null,
+      }),
+    ),
+  );
+  await settlePreview();
   await assertAligned();
   const previewNavigation = page.getByTestId("sidebar-global-new-workspace");
   const coveredDragRegions = await previewNavigation.evaluate((navigation) => {
@@ -999,19 +1017,19 @@ async function assertMacSidebarLayout(options) {
     throw new Error(`New workspace sidebar edge belongs to the window drag region: ${edgeRegion}`);
   }
   await edge.hover();
-  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  await settlePreview();
   await assertAligned();
   await page.getByTestId("sidebar-schedules").click();
   await page.waitForURL((url) => url.pathname === "/schedules");
   await page.mouse.move(width - 40, 400);
   await edge.hover();
-  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  await settlePreview();
   await page.getByTestId("sidebar-global-new-workspace").click();
   await page.waitForURL((url) => url.pathname === "/new");
   await page.mouse.move(width - 40, 400);
   await page.getByTestId("sidebar-edge-preview").waitFor({ state: "detached" });
   await edge.hover();
-  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "visible" });
+  await settlePreview();
   await page.getByRole("button", { name: "Sandbox smoke workspace", exact: true }).click();
   await page.waitForURL((url) => url.pathname.includes("/workspace/"));
   console.log(
