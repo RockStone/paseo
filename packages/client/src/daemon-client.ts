@@ -3825,6 +3825,25 @@ export class DaemonClient {
     );
   }
 
+  async createResponseReference(
+    agentId: string,
+    cursor: { epoch: string; seq: number },
+  ): Promise<{ id: string; preview: string }> {
+    // COMPAT(responseReferences): added in v0.15.0-beta.1, remove gate after 2027-05-03.
+    if (this.lastServerInfoMessage?.features?.responseReferences !== true) {
+      throw new Error("Update and restart the Paseo host to reply to a response.");
+    }
+    const payload =
+      await this.sendNamespacedCorrelatedSessionRequest<"agent.response_reference.create.response">(
+        {
+          message: { type: "agent.response_reference.create.request", agentId, cursor },
+        },
+      );
+    if (payload.error || !payload.reference)
+      throw new Error(payload.error ?? "Could not prepare this reply.");
+    return payload.reference;
+  }
+
   async buildAgentForkContext(
     agentId: string,
     options: AgentForkContextOptions = {},

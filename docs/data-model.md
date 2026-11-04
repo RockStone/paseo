@@ -84,6 +84,15 @@ Only its `scripts` entries are inherited; project lifecycle hooks and metadata
 remain local. Project scripts take precedence when names collide. The Run editor
 uses the existing revision-checked config write path for both scopes.
 
+## Custom build response references
+
+Paseoi keeps response references under `$PASEO_HOME/response-references`. Keep that
+directory with your host backups: references in saved messages depend on it.
+These private snapshots survive timeline epoch resets, compaction, and source
+agent removal. Removing a reference from a draft does not delete its snapshot,
+because an older sent message may still use the same reference. References resolve
+on their source host.
+
 ## Custom build response changes
 
 Paseoi saves derived workspace diffs under

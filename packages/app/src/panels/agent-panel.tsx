@@ -20,7 +20,14 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import invariant from "tiny-invariant";
 import { shallow, useShallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import { SelectionReplyContext, insertQuotedReply } from "@/assistant-selection-copy/reply";
+import {
+  SelectionReplyContext,
+  insertQuotedReply,
+  ResponseReplyContext,
+  insertReplyReference,
+  type ResponseReplyHandler,
+} from "@/assistant-selection-copy/reply";
+import { formatResponseReference } from "@getpaseo/protocol/response-reference";
 import { useAgentStreamTail } from "@/agent-stream/use-agent-stream-tail";
 import { AgentStreamView, type AgentStreamViewHandle } from "@/agent-stream/view";
 import { ArchivedAgentCallout } from "@/components/archived-agent-callout";
@@ -1194,6 +1201,22 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     ],
   );
   const [replyFocusKey, setReplyFocusKey] = useState(0);
+  const responseClient = useHostRuntimeClient(serverId);
+  const replyToResponse = useCallback<ResponseReplyHandler>(
+    async (cursor) => {
+      if (!responseClient) throw new Error("Connect to the host to reply to this response.");
+      const reference = formatResponseReference(
+        await responseClient.createResponseReference(agentId, cursor),
+      );
+      const inserted = composerEditingSession.editAtCaret((draft, caret) =>
+        insertReplyReference(draft, reference, caret),
+      );
+      if (!inserted)
+        replaceText(insertReplyReference(textSource.getSnapshot(), reference, null).text);
+      setReplyFocusKey((key) => key + 1);
+    },
+    [responseClient, agentId, composerEditingSession, replaceText, textSource],
+  );
   const replyToSelection = useCallback(
     (text: string) => {
       const inserted = composerEditingSession.editAtCaret((draft, caret) =>
@@ -1253,6 +1276,9 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
       {showsComposer ? null : <SheetAgentFacts serverId={serverId} agentId={agentId} />}
       <RenderProfile id={`AgentStreamSection:${agentId}`}>
         <AgentStreamSection
+          onReplyToResponse={
+            hasActiveComposer && showsComposer && isHydrated && isWeb ? replyToResponse : null
+          }
           onReplyToSelection={
             hasActiveComposer && showsComposer && isHydrated ? replyToSelection : null
           }
@@ -1468,6 +1494,7 @@ function SheetAgentFacts({ serverId, agentId }: { serverId: string; agentId: str
 }
 
 const AgentStreamSection = memo(function AgentStreamSection({
+  onReplyToResponse,
   onReplyToSelection,
   streamViewRef,
   serverId,
@@ -1481,6 +1508,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
   toast,
   onOpenWorkspaceFile,
 }: {
+  onReplyToResponse: ResponseReplyHandler | null;
   onReplyToSelection: ((text: string) => void) | null;
   streamViewRef: React.RefObject<AgentStreamViewHandle | null>;
   serverId: string;
@@ -1555,22 +1583,24 @@ const AgentStreamSection = memo(function AgentStreamSection({
 
   return (
     <SelectionReplyContext.Provider value={onReplyToSelection}>
-      <AgentStreamView
-        ref={streamViewRef}
-        agentId={agent.id}
-        serverId={serverId}
-        context={agent}
-        streamItems={streamItems}
-        pendingPermissions={pendingPermissions}
-        routeBottomAnchorRequest={routeBottomAnchorRequest}
-        isAuthoritativeHistoryReady={hasAppliedAuthoritativeHistory}
-        bottomOverlayTailClearance={bottomOverlayTailClearance}
-        bottomOverlayControlClearance={bottomOverlayControlClearance}
-        toast={toast}
-        pendingMessageSubmissions={pendingMessageSubmissions}
-        turnPresentation={turnPresentation}
-        onOpenWorkspaceFile={onOpenWorkspaceFile}
-      />
+      <ResponseReplyContext.Provider value={onReplyToResponse}>
+        <AgentStreamView
+          ref={streamViewRef}
+          agentId={agent.id}
+          serverId={serverId}
+          context={agent}
+          streamItems={streamItems}
+          pendingPermissions={pendingPermissions}
+          routeBottomAnchorRequest={routeBottomAnchorRequest}
+          isAuthoritativeHistoryReady={hasAppliedAuthoritativeHistory}
+          bottomOverlayTailClearance={bottomOverlayTailClearance}
+          bottomOverlayControlClearance={bottomOverlayControlClearance}
+          toast={toast}
+          pendingMessageSubmissions={pendingMessageSubmissions}
+          turnPresentation={turnPresentation}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+        />
+      </ResponseReplyContext.Provider>
     </SelectionReplyContext.Provider>
   );
 });

@@ -10,6 +10,7 @@ export interface HoverSafeZoneTrackerInput {
   getContentRect: () => RectLike | null;
   onEnterSafeZone: () => void;
   onLeaveSafeZone: () => void;
+  margin?: number;
 }
 
 export interface HoverSafeZoneTracker {
@@ -27,6 +28,15 @@ export function createHoverSafeZoneTracker(input: HoverSafeZoneTrackerInput): Ho
   const { getTriggerRect, getContentRect, onEnterSafeZone, onLeaveSafeZone } = input;
   // The pointer opened the card, so we start inside.
   let wasInside = true;
+  function padded(rect: RectLike | null): RectLike | null {
+    if (!rect || !input.margin) return rect;
+    return {
+      left: rect.left - input.margin,
+      right: rect.right + input.margin,
+      top: rect.top - input.margin,
+      bottom: rect.bottom + input.margin,
+    };
+  }
 
   function leave(): void {
     if (!wasInside) return;
@@ -36,7 +46,7 @@ export function createHoverSafeZoneTracker(input: HoverSafeZoneTrackerInput): Ho
 
   return {
     pointerMoved(x, y) {
-      if (isInsideSafeZone(getTriggerRect(), getContentRect(), x, y)) {
+      if (isInsideSafeZone(padded(getTriggerRect()), padded(getContentRect()), x, y)) {
         wasInside = true;
         onEnterSafeZone();
         return;

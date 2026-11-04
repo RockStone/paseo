@@ -1,4 +1,5 @@
 import { shellBackgroundTaskId } from "@/tool-calls/shell-task";
+import { ResponseReplyButton } from "@/agent-stream/response-reply-button";
 import { buildRewoundComposerMessage } from "@/components/rewind/attachments";
 import { useToast } from "@/contexts/toast-context";
 import {
@@ -729,6 +730,7 @@ const UserMessageContent = memo(function UserMessageContent({
 });
 
 interface AssistantTurnFooterProps {
+  replyCursor?: { epoch: string; seq: number };
   getContent?: () => string;
   completedAt?: Date;
   durationMs?: number | null;
@@ -784,6 +786,7 @@ const MessageTimeLabel = memo(function MessageTimeLabel({
  * Keeps duration, completion time and relative age visible together.
  */
 export const AssistantTurnFooter = memo(function AssistantTurnFooter({
+  replyCursor,
   getContent,
   completedAt,
   durationMs,
@@ -806,6 +809,7 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
         />
       ) : null}
       {canFork ? <AssistantForkMenu onFork={handleFork} /> : null}
+      {replyCursor ? <ResponseReplyButton cursor={replyCursor} /> : null}
       <MessageTimeLabel
         date={completedAt}
         durationMs={durationMs}

@@ -2,6 +2,7 @@ import { StateField, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Nodes } from "mdast";
+import { responseReferenceIds } from "@getpaseo/protocol/response-reference";
 
 const CODE_FONT_ATTRIBUTES = { "data-pmono": "" };
 
@@ -9,6 +10,7 @@ class ReferenceLabel extends WidgetType {
   constructor(
     readonly label: string,
     readonly url: string,
+    readonly sourceLength: number,
   ) {
     super();
   }
@@ -16,14 +18,43 @@ class ReferenceLabel extends WidgetType {
     return false;
   }
   eq(other: ReferenceLabel) {
-    return this.label === other.label && this.url === other.url;
+    return (
+      this.label === other.label &&
+      this.url === other.url &&
+      this.sourceLength === other.sourceLength
+    );
   }
-  toDOM() {
+  toDOM(view: EditorView) {
     const span = document.createElement("span");
     span.className = "composer-reference";
     span.textContent = this.label;
     span.title = this.url;
     if (/^https?:\/\//i.test(this.url)) span.dataset.composerUrl = this.url;
+    if (responseReferenceIds(this.url).length) {
+      span.dataset.responseReference = "true";
+      span.title = this.label;
+      const label = document.createElement("span");
+      label.className = "composer-reference-label";
+      label.textContent = this.label;
+      span.replaceChildren(label);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "composer-reference-remove";
+      remove.setAttribute("aria-label", "Remove reply reference");
+      remove.textContent = "×";
+      remove.addEventListener("mousedown", (event) => event.preventDefault());
+      remove.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const from = view.posAtDOM(span, 0);
+        view.dispatch({
+          changes: { from, to: from + this.sourceLength, insert: "" },
+          userEvent: "input",
+        });
+        view.focus();
+      });
+      span.appendChild(remove);
+    }
     return span;
   }
 }
@@ -114,10 +145,10 @@ function decorate(state: EditorState): DecorationSet {
     if (node.type === "link") {
       const label = labelText(node);
       ranges.push(
-        Decoration.replace({ atomic: true, widget: new ReferenceLabel(label, node.url) }).range(
-          from,
-          to,
-        ),
+        Decoration.replace({
+          atomic: true,
+          widget: new ReferenceLabel(label, node.url, to - from),
+        }).range(from, to),
       );
       return;
     }

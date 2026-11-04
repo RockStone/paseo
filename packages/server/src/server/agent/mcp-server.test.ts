@@ -25,6 +25,8 @@ import { z } from "zod";
 import { createTestLogger } from "../../test-utils/test-logger.js";
 import { createAgentMcpServer as createAgentMcpServerWithDependencies } from "./mcp-server.js";
 import { AgentManager, type ManagedAgent } from "./agent-manager.js";
+import { createResponseReference } from "./response-references.js";
+import { InMemoryAgentTimelineStore } from "./agent-timeline-store.js";
 import { AgentStorage, type StoredAgentRecord } from "./agent-storage.js";
 import { createTestAgentClients } from "../test-utils/fake-agent-client.js";
 import { OmpAgentClient } from "./providers/omp/agent.js";
@@ -6846,6 +6848,42 @@ describe("agent snapshot MCP serialization", () => {
         },
       },
     ]);
+  });
+
+  it("get_agent_response reads the saved reply without resuming its source agent", async () => {
+    const home = await mkdtemp(join(tmpdir(), "mcp-response-reference-"));
+    try {
+      const timeline = new InMemoryAgentTimelineStore();
+      timeline.initialize("source", {
+        epoch: "original",
+        items: [{ type: "assistant_message", text: "The earlier answer." }],
+      });
+      const reference = await createResponseReference({
+        paseoHome: home,
+        agentId: "source",
+        timeline: timeline.fetch("source", { limit: 0 }),
+        cursor: { epoch: "original", seq: 1 },
+      });
+      const { agentManager, agentStorage, spies } = createTestDeps();
+      const server = await createAgentMcpServer({
+        agentManager,
+        agentStorage,
+        logger,
+        paseoHome: home,
+        providerSnapshotManager: createClaudeOnlyManager(),
+      });
+      const response = await registeredTool(server, "get_agent_response").handler({
+        referenceId: reference.id,
+      });
+      expect(response.structuredContent).toEqual({
+        referenceId: reference.id,
+        agentId: "source",
+        text: "The earlier answer.",
+      });
+      expect(spies.agentManager.resumeAgentFromPersistence).not.toHaveBeenCalled();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 
   it("loads archived agents before reading get_agent_activity", async () => {

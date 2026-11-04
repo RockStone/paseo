@@ -2025,6 +2025,13 @@ export const AgentForkContextRequestMessageSchema = z.object({
   requestId: z.string(),
 });
 
+export const AgentResponseReferenceCreateRequestMessageSchema = z.object({
+  type: z.literal("agent.response_reference.create.request"),
+  agentId: z.string(),
+  cursor: AgentTimelineCursorSchema,
+  requestId: z.string(),
+});
+
 export const SetAgentModeRequestMessageSchema = z.object({
   type: z.literal("set_agent_mode_request"),
   agentId: z.string(),
@@ -3436,6 +3443,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ProviderSubagentTimelineRequestMessageSchema,
   SetAgentTimelineSubscriptionRequestMessageSchema,
   AgentForkContextRequestMessageSchema,
+  AgentResponseReferenceCreateRequestMessageSchema,
   SetAgentModeRequestMessageSchema,
   SetAgentModelRequestMessageSchema,
   SetAgentThinkingRequestMessageSchema,
@@ -3862,6 +3870,7 @@ export const ServerInfoStatusPayloadSchema = z
         agentForkContext: z.boolean().optional(),
         // COMPAT(agentForkContextCursor): added in v0.1.108, remove gate after 2027-01-14.
         agentForkContextCursor: z.boolean().optional(),
+        responseReferences: z.boolean().optional(),
         // COMPAT(providerSubagents): added in v0.1.107, remove gate after 2027-01-12.
         providerSubagents: z.boolean().optional(),
         // COMPAT(projectedSubagentTimeline): added after v0.8.0, remove gates after 2027-03-14; retain wire field.
@@ -5046,6 +5055,15 @@ export const AgentForkContextResponseMessageSchema = z.object({
     itemCount: z.number().int().nonnegative(),
     boundaryMessageId: z.string().nullable(),
     boundaryCursor: AgentTimelineCursorSchema.nullable().optional(),
+    error: z.string().nullable(),
+  }),
+});
+
+export const AgentResponseReferenceCreateResponseMessageSchema = z.object({
+  type: z.literal("agent.response_reference.create.response"),
+  payload: z.object({
+    requestId: z.string(),
+    reference: z.object({ id: z.string(), preview: z.string() }).nullable(),
     error: z.string().nullable(),
   }),
 });
@@ -7187,6 +7205,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   SetAgentTimelineSubscriptionResponseMessageSchema,
   AgentAttentionRequiredMessageSchema,
   AgentForkContextResponseMessageSchema,
+  AgentResponseReferenceCreateResponseMessageSchema,
   CancelAgentResponseMessageSchema,
   ClearAgentAttentionResponseMessageSchema,
   WorkspaceCreateResponseSchema,

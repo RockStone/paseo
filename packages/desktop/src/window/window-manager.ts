@@ -8,6 +8,7 @@ import {
   ipcMain,
   nativeTheme,
   shell,
+  screen,
 } from "electron";
 
 import type { WindowState, WindowStateStore } from "../settings/window-state.js";
@@ -146,6 +147,18 @@ export function applyMacWindowControlsUpdate(input: {
 }
 
 export function registerWindowManager(input: { mode: DesktopWindowChromeMode }): void {
+  ipcMain.handle("paseo:window:getPointerPosition", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed() || !win.isVisible() || win.isMinimized()) return null;
+    try {
+      const point = screen.getCursorScreenPoint();
+      const bounds = win.getContentBounds();
+      const zoom = win.webContents.getZoomFactor();
+      return { x: (point.x - bounds.x) / zoom, y: (point.y - bounds.y) / zoom };
+    } catch {
+      return null;
+    }
+  });
   ipcMain.handle("paseo:window:minimize", (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();
   });

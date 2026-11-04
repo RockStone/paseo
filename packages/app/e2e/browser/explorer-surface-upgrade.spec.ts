@@ -31,8 +31,16 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
     await expect(sidebar).toHaveCount(1);
     await expectSidebarFooterAtBottom(page);
     await page.screenshot({ path: "/tmp/paseoi-r69-sidebar-preview.png" });
+    const bounds = await preview.boundingBox();
+    expect(bounds).not.toBeNull();
+    await page.clock.install();
+    await page.mouse.move(bounds!.x + bounds!.width + 24, 450);
+    await page.clock.runFor(500);
+    await expect(preview).toBeVisible();
     await page.mouse.move(1200, 450);
+    await page.clock.runFor(200);
     await expect(preview).toHaveCount(0);
+    await page.clock.resume();
     await expect(sidebar).toHaveCount(0);
     await page.keyboard.press(`${modifier}+b`);
     await expect(sidebar).toHaveCount(1);

@@ -44,6 +44,22 @@ function createHandle(
 }
 
 describe("hover safe-zone tracker", () => {
+  it("keeps the sidebar open just outside the window until the pointer leaves its margin", () => {
+    let leaves = 0;
+    const tracker = createHoverSafeZoneTracker({
+      getTriggerRect: () => ({ left: 0, right: 280, top: 0, bottom: 800 }),
+      getContentRect: () => null,
+      margin: 32,
+      onEnterSafeZone: () => {},
+      onLeaveSafeZone: () => {
+        leaves++;
+      },
+    });
+    tracker.pointerMoved(-24, 100);
+    expect(leaves).toBe(0);
+    tracker.pointerMoved(-33, 100);
+    expect(leaves).toBe(1);
+  });
   it("tracks transitions across trigger, bridge, content, and outside space", () => {
     const handle = createHandle();
 

@@ -33,6 +33,7 @@ import {
   toAgentPayload,
 } from "../agent-projections.js";
 import { summarizeAgentActivity } from "../activity-curator.js";
+import { readResponseReference } from "../response-references.js";
 import type { AgentStorage } from "../agent-storage.js";
 import { AgentNotFoundError, ensureAgentLoaded } from "../agent-loading.js";
 import { isStoredAgentProviderAvailable } from "../../persistence-hooks.js";
@@ -3157,6 +3158,29 @@ function createToolCatalog(
           modes: summary.modes,
           selectedModel: selectedModel ?? null,
           features,
+        }),
+      };
+    },
+  );
+
+  registerTool(
+    "get_agent_response",
+    {
+      title: "Read referenced response",
+      description:
+        "When a user reply contains a paseo-response:// link, call this tool before answering to read the exact earlier assistant response. Pass the reference ID after ://. References are saved on this host and survive conversation compaction and daemon restarts.",
+      inputSchema: { referenceId: z.string() },
+      outputSchema: { referenceId: z.string(), agentId: z.string(), text: z.string() },
+    },
+    async ({ referenceId }) => {
+      if (!options.paseoHome) throw new Error("Response references are unavailable on this host.");
+      const saved = await readResponseReference(options.paseoHome, referenceId);
+      return {
+        content: [],
+        structuredContent: ensureValidJson({
+          referenceId: saved.id,
+          agentId: saved.agentId,
+          text: saved.text,
         }),
       };
     },

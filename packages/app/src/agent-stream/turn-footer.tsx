@@ -197,6 +197,11 @@ function CompletedTurnFooter({
   return (
     <View style={stylesheet.turnFooterSlot}>
       <AssistantTurnFooter
+        replyCursor={
+          items[startIndex]?.kind === "assistant_message"
+            ? items[startIndex].timelineCursor
+            : undefined
+        }
         getContent={items[startIndex]?.kind === "assistant_message" ? getContent : undefined}
         completedAt={timing?.completedAt}
         durationMs={timing?.durationMs}

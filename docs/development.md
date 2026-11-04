@@ -38,7 +38,12 @@ newer builds save, so rolling back means restoring that backup.
 Keep the stable branch in the main checkout. Detach temporary build worktrees
 before switching it back; Git rejects a branch already checked out in another worktree.
 
-The build adds desktop/browser selection replies. Select
+The response footer's **Reply** inserts a removable reference at the desktop/browser
+composer's caret and preserves your draft. The agent reads the earlier response
+with `get_agent_response`. See [response reference persistence](data-model.md#custom-build-response-references)
+for backup and retention.
+
+The build also adds desktop/browser selection replies. Select
 chat text, including Thinking, commands, tool output, or assistant messages, and
 release the drag to show **Copy | Reply**. Choose **Reply** to insert an editable Markdown
 quote on its own lines at the caret the composer had before you clicked away, after any
@@ -57,6 +62,12 @@ Selections can span sections; code indentation and existing draft text are
 preserved. Native clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
 the PR's persistent annotation markers or separate comment editor.
+
+The hidden sidebar previews from the left window edge. In Electron, it stays open
+within 32 pixels of the preview, including outside the window, then dismisses after
+a short grace period. Browsers cannot read the pointer outside their window and
+use the grace period alone. Clicking away, pressing Escape, or switching windows
+dismisses the preview.
 
 Answered inline Claude questions show the quoted questions and your responses
 together in a user bubble, including when you reopen the conversation.

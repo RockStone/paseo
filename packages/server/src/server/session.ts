@@ -130,6 +130,8 @@ import { assertPluginTimelineDataSize } from "./agent/agent-timeline-content.js"
 import { parsePluginClientId } from "./plugins/plugin-session-identity.js";
 import { buildAgentForkContextAttachment } from "./agent/activity-curator.js";
 import { buildAgentPrompt } from "./agent/prompt-attachments.js";
+import { createResponseReference } from "./agent/response-references.js";
+import { isPaseoToolEnabled } from "./agent/paseo-tool-policy.js";
 import type { StructuredGenerationDaemonConfig } from "./agent/structured-generation-providers.js";
 import {
   getAgentStreamEventTurnId,
@@ -2863,6 +2865,8 @@ export class Session {
       }
       case "agent.fork_context.request":
         return this.handleAgentForkContextRequest(msg);
+      case "agent.response_reference.create.request":
+        return this.handleCreateResponseReference(msg);
       default:
         return undefined;
     }
@@ -8241,6 +8245,42 @@ export class Session {
         },
         source,
       );
+    }
+  }
+
+  private async handleCreateResponseReference(
+    msg: Extract<SessionInboundMessage, { type: "agent.response_reference.create.request" }>,
+  ): Promise<void> {
+    try {
+      await ensureAgentLoaded(msg.agentId, {
+        agentManager: this.agentManager,
+        agentStorage: this.agentStorage,
+        logger: this.sessionLogger,
+      });
+      if (
+        !isPaseoToolEnabled(this.agentManager.getPaseoToolPolicy(msg.agentId), "get_agent_response")
+      ) {
+        throw new Error("Enable the get_agent_response tool for this agent before using Reply.");
+      }
+      const reference = await createResponseReference({
+        paseoHome: this.paseoHome,
+        agentId: msg.agentId,
+        cursor: msg.cursor,
+        timeline: this.agentManager.fetchTimeline(msg.agentId, { limit: 0 }),
+      });
+      this.emit({
+        type: "agent.response_reference.create.response",
+        payload: { requestId: msg.requestId, reference, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "agent.response_reference.create.response",
+        payload: {
+          requestId: msg.requestId,
+          reference: null,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
     }
   }
 

@@ -3,6 +3,8 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Nodes } from "mdast";
 
 export const SelectionReplyContext = createContext<((text: string) => void) | null>(null);
+export type ResponseReplyHandler = (cursor: { epoch: string; seq: number }) => Promise<void>;
+export const ResponseReplyContext = createContext<ResponseReplyHandler | null>(null);
 
 // The web composer hides the markup of these nodes (link targets of `##`/`@@` and attachment
 // references, quote markers, code fences, emphasis markers). Splitting one would break the
@@ -45,6 +47,23 @@ function formatQuote(selectedText: string): string {
     .split("\n")
     .map((line) => `> ${line}`)
     .join("\n");
+}
+
+export function insertReplyReference(
+  draft: string,
+  reference: string,
+  caret: { start: number; end: number } | null,
+): { text: string; caret: number } {
+  const position =
+    caret &&
+    Math.min(caret.start, caret.end) >= 0 &&
+    Math.max(caret.start, caret.end) <= draft.length
+      ? tokenEnd(draft, Math.max(caret.start, caret.end))
+      : draft.length;
+  const before = draft.slice(0, position);
+  const separator = before && !/\s$/.test(before) ? " " : "";
+  const head = `${before}${separator}${reference} `;
+  return { text: `${head}${draft.slice(position)}`, caret: head.length };
 }
 
 /**

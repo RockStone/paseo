@@ -1,5 +1,9 @@
 import { waitForTimelineGeometryToSettle } from "../support/helpers/timeline-pagination";
 import { composerLocator } from "../support/helpers/composer";
+import { mkdir, rename, writeFile, readFile, rm } from "node:fs/promises";
+import path from "node:path";
+import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+
 import type { BrowserContext, Locator } from "@playwright/test";
 import { expect, test, type Page } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
@@ -8,6 +12,8 @@ import {
   readScrollMetrics,
   waitForScrollableChat,
 } from "../support/helpers/agent-bottom-anchor";
+
+test.use({ e2eInjectPaseoTools: true });
 
 const CROSS_STRUCTURE_MARKDOWN = [
   "# P1 — High-value UI behavior",
@@ -905,6 +911,121 @@ test("replying to a selected linked list keeps every bullet without extra paragr
     );
     await expect(composer).toBeFocused();
     await page.screenshot({ path: testInfo.outputPath("linked-list-reply.png") });
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("replying to an earlier response inserts a removable reference and preserves the draft", async ({
+  page,
+}, testInfo) => {
+  const earlier =
+    "Earlier response with a distinctive start.\n\n" +
+    "Detailed historical context. ".repeat(12) +
+    "END OF EARLIER RESPONSE";
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "response-reply-",
+    title: "Response references",
+    initialPrompt: "First question",
+    featureValues: { mockAssistantResponses: [earlier, "A later response about another subject."] },
+  });
+  try {
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await agent.client.sendAgentMessage(agent.agentId, "Another question");
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await page.setViewportSize({ width: 900, height: 900 });
+    await openAgentRoute(page, agent);
+    const composer = composerLocator(page);
+    await composer.fill("My existing draft");
+    await composer.press("End");
+    const reply = page.getByTestId("reply-to-response").first();
+    await reply.click();
+    await expect(composer).toHaveAttribute(
+      "data-markdown",
+      /My existing draft \[Replying to: Earlier response.*paseo-response:\/\/[a-f0-9]{64}/,
+    );
+    await expect(composer).not.toHaveAttribute("data-markdown", /END OF EARLIER RESPONSE/);
+    await expect(composer).toBeFocused();
+    await expect(page.locator('[data-response-reference="true"]')).toBeVisible();
+    const chipBounds = await page.locator('[data-response-reference="true"]').boundingBox();
+    const removeBounds = await page
+      .getByRole("button", { name: "Remove reply reference" })
+      .boundingBox();
+    expect(removeBounds!.x + removeBounds!.width).toBeLessThanOrEqual(
+      chipBounds!.x + chipBounds!.width,
+    );
+    expect(chipBounds!.x + chipBounds!.width).toBeLessThan(900);
+    await page.screenshot({ path: testInfo.outputPath("response-reply-composer.png") });
+    await page.getByRole("button", { name: "Remove reply reference" }).click();
+    await expect(composer).toHaveAttribute("data-markdown", "My existing draft  ");
+    await expect(page.locator('[data-response-reference="true"]')).toHaveCount(0);
+    await composer.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
+    await expect(composer).toHaveAttribute("data-markdown", /paseo-response:\/\/[a-f0-9]{64}/);
+    await page.reload();
+    await expect(composerLocator(page)).toHaveAttribute(
+      "data-markdown",
+      /paseo-response:\/\/[a-f0-9]{64}/,
+    );
+    const draft = await composerLocator(page).getAttribute("data-markdown");
+    const id = draft?.match(/paseo-response:\/\/([a-f0-9]{64})/)?.[1];
+    expect(id).toBeTruthy();
+    const home = process.env.E2E_PASEO_HOME;
+    if (!home) throw new Error("Missing isolated daemon home");
+    const saved = JSON.parse(
+      await readFile(path.join(home, "response-references", `${id}.json`), "utf8"),
+    );
+    expect(saved.text).toBe(earlier);
+    await composerLocator(page).press("Enter");
+    const timelineClient = agent.client as typeof agent.client &
+      Pick<DaemonClient, "fetchAgentTimeline">;
+    await expect
+      .poll(async () => {
+        const timeline = await timelineClient.fetchAgentTimeline(agent.agentId, { limit: 0 });
+        return timeline.entries.some(
+          (row) => row.item.type === "user_message" && row.item.text.trim() === draft?.trim(),
+        );
+      })
+      .toBe(true);
+  } finally {
+    await agent.cleanup();
+  }
+});
+
+test("replying to a response shows its failure inline and retains the draft", async ({ page }) => {
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "response-reply-error-",
+    title: "Reply error",
+    initialPrompt: "Say hello",
+    featureValues: { mockAssistantResponse: "The answer." },
+  });
+  try {
+    await agent.client.waitForFinish(agent.agentId, 30_000);
+    await openAgentRoute(page, agent);
+    await composerLocator(page).fill("Keep my draft");
+    const home = process.env.E2E_PASEO_HOME;
+    if (!home) throw new Error("Missing isolated daemon home");
+    const references = path.join(home, "response-references");
+    const saved = path.join(home, "response-references-before-fault");
+    await mkdir(references, { recursive: true });
+    await rename(references, saved);
+    try {
+      await writeFile(references, "Simulated host storage failure");
+      await page.getByTestId("reply-to-response").click();
+      await expect(page.getByTestId("response-reply-error")).toHaveText(
+        "Could not save the reply reference on this host. Check the host storage and try again.",
+      );
+      await expect(composerLocator(page)).toHaveAttribute("data-markdown", "Keep my draft");
+      await expect(page.getByTestId("reply-to-response")).toBeEnabled();
+    } finally {
+      await rm(references, { force: true });
+      await rename(saved, references);
+    }
+    await page.getByTestId("reply-to-response").click();
+    await expect(composerLocator(page)).toHaveAttribute(
+      "data-markdown",
+      /Keep my draft.*paseo-response:\/\//,
+    );
+    await expect(page.getByTestId("response-reply-error")).toHaveCount(0);
   } finally {
     await agent.cleanup();
   }

@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { insertQuotedReply } from "./reply";
+import { insertQuotedReply, insertReplyReference } from "./reply";
 
 function at(position: number) {
   return { start: position, end: position };
 }
 
 describe("insertQuotedReply", () => {
+  it("inserts a response reference without replacing the existing draft selection", () => {
+    const reference = "[Replying to: Earlier answer](paseo-response://abc)";
+    expect(insertReplyReference("keep this draft", reference, { start: 5, end: 9 })).toEqual({
+      text: `keep this ${reference}  draft`,
+      caret: 10 + reference.length + 1,
+    });
+    expect(insertReplyReference("draft", reference, null).text).toBe(`draft ${reference} `);
+  });
   it("preserves indentation on the first and subsequent command output lines", () => {
     const reply = insertQuotedReply("", "  first\n    nested\n  last\n", null);
     expect(reply.text).toBe(">   first\n>     nested\n>   last\n\n");

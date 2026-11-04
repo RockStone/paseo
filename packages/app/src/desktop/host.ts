@@ -101,6 +101,7 @@ export interface DesktopWindowChromeUpdate {
 }
 
 export interface DesktopWindowBridge {
+  getPointerPosition?: () => Promise<{ x: number; y: number } | null>;
   label?: string;
   minimize?: () => Promise<void>;
   close?: () => Promise<void>;

@@ -16,6 +16,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -61,6 +62,8 @@ import {
   resolveDesktopSidebarVisibility,
 } from "@/components/desktop-sidebar-layout";
 import { isNative, isWeb } from "@/constants/platform";
+import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
+import { readSidebarPreviewPointer } from "@/desktop/sidebar-preview-pointer";
 import { HorizontalScrollProvider } from "@/contexts/horizontal-scroll-context";
 import { SessionProvider } from "@/contexts/session-context";
 import { SidebarCalloutProvider } from "@/contexts/sidebar-callout-context";
@@ -597,12 +600,41 @@ function SidebarPreviewFrame({
   onDismiss: () => void;
   children: ReactNode;
 }) {
-  const mouseHandlers = useMemo(() => (isWeb ? { onMouseLeave: onDismiss } : {}), [onDismiss]);
+  const frameRef = useRef<View>(null);
+  const stayOpen = useCallback(() => {}, []);
+  useHoverSafeZone({
+    enabled: preview,
+    triggerRef: frameRef,
+    contentRef: frameRef,
+    onEnterSafeZone: stayOpen,
+    onLeaveSafeZone: onDismiss,
+    margin: 32,
+    leaveDelayMs: 180,
+    readWindowPointer: readSidebarPreviewPointer,
+  });
+  useEffect(() => {
+    if (!isWeb || !preview) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onDismiss();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const frame = frameRef.current as unknown as HTMLElement | null;
+      if (event.target instanceof Node && !frame?.contains(event.target)) onDismiss();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("blur", onDismiss);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("blur", onDismiss);
+    };
+  }, [preview, onDismiss]);
   return (
     <View
+      ref={frameRef}
       style={preview ? layoutStyles.sidebarPreview : layoutStyles.sidebarFrame}
       {...(isWeb ? { dataSet: { windowNoDrag: "true" } } : {})}
-      {...(mouseHandlers as object)}
       testID={preview ? "sidebar-edge-preview" : undefined}
     >
       {children}

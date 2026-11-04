@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld("paseoDesktop", {
     openNew: (options?: { pendingOpenProjectPath?: string | null }) =>
       ipcRenderer.invoke("paseo:window:openNew", options),
     getCurrentWindow: () => ({
+      getPointerPosition: () => ipcRenderer.invoke("paseo:window:getPointerPosition"),
       minimize: () => ipcRenderer.invoke("paseo:window:minimize"),
       close: () => ipcRenderer.invoke("paseo:window:close"),
       toggleMaximize: () => ipcRenderer.invoke("paseo:window:toggleMaximize"),
