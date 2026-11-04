@@ -23,10 +23,10 @@ function sidebarRef() {
   return { current };
 }
 
-test("native pointer polling keeps the sidebar open near the window and stops on unmount", async () => {
+test("native pointer polling keeps the sidebar open within half its width and stops on unmount", async () => {
   vi.useFakeTimers();
   const ref = sidebarRef();
-  let point = { x: -24, y: 100 };
+  let point = { x: -139, y: 100 };
   const readWindowPointer = vi.fn(async () => point);
   const leave = vi.fn();
   const { unmount } = renderHook(() =>
@@ -34,7 +34,7 @@ test("native pointer polling keeps the sidebar open near the window and stops on
       enabled: true,
       triggerRef: ref,
       contentRef: ref,
-      margin: 32,
+      margin: ref.current.getBoundingClientRect().width / 2,
       leaveDelayMs: 180,
       readWindowPointer,
       onEnterSafeZone: () => {},
@@ -48,7 +48,7 @@ test("native pointer polling keeps the sidebar open near the window and stops on
     await vi.advanceTimersByTimeAsync(500);
   });
   expect(leave).not.toHaveBeenCalled();
-  point = { x: -40, y: 100 };
+  point = { x: -141, y: 100 };
   await act(async () => {
     await vi.advanceTimersByTimeAsync(250);
   });

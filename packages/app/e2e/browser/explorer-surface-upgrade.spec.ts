@@ -34,10 +34,10 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
     const bounds = await preview.boundingBox();
     expect(bounds).not.toBeNull();
     await page.clock.install();
-    await page.mouse.move(bounds!.x + bounds!.width + 24, 450);
+    await page.mouse.move(bounds!.x + bounds!.width * 1.5 - 1, 450);
     await page.clock.runFor(500);
     await expect(preview).toBeVisible();
-    await page.mouse.move(1200, 450);
+    await page.mouse.move(bounds!.x + bounds!.width * 1.5 + 1, 450);
     await page.clock.runFor(200);
     await expect(preview).toHaveCount(0);
     await page.clock.resume();

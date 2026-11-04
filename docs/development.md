@@ -64,8 +64,8 @@ preserved. Native clients do not have this action. This adapts the selection int
 the PR's persistent annotation markers or separate comment editor.
 
 The hidden sidebar previews from the left window edge. In Electron, it stays open
-within 32 pixels of the preview, including outside the window, then dismisses after
-a short grace period. Browsers cannot read the pointer outside their window and
+within half the sidebar's current width of the preview, including outside the
+window, then dismisses after a short grace period. Browsers cannot read the pointer outside their window and
 use the grace period alone. Clicking away, pressing Escape, or switching windows
 dismisses the preview.
 

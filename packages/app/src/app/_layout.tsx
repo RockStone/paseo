@@ -20,7 +20,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { AppState, useWindowDimensions, View } from "react-native";
+import { AppState, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -601,6 +601,10 @@ function SidebarPreviewFrame({
   children: ReactNode;
 }) {
   const frameRef = useRef<View>(null);
+  const [frameWidth, setFrameWidth] = useState(0);
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    setFrameWidth(event.nativeEvent.layout.width);
+  }, []);
   const stayOpen = useCallback(() => {}, []);
   useHoverSafeZone({
     enabled: preview,
@@ -608,7 +612,7 @@ function SidebarPreviewFrame({
     contentRef: frameRef,
     onEnterSafeZone: stayOpen,
     onLeaveSafeZone: onDismiss,
-    margin: 32,
+    margin: frameWidth / 2,
     leaveDelayMs: 180,
     readWindowPointer: readSidebarPreviewPointer,
   });
@@ -633,6 +637,7 @@ function SidebarPreviewFrame({
   return (
     <View
       ref={frameRef}
+      onLayout={handleLayout}
       style={preview ? layoutStyles.sidebarPreview : layoutStyles.sidebarFrame}
       {...(isWeb ? { dataSet: { windowNoDrag: "true" } } : {})}
       testID={preview ? "sidebar-edge-preview" : undefined}
