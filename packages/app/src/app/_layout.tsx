@@ -473,7 +473,12 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
     <View style={workspaceChromeStyle}>
       <WorkspaceLayoutModePublisher />
       {!isCompactLayout ? (
-        <SidebarPreviewFrame preview={sidebarPreview.open} onDismiss={sidebarPreview.dismiss}>
+        <SidebarPreviewFrame
+          preview={sidebarPreview.open}
+          closing={sidebarPreview.closing}
+          onDismiss={sidebarPreview.dismiss}
+          onDismissed={sidebarPreview.finishDismiss}
+        >
           <WindowChromeRegion corners={appChromeLayout.sidebarCorners}>
             {themedSidebarChrome}
           </WindowChromeRegion>
@@ -582,45 +587,99 @@ function useSidebarEdgePreview(input: {
   mounted: boolean;
   visible: boolean;
 }) {
-  const [requested, setRequested] = useState(false);
+  const [phase, setPhase] = useState<"closed" | "open" | "closing">("closed");
   const enabled =
     isWeb && !input.isCompactLayout && input.chromeEnabled && input.mounted && !input.visible;
-  const reveal = useCallback(() => setRequested(true), []);
-  const dismiss = useCallback(() => setRequested(false), []);
+  const reveal = useCallback(() => setPhase("open"), []);
+  const dismiss = useCallback(
+    () => setPhase((value) => (value === "open" ? "closing" : value)),
+    [],
+  );
+  const finishDismiss = useCallback(
+    () => setPhase((value) => (value === "closing" ? "closed" : value)),
+    [],
+  );
   useEffect(() => {
-    if (!enabled) setRequested(false);
+    if (!enabled) setPhase("closed");
   }, [enabled]);
-  return { open: enabled && requested, triggerVisible: enabled && !requested, reveal, dismiss };
+  return {
+    open: enabled && phase !== "closed",
+    closing: enabled && phase === "closing",
+    triggerVisible: enabled && phase !== "open",
+    reveal,
+    dismiss,
+    finishDismiss,
+  };
 }
 
 function SidebarPreviewFrame({
   preview,
+  closing,
   onDismiss,
+  onDismissed,
   children,
 }: {
   preview: boolean;
+  closing: boolean;
   onDismiss: () => void;
+  onDismissed: () => void;
   children: ReactNode;
 }) {
   const frameRef = useRef<View>(null);
   const contentRef = useRef<View>(null);
+  const animationRef = useRef<Animation | null>(null);
   const [frameWidth, setFrameWidth] = useState(0);
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     setFrameWidth(event.nativeEvent.layout.width);
   }, []);
   const stayOpen = useCallback(() => {}, []);
-  // Keep the hover frame stationary while its contents slide into view.
+  // Keep the hover frame stationary; interrupted slides resume from the visible position.
   useLayoutEffect(() => {
-    if (!isWeb || !preview || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!isWeb) return;
     const node = contentRef.current as unknown as HTMLElement | null;
+    const previous = animationRef.current;
+    const initial = closing ? "translateX(0)" : "translateX(-100%)";
+    const from = previous && node ? getComputedStyle(node).transform : initial;
+    if (previous) {
+      previous.onfinish = null;
+      previous.cancel();
+      animationRef.current = null;
+    }
+    if (!preview) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (closing) onDismissed();
+      return;
+    }
     const animation = node?.animate(
-      [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
-      { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+      [{ transform: from }, { transform: closing ? "translateX(-100%)" : "translateX(0)" }],
+      {
+        duration: 180,
+        easing: closing ? "cubic-bezier(0.8, 0, 0.8, 0.2)" : "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        fill: "both",
+      },
     );
-    return () => animation?.cancel();
-  }, [preview]);
+    if (!animation) return;
+    animationRef.current = animation;
+    animation.onfinish = () => {
+      if (closing) onDismissed();
+      else {
+        animation.cancel();
+        animationRef.current = null;
+      }
+    };
+  }, [preview, closing, onDismissed]);
+  useLayoutEffect(
+    () => () => {
+      const animation = animationRef.current;
+      if (animation) {
+        animation.onfinish = null;
+        animation.cancel();
+      }
+    },
+    [],
+  );
   useHoverSafeZone({
-    enabled: preview,
+    enabled: preview && !closing,
     triggerRef: frameRef,
     contentRef: frameRef,
     onEnterSafeZone: stayOpen,
@@ -630,7 +689,7 @@ function SidebarPreviewFrame({
     readWindowPointer: readSidebarPreviewPointer,
   });
   useEffect(() => {
-    if (!isWeb || !preview) return;
+    if (!isWeb || !preview || closing) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onDismiss();
     };
@@ -646,10 +705,11 @@ function SidebarPreviewFrame({
       document.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener("blur", onDismiss);
     };
-  }, [preview, onDismiss]);
+  }, [preview, closing, onDismiss]);
   return (
     <View
       ref={frameRef}
+      pointerEvents={closing ? "none" : "auto"}
       onLayout={handleLayout}
       style={preview ? layoutStyles.sidebarPreview : layoutStyles.sidebarFrame}
       {...(isWeb ? { dataSet: { windowNoDrag: "true" } } : {})}

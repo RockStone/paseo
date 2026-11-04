@@ -65,7 +65,7 @@ the PR's persistent annotation markers or separate comment editor.
 
 Crossing the left window edge in either direction reveals the hidden sidebar,
 including fast movements that skip the narrow edge target. The preview slides in
-over 180 ms and respects reduced-motion settings. In Electron, it stays open within
+and out over 180 ms and respects reduced-motion settings. In Electron, it stays open within
 half the sidebar's current width beyond the preview, including outside the window,
 then dismisses after a short grace period. Browsers cannot read the pointer outside
 their window and use the grace period alone. Clicking away, pressing Escape, or

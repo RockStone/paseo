@@ -38,7 +38,7 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
     await page.clock.runFor(500);
     await expect(preview).toBeVisible();
     await page.mouse.move(bounds!.x + bounds!.width * 1.5 + 1, 450);
-    await page.clock.runFor(200);
+    await page.clock.runFor(400);
     await expect(preview).toHaveCount(0);
     await page.clock.resume();
     await expect(sidebar).toHaveCount(0);
@@ -99,6 +99,42 @@ test("a fast crossing reveals the sidebar with a slide and respects reduced moti
     expect(geometry.left).toBeGreaterThan(-geometry.width);
     await content.evaluate((node) => node.getAnimations()[0].finish());
     await expect(content).toHaveCSS("transform", "none");
+    await page.evaluate(() => {
+      const surface = document.querySelector('[data-testid="sidebar-preview-content"]');
+      const observer = new MutationObserver(() => {
+        const animation = surface?.getAnimations()[0];
+        if (animation) {
+          animation.pause();
+          observer.disconnect();
+        }
+      });
+      observer.observe(surface!.parentElement!, { attributes: true });
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    await expect(preview).toHaveCSS("pointer-events", "none");
+    const exit = await content.evaluate((node) => {
+      const animation = node.getAnimations()[0];
+      if (!animation) throw new Error("Missing sidebar dismissal animation");
+      animation.currentTime = 90;
+      const bounds = node.getBoundingClientRect();
+      return { left: bounds.left, width: bounds.width };
+    });
+    expect(exit.left).toBeLessThan(0);
+    expect(exit.left).toBeGreaterThan(-exit.width);
+    await page.evaluate(() => {
+      document.dispatchEvent(new PointerEvent("pointermove", { clientX: 250, clientY: 400 }));
+      document.dispatchEvent(new PointerEvent("pointermove", { clientX: -80, clientY: 400 }));
+    });
+    await expect(preview).toHaveCSS("pointer-events", "auto");
+    const resumedAt = await content.evaluate((node) => {
+      const animation = node.getAnimations()[0];
+      if (!animation || !(animation.effect instanceof KeyframeEffect))
+        throw new Error("Missing resumed sidebar animation");
+      return new DOMMatrix(String(animation.effect.getKeyframes()[0].transform)).m41;
+    });
+    expect(Math.abs(resumedAt - exit.left)).toBeLessThan(1);
+    await content.evaluate((node) => node.getAnimations()[0].finish());
+    await expect(preview).toHaveCSS("pointer-events", "auto");
     await page.keyboard.press("Escape");
     await expect(preview).toHaveCount(0);
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -115,6 +151,9 @@ test("a fast crossing reveals the sidebar with a slide and respects reduced moti
     await expect(preview).toBeVisible();
     expect(await content.evaluate((node) => node.getAnimations().length)).toBe(0);
     await expect(content).toHaveCSS("transform", "none");
+    await page.keyboard.press("Escape");
+    await expect(preview).toHaveCount(0);
+    expect(await content.evaluate((node) => node.getAnimations().length)).toBe(0);
   } finally {
     await workspace.cleanup();
   }
