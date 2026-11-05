@@ -83,6 +83,7 @@ export type PullRequestContextAttachment =
 export interface ChatHistoryContextAttachment {
   kind: "chat_history";
   id: string;
+  inlineMention?: string;
   attachment: Extract<AgentAttachment, { type: "text" }>;
   source: {
     serverId: string;

@@ -86,7 +86,10 @@ Failed uploads keep the captured bytes for Retry.
 Drag a sidebar workspace title into the composer to attach its focused conversation,
 falling back to its latest session when no agent tab is focused. The removable
 attachment includes the source host/session identity and a context snapshot from
-the existing fork-context API. It works across connected hosts and providers;
+the existing fork-context API. Dropping it inserts `@Context 1`, `@Context 2`, and so
+on at the caret, separately from image and file numbering. Removing a context card
+removes its references and renumbers the remaining contexts. Sent references show
+their saved snapshot on hover. It works across connected hosts and providers;
 the source host must support `agentForkContext`. It captures up to the existing
 100,000-character context budget at drop time, not a live feed of later messages.
 

@@ -14,6 +14,8 @@ import {
   expectComposerVisible,
   submitMessage,
   fillComposerDraft,
+  selectComposerDraftRange,
+  expectComposerDraftSelection,
 } from "../support/helpers/composer";
 import { getE2EDaemonPort } from "../support/helpers/daemon-port";
 import {
@@ -246,7 +248,13 @@ test("dragging another workspace title attaches its conversation and sends it wi
     repoPrefix: "conversation-drop-target-",
     title: "Use another conversation",
   });
+  const secondSource = await seedForkWorkspace({
+    repoPrefix: "conversation-drop-second-",
+    title: "Second context snapshot",
+    initialPrompt: "emit 1 coalesced agent stream updates about the second conversation.",
+  });
   await source.client.waitForFinish(source.agentId, 45_000);
+  await secondSource.client.waitForFinish(secondSource.agentId, 45_000);
   await page.setViewportSize({ width: 1400, height: 900 });
   const gate = await gateNextAgentMessage(page);
   await openAgentRoute(page, target);
@@ -256,23 +264,48 @@ test("dragging another workspace title attaches its conversation and sends it wi
   await expect(dragTitle).toBeVisible({ timeout: 30_000 });
   await expect(dragTitle).toHaveAttribute("draggable", "true");
   const input = page.getByRole("textbox", { name: "Message agent..." }).first();
+  const reference = `[@Context 1](attachment://${encodeURIComponent(`session:${getServerId()}:${source.agentId}`)})`;
+  const draft = `Use ${reference} this context please`;
+  await selectComposerDraftRange(page, 4, 4);
   await dragTitle.dragTo(input);
   const pill = page.getByTestId("composer-chat-history-attachment-pill");
   await expect(pill).toContainText("Review owner TODO items");
-  await expect(input).toHaveAttribute("data-markdown", "Use this context please");
+  await expect(input).toHaveAttribute("data-markdown", draft);
+  await expect(input.locator(".composer-reference")).toHaveText("@Context 1");
+  await expectComposerDraftSelection(page, 4 + reference.length + 1, 4 + reference.length + 1);
   await expect(input).toBeFocused();
   await dragTitle.dragTo(input);
   await expect(pill).toHaveCount(1);
+  const secondDrag = page.getByTestId(
+    `sidebar-session-drag-${getServerId()}:${secondSource.workspaceId}`,
+  );
+  await secondDrag.dragTo(input);
+  await expect(input.locator(".composer-reference")).toHaveText([
+    "@Context 1",
+    "@Context 1",
+    "@Context 2",
+  ]);
+  const firstPill = pill.filter({ hasText: "Review owner TODO items" });
+  await firstPill.hover();
+  await page.getByRole("button", { name: "Remove chat history attachment" }).first().click();
+  await expect(pill).toHaveCount(1);
+  await expect(input.locator(".composer-reference")).toHaveText("@Context 1");
+  await secondDrag.dragTo(input);
+  await expect(input.locator(".composer-reference")).toHaveText(["@Context 1", "@Context 1"]);
   await pill.hover();
   await page.getByRole("button", { name: "Remove chat history attachment" }).click();
   await expect(pill).toHaveCount(0);
+  await expect(input.locator(".composer-reference")).toHaveCount(0);
+  await fillComposerDraft(page, "Use this context please");
+  await selectComposerDraftRange(page, 4, 4);
   await dragTitle.dragTo(input);
   await expect(pill).toContainText("Review owner TODO items");
   await page.screenshot({ path: "/tmp/paseoi-session-reference.png" });
-  await submitMessage(page, "Use this context please");
+  await expect(input).toHaveAttribute("data-markdown", draft);
+  await input.press("Enter");
   const request = await gate.waitForRequest();
   expect(request.agentId).toBe(target.agentId);
-  expect(request.text).toBe("Use this context please");
+  expect(request.text).toBe(draft);
   expect(request.attachments).toEqual([
     expect.objectContaining({
       type: "text",
@@ -283,9 +316,12 @@ test("dragging another workspace title attaches its conversation and sends it wi
   ]);
   expect(JSON.stringify(request.attachments)).toContain("source conversation secret detail");
   gate.accept();
-  await expect(
-    page.getByTestId("user-message").filter({ hasText: "Review owner TODO items" }).last(),
-  ).toBeVisible();
+  const sent = page.getByTestId("user-message").filter({ hasText: "Use" }).last();
+  await expect(sent.getByText("@Context 1", { exact: true })).toBeVisible();
+  await sent.getByText("@Context 1", { exact: true }).hover();
+  await expect(page.getByTestId("message-reference-details")).toContainText(
+    "source conversation secret detail",
+  );
   await expect(pill).toHaveCount(0);
   await dragTitle.click();
   await expect(page.getByTestId(`workspace-tab-agent_${source.agentId}`)).toHaveAttribute(
@@ -318,20 +354,22 @@ test("dragging a workspace into a fresh New workspace preserves and submits its 
   const pill = page.getByTestId("composer-chat-history-attachment-pill");
   await expect(pill).toContainText("Source conversation for new workspace");
   await expect(input).toBeFocused();
-  await expect(input).toHaveAttribute("data-markdown", "");
+  const reference = `[@Context 1](attachment://${encodeURIComponent(`session:${getServerId()}:${source.agentId}`)})`;
+  await expect(input).toHaveAttribute("data-markdown", `${reference} `);
   await title.dragTo(input);
   await expect(pill).toHaveCount(1);
-  await fillComposerDraft(page, "Use this context in a new workspace");
+  const draft = `Use ${reference} in a new workspace`;
+  await fillComposerDraft(page, draft);
   await page.getByTestId(`sidebar-workspace-row-${getServerId()}:${source.workspaceId}`).click();
   await openGlobalNewWorkspaceComposer(page);
   await expect(pill).toContainText("Source conversation for new workspace");
-  await expect(input).toHaveAttribute("data-markdown", "Use this context in a new workspace");
+  await expect(input).toHaveAttribute("data-markdown", draft);
   await page.screenshot({ path: "/tmp/paseoi-r58-new-workspace-drop.png" });
-  await submitNewWorkspacePrompt(page, "Use this context in a new workspace");
+  await submitNewWorkspacePrompt(page, draft);
   await expect.poll(() => gate.getClientRequests("workspace.create.request").length).toBe(1);
   expect(gate.getClientRequests("workspace.create.request")[0]).toMatchObject({
     agent: {
-      initialPrompt: "Use this context in a new workspace",
+      initialPrompt: draft,
       attachments: [
         expect.objectContaining({
           type: "text",
@@ -349,4 +387,39 @@ test("dragging a workspace into a fresh New workspace preserves and submits its 
   await openGlobalNewWorkspaceComposer(page);
   await expect(pill).toHaveCount(0);
   await expect(input).toHaveAttribute("data-markdown", "");
+});
+
+test("a failed conversation drop preserves the draft without inserting a dangling reference", async ({
+  page,
+  seedForkWorkspace,
+}) => {
+  const target = await seedForkWorkspace({
+    repoPrefix: "conversation-drop-error-",
+    title: "Keep draft after failed context",
+  });
+  await openAgentRoute(page, target);
+  await expectComposerVisible(page);
+  await fillComposerDraft(page, "Keep my current draft");
+  const input = page.getByRole("textbox", { name: "Message agent..." }).first();
+  const dataTransfer = await page.evaluateHandle((serverId) => {
+    const data = new DataTransfer();
+    data.setData(
+      "application/x-paseo-session+json",
+      JSON.stringify({
+        version: 1,
+        serverId,
+        agentId: "missing-context-session",
+        title: "Deleted conversation",
+      }),
+    );
+    return data;
+  }, getServerId());
+  await input.dispatchEvent("drop", { dataTransfer });
+  await expect(
+    page.getByText("Agent not found: missing-context-session", { exact: true }),
+  ).toBeVisible();
+  await expect(input).toHaveAttribute("data-markdown", "Keep my current draft");
+  await expect(input.locator(".composer-reference")).toHaveCount(0);
+  await expect(page.getByTestId("composer-chat-history-attachment-pill")).toHaveCount(0);
+  await expect(input).toBeEditable();
 });

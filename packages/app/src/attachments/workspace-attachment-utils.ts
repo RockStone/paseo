@@ -62,6 +62,11 @@ export function workspaceAttachmentToSubmitAttachment(
     };
   }
   if (attachment.kind === "chat_history") {
+    if (attachment.inlineMention)
+      return {
+        ...attachment.attachment,
+        text: `Attached context reference: ${attachment.inlineMention}\n\n${attachment.attachment.text}`,
+      };
     return attachment.attachment;
   }
   return attachment.kind === "review" ? attachment.attachment : null;

@@ -41,6 +41,10 @@ export function referenceAttachmentUrl(attachment: AgentAttachment): string | nu
     attachment.text,
   );
   if (file) return file[1]!;
+  const context = /^Attached context reference: \[[^\n]+\]\((attachment:\/\/[^\n]+)\)\n/.exec(
+    attachment.text,
+  );
+  if (context) return context[1]!;
   if (attachment.text.startsWith("Referenced Paseo agent profile:")) {
     const profileId = /^Profile ID: (.+)$/m.exec(attachment.text)?.[1];
     const hostId = /^Host ID: (.+)$/m.exec(attachment.text)?.[1];

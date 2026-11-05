@@ -1,6 +1,11 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { Nodes } from "mdast";
-import type { AttachmentMetadata, UserComposerAttachment } from "@/attachments/types";
+import type {
+  AttachmentMetadata,
+  ComposerAttachment,
+  ChatHistoryContextAttachment,
+  UserComposerAttachment,
+} from "@/attachments/types";
 import type { AgentAttachment, UploadedFileAttachment } from "@getpaseo/protocol/messages";
 
 export function addImageReferences(
@@ -31,8 +36,23 @@ export function addFileReferences(
   }));
 }
 
-interface RenumberInput {
-  attachments: readonly UserComposerAttachment[];
+export function addContextReference(
+  current: readonly ComposerAttachment[],
+  context: ChatHistoryContextAttachment,
+) {
+  const contexts = current.filter((attachment) => attachment.kind === "chat_history");
+  const index = contexts.findIndex((attachment) => attachment.id === context.id);
+  const number = index < 0 ? contexts.length + 1 : index + 1;
+  return {
+    ...context,
+    inlineMention:
+      context.inlineMention ??
+      `[@Context ${number}](attachment://${encodeURIComponent(context.id)})`,
+  };
+}
+
+interface RenumberInput<Attachment extends ComposerAttachment = UserComposerAttachment> {
+  attachments: readonly Attachment[];
   text: string;
   selection: { start: number; end: number };
 }
@@ -45,15 +65,27 @@ export function renumberFileReferences(input: RenumberInput & { removed: Uploade
   return renumberReferences({ ...input, kind: "file", removedId: input.removed.id });
 }
 
-function renumberReferences(input: RenumberInput & { kind: "image" | "file"; removedId: string }) {
+export function renumberContextReferences(
+  input: RenumberInput<ComposerAttachment> & { removed: ChatHistoryContextAttachment },
+) {
+  return renumberReferences({ ...input, kind: "chat_history", removedId: input.removed.id });
+}
+
+function renumberReferences<Attachment extends ComposerAttachment>(
+  input: RenumberInput<Attachment> & { kind: "image" | "file" | "chat_history"; removedId: string },
+) {
   const removedUrl = `attachment://${encodeURIComponent(input.removedId)}`;
   const references = new Map<string, string>();
-  const label = input.kind === "image" ? "Image" : "File";
+  const label = { image: "Image", file: "File", chat_history: "Context" }[input.kind];
   let number = 0;
   const attachments = input.attachments.map((attachment) => {
     if (attachment.kind !== input.kind) return attachment;
     number++;
-    const id = attachment.kind === "image" ? attachment.metadata.id : attachment.attachment.id;
+    let id: string;
+    if (attachment.kind === "image") id = attachment.metadata.id;
+    else if (attachment.kind === "file") id = attachment.attachment.id;
+    else if (attachment.kind === "chat_history") id = attachment.id;
+    else return attachment;
     const url = `attachment://${encodeURIComponent(id)}`;
     const inlineMention = `[@${label} ${number}](${url})`;
     references.set(url, inlineMention);
@@ -65,7 +97,7 @@ function renumberReferences(input: RenumberInput & { kind: "image" | "file"; rem
       const generatedLabel =
         node.children.length === 1 &&
         node.children[0]?.type === "text" &&
-        /^@(Image|File) \d+$/.test(node.children[0].value);
+        /^@(Image|File|Context) \d+$/.test(node.children[0].value);
       let replacement: string | undefined;
       if (node.url === removedUrl) replacement = "";
       else if (generatedLabel) replacement = references.get(node.url);

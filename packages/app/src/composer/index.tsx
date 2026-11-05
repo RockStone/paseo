@@ -1,6 +1,8 @@
 import {
   addFileReferences,
   addImageReferences,
+  addContextReference,
+  renumberContextReferences,
   renumberFileReferences,
   renumberImageReferences,
 } from "./attachments/attachment-reference";
@@ -11,6 +13,7 @@ import {
   type SessionDragPayload,
 } from "@/attachments/session-drag";
 import { useWorkspaceAttachmentsStore } from "@/attachments/workspace-attachments-store";
+import type { ChatHistoryContextAttachment } from "@/attachments/types";
 import {
   useComposerEditingSession,
   useComposerFullscreen,
@@ -1647,6 +1650,28 @@ function ComposerContentImpl({
 
   const [isAddingSession, setIsAddingSession] = useState(false);
   const addingSessionRef = useRef(false);
+  const insertContextAttachment = useCallback(
+    (scopeKey: string, context: ChatHistoryContextAttachment) => {
+      const store = useWorkspaceAttachmentsStore.getState();
+      const current = store.attachmentsByScope[scopeKey] ?? [];
+      const all = attachmentScopeKeys.flatMap((key) => store.attachmentsByScope[key] ?? []);
+      const reference = addContextReference(all, context);
+      const exists = current.some(
+        (attachment) => attachment.kind === "chat_history" && attachment.id === context.id,
+      );
+      const next = exists
+        ? current.map((attachment) =>
+            attachment.kind === "chat_history" && attachment.id === context.id
+              ? reference
+              : attachment,
+          )
+        : [...current, reference];
+      store.setWorkspaceAttachments({ scopeKey, attachments: next });
+      insertAttachmentReferences([reference]);
+      focusInput();
+    },
+    [attachmentScopeKeys, insertAttachmentReferences, focusInput],
+  );
   const insertDroppedSessionReference = useCallback(
     (reference: SessionReferenceAttachment) => {
       if (
@@ -1709,14 +1734,15 @@ function ComposerContentImpl({
       const scopeKey = attachmentScopeKeys[0];
       if (!scopeKey) return;
       const existing = useWorkspaceAttachmentsStore.getState().attachmentsByScope[scopeKey] ?? [];
-      const alreadyAttached = existing.some(
+      const alreadyAttached = existing.find(
         (attachment) =>
           attachment.kind === "chat_history" &&
           attachment.source.serverId === source.serverId &&
           attachment.source.agentId === source.agentId,
       );
       if (alreadyAttached) {
-        focusInput();
+        if (alreadyAttached.kind === "chat_history")
+          insertContextAttachment(scopeKey, alreadyAttached);
         return;
       }
       addingSessionRef.current = true;
@@ -1725,10 +1751,7 @@ function ComposerContentImpl({
       void sourceClient
         .buildAgentForkContext(source.agentId)
         .then((payload) => {
-          useWorkspaceAttachmentsStore.getState().addWorkspaceAttachment({
-            scopeKey,
-            attachment: createSessionContextAttachment({ source, payload }),
-          });
+          insertContextAttachment(scopeKey, createSessionContextAttachment({ source, payload }));
           return undefined;
         })
         .catch((error: unknown) => {
@@ -1741,7 +1764,15 @@ function ComposerContentImpl({
           setIsAddingSession(false);
         });
     },
-    [agentId, attachmentScopeKeys, focusInput, serverId, t, insertDroppedSessionReference],
+    [
+      agentId,
+      attachmentScopeKeys,
+      focusInput,
+      serverId,
+      t,
+      insertDroppedSessionReference,
+      insertContextAttachment,
+    ],
   );
 
   const handleWorkspaceFileDropped = useCallback(
@@ -2106,6 +2137,42 @@ function ComposerContentImpl({
   const handleRemoveAttachment = useCallback(
     (index: number) => {
       forgeAutoAttachRef.current?.markForgeAttachmentRemoved(selectedAttachments[index]);
+      const removed = selectedAttachments[index];
+      if (removed?.kind === "chat_history") {
+        const snapshot = messageInputRef.current?.getInputSnapshot() ?? {
+          text: textSource.getSnapshot(),
+          selection: {
+            start: textSource.getSnapshot().length,
+            end: textSource.getSnapshot().length,
+          },
+        };
+        const result = renumberContextReferences({
+          ...snapshot,
+          attachments: selectedAttachments.filter((_, selectedIndex) => selectedIndex !== index),
+          removed,
+        });
+        removeAttachment({ selectedAttachments, index });
+        const contexts = new Map(
+          result.attachments
+            .filter((attachment) => attachment.kind === "chat_history")
+            .map((attachment) => [attachment.id, attachment]),
+        );
+        const store = useWorkspaceAttachmentsStore.getState();
+        for (const scopeKey of attachmentScopeKeys) {
+          const current = store.attachmentsByScope[scopeKey];
+          if (current)
+            store.setWorkspaceAttachments({
+              scopeKey,
+              attachments: current.map((attachment) =>
+                attachment.kind === "chat_history"
+                  ? (contexts.get(attachment.id) ?? attachment)
+                  : attachment,
+              ),
+            });
+        }
+        replaceUserInput(result.text, result.selection);
+        return;
+      }
       const didRemoveWorkspaceAttachment = removeAttachment({
         selectedAttachments,
         index,
@@ -2113,7 +2180,6 @@ function ComposerContentImpl({
       if (didRemoveWorkspaceAttachment) {
         return;
       }
-      const removed = selectedAttachments[index];
       const attachmentIndex = attachments.findIndex((attachment) => attachment === removed);
       if (removed?.kind === "image" || removed?.kind === "file") {
         const snapshot = messageInputRef.current?.getInputSnapshot() ?? {
@@ -2155,6 +2221,7 @@ function ComposerContentImpl({
     },
     [
       attachments,
+      attachmentScopeKeys,
       removeAttachment,
       replaceUserInput,
       selectedAttachments,
