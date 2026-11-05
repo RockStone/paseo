@@ -5,7 +5,11 @@ import {
   scrollChatAwayFromBottom,
 } from "../support/helpers/agent-bottom-anchor";
 import { getServerId } from "../support/helpers/server-id";
-import { seedMockAgentWorkspace, type MockAgentWorkspace } from "../support/helpers/mock-agent";
+import {
+  openAgentRoute,
+  seedMockAgentWorkspace,
+  type MockAgentWorkspace,
+} from "../support/helpers/mock-agent";
 import {
   continueToNextQuestion,
   fillQuestionAnswer,
@@ -57,6 +61,87 @@ function armDelayedScrollForHiddenChat(page: Page): Promise<void> {
         observer.observe(scroll);
       });
     });
+}
+
+for (const landing of [
+  "exact bottom",
+  "near bottom",
+  "already at bottom after selection",
+  "older history",
+] as const) {
+  test(
+    landing === "older history"
+      ? "downward wheel keeps an older reading position away from the bottom"
+      : `downward wheel resumes following from ${landing}`,
+    async ({ page }) => {
+      const response = Array.from(
+        { length: 24 },
+        (_, index) => `Paragraph ${index + 1}: A long response for testing wheel scrolling.`,
+      ).join("\n\n");
+      const agent = await seedMockAgentWorkspace({
+        repoPrefix: "wheel-resume-",
+        title: `Wheel resume: ${landing}`,
+        initialPrompt: "Render a long response",
+        featureValues: { mockAssistantResponse: response },
+      });
+      try {
+        await agent.client.waitForFinish(agent.agentId, 15_000);
+        await openAgentRoute(page, agent);
+        await expect
+          .poll(async () => (await readScrollMetrics(page)).distanceFromBottom)
+          .toBeLessThanOrEqual(1);
+        const chat = page.getByTestId("agent-chat-scroll").filter({ visible: true });
+        if (landing === "already at bottom after selection") {
+          await page
+            .getByTestId("assistant-message")
+            .last()
+            .evaluate((element) => {
+              const selection = document.getSelection()!;
+              const range = document.createRange();
+              range.selectNodeContents(element.lastElementChild ?? element);
+              selection.removeAllRanges();
+              selection.addRange(range);
+              document.dispatchEvent(new Event("selectionchange"));
+              selection.removeAllRanges();
+              document.dispatchEvent(new Event("selectionchange"));
+            });
+        } else {
+          await scrollChatAwayFromBottom(page, { deltaY: -500, minDistanceFromBottom: 300 });
+        }
+        const before = await readScrollMetrics(page);
+        const box = await chat.boundingBox();
+        await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+        let wheelDistance = 10_000;
+        if (landing === "older history") wheelDistance = 50;
+        else if (landing === "near bottom") wheelDistance = before.distanceFromBottom - 24;
+        await page.mouse.wheel(0, wheelDistance);
+        if (landing === "older history") {
+          await expect
+            .poll(async () => (await readScrollMetrics(page)).offsetY)
+            .toBeGreaterThan(before.offsetY + 40);
+          expect((await readScrollMetrics(page)).distanceFromBottom).toBeGreaterThan(200);
+        } else {
+          await expect
+            .poll(async () => (await readScrollMetrics(page)).distanceFromBottom)
+            .toBeLessThanOrEqual(24);
+        }
+        const readingOffset = (await readScrollMetrics(page)).offsetY;
+        await agent.client.sendAgentMessage(agent.agentId, "Continue with another long response");
+        await agent.client.waitForFinish(agent.agentId, 15_000);
+        if (landing === "older history") {
+          await expect
+            .poll(async () => Math.abs((await readScrollMetrics(page)).offsetY - readingOffset))
+            .toBeLessThanOrEqual(1);
+        } else {
+          await expect
+            .poll(async () => (await readScrollMetrics(page)).distanceFromBottom)
+            .toBeLessThanOrEqual(1);
+        }
+      } finally {
+        await agent.cleanup();
+      }
+    },
+  );
 }
 
 test("desktop workspaces keep independent bottom and reading positions", async ({ page }) => {

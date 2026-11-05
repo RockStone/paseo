@@ -60,7 +60,7 @@ const AUTO_SCROLL_RESUME_THRESHOLD_PX = 1;
 const HISTORY_START_SETTLE_FRAMES = 2;
 const HISTORY_START_SLOT_HEIGHT_PX = 32;
 const CONTENT_PADDING_TOP_PX = 16;
-const UPWARD_INPUT_EVIDENCE_TIMEOUT_MS = 100;
+const SCROLL_INPUT_EVIDENCE_TIMEOUT_MS = 100;
 const VIRTUALIZER_SCROLL_MARGIN_PX = HISTORY_START_SLOT_HEIGHT_PX + CONTENT_PADDING_TOP_PX;
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
@@ -138,16 +138,21 @@ function isUpwardViewportScrollKey(event: KeyboardEvent): boolean {
   );
 }
 
-function canNestedScrollerConsumeUpwardInput(
+function canNestedScrollerConsumeInput(
   target: EventTarget | null,
   scrollContainer: HTMLElement,
+  direction: "up" | "down",
 ): boolean {
   let element = target instanceof Element ? target : null;
   while (element && element !== scrollContainer) {
     if (element instanceof HTMLElement) {
       const overflowY = window.getComputedStyle(element).overflowY;
       const canScroll = overflowY === "auto" || overflowY === "scroll";
-      if (canScroll && element.scrollHeight > element.clientHeight && element.scrollTop > 0) {
+      const canMove =
+        direction === "up"
+          ? element.scrollTop > 0
+          : element.scrollTop + element.clientHeight < element.scrollHeight - 1;
+      if (canScroll && element.scrollHeight > element.clientHeight && canMove) {
         return true;
       }
     }
@@ -351,6 +356,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     | null
   >(null);
   const upwardInputEvidenceUntilRef = useRef(0);
+  const downwardWheelEvidenceUntilRef = useRef(0);
   const lastTouchClientYRef = useRef<number | null>(null);
   const pendingAutoScrollFrameRef = useRef<number | null>(null);
   const pendingAutoScrollTimeoutRef = useRef<number | null>(null);
@@ -624,13 +630,15 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     mouseScrollGestureRef.current = null;
   }, []);
 
-  const clearUpwardInputEvidence = useCallback(() => {
+  const clearScrollInputEvidence = useCallback(() => {
     upwardInputEvidenceUntilRef.current = 0;
+    downwardWheelEvidenceUntilRef.current = 0;
   }, []);
 
   const markUpwardInputEvidence = useCallback(() => {
+    downwardWheelEvidenceUntilRef.current = 0;
     upwardInputEvidenceUntilRef.current =
-      window.performance.now() + UPWARD_INPUT_EVIDENCE_TIMEOUT_MS;
+      window.performance.now() + SCROLL_INPUT_EVIDENCE_TIMEOUT_MS;
   }, []);
 
   useLayoutEffect(() => {
@@ -649,9 +657,9 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     cancelPendingStickToBottom();
     historyStartSettleSchedulerRef.current?.cancel();
     clearMouseScrollGesture();
-    clearUpwardInputEvidence();
+    clearScrollInputEvidence();
     lastTouchClientYRef.current = null;
-  }, [cancelPendingStickToBottom, clearMouseScrollGesture, clearUpwardInputEvidence, isActive]);
+  }, [cancelPendingStickToBottom, clearMouseScrollGesture, clearScrollInputEvidence, isActive]);
 
   const scrollMessagesToBottom = useCallback(
     (behavior: ScrollBehaviorLike = "auto") => {
@@ -849,6 +857,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
   ]);
 
   const stopFollowingOutputFromUserIntent = useStableEvent(() => {
+    downwardWheelEvidenceUntilRef.current = 0;
     cancelPendingStickToBottom();
     cancelJump();
     readingAnchor.reset();
@@ -856,6 +865,26 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       setFollowOutput(false);
     }
     rearmHistoryStartFromUserIntent();
+  });
+
+  const resumeFollowingOutputFromWheel = useStableEvent(() => {
+    const container = scrollContainerRef.current;
+    if (
+      !isActiveRef.current ||
+      !container ||
+      followOutputRef.current ||
+      window.performance.now() >= downwardWheelEvidenceUntilRef.current ||
+      !isScrollContainerNearBottom(container) ||
+      hasTranscriptSelection()
+    )
+      return;
+    // A downward wheel can reach the visible bottom without another scroll event
+    // (already clamped), or leave a small gap while the response keeps growing.
+    cancelJump();
+    readingAnchor.reset();
+    downwardWheelEvidenceUntilRef.current = 0;
+    setFollowOutput(true);
+    forceStickToBottom();
   });
 
   const handleDomScroll = useCallback(() => {
@@ -887,6 +916,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     }
     updateScrollMetrics();
     evaluateHistoryStart();
+    resumeFollowingOutputFromWheel();
   }, [
     evaluateHistoryStart,
     setFollowOutput,
@@ -894,6 +924,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     readingAnchor,
     stopFollowingOutputFromUserIntent,
     updateScrollMetrics,
+    resumeFollowingOutputFromWheel,
   ]);
 
   useEffect(() => {
@@ -1135,18 +1166,29 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     };
     const handleWheel = (event: WheelEvent) => {
       if (
-        !event.ctrlKey &&
-        event.deltaY < 0 &&
-        !canNestedScrollerConsumeUpwardInput(event.target, scrollContainer)
-      ) {
+        event.ctrlKey ||
+        event.deltaY === 0 ||
+        canNestedScrollerConsumeInput(
+          event.target,
+          scrollContainer,
+          event.deltaY < 0 ? "up" : "down",
+        )
+      )
+        return;
+      if (event.deltaY < 0) {
         markUpwardViewportInput();
+      } else {
+        upwardInputEvidenceUntilRef.current = 0;
+        downwardWheelEvidenceUntilRef.current =
+          window.performance.now() + SCROLL_INPUT_EVIDENCE_TIMEOUT_MS;
+        resumeFollowingOutputFromWheel();
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isUpwardViewportScrollKey(event)) {
         return;
       }
-      if (canNestedScrollerConsumeUpwardInput(event.target, scrollContainer)) {
+      if (canNestedScrollerConsumeInput(event.target, scrollContainer, "up")) {
         return;
       }
       markUpwardViewportInput();
@@ -1220,7 +1262,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       if (
         previousTouchY !== null &&
         touch.clientY > previousTouchY + 1 &&
-        !canNestedScrollerConsumeUpwardInput(event.target, scrollContainer)
+        !canNestedScrollerConsumeInput(event.target, scrollContainer, "up")
       ) {
         markUpwardViewportInput();
       }
@@ -1298,11 +1340,11 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       scrollContainer.removeEventListener("touchend", handleTouchEnd);
       scrollContainer.removeEventListener("touchcancel", handleTouchEnd);
       document.removeEventListener("selectionchange", handleSelectionChange);
-      clearUpwardInputEvidence();
+      clearScrollInputEvidence();
     };
   }, [
     clearMouseScrollGesture,
-    clearUpwardInputEvidence,
+    clearScrollInputEvidence,
     handleDomScroll,
     hasTranscriptSelection,
     isActive,
@@ -1311,6 +1353,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     stopFollowingOutputFromUserIntent,
     setFollowOutput,
     forceStickToBottom,
+    resumeFollowingOutputFromWheel,
   ]);
 
   useEffect(() => {

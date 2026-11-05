@@ -139,8 +139,8 @@ export async function holdParagraphThroughCompletion(page: Page, agent: MockAgen
         stableAt = now;
       }
       const complete =
-        document.body.textContent?.includes("Worked for") &&
-        document.body.textContent.includes("READER-STREAM-SETTLED") &&
+        document.querySelector('[data-testid="assistant-turn-footer-timestamp"]') &&
+        document.body.textContent?.includes("READER-STREAM-SETTLED") &&
         !document.querySelector('[data-testid="turn-working-indicator"]');
       if (complete && now - stableAt >= 750) {
         result.done = true;
