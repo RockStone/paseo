@@ -12,6 +12,10 @@ import {
 import { gateNextAgentMessage } from "../support/helpers/agent-message-gate";
 import { expectAgentReadyToInterrupt } from "../support/helpers/agent-stream";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+import {
+  readScrollMetrics,
+  scrollChatAwayFromBottom,
+} from "../support/helpers/agent-bottom-anchor";
 
 const SCREENSHOT_DIR = process.env.PASEO_COMPOSER_SPLIT_SCREENSHOT_DIR;
 const LONG_DRAFT = Array.from(
@@ -74,6 +78,94 @@ async function readComposerGeometry(page: Page) {
 }
 
 test.describe("composer split view", () => {
+  test("keeps the response above a growing draft at the bottom, including after a text selection", async ({
+    page,
+  }, testInfo) => {
+    const response = Array.from(
+      { length: 24 },
+      (_, index) => `Paragraph ${index + 1}: Keep this response readable while composing a reply.`,
+    ).join("\n\n");
+    const agent = await seedMockAgentWorkspace({
+      repoPrefix: "composer-bottom-",
+      title: "Composer bottom anchoring",
+      initialPrompt: "Render the response",
+      featureValues: { mockAssistantResponse: response },
+    });
+    try {
+      await agent.client.waitForFinish(agent.agentId, 15_000);
+      await openAgentRoute(page, agent);
+      await expectComposerVisible(page);
+      const input = composerLocator(page);
+      const chat = page.getByTestId("agent-chat-scroll").filter({ visible: true });
+      await expect
+        .poll(async () => (await readScrollMetrics(page)).distanceFromBottom)
+        .toBeLessThanOrEqual(1);
+      const emptyViewportHeight = (await readScrollMetrics(page)).viewportHeight;
+
+      for (const afterSelection of [false, true]) {
+        await input.fill("");
+        await expect
+          .poll(async () => (await readScrollMetrics(page)).viewportHeight)
+          .toBe(emptyViewportHeight);
+        await expect
+          .poll(async () => (await readScrollMetrics(page)).distanceFromBottom)
+          .toBeLessThanOrEqual(1);
+        if (afterSelection) {
+          // Native selection pauses output following, even after Copy/Reply clears the range.
+          await page
+            .getByTestId("assistant-message")
+            .last()
+            .evaluate((element) => {
+              const range = document.createRange();
+              range.selectNodeContents(element.lastElementChild ?? element);
+              const selection = document.getSelection()!;
+              selection.removeAllRanges();
+              selection.addRange(range);
+              document.dispatchEvent(new Event("selectionchange"));
+            });
+        }
+        const before = await readScrollMetrics(page);
+        await input.fill(LONG_DRAFT);
+        await expect
+          .poll(async () => (await readScrollMetrics(page)).viewportHeight)
+          .toBeLessThan(before.viewportHeight - 60);
+        await expect
+          .poll(async () => (await readScrollMetrics(page)).distanceFromBottom)
+          .toBeLessThanOrEqual(1);
+        const transcript = await chat.boundingBox();
+        const editor = (await readComposerGeometry(page)).editor;
+        expect(transcript!.y + transcript!.height).toBeLessThanOrEqual(editor.y);
+        await screenshot(
+          page,
+          afterSelection ? "composer-bottom-after-selection.png" : "composer-bottom.png",
+          testInfo,
+        );
+      }
+
+      // Growing and shrinking the draft must leave a reader of older content in place.
+      const reading = await scrollChatAwayFromBottom(page, {
+        deltaY: -600,
+        minDistanceFromBottom: 300,
+      });
+      await input.fill("Short reply");
+      await expect
+        .poll(async () => (await readScrollMetrics(page)).viewportHeight)
+        .toBeGreaterThan(reading.viewportHeight + 60);
+      await expect
+        .poll(async () => Math.abs((await readScrollMetrics(page)).offsetY - reading.offsetY))
+        .toBeLessThanOrEqual(1);
+      await input.fill(LONG_DRAFT);
+      await expect
+        .poll(async () => (await readScrollMetrics(page)).viewportHeight)
+        .toBe(reading.viewportHeight);
+      await expect
+        .poll(async () => Math.abs((await readScrollMetrics(page)).offsetY - reading.offsetY))
+        .toBeLessThanOrEqual(1);
+    } finally {
+      await agent.cleanup();
+    }
+  });
+
   test("caps a long draft and expands it beside the transcript without losing the draft or caret", async ({
     page,
   }, testInfo) => {

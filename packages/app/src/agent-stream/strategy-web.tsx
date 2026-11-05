@@ -1039,6 +1039,8 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       evaluateHistoryStart();
     }
     const observer = new ResizeObserver(() => {
+      const previousGeometry = lastObservedViewportGeometryRef.current;
+      const previousScrollTop = lastKnownScrollTopRef.current;
       flushSync(() => {
         measureVirtualizedRows();
       });
@@ -1046,7 +1048,6 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       if (pendingResumeGeometryCheckRef.current) {
         pendingResumeGeometryCheckRef.current = false;
         reportReadingPosition();
-        const previousGeometry = lastObservedViewportGeometryRef.current;
         lastObservedViewportGeometryRef.current = nextGeometry;
         const hasRetainedPosition =
           !followOutputRef.current || isScrollContainerAtBottom(scrollContainer);
@@ -1067,6 +1068,20 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       updateScrollMetrics();
       evaluateHistoryStart();
       if (!followOutputRef.current) {
+        // Copy/Reply pauses output following. A composer resize should still keep
+        // an already-bottomed transcript visible, without resuming streamed output
+        // or moving an older reading position or a live text selection.
+        if (
+          previousGeometry &&
+          previousGeometry.clientWidth === nextGeometry.clientWidth &&
+          previousGeometry.clientHeight !== nextGeometry.clientHeight &&
+          previousGeometry.scrollHeight === nextGeometry.scrollHeight &&
+          isScrollContainerAtBottom({ ...previousGeometry, scrollTop: previousScrollTop }) &&
+          !hasTranscriptSelection() &&
+          !isJumpSettling()
+        ) {
+          scrollMessagesToBottom();
+        }
         return;
       }
       // ResizeObserver runs before paint. Following in the next frame exposes
@@ -1098,6 +1113,9 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     forceStickToBottom,
     updateScrollMetrics,
     measureVirtualizedRows,
+    hasTranscriptSelection,
+    isJumpSettling,
+    scrollMessagesToBottom,
   ]);
 
   useLayoutEffect(() => {
