@@ -143,6 +143,10 @@ surface, and border colors.
 
 Sidebar workspaces default to **Last activity**. Display → Sort also offers
 **Created**, **Last prompt**, and **Manual**; these keep upstream ordering semantics.
+Collapsed project and status groups show up to five workspaces with activity in
+the last 24 hours, including delegated work and newly created workspaces. **Show more**
+reveals the rest in the selected sort order. Pinned workspaces and agent trees keep
+their separate limits.
 
 Sidebar thread trees show recorded coordinator/child relationships, including
 nested managed and provider-native children. Click a thread to open it, or its

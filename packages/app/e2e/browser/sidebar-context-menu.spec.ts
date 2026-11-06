@@ -74,7 +74,7 @@ test.describe("Sidebar context menus", () => {
     }
   });
   for (const grouping of ["project", "status"] as const) {
-    test(`${grouping} workspace menus copy full IDs of the primary agent despite a different active tab`, async ({
+    test(`${grouping} workspace menus put the primary agent's short ID before the full workspace ID`, async ({
       page,
     }, testInfo) => {
       const workspace = await seedWorkspace({ repoPrefix: "sidebar-copy-ids-" });
@@ -100,8 +100,8 @@ test.describe("Sidebar context menus", () => {
         if (grouping === "status") await selectSidebarStatusGrouping(page);
         for (const surface of ["context", "dropdown"] as const) {
           await openIdentityMenu({ page, workspaceId: workspace.workspaceId, surface });
-          await expect(page.getByRole("menuitem").nth(0)).toHaveText("Copy workspace id");
-          await expect(page.getByRole("menuitem").nth(1)).toHaveText("Copy agent id");
+          await expect(page.getByRole("menuitem").nth(0)).toHaveText("Copy agent id");
+          await expect(page.getByRole("menuitem").nth(1)).toHaveText("Copy workspace id");
           await expect(page.getByRole("menuitem", { name: "Copy path" })).toHaveCount(0);
           await expect(page.getByRole("menuitem", { name: "Copy branch name" })).toHaveCount(0);
           await expect(page.getByRole("menuitem", { name: "Open in file manager" })).toHaveCount(0);
@@ -110,7 +110,7 @@ test.describe("Sidebar context menus", () => {
           await expect.poll(() => readClipboard(page)).toBe(workspace.workspaceId);
           await openIdentityMenu({ page, workspaceId: workspace.workspaceId, surface });
           await page.getByRole("menuitem", { name: "Copy agent id" }).click();
-          await expect.poll(() => readClipboard(page)).toBe(primary.id);
+          await expect.poll(() => readClipboard(page)).toBe(primary.id.slice(0, 8));
         }
       } finally {
         await workspace.cleanup();

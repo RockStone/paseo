@@ -3,7 +3,71 @@ import type { Agent } from "@/stores/session-store";
 import {
   buildWorkspaceAgentActivityIndex,
   selectWorkspaceLastActivity,
+  selectRecentWorkspaceKeys,
 } from "./workspace-agent-activity";
+
+it("uses the last 24 hours of creation, streamed and delegated activity without leaking between hosts", () => {
+  const now = Date.parse("2026-11-06T12:00:00Z");
+  const old = "2026-11-04T12:00:00Z";
+  const parent = agent({ id: "parent", workspaceId: "root", updatedAt: old });
+  const child = agent({
+    id: "child",
+    parentAgentId: "parent",
+    workspaceId: "child-workspace",
+    updatedAt: old,
+  });
+  const providerParent = agent({
+    id: "provider-parent",
+    workspaceId: "provider-root",
+    updatedAt: old,
+  });
+  const boundary = agent({
+    id: "boundary",
+    workspaceId: "boundary",
+    updatedAt: "2026-11-05T12:00:00Z",
+  });
+  const expired = agent({
+    id: "expired",
+    workspaceId: "expired",
+    updatedAt: "2026-11-05T11:59:59.999Z",
+  });
+  const archived = agent({
+    id: "archived",
+    workspaceId: "archived",
+    updatedAt: "2026-11-06T12:00:00Z",
+    archivedAt: "2026-11-06T12:00:00Z",
+  });
+  const agents = new Map(
+    [parent, child, providerParent, boundary, expired, archived].map((item) => [item.id, item]),
+  );
+  const result = selectRecentWorkspaceKeys({
+    now,
+    sessions: {
+      "host-a": {
+        agents,
+        workspaces: new Map([
+          ["new", { id: "new", createdAt: new Date(now) }],
+          ["old", { id: "old", createdAt: new Date(old) }],
+        ]),
+      },
+    },
+    activity: new Map([["child", new Date(now)]]),
+    providerSubagents: new Map([
+      [
+        "host-a\0child",
+        { parentAgentId: "provider-parent", updatedAt: new Date(now).toISOString() },
+      ],
+      ["host-b\0child", { parentAgentId: "expired", updatedAt: new Date(now).toISOString() }],
+    ]),
+  });
+  expect([...result].sort()).toEqual([
+    "host-a:boundary",
+    "host-a:child-workspace",
+    "host-a:new",
+    "host-a:provider-root",
+    "host-a:root",
+  ]);
+});
 
 function agent(input: {
   id: string;

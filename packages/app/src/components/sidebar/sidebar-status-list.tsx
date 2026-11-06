@@ -349,7 +349,6 @@ function StatusGroupList({
 
 const STATUS_GROUP_VISIBILITY = {
   kind: "workspaces" as const,
-  getStatusBucket: (workspace: SidebarWorkspaceEntry) => workspace.statusBucket,
 };
 
 function StatusGroupRows({

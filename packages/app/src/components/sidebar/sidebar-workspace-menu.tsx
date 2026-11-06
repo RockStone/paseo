@@ -159,14 +159,6 @@ function WorkspaceIdentityMenuItems({
   }, [copyWorkspaceId, workspaceId]);
   return (
     <>
-      <WorkspaceMenuItem
-        surface={surface}
-        testID={`sidebar-workspace-menu-copy-workspace-id-${workspaceKey}`}
-        leading={copyLeadingIcon}
-        onSelect={copyWorkspace}
-      >
-        {t("sidebar.workspace.actions.copyWorkspaceId")}
-      </WorkspaceMenuItem>
       {agentId ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -177,6 +169,14 @@ function WorkspaceIdentityMenuItems({
           {t("workspace.tabs.menu.copyAgentId")}
         </WorkspaceMenuItem>
       ) : null}
+      <WorkspaceMenuItem
+        surface={surface}
+        testID={`sidebar-workspace-menu-copy-workspace-id-${workspaceKey}`}
+        leading={copyLeadingIcon}
+        onSelect={copyWorkspace}
+      >
+        {t("sidebar.workspace.actions.copyWorkspaceId")}
+      </WorkspaceMenuItem>
     </>
   );
 }

@@ -23,9 +23,8 @@ function rows(statuses: readonly SidebarStateBucket[], rowServerId = serverId): 
   }));
 }
 
-const workspacePolicy: SidebarGroupVisibilityPolicy<Item> = {
+const workspacePolicy: SidebarGroupVisibilityPolicy = {
   kind: "workspaces",
-  getStatusBucket: (item) => item.statusBucket,
 };
 
 function selectionFor(item: SidebarGroupItem): ActiveWorkspaceSelection {
@@ -33,27 +32,46 @@ function selectionFor(item: SidebarGroupItem): ActiveWorkspaceSelection {
 }
 
 describe("selectSidebarGroupVisibility", () => {
-  it("leads with a hidden open row while keeping the baseline order", () => {
+  it("shows only recent workspaces even when there are fewer than five, preserving order", () => {
+    const items = rows(Array(9).fill("running"));
+    const recentWorkspaceKeys = new Set([
+      `${serverId}:${items[1]!.workspaceId}`,
+      `${serverId}:${items[7]!.workspaceId}`,
+    ]);
+    expect(
+      selectSidebarGroupVisibility({
+        items,
+        recentWorkspaceKeys,
+        policy: workspacePolicy,
+        expanded: false,
+        selection: selectionFor(items[8]!),
+      }),
+    ).toEqual({ leadingItem: null, visibleItems: [items[1], items[7]], canToggle: true });
+  });
+
+  it("keeps the strict five-row cap even for a selected overflow workspace", () => {
     const items = rows(Array(9).fill("done"));
     const result = selectSidebarGroupVisibility({
       items,
+      recentWorkspaceKeys: new Set(items.map((item) => `${item.serverId}:${item.workspaceId}`)),
       expanded: false,
       policy: workspacePolicy,
       selection: selectionFor(items[8]!),
     });
 
-    expect(result.leadingItem).toBe(items[8]);
-    expect(result.visibleItems).toEqual(items.slice(0, 7));
+    expect(result.leadingItem).toBeNull();
+    expect(result.visibleItems).toEqual(items.slice(0, 5));
     expect(result.canToggle).toBe(true);
   });
 
   it("leaves selected rows in place when they are already in the baseline", () => {
     const items = rows([...Array(8).fill("done"), "running", "done"]);
-    const expected = [...items.slice(0, 7), items[8]];
+    const expected = items.slice(0, 5);
 
     for (const selectedIndex of [2, 8]) {
       const result = selectSidebarGroupVisibility({
         items,
+        recentWorkspaceKeys: new Set(items.map((item) => `${item.serverId}:${item.workspaceId}`)),
         expanded: false,
         policy: workspacePolicy,
         selection: selectionFor(items[selectedIndex]!),
@@ -65,24 +83,26 @@ describe("selectSidebarGroupVisibility", () => {
     }
   });
 
-  it("shows the whole group without a toggle when the open row is the only hidden row", () => {
+  it("keeps the cap even when the open row is hidden", () => {
     const items = rows(Array(8).fill("done"));
     const result = selectSidebarGroupVisibility({
       items,
+      recentWorkspaceKeys: new Set(items.map((item) => `${item.serverId}:${item.workspaceId}`)),
       expanded: false,
       policy: workspacePolicy,
       selection: selectionFor(items[7]!),
     });
 
     expect(result.leadingItem).toBeNull();
-    expect(result.visibleItems).toEqual(items);
-    expect(result.canToggle).toBe(false);
+    expect(result.visibleItems).toEqual(items.slice(0, 5));
+    expect(result.canToggle).toBe(true);
   });
 
   it("keeps expanded groups in their original order", () => {
     const items = rows(Array(9).fill("done"));
     const result = selectSidebarGroupVisibility({
       items,
+      recentWorkspaceKeys: new Set(items.map((item) => `${item.serverId}:${item.workspaceId}`)),
       expanded: true,
       policy: workspacePolicy,
       selection: selectionFor(items[8]!),
@@ -97,6 +117,7 @@ describe("selectSidebarGroupVisibility", () => {
     const items = rows(Array(22).fill("done"));
     const result = selectSidebarGroupVisibility({
       items,
+      recentWorkspaceKeys: new Set(items.map((item) => `${item.serverId}:${item.workspaceId}`)),
       expanded: false,
       policy: { kind: "pinned" },
       selection: selectionFor(items[21]!),
@@ -111,13 +132,14 @@ describe("selectSidebarGroupVisibility", () => {
     const items = rows(Array(8).fill("done"));
     const result = selectSidebarGroupVisibility({
       items,
+      recentWorkspaceKeys: new Set(items.map((item) => `${item.serverId}:${item.workspaceId}`)),
       expanded: false,
       policy: workspacePolicy,
       selection: null,
     });
 
     expect(result.leadingItem).toBeNull();
-    expect(result.visibleItems).toEqual(items.slice(0, 7));
+    expect(result.visibleItems).toEqual(items.slice(0, 5));
     expect(result.canToggle).toBe(true);
   });
 
@@ -125,13 +147,14 @@ describe("selectSidebarGroupVisibility", () => {
     const items = rows(Array(9).fill("done"), "host-b");
     const result = selectSidebarGroupVisibility({
       items,
+      recentWorkspaceKeys: new Set(items.map((item) => `${item.serverId}:${item.workspaceId}`)),
       expanded: false,
       policy: workspacePolicy,
       selection: { serverId: serverId, workspaceId: items[8]!.workspaceId },
     });
 
     expect(result.leadingItem).toBeNull();
-    expect(result.visibleItems).toEqual(items.slice(0, 7));
+    expect(result.visibleItems).toEqual(items.slice(0, 5));
     expect(result.canToggle).toBe(true);
   });
 });

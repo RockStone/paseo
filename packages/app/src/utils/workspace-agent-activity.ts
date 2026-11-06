@@ -2,6 +2,56 @@ import type { Agent, WorkspaceDescriptor } from "@/stores/session-store";
 import { isWorkspaceRootAgent } from "@/subagents/policies";
 import { deriveSidebarStateBucket } from "./sidebar-agent-state";
 
+export function selectRecentWorkspaceKeys(input: {
+  sessions: Readonly<
+    Record<
+      string,
+      | {
+          agents: ReadonlyMap<string, Agent>;
+          workspaces: ReadonlyMap<string, Pick<WorkspaceDescriptor, "id" | "createdAt">>;
+        }
+      | undefined
+    >
+  >;
+  activity: ReadonlyMap<string, Date>;
+  providerSubagents: ReadonlyMap<string, { parentAgentId: string; updatedAt: string }>;
+  now: number;
+}): Set<string> {
+  const cutoff = input.now - 24 * 60 * 60 * 1000;
+  const recent = new Set<string>();
+  for (const [serverId, session] of Object.entries(input.sessions)) {
+    if (!session) continue;
+    const agents = session.agents;
+    function includeAncestors(agentId: string, timestamp: number) {
+      if (!Number.isFinite(timestamp) || timestamp < cutoff) return;
+      const visited = new Set<string>();
+      let agent = agents.get(agentId);
+      while (agent && !agent.archivedAt && !visited.has(agent.id)) {
+        visited.add(agent.id);
+        if (agent.workspaceId) recent.add(`${serverId}:${agent.workspaceId}`);
+        agent = agent.parentAgentId ? agents.get(agent.parentAgentId) : undefined;
+      }
+    }
+    for (const workspace of session.workspaces.values()) {
+      if (workspace.createdAt && workspace.createdAt.getTime() >= cutoff)
+        recent.add(`${serverId}:${workspace.id}`);
+    }
+    for (const agent of session.agents.values()) {
+      const timestamp = Math.max(
+        agent.lastActivityAt.getTime(),
+        input.activity.get(agent.id)?.getTime() ?? 0,
+      );
+      includeAncestors(agent.id, timestamp);
+    }
+    const prefix = `${serverId}\0`;
+    for (const [key, child] of input.providerSubagents) {
+      if (key.startsWith(prefix))
+        includeAncestors(child.parentAgentId, Date.parse(child.updatedAt));
+    }
+  }
+  return recent;
+}
+
 /** The workspace clock includes delegated descendants even when they own another workspace. */
 export function selectWorkspaceLastActivity(input: {
   serverId: string;

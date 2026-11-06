@@ -100,7 +100,7 @@ import {
 import { useLongPressDragInteraction } from "@/components/sidebar/use-long-press-drag-interaction";
 import { SidebarSectionHeader } from "@/components/sidebar/sidebar-section-header";
 import { SidebarGroupToggleRow } from "@/components/sidebar/sidebar-group-toggle-row";
-import { createWorkspaceVisibilityPolicy } from "@/components/sidebar/sidebar-group-visibility";
+import { WORKSPACE_VISIBILITY_POLICY } from "@/components/sidebar/sidebar-group-visibility";
 import { useLimitedSidebarGroup } from "@/components/sidebar/use-limited-sidebar-group";
 import {
   SidebarWorkspaceRowFrame,
@@ -1572,10 +1572,6 @@ function ProjectBlock({
   supportsPinningByServerId: ReadonlyMap<string, boolean>;
   onToggleWorkspacePin: ToggleSidebarWorkspacePin;
 }) {
-  const visibilityPolicy = useMemo(
-    () => createWorkspaceVisibilityPolicy<SidebarWorkspacePlacement>(workspaceEntriesByKey),
-    [workspaceEntriesByKey],
-  );
   const {
     leadingItem: leadingWorkspace,
     visibleItems: visibleWorkspaces,
@@ -1585,7 +1581,7 @@ function ProjectBlock({
   } = useLimitedSidebarGroup({
     items: project.workspaces,
     selection: selectionEnabled ? activeWorkspaceSelection : null,
-    policy: visibilityPolicy,
+    policy: WORKSPACE_VISIBILITY_POLICY,
   });
   const activeServerId = activeWorkspaceSelection?.serverId ?? null;
   const activeHostStatus = useHostRuntimeConnectionStatus(activeServerId ?? "");

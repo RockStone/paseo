@@ -1,4 +1,3 @@
-import type { SidebarStateBucket } from "@/hooks/sidebar-workspaces-view-model";
 import type { ActiveWorkspaceSelection } from "@/stores/last-workspace-selection";
 
 export interface SidebarGroupItem {
@@ -9,7 +8,8 @@ export interface SidebarGroupItem {
 export interface SidebarGroupVisibilityInput<T> {
   items: readonly T[];
   expanded: boolean;
-  policy: SidebarGroupVisibilityPolicy<T>;
+  policy: SidebarGroupVisibilityPolicy;
+  recentWorkspaceKeys: ReadonlySet<string>;
   /** The workspace the group's rows highlight as selected. Null when no row can be selected. */
   selection: ActiveWorkspaceSelection | null;
 }
@@ -24,21 +24,11 @@ export interface SidebarGroupVisibility<T> {
   canToggle: boolean;
 }
 
-export type SidebarGroupVisibilityPolicy<T> =
+export type SidebarGroupVisibilityPolicy =
   | { kind: "pinned"; limit?: number }
-  | { kind: "workspaces"; getStatusBucket: (item: T) => SidebarStateBucket };
+  | { kind: "workspaces" };
 
-// A placement can outrun its entry: a retained sidebar that is inactive (compact layout with the
-// sidebar closed) or still waiting for sessions keeps an empty entry map. A missing entry renders
-// no row, so it counts as Done and claims no slot past the limit.
-export function createWorkspaceVisibilityPolicy<T extends { workspaceKey: string }>(
-  entriesByKey: ReadonlyMap<string, { statusBucket: SidebarStateBucket }>,
-): SidebarGroupVisibilityPolicy<T> {
-  return {
-    kind: "workspaces",
-    getStatusBucket: (item) => entriesByKey.get(item.workspaceKey)?.statusBucket ?? "done",
-  };
-}
+export const WORKSPACE_VISIBILITY_POLICY = { kind: "workspaces" } as const;
 
 function isOpenWorkspace(
   item: SidebarGroupItem,
@@ -54,18 +44,22 @@ function isOpenWorkspace(
 export function selectSidebarGroupVisibility<T extends SidebarGroupItem>(
   input: SidebarGroupVisibilityInput<T>,
 ): SidebarGroupVisibility<T> {
-  const { items, expanded, policy, selection } = input;
-  const limit = policy.kind === "pinned" ? (policy.limit ?? 20) : 7;
+  const { items, expanded, policy, selection, recentWorkspaceKeys } = input;
+  const limit = policy.kind === "pinned" ? (policy.limit ?? 20) : 5;
   const baseline: T[] = [];
   let leadingItem: T | null = null;
   let canToggle = false;
 
   items.forEach((item, index) => {
-    const inBaseline =
-      index < limit || (policy.kind === "workspaces" && policy.getStatusBucket(item) !== "done");
+    const recent = recentWorkspaceKeys.has(`${item.serverId}:${item.workspaceId}`);
+    const inBaseline = policy.kind === "pinned" ? index < limit : recent && baseline.length < limit;
     if (inBaseline) {
       baseline.push(item);
-    } else if (leadingItem === null && isOpenWorkspace(item, selection)) {
+    } else if (
+      policy.kind === "pinned" &&
+      leadingItem === null &&
+      isOpenWorkspace(item, selection)
+    ) {
       leadingItem = item;
     } else {
       canToggle = true;

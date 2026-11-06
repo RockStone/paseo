@@ -70,7 +70,7 @@ test("previous and next traverse every visible workspace while digit shortcuts s
         workspaceId: order[8],
       });
     });
-    await test.step("collapsed groups keep shortcut targets selected without expanding", async () => {
+    await test.step("collapsed groups keep the cap while shortcuts navigate hidden workspaces", async () => {
       await expectCollapsedWorkspaceShortcuts(page, order);
     });
   } finally {
@@ -81,18 +81,16 @@ test("previous and next traverse every visible workspace while digit shortcuts s
 async function expectCollapsedWorkspaceShortcuts(page: Page, order: string[]) {
   await page.getByLabel("Show less", { exact: true }).click();
   const rows = page.getByRole("button", { name: /^Workspace \d{2}$/ });
-  await expect(rows).toHaveCount(8);
-  await expectSidebarWorkspaceSelected({ page, serverId: getServerId(), workspaceId: order[8] });
+  await expect(rows).toHaveCount(5);
+  await expect(page).toHaveURL(new RegExp(`/workspace/${order[8]}$`));
   await switchWorkspaceViaSidebar({ page, serverId: getServerId(), workspaceId: order[0] });
-  await expect(rows).toHaveCount(7);
+  await expect(rows).toHaveCount(5);
   await page.keyboard.press("Alt+9");
   await expect(page).toHaveURL(new RegExp(`/workspace/${order[8]}$`));
-  await expectSidebarWorkspaceSelected({ page, serverId: getServerId(), workspaceId: order[8] });
-  await expect(rows).toHaveCount(8);
+  await expect(rows).toHaveCount(5);
   await page.keyboard.press("Alt+]");
   await expect(page).toHaveURL(new RegExp(`/workspace/${order[9]}$`));
-  await expectSidebarWorkspaceSelected({ page, serverId: getServerId(), workspaceId: order[9] });
-  await expect(rows).toHaveCount(8);
+  await expect(rows).toHaveCount(5);
   await expect(page.getByTestId(`sidebar-workspace-row-${getServerId()}:${order[8]}`)).toHaveCount(
     0,
   );

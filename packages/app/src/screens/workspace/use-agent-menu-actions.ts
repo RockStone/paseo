@@ -34,7 +34,7 @@ export function useAgentMenuActions(normalizedServerId: string) {
     async (agentId: string) => {
       if (!agentId) return;
       try {
-        await copyAgentText(agentId);
+        await copyAgentText(agentId.slice(0, 8));
         toast.copied(t("workspace.tabs.toasts.agentIdCopiedLabel"));
       } catch {
         toast.error(t("workspace.tabs.toasts.copyFailed"));
