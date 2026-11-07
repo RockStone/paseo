@@ -18,7 +18,11 @@ import {
 import type { WorkspaceGitService } from "../../workspace-git-service.js";
 import type { CreatePaseoWorktreeWorkflowResult } from "../../worktree-session.js";
 import { deriveProjectKey } from "../../project-key.js";
-import { areEquivalentPaths, createRealpathAwarePathMatcher } from "../../../utils/path.js";
+import {
+  areEquivalentPaths,
+  createRealpathAwarePathMatcher,
+  getRealpathAwareRelativePath,
+} from "../../../utils/path.js";
 import type { UntrustedWorkspaceSource } from "../../workspace-automation-gate.js";
 
 export interface ResolveOrCreateWorkspaceIdInput {
@@ -207,6 +211,45 @@ export function createWorkspaceProvisioningService(deps: {
     });
   }
 
+  /**
+   * A cwd inside a linked worktree (Paseo-owned or a plain `git worktree add`)
+   * belongs to the project at the same relative path in its main repo, when
+   * that project exists. The main repo root is realpathed by git while project
+   * roots are lexical, so the match is realpath-aware. Without a match the
+   * caller allocates at the worktree's own root, as for any other directory.
+   * projectKey is never used here: unrelated clones of one remote stay apart.
+   */
+  async function findMainRepoProjectForLinkedWorktree(
+    cwd: string,
+    checkout: ProjectCheckoutLitePayload,
+  ): Promise<PersistedProjectRecord | null> {
+    const { worktreeRoot, mainRepoRoot } = checkout;
+    if (!checkout.isGit || !worktreeRoot || !mainRepoRoot) return null;
+    if (createRealpathAwarePathMatcher(worktreeRoot)(mainRepoRoot)) return null;
+    const relativePath = getRealpathAwareRelativePath(worktreeRoot, cwd);
+    if (relativePath === null) return null;
+    const matchesCandidateRoot = createRealpathAwarePathMatcher(
+      resolve(mainRepoRoot, relativePath),
+    );
+
+    const rootProject = (await projectRegistry.list())
+      .filter((project) => !project.archivedAt && matchesCandidateRoot(project.rootPath))
+      .sort(
+        (left, right) =>
+          Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
+          left.projectId.localeCompare(right.projectId),
+      )[0];
+    if (rootProject) return refreshProjectKind(rootProject);
+
+    const candidateWorkspace = (await workspaceRegistry.list()).find(
+      (workspace) => !workspace.archivedAt && matchesCandidateRoot(workspace.cwd),
+    );
+    if (!candidateWorkspace) return null;
+    const workspaceProject = await projectRegistry.get(candidateWorkspace.projectId);
+    if (!workspaceProject || workspaceProject.archivedAt) return null;
+    return refreshProjectKind(workspaceProject);
+  }
+
   async function requireActiveProject(projectId: string): Promise<PersistedProjectRecord> {
     const project = await projectRegistry.get(projectId);
     if (!project) throw new WorkspaceProvisioningError("unknown_project", projectId);
@@ -241,7 +284,8 @@ export function createWorkspaceProvisioningService(deps: {
     const project = projectId
       ? await refreshProjectKind(await requireActiveProject(projectId), normalizedCwd, checkout)
       : // COMPAT(workspaceCreateMissingProjectId): added in v0.1.107, remove after 2027-01-15.
-        await findOrCreateProjectForDirectory(normalizedCwd);
+        ((await findMainRepoProjectForLinkedWorktree(normalizedCwd, checkout)) ??
+        (await findOrCreateProjectForDirectory(normalizedCwd)));
     const timestamp = new Date().toISOString();
     const workspace = createPersistedWorkspaceRecord({
       workspaceId: context?.workspaceId ?? generateWorkspaceId(),

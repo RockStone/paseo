@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
-import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
 
@@ -124,6 +125,66 @@ beforeEach(async () => {
 afterEach(() => {
   rmSync(tmpDir, { recursive: true, force: true });
 });
+
+// The production git read: getCheckoutStatus against the real filesystem.
+function createRealCheckoutProvisioning(): WorkspaceProvisioningService {
+  return createWorkspaceProvisioningService({
+    workspaceRegistry,
+    projectRegistry,
+    logger,
+    isDirectory,
+    workspaceGitService: createNoopWorkspaceGitService({
+      getCheckout: async (cwd: string) => {
+        const status = await getCheckoutStatus(cwd, { logger });
+        return checkoutLiteFromGitSnapshot(
+          cwd,
+          status.isGit
+            ? {
+                isGit: true,
+                currentBranch: status.currentBranch,
+                remoteUrl: status.remoteUrl,
+                repoRoot: status.repoRoot,
+                isPaseoOwnedWorktree: status.isPaseoOwnedWorktree,
+                mainRepoRoot: status.mainRepoRoot,
+              }
+            : {
+                isGit: false,
+                currentBranch: null,
+                remoteUrl: null,
+                repoRoot: null,
+                isPaseoOwnedWorktree: false,
+                mainRepoRoot: null,
+              },
+        );
+      },
+    }),
+  });
+}
+
+function git(cwd: string, args: string[]): void {
+  execFileSync("git", args, { cwd, stdio: "pipe" });
+}
+
+/** A main repo with one commit holding `files`, plus a plain `git worktree add` of it. */
+function createRepoWithManualWorktree(files: string[] = ["README.md"]): {
+  mainRepo: string;
+  worktree: string;
+} {
+  const mainRepo = path.join(tmpDir, "main-repo");
+  const worktree = path.join(tmpDir, "manual-worktree");
+  mkdirSync(mainRepo, { recursive: true });
+  git(mainRepo, ["init", "-b", "main"]);
+  git(mainRepo, ["config", "user.email", "test@getpaseo.dev"]);
+  git(mainRepo, ["config", "user.name", "Paseo Test"]);
+  for (const file of files) {
+    mkdirSync(path.dirname(path.join(mainRepo, file)), { recursive: true });
+    writeFileSync(path.join(mainRepo, file), `${file}\n`, "utf8");
+  }
+  git(mainRepo, ["add", "."]);
+  git(mainRepo, ["-c", "commit.gpgSign=false", "commit", "-m", "initial"]);
+  git(mainRepo, ["worktree", "add", "-b", "feature/manual", worktree]);
+  return { mainRepo, worktree };
+}
 
 test("fresh git repo creates a workspace at the canonical worktree root", async () => {
   const repo = path.join(tmpDir, "repo");
@@ -260,6 +321,66 @@ test("persists manual worktree ownership separately from its workspace kind", as
     isPaseoOwnedWorktree: false,
     mainRepoRoot,
   });
+});
+
+test("a manual git worktree joins its main repo's existing project", async () => {
+  const { mainRepo, worktree } = createRepoWithManualWorktree();
+  const realCheckoutProvisioning = createRealCheckoutProvisioning();
+  const mainProject = await realCheckoutProvisioning.findOrCreateProjectForDirectory(mainRepo);
+
+  const workspace = await realCheckoutProvisioning.createWorkspaceForDirectory(worktree);
+
+  expect(workspace).toMatchObject({
+    projectId: mainProject.projectId,
+    cwd: worktree,
+    kind: "worktree",
+    isPaseoOwnedWorktree: false,
+  });
+  expect(await projectRegistry.list()).toEqual([mainProject]);
+});
+
+test("a subdirectory of a manual git worktree joins the main repo's matching subdirectory project", async () => {
+  const { mainRepo, worktree } = createRepoWithManualWorktree(["README.md", "packages/app/x.ts"]);
+  const realCheckoutProvisioning = createRealCheckoutProvisioning();
+  const rootProject = await realCheckoutProvisioning.findOrCreateProjectForDirectory(mainRepo);
+  const appProject = await realCheckoutProvisioning.findOrCreateProjectForDirectory(
+    path.join(mainRepo, "packages", "app"),
+  );
+
+  const workspace = await realCheckoutProvisioning.createWorkspaceForDirectory(
+    path.join(worktree, "packages", "app"),
+  );
+
+  expect(workspace.projectId).toBe(appProject.projectId);
+  expect(workspace.cwd).toBe(path.join(worktree, "packages", "app"));
+  expect((await projectRegistry.list()).map((project) => project.projectId).sort()).toEqual(
+    [rootProject.projectId, appProject.projectId].sort(),
+  );
+});
+
+test("a manual git worktree joins the project of an active workspace at its main repo", async () => {
+  const { mainRepo, worktree } = createRepoWithManualWorktree();
+  const realCheckoutProvisioning = createRealCheckoutProvisioning();
+  const elsewhere = path.join(tmpDir, "elsewhere");
+  mkdirSync(elsewhere, { recursive: true });
+  const project = await realCheckoutProvisioning.findOrCreateProjectForDirectory(elsewhere);
+  await realCheckoutProvisioning.createWorkspaceForDirectory(mainRepo, null, project.projectId);
+
+  const workspace = await realCheckoutProvisioning.createWorkspaceForDirectory(worktree);
+
+  expect(workspace.projectId).toBe(project.projectId);
+  expect(await projectRegistry.list()).toHaveLength(1);
+});
+
+test("a manual git worktree whose main repo has no project gets a project at the worktree root", async () => {
+  const { worktree } = createRepoWithManualWorktree();
+  const realCheckoutProvisioning = createRealCheckoutProvisioning();
+
+  const workspace = await realCheckoutProvisioning.createWorkspaceForDirectory(worktree);
+
+  const projects = await projectRegistry.list();
+  expect(projects).toHaveLength(1);
+  expect(projects[0]).toMatchObject({ projectId: workspace.projectId, rootPath: worktree });
 });
 
 test("re-opening an archived workspace by its exact path unarchives it and keeps the id", async () => {
@@ -892,37 +1013,7 @@ test("a failed import keeps an archived worktree's placement when its directory 
     archivedAt: ARCHIVED_AT,
   });
   await workspaceRegistry.upsert(archived);
-  const realCheckoutProvisioning = createWorkspaceProvisioningService({
-    workspaceRegistry,
-    projectRegistry,
-    logger,
-    isDirectory,
-    workspaceGitService: createNoopWorkspaceGitService({
-      getCheckout: async (cwd: string) => {
-        const status = await getCheckoutStatus(cwd, { logger });
-        return checkoutLiteFromGitSnapshot(
-          cwd,
-          status.isGit
-            ? {
-                isGit: true,
-                currentBranch: status.currentBranch,
-                remoteUrl: status.remoteUrl,
-                repoRoot: status.repoRoot,
-                isPaseoOwnedWorktree: status.isPaseoOwnedWorktree,
-                mainRepoRoot: status.mainRepoRoot,
-              }
-            : {
-                isGit: false,
-                currentBranch: null,
-                remoteUrl: null,
-                repoRoot: null,
-                isPaseoOwnedWorktree: false,
-                mainRepoRoot: null,
-              },
-        );
-      },
-    }),
-  });
+  const realCheckoutProvisioning = createRealCheckoutProvisioning();
 
   await expect(
     realCheckoutProvisioning.runInImportWorkspace({ cwd: worktreeCwd }, async () => {
