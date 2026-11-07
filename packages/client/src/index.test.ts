@@ -608,6 +608,35 @@ test("workspace handles keep identity and refresh snapshots through existing dri
   );
   await expect(titlePromise).resolves.toEqual({ title: "SDK review" });
 
+  const projectPromise = workspace.setProject("project_target", "workspace-project-request");
+  expect(parseSentSessionMessage(ws.sent.at(-1))).toMatchObject({
+    type: "workspace.project.set.request",
+    requestId: "workspace-project-request",
+    workspaceId: "workspace_sdk",
+    projectId: "project_target",
+  });
+  ws.message(
+    sessionMessage({
+      type: "workspace.project.set.response",
+      payload: {
+        requestId: "workspace-project-request",
+        workspaceId: "workspace_sdk",
+        accepted: true,
+        workspace: null,
+        projectId: "project_target",
+        previousProjectId: "project_sdk",
+        changed: true,
+        retainedServiceHostnames: [],
+        error: null,
+      },
+    }),
+  );
+  await expect(projectPromise).resolves.toMatchObject({
+    projectId: "project_target",
+    previousProjectId: "project_sdk",
+    changed: true,
+  });
+
   unsubscribe();
   ws.message(
     sessionMessage({

@@ -1053,6 +1053,28 @@ export const WorkspacePinSetRequestSchema = z.object({
   requestId: z.string(),
 });
 
+// Moves a workspace (active or archived) into another active project on the same host.
+// Only the workspace's project membership changes; agents, terminals and files are untouched.
+export const WorkspaceProjectSetRequestSchema = z.object({
+  type: z.literal("workspace.project.set.request"),
+  workspaceId: z.string(),
+  projectId: z.string(),
+  requestId: z.string(),
+});
+
+// Moves every workspace of the source project into the target project, then removes the
+// source only when no workspace is left in it. Removal never archives anything.
+export const ProjectMergeRequestSchema = z.object({
+  type: z.literal("project.merge.request"),
+  sourceProjectId: z.string(),
+  targetProjectId: z.string(),
+  // Keep the emptied source project instead of removing it.
+  keepSource: z.boolean().optional(),
+  // Report what would move without changing anything.
+  dryRun: z.boolean().optional(),
+  requestId: z.string(),
+});
+
 export const WorkspaceLabelColorSchema = z.enum(WORKSPACE_LABEL_COLORS);
 export const WorkspaceLabelDefinitionSchema = z.object({
   name: z.string(),
@@ -2237,6 +2259,35 @@ export const WorkspacePinSetResponseSchema = z.object({
   payload: WorkspacePinSetResponsePayloadSchema,
 });
 
+export const ProjectMergeWorkspaceSchema = z.object({
+  workspaceId: z.string(),
+  name: z.string(),
+  cwd: z.string(),
+  archived: z.boolean(),
+});
+
+export const ProjectMergeResponsePayloadSchema = z.object({
+  requestId: z.string(),
+  sourceProjectId: z.string(),
+  targetProjectId: z.string(),
+  accepted: z.boolean(),
+  dryRun: z.boolean(),
+  // Workspaces moved into the target, or that would move in a dry run.
+  workspaces: z.array(ProjectMergeWorkspaceSchema),
+  // Whether the source was removed, or would be removed in a dry run.
+  sourceRemoved: z.boolean(),
+  // Why the source was kept, e.g. "keep_source" or "workspaces_remain". Null when removed.
+  sourceKeptReason: z.string().nullable(),
+  // Running service hostnames that keep the source project's slug until their script restarts.
+  retainedServiceHostnames: z.array(z.string()),
+  error: z.string().nullable(),
+});
+
+export const ProjectMergeResponseSchema = z.object({
+  type: z.literal("project.merge.response"),
+  payload: ProjectMergeResponsePayloadSchema,
+});
+
 export const WorkspaceRecoveryStateSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("recoverable"),
@@ -3370,6 +3421,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ProjectRemoveRequestSchema,
   WorkspaceTitleSetRequestSchema,
   WorkspacePinSetRequestSchema,
+  WorkspaceProjectSetRequestSchema,
+  ProjectMergeRequestSchema,
   WorkspaceLabelListRequestSchema,
   WorkspaceLabelAssignmentSetRequestSchema,
   WorkspaceLabelUpdateRequestSchema,
@@ -3880,6 +3933,9 @@ export const ServerInfoStatusPayloadSchema = z
         providerSubagentNesting: z.boolean().optional(),
         // COMPAT(workspacePinning): added in v0.1.107, remove gate after 2027-01-12.
         workspacePinning: z.boolean().optional(),
+        // COMPAT(workspaceProjectMove): added after v0.15.0, remove gate after 2027-05-07.
+        // Covers workspace.project.set and project.merge.
+        workspaceProjectMove: z.boolean().optional(),
         // COMPAT(workspaceMarkUnread): added in v0.5.0, remove after 2027-08-20.
         workspaceMarkUnread: z.boolean().optional(),
         // COMPAT(hubRelationship): added in v0.1.X, drop the gate when floor >= v0.1.X.
@@ -5137,6 +5193,26 @@ export const AgentCreateResponseSchema = z.object({
     error: z.string().nullable(),
     creation: CreationSnapshotSchema.optional(),
   }),
+});
+
+export const WorkspaceProjectSetResponsePayloadSchema = z.object({
+  requestId: z.string(),
+  workspaceId: z.string(),
+  accepted: z.boolean(),
+  // The moved workspace. Null on error, and for archived workspaces, which have no descriptor.
+  workspace: WorkspaceDescriptorPayloadSchema.nullable(),
+  projectId: z.string().nullable(),
+  previousProjectId: z.string().nullable(),
+  // False when the workspace already belonged to the requested project.
+  changed: z.boolean(),
+  // Running service hostnames that keep the previous project's slug until their script restarts.
+  retainedServiceHostnames: z.array(z.string()),
+  error: z.string().nullable(),
+});
+
+export const WorkspaceProjectSetResponseSchema = z.object({
+  type: z.literal("workspace.project.set.response"),
+  payload: WorkspaceProjectSetResponsePayloadSchema,
 });
 
 export const WorkspaceCreateResponseSchema = z.object({
@@ -7243,6 +7319,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ProjectRemoveResponseSchema,
   WorkspaceTitleSetResponseSchema,
   WorkspacePinSetResponseSchema,
+  WorkspaceProjectSetResponseSchema,
+  ProjectMergeResponseSchema,
   WorkspaceRecoveryInspectResponseSchema,
   WorkspaceRecoveryRestoreResponseSchema,
   WaitForFinishResponseMessageSchema,
@@ -7453,6 +7531,13 @@ export type WorkspaceTitleSetResponsePayload = z.infer<
 >;
 export type WorkspacePinSetResponse = z.infer<typeof WorkspacePinSetResponseSchema>;
 export type WorkspacePinSetResponsePayload = z.infer<typeof WorkspacePinSetResponsePayloadSchema>;
+export type WorkspaceProjectSetResponse = z.infer<typeof WorkspaceProjectSetResponseSchema>;
+export type WorkspaceProjectSetResponsePayload = z.infer<
+  typeof WorkspaceProjectSetResponsePayloadSchema
+>;
+export type ProjectMergeResponse = z.infer<typeof ProjectMergeResponseSchema>;
+export type ProjectMergeResponsePayload = z.infer<typeof ProjectMergeResponsePayloadSchema>;
+export type ProjectMergeWorkspace = z.infer<typeof ProjectMergeWorkspaceSchema>;
 export type WorkspaceRecoveryState = z.infer<typeof WorkspaceRecoveryStateSchema>;
 export type WorkspaceRecoveryInspectResponse = z.infer<
   typeof WorkspaceRecoveryInspectResponseSchema
@@ -7603,6 +7688,8 @@ export type ProjectIconSetRequest = z.infer<typeof ProjectIconSetRequestSchema>;
 export type ProjectRemoveRequest = z.infer<typeof ProjectRemoveRequestSchema>;
 export type WorkspaceTitleSetRequest = z.infer<typeof WorkspaceTitleSetRequestSchema>;
 export type WorkspacePinSetRequest = z.infer<typeof WorkspacePinSetRequestSchema>;
+export type WorkspaceProjectSetRequest = z.infer<typeof WorkspaceProjectSetRequestSchema>;
+export type ProjectMergeRequest = z.infer<typeof ProjectMergeRequestSchema>;
 export type WorkspaceRecoveryInspectRequest = z.infer<typeof WorkspaceRecoveryInspectRequestSchema>;
 export type WorkspaceRecoveryRestoreRequest = z.infer<typeof WorkspaceRecoveryRestoreRequestSchema>;
 export type SetAgentModeRequestMessage = z.infer<typeof SetAgentModeRequestMessageSchema>;

@@ -35,10 +35,12 @@ paseo project create [path]
 paseo project ls
 paseo project rename <project-id> <name>
 paseo project rename <project-id> --reset
+paseo project merge <source-project-id> --into <target-project-id> [--keep-source] [--dry-run]
 paseo project delete <project-id>
+paseo workspace move <workspace-id> --project <project-id>
 ```
 
-For a local daemon, `project create` defaults to the current directory and resolves relative paths on the CLI machine. With `--host` or `PASEO_HOST`, always provide a path; the target daemon interprets it on its own machine. Deleting a project archives its active workspaces and removes the project from Paseo without deleting the project directory.
+For a local daemon, `project create` defaults to the current directory and resolves relative paths on the CLI machine. With `--host` or `PASEO_HOST`, always provide a path; the target daemon interprets it on its own machine. Deleting a project archives its active workspaces and removes the project from Paseo without deleting the project directory. Moving a workspace or merging projects changes only project membership: agents keep running, and a merge removes the source only once it is empty.
 
 ## Workspaces
 
@@ -53,6 +55,10 @@ Choose `baseBranch` explicitly: `origin/main` selects the remote-tracking branch
 **`archive_workspace`** — `{ workspaceId }`. Archives the workspace, its agents, and its terminals. Local directories remain; Paseo removes an owned worktree only after its final active workspace reference is archived.
 
 **`rename_workspace`** — `{ workspaceId, name }`. Rename workspace.
+
+**`move_workspace`** — `{ workspaceId, projectId }`. Move a workspace, active or archived, to another active project on this host. Agents are untouched; running services keep their hostnames until restarted.
+
+**`merge_project`** — `{ sourceProjectId, targetProjectId, keepSource?, dryRun? }`. Move every workspace of the source into the target, then remove the source once it is empty. It never archives anything.
 
 ## Workspace scripts
 

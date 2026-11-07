@@ -135,15 +135,18 @@ paseo project create
 paseo project ls
 ```
 
-使用 `paseo project ls` 中的项目 ID 重命名、重置或删除项目：
+使用 `paseo project ls` 中的项目 ID 重命名、重置、合并或删除项目：
 
 ```bash
 paseo project rename <project-id> "My app"
 paseo project rename <project-id> --reset
+paseo project merge <source-project-id> --into <target-project-id>
 paseo project delete <project-id>
 ```
 
 `--reset` 恢复由项目目录推导出的名称。删除项目会归档它的活动工作区，并把项目从 Paseo 中移除。它不会删除项目目录。
+
+合并会把源项目的所有工作区（包括已归档的）移入目标项目，然后移除已清空的源项目。Agent 继续运行，磁盘上的内容不会改变。添加 `--dry-run` 可列出将要移动的内容，添加 `--keep-source` 可保留清空后的源项目。
 
 对于本地 daemon，`paseo project create [path]` 默认使用当前目录，并在 CLI 所在机器上解析相对路径。当你使用全局的 `--host` 选项或 `PASEO_HOST` 时，请提供目标 daemon 能访问的路径：
 
@@ -191,7 +194,7 @@ paseo run --workspace <workspace-id> --no-wait "review the checkout flow"
 
 无论在列表中是否可见，都可以通过确切的工作区 ID 和 Agent ID 访问它们。
 
-然后列出、使用、重命名或归档它：
+然后列出、使用、重命名、移动或归档它：
 
 ```bash
 paseo workspace ls
@@ -199,8 +202,11 @@ paseo workspace ls --background               # Also include background workspac
 paseo run --workspace <workspace-id> "implement authentication"
 paseo workspace rename <workspace-id> "Auth rework"
 paseo workspace rename <workspace-id> --reset   # back to the branch or directory name
+paseo workspace move <workspace-id> --project <project-id>
 paseo workspace archive <workspace-id>
 ```
+
+移动工作区只会改变它所属的项目。它的 Agent 继续运行，正在运行的服务会保留当前主机名，直到其脚本重启。
 
 当 Paseo 无法从源检出推断代码托管平台时，为 PR 检出添加 `--forge <name>`。setup 钩子和服务见 [Git worktree](/docs/worktrees)。
 

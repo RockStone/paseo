@@ -172,6 +172,11 @@ import {
   removeProjectCustomIcon,
   setProjectCustomIcon,
 } from "../utils/project-custom-icon.js";
+import {
+  mergeProjects,
+  moveWorkspaceToProject,
+  type ProjectMergeDependencies,
+} from "./workspace-project-move.js";
 import { VoiceSessions } from "./session/voice/index.js";
 import { CheckoutSession } from "./session/checkout/checkout-session.js";
 import {
@@ -3102,6 +3107,10 @@ export class Session {
         return this.handleWorkspaceTitleSetRequest(msg.workspaceId, msg.title, msg.requestId);
       case "workspace.pin.set.request":
         return this.handleWorkspacePinSetRequest(msg.workspaceId, msg.pinned, msg.requestId);
+      case "workspace.project.set.request":
+        return this.handleWorkspaceProjectSetRequest(msg);
+      case "project.merge.request":
+        return this.handleProjectMergeRequest(msg);
       default:
         return undefined;
     }
@@ -3949,6 +3958,149 @@ export class Session {
           accepted: false,
           title: null,
           error: getErrorMessageOr(error, "Failed to set workspace title"),
+        },
+      });
+    }
+  }
+
+  private workspaceProjectMoveDependencies(): ProjectMergeDependencies {
+    return {
+      workspaceRegistry: this.workspaceRegistry,
+      projectRegistry: this.projectRegistry,
+      listWorkspaceServiceHostnames: (workspaceId) =>
+        this.serviceProxy
+          ?.getWorkspaceHealthTargets(workspaceId)
+          .map((target) => target.hostname) ?? [],
+      removeProjectIcon: (projectId) =>
+        removeProjectCustomIcon({ paseoHome: this.paseoHome, projectId }).catch((error) => {
+          this.sessionLogger.warn(
+            { err: error, projectId },
+            "Failed to clean up merged project icon",
+          );
+        }),
+    };
+  }
+
+  private async handleWorkspaceProjectSetRequest(
+    request: Extract<SessionInboundMessage, { type: "workspace.project.set.request" }>,
+  ): Promise<void> {
+    const { workspaceId, projectId, requestId } = request;
+    this.sessionLogger.info(
+      { workspaceId, projectId, requestId },
+      "session: workspace.project.set.request",
+    );
+    try {
+      const result = await moveWorkspaceToProject(this.workspaceProjectMoveDependencies(), {
+        workspaceId,
+        projectId,
+      });
+      // Archived workspaces have no directory descriptor.
+      const workspace = result.workspace.archivedAt
+        ? null
+        : await this.describeWorkspaceRecord(result.workspace);
+      this.emit({
+        type: "workspace.project.set.response",
+        payload: {
+          requestId,
+          workspaceId,
+          accepted: true,
+          workspace,
+          projectId: result.workspace.projectId,
+          previousProjectId: result.previousProjectId,
+          changed: result.changed,
+          retainedServiceHostnames: result.retainedServiceHostnames,
+          error: null,
+        },
+      });
+      if (!result.changed) return;
+      if (result.emptiedProject) {
+        await this.emitProjectUpdate({ kind: "upsert", project: result.emptiedProject });
+      }
+      await this.emitWorkspaceUpdatesForWorkspaceIds([workspaceId]);
+    } catch (error) {
+      this.sessionLogger.error(
+        { err: error, workspaceId, projectId, requestId },
+        "session: workspace.project.set.request error",
+      );
+      this.emit({
+        type: "workspace.project.set.response",
+        payload: {
+          requestId,
+          workspaceId,
+          accepted: false,
+          workspace: null,
+          projectId: null,
+          previousProjectId: null,
+          changed: false,
+          retainedServiceHostnames: [],
+          error: getErrorMessageOr(error, "Failed to move workspace"),
+        },
+      });
+    }
+  }
+
+  private async handleProjectMergeRequest(
+    request: Extract<SessionInboundMessage, { type: "project.merge.request" }>,
+  ): Promise<void> {
+    const { sourceProjectId, targetProjectId, requestId } = request;
+    const dryRun = request.dryRun === true;
+    this.sessionLogger.info(
+      { sourceProjectId, targetProjectId, requestId, dryRun, keepSource: request.keepSource },
+      "session: project.merge.request",
+    );
+    try {
+      const result = await mergeProjects(this.workspaceProjectMoveDependencies(), {
+        sourceProjectId,
+        targetProjectId,
+        keepSource: request.keepSource === true,
+        dryRun,
+      });
+      this.emit({
+        type: "project.merge.response",
+        payload: {
+          requestId,
+          sourceProjectId,
+          targetProjectId,
+          accepted: true,
+          dryRun: result.dryRun,
+          workspaces: result.workspaces,
+          sourceRemoved: result.sourceRemoved,
+          sourceKeptReason: result.sourceKeptReason,
+          retainedServiceHostnames: result.retainedServiceHostnames,
+          error: null,
+        },
+      });
+      if (result.dryRun) return;
+      if (result.emptiedProject) {
+        await this.emitProjectUpdate({ kind: "upsert", project: result.emptiedProject });
+      }
+      await this.emitWorkspaceUpdatesForWorkspaceIds(
+        result.workspaces.map((workspace) => workspace.workspaceId),
+      );
+      if (result.sourceRemoved) {
+        // Same removal signal project.remove sends for a project without workspaces.
+        await this.emitWorkspaceUpdatesForWorkspaceIds([sourceProjectId], {
+          removedProjectId: sourceProjectId,
+        });
+      }
+    } catch (error) {
+      this.sessionLogger.error(
+        { err: error, sourceProjectId, targetProjectId, requestId },
+        "session: project.merge.request error",
+      );
+      this.emit({
+        type: "project.merge.response",
+        payload: {
+          requestId,
+          sourceProjectId,
+          targetProjectId,
+          accepted: false,
+          dryRun,
+          workspaces: [],
+          sourceRemoved: false,
+          sourceKeptReason: null,
+          retainedServiceHostnames: [],
+          error: getErrorMessageOr(error, "Failed to merge projects"),
         },
       });
     }

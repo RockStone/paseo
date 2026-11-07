@@ -4,6 +4,7 @@ import { addJsonAndDaemonHostOptions } from "../../utils/command-options.js";
 import { runCreateCommand } from "./create.js";
 import { runDeleteCommand } from "./delete.js";
 import { runLsCommand } from "./ls.js";
+import { runMergeCommand } from "./merge.js";
 import { runRenameCommand } from "./rename.js";
 
 export function createProjectCommand(): Command {
@@ -29,6 +30,16 @@ export function createProjectCommand(): Command {
       .option("--reset", "Clear the custom name and use the directory name")
       .allowExcessArguments(false),
   ).action(withOutput(runRenameCommand));
+
+  addJsonAndDaemonHostOptions(
+    project
+      .command("merge")
+      .description("Move every workspace of a project into another, then remove the empty source")
+      .argument("<source-project-id>", "Project whose workspaces move")
+      .requiredOption("--into <project-id>", "Target project id")
+      .option("--keep-source", "Keep the emptied source project")
+      .option("--dry-run", "List what would move without changing anything"),
+  ).action(withOutput(runMergeCommand));
 
   addJsonAndDaemonHostOptions(
     project

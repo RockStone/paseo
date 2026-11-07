@@ -229,6 +229,24 @@ export const PASEO_TOOL_CATALOG = {
     context: field("title"),
     detail: { inputOrder: ["title", "workspaceId"] },
   },
+  move_workspace: {
+    label: "Move workspace",
+    completedLabel: "Moved workspace",
+    context: field("projectId"),
+    detail: {
+      inputOrder: ["workspaceId", "projectId"],
+      outputFields: ["previousProjectId", "projectId", "retainedServiceHostnames"],
+    },
+  },
+  merge_project: {
+    label: "Merge project",
+    completedLabel: "Merged project",
+    context: field("sourceProjectId"),
+    detail: {
+      inputOrder: ["sourceProjectId", "targetProjectId", "keepSource", "dryRun"],
+      outputFields: ["workspaces", "sourceRemoved", "sourceKeptReason"],
+    },
+  },
   archive_workspace: {
     label: "Archive workspace",
     completedLabel: "Archived workspace",

@@ -101,6 +101,8 @@ Paseo Agent 默认会收到完成、错误和权限通知；设置 `notifyOnFini
 | `create_workspace`  | 创建本地工作区或使用 worktree 隔离的工作区。worktree 可以从某个分支分出、检出一个分支或一个 PR。`background: true` 会把它从默认列表和侧边栏中隐藏，同时保留历史记录和按 ID 访问。省略时继承调用方 Agent 工作区的设置；没有调用方时默认为 false。 |
 | `list_workspaces`   | 列出活动的工作区及其目录和隔离方式。使用 `includeBackground: true` 可以包含后台工作区。                                                                                                                                                          |
 | `rename_workspace`  | 修改当前或指定工作区在界面上显示的名称。                                                                                                                                                                                                         |
+| `move_workspace`    | 把工作区（活动或已归档）移动到同一主机上的另一个项目。Agent 继续运行；正在运行的服务会保留主机名，直到其脚本重启。                                                                                                                               |
+| `merge_project`     | 把一个项目的所有工作区移入另一个项目，然后移除已清空的源项目。`dryRun` 列出将要移动的内容；`keepSource` 保留清空后的源项目。                                                                                                                     |
 | `archive_workspace` | 归档工作区及其拥有的会话。                                                                                                                                                                                                                       |
 
 对于 worktree 隔离，`create_workspace` 接受与应用中相同的常用选择：从某个基础分支分出、检出一个已有分支，或检出一个 Pull Request。worktree 仍然是工作区生命周期的实现细节。

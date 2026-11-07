@@ -99,6 +99,13 @@ import type {
   WorkspaceRegistry,
 } from "../../workspace-registry.js";
 import { resolveWorktreeSourceCwd } from "../../workspace-source.js";
+import {
+  WorkspaceProjectMoveError,
+  mergeProjects,
+  moveWorkspaceToProject,
+  type ProjectMergeDependencies,
+} from "../../workspace-project-move.js";
+import { removeProjectCustomIcon } from "../../../utils/project-custom-icon.js";
 import type { WorkspaceScriptsService } from "../../session/workspace-scripts/workspace-scripts-service.js";
 import {
   type ArchiveCommandDependencies,
@@ -139,8 +146,10 @@ export interface PaseoToolHostDependencies {
   listActiveWorkspaces?: ArchiveDependencies["listActiveWorkspaces"];
   archiveWorkspaceRecord?: ArchiveDependencies["archiveWorkspaceRecord"];
   emitWorkspaceUpdatesForWorkspaceIds?: ArchiveDependencies["emitWorkspaceUpdatesForWorkspaceIds"];
-  workspaceRegistry?: Pick<WorkspaceRegistry, "get" | "list" | "upsert">;
-  projectRegistry?: Pick<ProjectRegistry, "get" | "list">;
+  workspaceRegistry?: Pick<WorkspaceRegistry, "get" | "list" | "upsert" | "update">;
+  projectRegistry?: Pick<ProjectRegistry, "get" | "list" | "update" | "remove">;
+  /** Hostnames of a workspace's running services registered with the service proxy. */
+  listWorkspaceServiceHostnames?: (workspaceId: string) => string[];
   createDirectoryWorkspace?: (
     cwd: string,
     title?: string | null,
@@ -2374,6 +2383,140 @@ function createToolCatalog(
           success: true,
           workspaceId,
           title,
+        }),
+      };
+    },
+  );
+
+  function workspaceProjectMoveDependencies(): ProjectMergeDependencies {
+    if (!options.workspaceRegistry || !options.projectRegistry) {
+      throw new Error("Workspace and project registries are required to move workspaces");
+    }
+    const paseoHome = options.paseoHome;
+    return {
+      workspaceRegistry: options.workspaceRegistry,
+      projectRegistry: options.projectRegistry,
+      listWorkspaceServiceHostnames: options.listWorkspaceServiceHostnames,
+      removeProjectIcon: paseoHome
+        ? (projectId) =>
+            removeProjectCustomIcon({ paseoHome, projectId }).catch((error) => {
+              childLogger.warn({ err: error, projectId }, "Failed to clean up merged project icon");
+            })
+        : undefined,
+    };
+  }
+
+  async function runWorkspaceProjectMove<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof WorkspaceProjectMoveError) {
+        throw new PaseoToolInputError(error.message);
+      }
+      throw error;
+    }
+  }
+
+  registerTool(
+    "move_workspace",
+    {
+      title: "Move workspace",
+      description:
+        "Move a workspace, active or archived, to another active project on this host. Only project membership changes: agents keep running and nothing on disk is touched. Running services keep their current hostnames until their scripts restart.",
+      inputSchema: {
+        workspaceId: z.string().trim().min(1).describe("Workspace id to move."),
+        projectId: z.string().trim().min(1).describe("Target project id."),
+      },
+      outputSchema: {
+        success: z.boolean(),
+        workspaceId: z.string(),
+        projectId: z.string(),
+        previousProjectId: z.string(),
+        changed: z.boolean(),
+        retainedServiceHostnames: z.array(z.string()),
+      },
+    },
+    async ({ workspaceId, projectId }) => {
+      if (!options.emitWorkspaceUpdatesForWorkspaceIds) {
+        throw new Error("Workspace update emitter is required to move workspaces");
+      }
+      const result = await runWorkspaceProjectMove(() =>
+        moveWorkspaceToProject(workspaceProjectMoveDependencies(), { workspaceId, projectId }),
+      );
+      if (result.changed) {
+        await options.emitWorkspaceUpdatesForWorkspaceIds([workspaceId]);
+      }
+      return {
+        content: [],
+        structuredContent: ensureValidJson({
+          success: true,
+          workspaceId,
+          projectId: result.workspace.projectId,
+          previousProjectId: result.previousProjectId,
+          changed: result.changed,
+          retainedServiceHostnames: result.retainedServiceHostnames,
+        }),
+      };
+    },
+  );
+
+  registerTool(
+    "merge_project",
+    {
+      title: "Merge project",
+      description:
+        "Move every workspace of the source project, active and archived, into the target project, then remove the source once nothing is left in it. Never archives a workspace or interrupts an agent. Use dryRun to list what would move.",
+      inputSchema: {
+        sourceProjectId: z.string().trim().min(1).describe("Project whose workspaces move."),
+        targetProjectId: z.string().trim().min(1).describe("Active project that receives them."),
+        keepSource: z.boolean().optional().describe("Keep the emptied source project."),
+        dryRun: z
+          .boolean()
+          .optional()
+          .describe("Report what would move without changing anything."),
+      },
+      outputSchema: {
+        success: z.boolean(),
+        dryRun: z.boolean(),
+        workspaces: z.array(
+          z.object({
+            workspaceId: z.string(),
+            name: z.string(),
+            cwd: z.string(),
+            archived: z.boolean(),
+          }),
+        ),
+        sourceRemoved: z.boolean(),
+        sourceKeptReason: z.string().nullable(),
+        retainedServiceHostnames: z.array(z.string()),
+      },
+    },
+    async ({ sourceProjectId, targetProjectId, keepSource, dryRun }) => {
+      if (!options.emitWorkspaceUpdatesForWorkspaceIds) {
+        throw new Error("Workspace update emitter is required to merge projects");
+      }
+      const result = await runWorkspaceProjectMove(() =>
+        mergeProjects(workspaceProjectMoveDependencies(), {
+          sourceProjectId,
+          targetProjectId,
+          keepSource: keepSource === true,
+          dryRun: dryRun === true,
+        }),
+      );
+      if (!result.dryRun && result.workspaces.length > 0) {
+        await options.emitWorkspaceUpdatesForWorkspaceIds(
+          result.workspaces.map((workspace) => workspace.workspaceId),
+        );
+      }
+      return {
+        content: [],
+        structuredContent: ensureValidJson({
+          success: true,
+          dryRun: result.dryRun,
+          workspaces: result.workspaces,
+          sourceRemoved: result.sourceRemoved,
+          sourceKeptReason: result.sourceKeptReason,
+          retainedServiceHostnames: result.retainedServiceHostnames,
         }),
       };
     },

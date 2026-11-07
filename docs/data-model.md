@@ -2,7 +2,7 @@
 
 ## Project identity
 
-Projects are allocated for the exact root selected by the caller, normalized lexically with `path.resolve` (never `realpath`). New project IDs are opaque `prj_<16 hex>` values. Existing remote-shaped or path-shaped IDs are retained as readable compatibility records and are never rekeyed. An active exact root is idempotent; archived-only matches do not resurrect an old project. Workspace `projectId` is stable membership: reconciliation may update git-derived kind and branch metadata, but never rehomes a workspace or changes a project's root, ID, or default name.
+Projects are allocated for the exact root selected by the caller, normalized lexically with `path.resolve` (never `realpath`). One exception: a workspace created without a `projectId` from inside a linked worktree (Paseo-owned or a plain `git worktree add`) joins the active project rooted at the same relative path in the main repo, or else the project of an active workspace there. Only when neither exists is a project allocated at the worktree's own root. `projectKey` never selects membership, so unrelated clones of one remote stay separate projects. New project IDs are opaque `prj_<16 hex>` values. Existing remote-shaped or path-shaped IDs are retained as readable compatibility records and are never rekeyed. An active exact root is idempotent; archived-only matches do not resurrect an old project. Workspace `projectId` is stable membership: reconciliation may update git-derived kind and branch metadata, but never rehomes a workspace or changes a project's root, ID, or default name. Only an explicit move changes it: `workspace.project.set` or `project.merge` (CLI `paseo workspace move` / `paseo project merge`, MCP `move_workspace` / `merge_project`). A move rewrites only `projectId` and `updatedAt`, because agents and terminals are keyed by `workspaceId`. A merge moves archived workspaces too and deletes the source project record only when no workspace references it.
 
 `projectKey` is a persisted, opaque equivalence key used only to group the same logical project
 across hosts. It is separate from the host-local `projectId`; today's producer prefers a normalized
@@ -489,7 +489,9 @@ Active exact roots are idempotent using lexical platform-equivalence semantics. 
 remote-shaped and path-shaped IDs remain readable, including duplicate roots; reconciliation never
 merges them, transfers names, archives them, or moves workspace foreign keys. An explicit
 workspace `projectId` is authoritative when it names an active project, regardless of cwd
-containment. Archived-only exact-root records are not resurrected by explicit add/open; a fresh
+containment. Explicit project add always uses the exact selected root; the linked-worktree rule in
+[Project identity](#project-identity) applies only to workspace creation without a `projectId`, and
+an active workspace already at the cwd keeps its project. Archived-only exact-root records are not resurrected by explicit add/open; a fresh
 opaque project is allocated instead. Agent restore is separate and restores the agent's existing
 workspace together with its owning project.
 

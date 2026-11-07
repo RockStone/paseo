@@ -34,6 +34,7 @@ import type {
   SessionOutboundMessage,
   WorkspaceDescriptorPayload,
   WorkspaceCreateRequest,
+  WorkspaceProjectSetResponsePayload,
 } from "@getpaseo/protocol/messages";
 import { DaemonClient, type CreateAgentRequestOptions } from "./daemon-client.js";
 import {
@@ -189,6 +190,8 @@ export interface PaseoWorkspaceHandle {
   current(): PaseoWorkspace | null;
   refresh(options?: { requestId?: string }): Promise<PaseoWorkspace | null>;
   setTitle(title: string | null, requestId?: string): Promise<{ title: string | null }>;
+  /** Moves this workspace into another project on the same host. Requires `workspaceProjectMove`. */
+  setProject(projectId: string, requestId?: string): Promise<WorkspaceProjectSetResponsePayload>;
   archive(requestId?: string): Promise<PaseoWorkspaceArchiveResult>;
   /**
    * Subscribes to already-emitted daemon workspace_update events for this id.
@@ -874,6 +877,8 @@ function createWorkspaceHandleFactory(
       current: () => current,
       refresh,
       setTitle: (title, requestId) => daemonClient.setWorkspaceTitle(id, title, requestId),
+      setProject: (projectId, requestId) =>
+        daemonClient.setWorkspaceProject(id, projectId, requestId),
       archive: async (requestId) => {
         const result = await daemonClient.archiveWorkspace(id, requestId);
         if (current) {

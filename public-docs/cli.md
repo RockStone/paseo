@@ -141,15 +141,18 @@ paseo project create
 paseo project ls
 ```
 
-Use the project ID from `paseo project ls` to rename, reset, or delete a project:
+Use the project ID from `paseo project ls` to rename, reset, merge, or delete a project:
 
 ```bash
 paseo project rename <project-id> "My app"
 paseo project rename <project-id> --reset
+paseo project merge <source-project-id> --into <target-project-id>
 paseo project delete <project-id>
 ```
 
 `--reset` restores the name derived from the project directory. Deleting a project archives its active workspaces and removes the project from Paseo. It does not delete the project directory.
+
+Merging moves every workspace of the source project, archived ones included, into the target, then removes the empty source. Agents keep running and nothing on disk changes. Add `--dry-run` to list what would move, or `--keep-source` to keep the emptied source.
 
 For a local daemon, `paseo project create [path]` defaults to the current directory and resolves relative paths on the CLI machine. When you use the global `--host` option or `PASEO_HOST`, provide a path that the target daemon can access:
 
@@ -200,7 +203,7 @@ paseo run --workspace <workspace-id> --no-wait "review the checkout flow"
 
 Exact workspace and agent IDs remain accessible regardless of listing visibility.
 
-Then list, use, rename, or archive it:
+Then list, use, rename, move, or archive it:
 
 ```bash
 paseo workspace ls
@@ -208,8 +211,11 @@ paseo workspace ls --background               # Also include background workspac
 paseo run --workspace <workspace-id> "implement authentication"
 paseo workspace rename <workspace-id> "Auth rework"
 paseo workspace rename <workspace-id> --reset   # back to the branch or directory name
+paseo workspace move <workspace-id> --project <project-id>
 paseo workspace archive <workspace-id>
 ```
+
+Moving a workspace changes only the project it belongs to. Its agents keep running, and running services keep their current hostnames until their scripts restart.
 
 Add `--forge <name>` to PR checkout when Paseo cannot infer the forge from the source checkout. See [Git worktrees](/docs/worktrees) for setup hooks and services.
 

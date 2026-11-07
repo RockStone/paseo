@@ -1555,6 +1555,8 @@ export async function createPaseoDaemon(
     emitWorkspaceUpdatesForWorkspaceIds: emitWorkspaceUpdatesExternal,
     workspaceRegistry,
     projectRegistry,
+    listWorkspaceServiceHostnames: (workspaceId) =>
+      serviceProxy.getWorkspaceHealthTargets(workspaceId).map((target) => target.hostname),
     createDirectoryWorkspace: async (cwd, title, projectId, context) => {
       const workspace = await workspaceProvisioning.createWorkspaceForDirectory(
         cwd,

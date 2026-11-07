@@ -50,6 +50,8 @@ import {
   AgentSnapshotPayloadSchema,
 } from "@getpaseo/protocol/messages";
 import {
+  FileBackedProjectRegistry,
+  FileBackedWorkspaceRegistry,
   createPersistedProjectRecord,
   createPersistedWorkspaceRecord,
   type PersistedProjectRecord,
@@ -5132,6 +5134,169 @@ describe("rename_workspace MCP tool", () => {
     ).rejects.toThrow("Workspace wks_archived is archived");
     expect(upsertedWorkspaces).toEqual([]);
     expect(emittedWorkspaceIds).toEqual([]);
+  });
+});
+
+describe("move_workspace and merge_project MCP tools", () => {
+  const logger = createTestLogger();
+
+  async function createMoveFixture() {
+    const workdir = await mkdtemp(join(tmpdir(), "mcp-workspace-project-move-"));
+    const projectRegistry = new FileBackedProjectRegistry(join(workdir, "projects.json"), logger);
+    const workspaceRegistry = new FileBackedWorkspaceRegistry(
+      join(workdir, "workspaces.json"),
+      logger,
+    );
+    for (const projectId of ["proj_source", "proj_target"]) {
+      await projectRegistry.upsert(
+        createPersistedProjectRecord({
+          projectId,
+          rootPath: join(workdir, projectId),
+          kind: "git",
+          displayName: projectId,
+          createdAt: "2026-07-03T09:00:00.000Z",
+          updatedAt: "2026-07-03T09:00:00.000Z",
+        }),
+      );
+    }
+    for (const [workspaceId, archivedAt] of [
+      ["wks_active", null],
+      ["wks_archived", "2026-07-03T10:00:00.000Z"],
+    ] as const) {
+      await workspaceRegistry.upsert(
+        createPersistedWorkspaceRecord({
+          workspaceId,
+          projectId: "proj_source",
+          cwd: join(workdir, workspaceId),
+          kind: "local_checkout",
+          displayName: workspaceId,
+          createdAt: "2026-07-03T09:00:00.000Z",
+          updatedAt: "2026-07-03T09:00:00.000Z",
+          archivedAt,
+        }),
+      );
+    }
+    const { agentManager, agentStorage, spies } = createTestDeps();
+    spies.agentManager.listAgents.mockReturnValue([
+      createManagedAgent({ id: "agent-running", workspaceId: "wks_active" }),
+    ]);
+    const emittedWorkspaceIds: string[][] = [];
+    const server = await createAgentMcpServer({
+      agentManager,
+      agentStorage,
+      providerSnapshotManager: createOpenCodeManager().manager,
+      workspaceRegistry,
+      projectRegistry,
+      listWorkspaceServiceHostnames: (workspaceId) =>
+        workspaceId === "wks_active" ? ["web--main--source-1234abcd.localhost"] : [],
+      emitWorkspaceUpdatesForWorkspaceIds: async (workspaceIds) => {
+        emittedWorkspaceIds.push(Array.from(workspaceIds));
+      },
+      paseoHome: join(workdir, "paseo-home"),
+      logger,
+    });
+    return {
+      server,
+      spies,
+      projectRegistry,
+      workspaceRegistry,
+      emittedWorkspaceIds,
+      cleanup: () => rm(workdir, { recursive: true, force: true }),
+    };
+  }
+
+  it("moves a workspace and emits its update without touching agents", async () => {
+    const fixture = await createMoveFixture();
+    try {
+      const response = await invokeToolWithParsedInput(
+        registeredTool(fixture.server, "move_workspace"),
+        { workspaceId: "wks_active", projectId: "proj_target" },
+      );
+
+      expect(response.structuredContent).toEqual({
+        success: true,
+        workspaceId: "wks_active",
+        projectId: "proj_target",
+        previousProjectId: "proj_source",
+        changed: true,
+        retainedServiceHostnames: ["web--main--source-1234abcd.localhost"],
+      });
+      expect((await fixture.workspaceRegistry.get("wks_active"))?.projectId).toBe("proj_target");
+      expect(fixture.emittedWorkspaceIds).toEqual([["wks_active"]]);
+      expect(fixture.spies.agentManager.archiveAgent).not.toHaveBeenCalled();
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("rejects an unknown target project", async () => {
+    const fixture = await createMoveFixture();
+    try {
+      await expect(
+        invokeToolWithParsedInput(registeredTool(fixture.server, "move_workspace"), {
+          workspaceId: "wks_active",
+          projectId: "proj_missing",
+        }),
+      ).rejects.toThrow("Project not found: proj_missing");
+      expect((await fixture.workspaceRegistry.get("wks_active"))?.projectId).toBe("proj_source");
+      expect(fixture.emittedWorkspaceIds).toEqual([]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("merges every workspace and removes the emptied source", async () => {
+    const fixture = await createMoveFixture();
+    try {
+      const response = await invokeToolWithParsedInput(
+        registeredTool(fixture.server, "merge_project"),
+        { sourceProjectId: "proj_source", targetProjectId: "proj_target" },
+      );
+
+      expect(response.structuredContent).toMatchObject({
+        success: true,
+        dryRun: false,
+        sourceRemoved: true,
+        sourceKeptReason: null,
+        workspaces: [
+          { workspaceId: "wks_active", archived: false },
+          { workspaceId: "wks_archived", archived: true },
+        ],
+      });
+      expect(
+        (await fixture.workspaceRegistry.list()).map((workspace) => workspace.projectId),
+      ).toEqual(["proj_target", "proj_target"]);
+      expect((await fixture.workspaceRegistry.get("wks_active"))?.archivedAt).toBeNull();
+      expect(await fixture.projectRegistry.get("proj_source")).toBeNull();
+      expect(fixture.emittedWorkspaceIds).toEqual([["wks_active", "wks_archived"]]);
+      expect(fixture.spies.agentManager.archiveAgent).not.toHaveBeenCalled();
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("keeps the source when asked and changes nothing in a dry run", async () => {
+    const fixture = await createMoveFixture();
+    try {
+      const dryRun = await invokeToolWithParsedInput(
+        registeredTool(fixture.server, "merge_project"),
+        { sourceProjectId: "proj_source", targetProjectId: "proj_target", dryRun: true },
+      );
+      expect(dryRun.structuredContent).toMatchObject({ dryRun: true, sourceRemoved: true });
+      expect((await fixture.workspaceRegistry.get("wks_active"))?.projectId).toBe("proj_source");
+
+      const kept = await invokeToolWithParsedInput(
+        registeredTool(fixture.server, "merge_project"),
+        { sourceProjectId: "proj_source", targetProjectId: "proj_target", keepSource: true },
+      );
+      expect(kept.structuredContent).toMatchObject({
+        sourceRemoved: false,
+        sourceKeptReason: "keep_source",
+      });
+      expect(await fixture.projectRegistry.get("proj_source")).not.toBeNull();
+    } finally {
+      await fixture.cleanup();
+    }
   });
 });
 

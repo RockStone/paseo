@@ -5168,7 +5168,7 @@ test("open_project_request reclassifies an active directory workspace when git m
   expect(workspaces.get(workspaceId)?.projectId).toBe(cwd);
 });
 
-test("open_project_request gives a plain git worktree its own exact-root project", async () => {
+test("open_project_request puts a plain git worktree in its main repo's project", async () => {
   const emitted: SessionOutboundMessage[] = [];
   const session = createSessionForWorkspaceTests();
   const projects = new Map<string, ReturnType<typeof createPersistedProjectRecord>>();
@@ -5254,11 +5254,12 @@ test("open_project_request gives a plain git worktree its own exact-root project
   const response = findByType(emitted, "open_project_response");
 
   expect(response?.payload.error).toBeNull();
-  expect(response?.payload.workspace?.projectId).toMatch(/^prj_[0-9a-f]{16}$/);
+  expect(response?.payload.workspace?.projectId).toBe(repoRoot);
   const worktreeWorkspace = Array.from(workspaces.values()).find(
     (workspace) => workspace.cwd === cwd,
   );
-  expect(worktreeWorkspace?.projectId).toMatch(/^prj_[0-9a-f]{16}$/);
+  expect(worktreeWorkspace?.projectId).toBe(repoRoot);
+  expect(Array.from(projects.keys())).toEqual([repoRoot]);
 });
 
 test("open_project_request keeps archived records and allocates a fresh workspace", async () => {
@@ -8456,6 +8457,236 @@ test("workspace.pin.set.request stores the pin timestamp and emits an updated de
       pinnedAt: response?.payload.pinnedAt,
     },
   });
+});
+
+async function createWorkspaceProjectMoveFixture() {
+  const workdir = mkdtempSync(path.join(tmpdir(), "session-workspace-project-move-"));
+  const logger = createTestLogger();
+  const projectRegistry = new FileBackedProjectRegistry(
+    path.join(workdir, "projects.json"),
+    logger,
+  );
+  const workspaceRegistry = new FileBackedWorkspaceRegistry(
+    path.join(workdir, "workspaces.json"),
+    logger,
+  );
+  for (const projectId of ["proj-source", "proj-target"]) {
+    await projectRegistry.upsert(
+      createPersistedProjectRecord({
+        projectId,
+        rootPath: path.join(workdir, projectId),
+        kind: "git",
+        displayName: projectId,
+        createdAt: "2026-03-01T12:00:00.000Z",
+        updatedAt: "2026-03-01T12:00:00.000Z",
+      }),
+    );
+  }
+  await projectRegistry.upsert(
+    createPersistedProjectRecord({
+      projectId: "proj-archived",
+      rootPath: path.join(workdir, "proj-archived"),
+      kind: "git",
+      displayName: "proj-archived",
+      createdAt: "2026-03-01T12:00:00.000Z",
+      updatedAt: "2026-03-01T12:00:00.000Z",
+      archivedAt: "2026-03-02T12:00:00.000Z",
+    }),
+  );
+  await workspaceRegistry.upsert(
+    createPersistedWorkspaceRecord({
+      workspaceId: "ws-move",
+      projectId: "proj-source",
+      cwd: path.join(workdir, "proj-source"),
+      kind: "local_checkout",
+      displayName: "main",
+      createdAt: "2026-03-01T12:00:00.000Z",
+      updatedAt: "2026-03-01T12:00:00.000Z",
+    }),
+  );
+  await workspaceRegistry.upsert(
+    createPersistedWorkspaceRecord({
+      workspaceId: "ws-archived",
+      projectId: "proj-source",
+      cwd: path.join(workdir, "proj-source-old"),
+      kind: "local_checkout",
+      displayName: "old",
+      createdAt: "2026-03-01T12:00:00.000Z",
+      updatedAt: "2026-03-01T12:00:00.000Z",
+      archivedAt: "2026-03-02T12:00:00.000Z",
+    }),
+  );
+  const runningAgent = {
+    id: "agent-running",
+    workspaceId: "ws-move",
+    cwd: path.join(workdir, "proj-source"),
+    lifecycle: "running",
+  };
+  const archiveAgent = vi.fn(async () => ({ archivedAt: new Date().toISOString() }));
+  const closeAgent = vi.fn(async () => {});
+  const emitted: SessionOutboundMessage[] = [];
+  const session = createSessionForWorkspaceTests({
+    onMessage: (message) => emitted.push(message),
+    projectRegistry,
+    workspaceRegistry,
+    paseoHome: path.join(workdir, "paseo-home"),
+    agentManager: {
+      listAgents: () => [runningAgent],
+      getAgent: (agentId: string) => (agentId === runningAgent.id ? runningAgent : null),
+      archiveAgent,
+      closeAgent,
+    },
+  });
+  session.listAgentPayloads = async () => [];
+  return {
+    session,
+    emitted,
+    projectRegistry,
+    workspaceRegistry,
+    runningAgent,
+    archiveAgent,
+    closeAgent,
+    cleanup: () => rmSync(workdir, { recursive: true, force: true }),
+  };
+}
+
+test("workspace.project.set.request moves the workspace without touching its agents", async () => {
+  const fixture = await createWorkspaceProjectMoveFixture();
+  try {
+    await fixture.session.handleMessage({
+      type: "fetch_workspaces_request",
+      requestId: "sub-workspaces",
+      subscribe: { subscriptionId: "sub-workspaces" },
+    });
+
+    await fixture.session.handleMessage({
+      type: "workspace.project.set.request",
+      workspaceId: "ws-move",
+      projectId: "proj-target",
+      requestId: "req-move",
+    });
+
+    expect(findByType(fixture.emitted, "workspace.project.set.response")?.payload).toMatchObject({
+      requestId: "req-move",
+      workspaceId: "ws-move",
+      accepted: true,
+      projectId: "proj-target",
+      previousProjectId: "proj-source",
+      changed: true,
+      retainedServiceHostnames: [],
+      workspace: { id: "ws-move", projectId: "proj-target" },
+      error: null,
+    });
+    expect((await fixture.workspaceRegistry.get("ws-move"))?.projectId).toBe("proj-target");
+    expect(
+      filterByType(fixture.emitted, "workspace_update").map((message) => message.payload),
+    ).toContainEqual(
+      expect.objectContaining({
+        kind: "upsert",
+        workspace: expect.objectContaining({ id: "ws-move", projectId: "proj-target" }),
+      }),
+    );
+    expect(fixture.runningAgent.lifecycle).toBe("running");
+    expect(fixture.archiveAgent).not.toHaveBeenCalled();
+    expect(fixture.closeAgent).not.toHaveBeenCalled();
+    // The source keeps existing as a project without active workspaces.
+    expect(await fixture.projectRegistry.get("proj-source")).not.toBeNull();
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("workspace.project.set.request rejects unknown and archived target projects", async () => {
+  const fixture = await createWorkspaceProjectMoveFixture();
+  try {
+    for (const projectId of ["proj-missing", "proj-archived"]) {
+      await fixture.session.handleMessage({
+        type: "workspace.project.set.request",
+        workspaceId: "ws-move",
+        projectId,
+        requestId: `req-${projectId}`,
+      });
+    }
+
+    const responses = filterByType(fixture.emitted, "workspace.project.set.response");
+    expect(responses.map((response) => response.payload)).toEqual([
+      expect.objectContaining({
+        requestId: "req-proj-missing",
+        accepted: false,
+        workspace: null,
+        error: "Project not found: proj-missing",
+      }),
+      expect.objectContaining({
+        requestId: "req-proj-archived",
+        accepted: false,
+        workspace: null,
+        error: "Project is archived: proj-archived",
+      }),
+    ]);
+    expect((await fixture.workspaceRegistry.get("ws-move"))?.projectId).toBe("proj-source");
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("project.merge.request moves every workspace and removes the empty source", async () => {
+  const fixture = await createWorkspaceProjectMoveFixture();
+  try {
+    await fixture.session.handleMessage({
+      type: "project.merge.request",
+      sourceProjectId: "proj-source",
+      targetProjectId: "proj-target",
+      requestId: "req-merge",
+    });
+
+    expect(findByType(fixture.emitted, "project.merge.response")?.payload).toMatchObject({
+      requestId: "req-merge",
+      accepted: true,
+      dryRun: false,
+      sourceRemoved: true,
+      sourceKeptReason: null,
+      workspaces: [
+        { workspaceId: "ws-move", archived: false },
+        { workspaceId: "ws-archived", archived: true },
+      ],
+      error: null,
+    });
+    const workspaces = await fixture.workspaceRegistry.list();
+    expect(workspaces.map((workspace) => workspace.projectId)).toEqual([
+      "proj-target",
+      "proj-target",
+    ]);
+    expect((await fixture.workspaceRegistry.get("ws-move"))?.archivedAt).toBeNull();
+    expect(await fixture.projectRegistry.get("proj-source")).toBeNull();
+    expect(fixture.archiveAgent).not.toHaveBeenCalled();
+    expect(fixture.closeAgent).not.toHaveBeenCalled();
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("project.merge.request dry run leaves the registries unchanged", async () => {
+  const fixture = await createWorkspaceProjectMoveFixture();
+  try {
+    await fixture.session.handleMessage({
+      type: "project.merge.request",
+      sourceProjectId: "proj-source",
+      targetProjectId: "proj-target",
+      dryRun: true,
+      requestId: "req-merge-dry",
+    });
+
+    expect(findByType(fixture.emitted, "project.merge.response")?.payload).toMatchObject({
+      accepted: true,
+      dryRun: true,
+      sourceRemoved: true,
+      workspaces: [{ workspaceId: "ws-move" }, { workspaceId: "ws-archived" }],
+    });
+    expect((await fixture.workspaceRegistry.get("ws-move"))?.projectId).toBe("proj-source");
+    expect(await fixture.projectRegistry.get("proj-source")).not.toBeNull();
+  } finally {
+    fixture.cleanup();
+  }
 });
 
 test("workspace.title.set.request with whitespace-only title clears the title", async () => {

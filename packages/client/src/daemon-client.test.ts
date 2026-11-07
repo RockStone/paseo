@@ -4298,6 +4298,71 @@ test("sends project.remove.request", async () => {
   await expect(removePromise).resolves.toEqual({ removedWorkspaceIds: ["ws-main"] });
 });
 
+test("sends project.merge.request and rejects a refused merge", async () => {
+  const logger = createMockLogger();
+  const mock = createMockTransport();
+
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_unit_test",
+    logger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+
+  const connectPromise = client.connect();
+  mock.triggerOpen();
+  await connectPromise;
+
+  const mergePromise = client.mergeProject(
+    { sourceProjectId: "prj-a", targetProjectId: "prj-b", dryRun: true },
+    "req-merge",
+  );
+  expect(parseSentFrame(mock.sent[0])).toEqual({
+    type: "project.merge.request",
+    requestId: "req-merge",
+    sourceProjectId: "prj-a",
+    targetProjectId: "prj-b",
+    dryRun: true,
+  });
+  const payload = {
+    requestId: "req-merge",
+    sourceProjectId: "prj-a",
+    targetProjectId: "prj-b",
+    accepted: true,
+    dryRun: true,
+    workspaces: [{ workspaceId: "ws-1", name: "main", cwd: "/repo", archived: false }],
+    sourceRemoved: true,
+    sourceKeptReason: null,
+    retainedServiceHostnames: [],
+    error: null,
+  };
+  mock.triggerMessage(wrapSessionMessage({ type: "project.merge.response", payload }));
+  await expect(mergePromise).resolves.toEqual(payload);
+
+  const refusedPromise = client.mergeProject(
+    { sourceProjectId: "prj-a", targetProjectId: "prj-missing" },
+    "req-merge-refused",
+  );
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "project.merge.response",
+      payload: {
+        ...payload,
+        requestId: "req-merge-refused",
+        targetProjectId: "prj-missing",
+        accepted: false,
+        dryRun: false,
+        workspaces: [],
+        sourceRemoved: false,
+        error: "Project not found: prj-missing",
+      },
+    }),
+  );
+  await expect(refusedPromise).rejects.toThrow("Project not found: prj-missing");
+});
+
 test("sends worktree base-ref fields in create_paseo_worktree_request", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();

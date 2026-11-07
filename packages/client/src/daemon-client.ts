@@ -129,6 +129,8 @@ import type {
   PaseoConfigRaw,
   PaseoConfigRevision,
   WorkspaceCreateRequest,
+  WorkspaceProjectSetResponsePayload,
+  ProjectMergeResponsePayload,
   WorkspaceRecoveryState,
   PluginListItem,
   PluginLogEntry,
@@ -3513,6 +3515,47 @@ export class DaemonClient {
       throw new Error(payload.error ?? "setWorkspacePinned rejected");
     }
     return { pinnedAt: payload.pinnedAt };
+  }
+
+  async setWorkspaceProject(
+    workspaceId: string,
+    projectId: string,
+    requestId?: string,
+  ): Promise<WorkspaceProjectSetResponsePayload> {
+    const payload =
+      await this.sendNamespacedCorrelatedSessionRequest<"workspace.project.set.response">({
+        requestId,
+        message: { type: "workspace.project.set.request", workspaceId, projectId },
+      });
+    if (!payload.accepted) {
+      throw new Error(payload.error ?? "setWorkspaceProject rejected");
+    }
+    return payload;
+  }
+
+  async mergeProject(
+    input: {
+      sourceProjectId: string;
+      targetProjectId: string;
+      keepSource?: boolean;
+      dryRun?: boolean;
+    },
+    requestId?: string,
+  ): Promise<ProjectMergeResponsePayload> {
+    const payload = await this.sendNamespacedCorrelatedSessionRequest<"project.merge.response">({
+      requestId,
+      message: {
+        type: "project.merge.request",
+        sourceProjectId: input.sourceProjectId,
+        targetProjectId: input.targetProjectId,
+        ...(input.keepSource ? { keepSource: true } : {}),
+        ...(input.dryRun ? { dryRun: true } : {}),
+      },
+    });
+    if (!payload.accepted) {
+      throw new Error(payload.error ?? "mergeProject rejected");
+    }
+    return payload;
   }
 
   async inspectWorkspaceRecovery(
