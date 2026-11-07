@@ -546,6 +546,7 @@ export const ko: TranslationResources = {
     hoverCard: {
       agentId: "에이전트 {{id}}",
       workspaceId: "작업 공간 {{id}}",
+      projectId: "프로젝트 {{id}}",
       scriptsAccessibility: "워크스페이스 스크립트",
       copyPath: "경로 복사",
       copyBranchName: "브랜치 이름 복사",
@@ -1369,6 +1370,7 @@ export const ko: TranslationResources = {
     project: {
       actions: {
         menu: "프로젝트 작업",
+        copyProjectId: "프로젝트 ID 복사",
         openSettings: "프로젝트 설정 열기",
         openNewWindow: "새 창에서 열기",
         openNewWindowFailed: "새 창을 열 수 없습니다",

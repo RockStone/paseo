@@ -17,6 +17,7 @@ export interface WorkspaceClipboardActions {
   copyPath: (workspace: CopyableWorkspace) => void;
   copyBranchName: (workspace: Pick<CopyableWorkspace, "currentBranch">) => Promise<void>;
   copyWorkspaceId: (workspaceId: string) => Promise<void>;
+  copyProjectId: (projectId: string) => Promise<void>;
 }
 
 async function copyText(text: string): Promise<void> {
@@ -66,10 +67,11 @@ export function useWorkspaceClipboardActions(): WorkspaceClipboardActions {
     [t, toast],
   );
 
-  const copyWorkspaceId = useCallback(
-    async (workspaceId: string) => {
+  // Workspace and project IDs copy in full, with the same feedback.
+  const copyId = useCallback(
+    async (id: string) => {
       try {
-        await copyText(workspaceId);
+        await copyText(id);
         toast.copied();
       } catch {
         toast.error(t("workspace.tabs.toasts.copyFailed"));
@@ -79,7 +81,7 @@ export function useWorkspaceClipboardActions(): WorkspaceClipboardActions {
   );
 
   return useMemo(
-    () => ({ copyPath, copyBranchName, copyWorkspaceId }),
-    [copyBranchName, copyPath, copyWorkspaceId],
+    () => ({ copyPath, copyBranchName, copyWorkspaceId: copyId, copyProjectId: copyId }),
+    [copyBranchName, copyPath, copyId],
   );
 }

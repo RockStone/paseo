@@ -545,6 +545,7 @@ export const ar: TranslationResources = {
     hoverCard: {
       agentId: "الوكيل {{id}}",
       workspaceId: "مساحة العمل {{id}}",
+      projectId: "المشروع {{id}}",
       scriptsAccessibility: "البرامج النصية Workspace",
       copyPath: "نسخ المسار",
       copyBranchName: "نسخ اسم الفرع",
@@ -1362,6 +1363,7 @@ export const ar: TranslationResources = {
     project: {
       actions: {
         menu: "إجراءات المشروع",
+        copyProjectId: "نسخ معرّف المشروع",
         openSettings: "افتح إعدادات المشروع",
         openNewWindow: "Open in new window",
         openNewWindowFailed: "Couldn't open a new window",

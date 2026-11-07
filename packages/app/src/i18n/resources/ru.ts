@@ -550,6 +550,7 @@ export const ru: TranslationResources = {
     hoverCard: {
       agentId: "Агент {{id}}",
       workspaceId: "Рабочее пространство {{id}}",
+      projectId: "Проект {{id}}",
       scriptsAccessibility: "Скрипты рабочего пространства",
       copyPath: "Копировать путь",
       copyBranchName: "Копировать имя ветки",
@@ -1380,6 +1381,7 @@ export const ru: TranslationResources = {
     project: {
       actions: {
         menu: "Действия проекта",
+        copyProjectId: "Скопировать ID проекта",
         openSettings: "Открыть настройки проекта",
         openNewWindow: "Открыть в новом окне",
         openNewWindowFailed: "Не удалось открыть новое окно",

@@ -552,6 +552,7 @@ export const ptBR: TranslationResources = {
     hoverCard: {
       agentId: "Agente {{id}}",
       workspaceId: "Espaço de trabalho {{id}}",
+      projectId: "Projeto {{id}}",
       scriptsAccessibility: "Scripts do workspace",
       copyPath: "Copiar caminho",
       copyBranchName: "Copiar nome da branch",
@@ -1390,6 +1391,7 @@ export const ptBR: TranslationResources = {
     project: {
       actions: {
         menu: "Ações do projeto",
+        copyProjectId: "Copiar ID do projeto",
         openSettings: "Abrir configurações do projeto",
         openNewWindow: "Abrir em nova janela",
         openNewWindowFailed: "Não foi possível abrir uma nova janela",

@@ -551,6 +551,7 @@ export const ja: TranslationResources = {
     hoverCard: {
       agentId: "エージェント {{id}}",
       workspaceId: "ワークスペース {{id}}",
+      projectId: "プロジェクト {{id}}",
       scriptsAccessibility: "ワークスペーススクリプト",
       copyPath: "パスをコピー",
       copyBranchName: "ブランチ名をコピー",
@@ -1376,6 +1377,7 @@ export const ja: TranslationResources = {
     project: {
       actions: {
         menu: "プロジェクトアクション",
+        copyProjectId: "プロジェクト ID をコピー",
         openSettings: "プロジェクト設定を開く",
         openNewWindow: "新しいウィンドウで開く",
         openNewWindowFailed: "新しいウィンドウを開けませんでした",

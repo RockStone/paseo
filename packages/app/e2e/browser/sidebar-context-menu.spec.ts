@@ -118,6 +118,40 @@ test.describe("Sidebar context menus", () => {
     });
   }
 
+  test("project kebab shows the short project ID and project menus copy the full ID", async ({
+    page,
+  }, testInfo) => {
+    const workspace = await seedWorkspace({ repoPrefix: "sidebar-copy-project-id-" });
+    const projectViewKey = workspace.projectKey;
+    try {
+      await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+      await gotoAppShell(page);
+
+      await openProjectContextMenu(page, projectViewKey);
+      const contextMenu = page.getByTestId(`sidebar-project-context-menu-${projectViewKey}`);
+      await expect(contextMenu.getByRole("menuitem").nth(0)).toHaveText("Copy project id");
+      await contextMenu.getByRole("menuitem", { name: "Copy project id" }).click();
+      await expect.poll(() => readClipboard(page)).toBe(workspace.projectId);
+      await page.evaluate(() => navigator.clipboard.writeText(""));
+
+      await page.getByTestId(`sidebar-project-row-${projectViewKey}`).hover();
+      const kebab = page.getByTestId(`sidebar-project-kebab-${projectViewKey}`);
+      await kebab.hover();
+      const tooltip = page.getByTestId(`sidebar-project-kebab-${projectViewKey}-tooltip`);
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toHaveText(`p:${workspace.projectId.slice(0, 8)}`);
+      await page.screenshot({ path: testInfo.outputPath("project-kebab-id-tooltip.png") });
+
+      await kebab.click();
+      await expect(tooltip).toHaveCount(0);
+      await expect(page.getByRole("menuitem").nth(0)).toHaveText("Copy project id");
+      await page.getByRole("menuitem", { name: "Copy project id" }).click();
+      await expect.poll(() => readClipboard(page)).toBe(workspace.projectId);
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+
   test("workspace ID copy reports clipboard denial and allows retry", async ({ page }) => {
     const workspace = await seedWorkspace({ repoPrefix: "sidebar-copy-denied-" });
     try {

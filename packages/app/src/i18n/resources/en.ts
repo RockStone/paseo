@@ -544,6 +544,7 @@ export const en = {
     hoverCard: {
       agentId: "Agent {{id}}",
       workspaceId: "Workspace {{id}}",
+      projectId: "Project {{id}}",
       scriptsAccessibility: "Workspace scripts",
       copyPath: "Copy path",
       copyBranchName: "Copy branch name",
@@ -1372,6 +1373,7 @@ export const en = {
     project: {
       actions: {
         menu: "Project actions",
+        copyProjectId: "Copy project id",
         openSettings: "Open project settings",
         openNewWindow: "Open in new window",
         openNewWindowFailed: "Couldn't open a new window",

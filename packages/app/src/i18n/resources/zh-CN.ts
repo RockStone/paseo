@@ -545,6 +545,7 @@ export const zhCN: TranslationResources = {
     hoverCard: {
       agentId: "代理 {{id}}",
       workspaceId: "工作区 {{id}}",
+      projectId: "项目 {{id}}",
       scriptsAccessibility: "Workspace scripts",
       copyPath: "复制路径",
       copyBranchName: "复制分支名称",
@@ -1353,6 +1354,7 @@ export const zhCN: TranslationResources = {
     project: {
       actions: {
         menu: "Project 操作",
+        copyProjectId: "复制项目 ID",
         openSettings: "打开 project 设置",
         openNewWindow: "在新窗口中打开",
         openNewWindowFailed: "无法打开新窗口",

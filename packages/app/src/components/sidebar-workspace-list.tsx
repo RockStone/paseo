@@ -38,7 +38,15 @@ import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop";
 import { type GestureType } from "react-native-gesture-handler";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
-import { ExternalLink, Settings, MoreVertical, Plus, Trash2 } from "lucide-react-native";
+import {
+  Copy,
+  ExternalLink,
+  Hash,
+  Settings,
+  MoreVertical,
+  Plus,
+  Trash2,
+} from "lucide-react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import { DraggableList, type DraggableRenderItemInfo } from "./draggable-list";
 import type { DraggableListDragHandleProps } from "./draggable-list.types";
@@ -86,6 +94,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ProjectLeadingVisual } from "@/components/sidebar/project-leading-visual";
 import { useToast } from "@/contexts/toast-context";
+import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import { toWorktreeArchiveRisk } from "@/git/worktree-archive-warning";
 import { hasVisibleOrderChanged, mergeWithRemainder } from "@/utils/sidebar-reorder";
@@ -168,6 +177,8 @@ const ThemedPlus = withUnistyles(Plus);
 const ThemedMoreVertical = withUnistyles(MoreVertical);
 const ThemedTrash2 = withUnistyles(Trash2);
 const ThemedSettings = withUnistyles(Settings);
+const ThemedCopy = withUnistyles(Copy);
+const ThemedHash = withUnistyles(Hash);
 
 const foregroundColorMapping = (theme: Theme) => ({
   color: theme.colors.foreground,
@@ -459,6 +470,7 @@ function ProjectRowTrailingActions({
 
 const trash2LeadingIcon = <ThemedTrash2 size={14} uniProps={foregroundMutedColorMapping} />;
 const settingsLeadingIcon = <ThemedSettings size={14} uniProps={foregroundMutedColorMapping} />;
+const copyLeadingIcon = <ThemedCopy size={14} uniProps={foregroundMutedColorMapping} />;
 const openInNewWindowLeadingIcon = (
   <ThemedExternalLink size={14} uniProps={foregroundMutedColorMapping} />
 );
@@ -486,17 +498,61 @@ function ProjectKebabMenu({
   removeProjectStatus: "idle" | "pending" | "success";
 }) {
   const { t } = useTranslation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [idTooltipOpen, setIdTooltipOpen] = useState(false);
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    setMenuOpen(open);
+    if (open) setIdTooltipOpen(false);
+  }, []);
+  const projectId = settingsTarget?.projectId ?? null;
+  const trigger = (
+    <DropdownMenuTrigger
+      hitSlop={8}
+      style={projectKebabStyle}
+      accessibilityRole={platformIsWeb ? undefined : "button"}
+      accessibilityLabel={t("sidebar.project.actions.menu")}
+      testID={`sidebar-project-kebab-${projectViewKey}`}
+    >
+      {renderKebabTriggerIcon}
+    </DropdownMenuTrigger>
+  );
   return (
-    <DropdownMenu compactMode="sheet">
-      <DropdownMenuTrigger
-        hitSlop={8}
-        style={projectKebabStyle}
-        accessibilityRole={platformIsWeb ? undefined : "button"}
-        accessibilityLabel={t("sidebar.project.actions.menu")}
-        testID={`sidebar-project-kebab-${projectViewKey}`}
-      >
-        {renderKebabTriggerIcon}
-      </DropdownMenuTrigger>
+    <DropdownMenu compactMode="sheet" open={menuOpen} onOpenChange={handleMenuOpenChange}>
+      {projectId ? (
+        // Mirrors the `w:` line of the workspace hover card. Hover-only: the menu's
+        // "Copy project id" covers native and compact.
+        <Tooltip
+          delayDuration={0}
+          enabledOnDesktop
+          enabledOnMobile={false}
+          open={idTooltipOpen && !menuOpen}
+          onOpenChange={setIdTooltipOpen}
+        >
+          <TooltipTrigger asChild triggerRefProp="ref">
+            <View collapsable={false}>{trigger}</View>
+          </TooltipTrigger>
+          <TooltipContent
+            side="bottom"
+            align="center"
+            offset={8}
+            testID={`sidebar-project-kebab-${projectViewKey}-tooltip`}
+          >
+            <View style={styles.projectIdTooltipRow}>
+              <ThemedHash size={12} uniProps={foregroundMutedColorMapping} />
+              <Text
+                accessibilityLabel={t("workspace.hoverCard.projectId", {
+                  id: projectId.slice(0, 8),
+                })}
+                style={styles.projectIdTooltipText}
+              >
+                p:{projectId.slice(0, 8)}
+              </Text>
+            </View>
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        trigger
+      )}
       <DropdownMenuContent align="end" width={220} sheetTitle={t("sidebar.project.actions.menu")}>
         <ProjectMenuItems
           surface="dropdown"
@@ -543,6 +599,10 @@ function ProjectMenuItems({
 }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const { copyProjectId } = useWorkspaceClipboardActions();
+  const handleCopyProjectId = useCallback(() => {
+    if (settingsTarget) void copyProjectId(settingsTarget.projectId);
+  }, [copyProjectId, settingsTarget]);
   const handleOpenProjectSettings = useCallback(() => {
     if (!settingsTarget) return;
     router.navigate(buildProjectSettingsRoute(settingsTarget.serverId, settingsTarget.projectId));
@@ -561,6 +621,16 @@ function ProjectMenuItems({
 
   return (
     <>
+      {settingsTarget ? (
+        <ProjectMenuItem
+          surface={surface}
+          testID={`sidebar-project-menu-copy-project-id-${projectViewKey}`}
+          leading={copyLeadingIcon}
+          onSelect={handleCopyProjectId}
+        >
+          {t("sidebar.project.actions.copyProjectId")}
+        </ProjectMenuItem>
+      ) : null}
       {settingsTarget ? (
         <ProjectMenuItem
           surface={surface}
@@ -2748,6 +2818,15 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
   },
   projectActionTooltipShortcut: {},
+  projectIdTooltipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+  },
+  projectIdTooltipText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
   projectShortcutBadgeOverlay: {
     position: "absolute",
     top: theme.spacing[2] + 1,
