@@ -1,11 +1,11 @@
 import { router, useLocalSearchParams } from "expo-router";
-import type { PluginIcon, PluginScreenParams, PluginScreenProps } from "@getpaseo/plugin/client";
+import type { PluginScreenParams, PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { X } from "lucide-react-native";
 import { useCallback, useMemo, type ComponentType } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { HeaderIconBadge } from "@/components/headers/header-icon-badge";
+import { SidebarMenuToggle } from "@/components/headers/sidebar-menu-toggle";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { CompactHeader } from "@/components/headers/compact-header";
 import { ScreenHeader } from "@/components/headers/screen-header";
@@ -17,7 +17,6 @@ import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import { usePluginHostNavigation } from "./host-navigation";
-import { PluginIconView } from "./icons";
 import { toPluginTheme } from "./theme";
 import { useInstalledPlugin, usePluginInstallations } from "./registry";
 import { buildPluginSurfaceRoute, pluginScreenParamsFromRoute } from "./routes";
@@ -46,12 +45,6 @@ const ThemedX = withUnistyles(X);
 function routeParam(value: string | string[] | undefined): string {
   return typeof value === "string" ? value : "";
 }
-
-function PluginHeaderIcon({ icon, color = "" }: { icon: PluginIcon; color?: string }) {
-  return <PluginIconView icon={icon} size={16} color={color} />;
-}
-
-const ThemedPluginHeaderIcon = withUnistyles(PluginHeaderIcon);
 
 function SurfaceRenderer({
   Surface,
@@ -157,7 +150,6 @@ export function PluginSurfaceScreen() {
     if (sidebarItem && plugin) return plugin.i18n.resolve(sidebarItem.title, plugin.locale);
     return pluginId || "Plugin";
   }, [params, plugin, pluginId, sidebarItem, surface]);
-  const icon = sidebarItem?.icon ?? null;
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
     else router.replace(`/h/${encodeURIComponent(serverId)}`);
@@ -167,15 +159,11 @@ export function PluginSurfaceScreen() {
   const headerLeft = useMemo(
     () => (
       <>
-        {icon ? (
-          <HeaderIconBadge>
-            <ThemedPluginHeaderIcon icon={icon} uniProps={mutedColorMapping} />
-          </HeaderIconBadge>
-        ) : null}
+        <SidebarMenuToggle testID="plugin-surface-sidebar-toggle" />
         <ScreenTitle testID="plugin-surface-title">{title}</ScreenTitle>
       </>
     ),
-    [icon, title],
+    [title],
   );
   const hostFilter = useMemo(
     () =>

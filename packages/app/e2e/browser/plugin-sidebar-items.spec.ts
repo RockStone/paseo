@@ -293,6 +293,12 @@ test.describe("Plugin sidebar items", () => {
       await expect(page.getByTestId("plugin-surface-close")).toBeVisible();
       await expect(screenTitle(page)).toHaveText("Legacy entry");
       await expectRowActive(entry, true);
+      const sidebarToggle = page.getByTestId("plugin-surface-sidebar-toggle");
+      await expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
+      await sidebarToggle.click();
+      await expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
+      await sidebarToggle.click();
+      await expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
       await closeScreen(page);
     });
 
