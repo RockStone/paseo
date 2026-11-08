@@ -146,7 +146,7 @@ describe("resolvePinnedUsage", () => {
           shortLabel: "5h",
           percent: 31,
           percentText: "31%",
-          tone: "default",
+          tone: "ok",
         },
         {
           key: "claude:default/weekly",

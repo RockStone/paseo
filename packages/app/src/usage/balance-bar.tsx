@@ -8,6 +8,7 @@ import {
   formatResetLabel,
   formatResetTime,
 } from "./format";
+import { toneForUsedPercent } from "./tone";
 import { UsageMeter } from "./meter";
 import { UsageResetLine } from "./reset-line";
 import type { UsageBalance } from "./types";
@@ -57,7 +58,8 @@ export function UsageBalanceBar({
   const { t, i18n } = useTranslation();
   const now = useRelativeTimeTick({ enabled: balance.resetsAt != null });
   const { amountText, usedPct } = resolveBalance({ balance, t, locale: i18n.resolvedLanguage });
-  const tone = balance.tone ?? "default";
+  const tone =
+    balance.tone && balance.tone !== "default" ? balance.tone : toneForUsedPercent(usedPct);
   const resetLabel = formatResetLabel(balance.resetsAt, retained, now, t);
   const resetTime = formatResetTime(balance.resetsAt, now, t);
 
