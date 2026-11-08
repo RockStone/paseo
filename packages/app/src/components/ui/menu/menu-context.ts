@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Platform, type View } from "react-native";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useDismissKeyboardOnOpen } from "@/components/ui/keyboard-dismiss";
@@ -72,6 +80,26 @@ export function useMenuDepth(): number {
   return useContext(MenuDepthContext);
 }
 
+/**
+ * Tells a region that renders menu triggers when one of its menus opens; the returned function
+ * runs when that menu closes. The surface renders in the overlay root, outside the region's own
+ * DOM, so a region that dismisses itself on outside presses or hover leave, like the sidebar
+ * preview, cannot see from the DOM that the press landed on its own menu.
+ */
+export type MenuOpenTracker = () => () => void;
+
+const MenuOpenTrackerContext = createContext<MenuOpenTracker | null>(null);
+
+export const MenuOpenTrackerProvider = MenuOpenTrackerContext.Provider;
+
+function useReportOpenMenu(open: boolean): void {
+  const track = useContext(MenuOpenTrackerContext);
+  useEffect(() => {
+    if (!open || !track) return undefined;
+    return track();
+  }, [open, track]);
+}
+
 function useControllableOpenState({
   open,
   defaultOpen,
@@ -117,6 +145,7 @@ export function useMenuState({
 
   const [isOpen, setIsOpenState] = useControllableOpenState({ open, defaultOpen, onOpenChange });
   useDismissKeyboardOnOpen(isOpen);
+  useReportOpenMenu(isOpen);
 
   // A menu always reopens on its root page, against a freshly measured anchor. Keeping either
   // would reopen the surface three levels deep, or at the coordinates of the last right click.

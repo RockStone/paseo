@@ -51,6 +51,69 @@ test("hidden agent sidebar previews from the left edge without pinning it", asyn
   }
 });
 
+test("hidden sidebar stays revealed through in-place menu actions", async ({ page }) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-preview-menu-" });
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  const workspaceKey = `${getServerId()}:${workspace.workspaceId}`;
+  const readClipboard = () => page.evaluate(() => navigator.clipboard.readText());
+  try {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoWorkspace(page, workspace.workspaceId);
+    await waitForWorkspaceTabsVisible(page);
+    await page.keyboard.press(`${modifier}+b`);
+    const edge = page.getByTestId("sidebar-edge-trigger");
+    const preview = page.getByTestId("sidebar-edge-preview");
+    await edge.hover();
+    await expect(preview).toBeVisible();
+
+    await preview.getByTestId(`sidebar-workspace-row-${workspaceKey}`).hover();
+    await preview.getByTestId(`sidebar-workspace-kebab-${workspaceKey}`).click();
+    await page.getByRole("menuitem", { name: "Copy workspace id" }).click();
+    await expect.poll(readClipboard).toBe(workspace.workspaceId);
+    await expect(preview).toHaveCSS("pointer-events", "auto");
+
+    // Open the menu at the row's right end so it reaches past the preview's hover margin.
+    const previewBounds = (await preview.boundingBox())!;
+    const row = (await preview
+      .getByTestId(`sidebar-project-row-${workspace.projectKey}`)
+      .boundingBox())!;
+    await page.mouse.click(row.x + row.width - 8, row.y + row.height / 2, { button: "right" });
+    const menu = page.getByTestId(`sidebar-project-context-menu-${workspace.projectKey}`);
+    const copyProjectId = menu.getByRole("menuitem", { name: "Copy project id" });
+    const item = (await copyProjectId.boundingBox())!;
+    const beyondMargin = previewBounds.x + previewBounds.width * 1.5 + 4;
+    expect(item.x + item.width).toBeGreaterThan(beyondMargin);
+    await page.clock.install();
+    await page.mouse.move(beyondMargin, item.y + item.height / 2, { steps: 10 });
+    await page.clock.runFor(400);
+    await expect(menu).toBeVisible();
+    await expect(preview).toHaveCSS("pointer-events", "auto");
+    await page.clock.resume();
+    await page.mouse.click(beyondMargin, item.y + item.height / 2);
+    await expect.poll(readClipboard).toBe(workspace.projectId);
+    await expect(menu).toHaveCount(0);
+    await expect(preview).toHaveCSS("pointer-events", "auto");
+
+    // Leaving the sidebar after the menu closed still dismisses it.
+    await page.mouse.move(1200, 450, { steps: 5 });
+    await expect(preview).toHaveCount(0);
+
+    // Pressing the backdrop beside the sidebar closes the menu and dismisses the preview.
+    await edge.hover();
+    await expect(preview).toBeVisible();
+    // The row sits at its measured position once the slide has finished.
+    await expect(page.getByTestId("sidebar-preview-content")).toHaveCSS("transform", "none");
+    await page.mouse.click(row.x + 40, row.y + row.height / 2, { button: "right" });
+    await expect(menu).toBeVisible();
+    await page.mouse.click(1200, 450);
+    await expect(menu).toHaveCount(0);
+    await expect(preview).toHaveCount(0);
+  } finally {
+    await workspace.cleanup();
+  }
+});
+
 test("a fast crossing reveals the sidebar with a slide and respects reduced motion", async ({
   page,
 }) => {

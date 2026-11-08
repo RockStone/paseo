@@ -69,7 +69,10 @@ and out over 180 ms and respects reduced-motion settings. In Electron, it stays 
 half the sidebar's current width beyond the preview, including outside the window,
 then dismisses after a short grace period. Browsers cannot read the pointer outside
 their window and use the grace period alone. Clicking away, pressing Escape, or
-switching windows dismisses the preview.
+switching windows dismisses the preview. An open sidebar menu holds the preview, even where the
+menu reaches past that margin, so in-place actions such as copying an ID leave it revealed; it
+dismisses once the pointer leaves after the menu closes, or when you press the menu backdrop
+beside the sidebar.
 
 Answered inline Claude questions show the quoted questions and your responses
 together in a user bubble, including when you reopen the conversation.

@@ -30,9 +30,11 @@ export {
 } from "./menu-item";
 export { MENU_ITEM_HEIGHT } from "./menu-geometry";
 export {
+  MenuOpenTrackerProvider,
   useMenuContext,
   useMenuDepth,
   type MenuCompactMode,
+  type MenuOpenTracker,
   type MenuContextValue,
   type MenuPresentation,
 } from "./menu-context";

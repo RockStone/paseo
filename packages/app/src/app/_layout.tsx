@@ -3,6 +3,7 @@ import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspac
 import { useIsExplorerSidebarOpen } from "@/workspace-tabs/explorer-sidebar";
 import { ComposerEditingSessionsProvider } from "@/composer/editing-session";
 import { SheetHostScope } from "@/components/ui/isolated-bottom-sheet-modal";
+import { MenuOpenTrackerProvider } from "@/components/ui/menu";
 import "@/styles/unistyles";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { PortalProvider } from "@gorhom/portal";
@@ -678,8 +679,16 @@ function SidebarPreviewFrame({
     },
     [],
   );
+  // A row's menu holds the preview open: copying an ID or pinning happens in place, and the
+  // menu can extend past the hover margin. Once it closes, leaving the sidebar dismisses again.
+  const [openMenuCount, setOpenMenuCount] = useState(0);
+  const trackOpenMenu = useCallback(() => {
+    setOpenMenuCount((count) => count + 1);
+    return () => setOpenMenuCount((count) => count - 1);
+  }, []);
+  const menuOpen = openMenuCount > 0;
   useHoverSafeZone({
-    enabled: preview && !closing,
+    enabled: preview && !closing && !menuOpen,
     triggerRef: frameRef,
     contentRef: frameRef,
     onEnterSafeZone: stayOpen,
@@ -695,7 +704,11 @@ function SidebarPreviewFrame({
     };
     const onPointerDown = (event: PointerEvent) => {
       const frame = frameRef.current as unknown as HTMLElement | null;
-      if (event.target instanceof Node && !frame?.contains(event.target)) onDismiss();
+      if (!(event.target instanceof Node) || frame?.contains(event.target)) return;
+      // The open menu lives in the overlay root. Its items and the backdrop over the sidebar
+      // belong to the sidebar; the backdrop beside it is still a click away.
+      if (menuOpen && (isInsideMenuSurface(event.target) || isPointInside(frame, event))) return;
+      onDismiss();
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointerDown, true);
@@ -705,7 +718,7 @@ function SidebarPreviewFrame({
       document.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener("blur", onDismiss);
     };
-  }, [preview, closing, onDismiss]);
+  }, [preview, closing, menuOpen, onDismiss]);
   return (
     <View
       ref={frameRef}
@@ -720,9 +733,24 @@ function SidebarPreviewFrame({
         style={preview ? layoutStyles.sidebarPreviewContent : layoutStyles.sidebarFrame}
         testID="sidebar-preview-content"
       >
-        {children}
+        <MenuOpenTrackerProvider value={trackOpenMenu}>{children}</MenuOpenTrackerProvider>
       </View>
     </View>
+  );
+}
+
+function isInsideMenuSurface(target: Node): boolean {
+  return target instanceof Element && target.closest('[data-menu-surface="true"]') !== null;
+}
+
+function isPointInside(node: HTMLElement | null, event: PointerEvent): boolean {
+  const rect = node?.getBoundingClientRect();
+  if (!rect) return false;
+  return (
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
   );
 }
 

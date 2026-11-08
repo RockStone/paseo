@@ -1,10 +1,11 @@
 /**
  * @vitest-environment jsdom
  */
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { Platform } from "react-native";
-import { IOS_TEARDOWN_GRACE_MS, useMenuState } from "./menu-context";
+import { IOS_TEARDOWN_GRACE_MS, MenuOpenTrackerProvider, useMenuState } from "./menu-context";
 
 /**
  * `Platform.OS` is a plain property on the react-native-web double, so the iOS branch is
@@ -94,5 +95,29 @@ describe("useMenuState pages", () => {
       handled = result.current.goBack();
     });
     expect(handled).toBe(false);
+  });
+});
+
+describe("useMenuState open tracking", () => {
+  it("reports each open span to the region that renders the menu", () => {
+    const closed = vi.fn();
+    const track = vi.fn(() => closed);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <MenuOpenTrackerProvider value={track}>{children}</MenuOpenTrackerProvider>
+    );
+    const { result, unmount } = renderHook(() => useMenuState({}), { wrapper });
+    expect(track).not.toHaveBeenCalled();
+
+    act(() => result.current.setOpen(true));
+    expect(track).toHaveBeenCalledTimes(1);
+    expect(closed).not.toHaveBeenCalled();
+
+    act(() => result.current.selectItem(vi.fn(), true));
+    expect(closed).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.setOpen(true));
+    unmount();
+    expect(track).toHaveBeenCalledTimes(2);
+    expect(closed).toHaveBeenCalledTimes(2);
   });
 });
