@@ -15,8 +15,7 @@ import { UsageMeter } from "./meter";
 import { displayPercent, usageWindowRowLabel } from "./model";
 import { UsageResetLine } from "./reset-line";
 import type { UsageDisplayAs } from "./preferences";
-import { windowTone } from "./tone";
-import type { UsageTone, UsageWindow } from "./types";
+import type { UsageWindow } from "./types";
 import { useRelativeTimeTick } from "./use-relative-time-tick";
 
 export function UsageWindowBar({
@@ -42,7 +41,6 @@ export function UsageWindowBar({
 }) {
   const { t, i18n } = useTranslation();
   const shownPct = displayPercent(window, displayAs);
-  const tone = windowTone(window);
 
   const now = useRelativeTimeTick({ enabled: window.runsOutAt != null || window.resetsAt != null });
   const isAtRisk =
@@ -66,7 +64,6 @@ export function UsageWindowBar({
     exactTime,
     isAtRisk,
     percent: shownPct ?? 0,
-    tone,
     pinned,
   };
 
@@ -105,7 +102,6 @@ function WindowRowContent({
   exactTime,
   isAtRisk,
   percent,
-  tone,
   pinnable,
   pinned,
 }: {
@@ -115,7 +111,6 @@ function WindowRowContent({
   exactTime: string | null;
   isAtRisk: boolean;
   percent: number;
-  tone: UsageTone;
   pinnable: boolean;
   pinned: boolean;
 }) {
@@ -130,7 +125,7 @@ function WindowRowContent({
         </Text>
         {pinnable ? <UsagePinGlyph pinned={pinned} /> : null}
       </View>
-      <UsageMeter percent={percent} tone={tone} />
+      <UsageMeter percent={percent} />
       <UsageResetLine countdown={countdown} exactTime={exactTime} atRisk={isAtRisk} />
     </>
   );

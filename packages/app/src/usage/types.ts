@@ -1,8 +1,7 @@
-import type { ProviderUsageTone, UsageReportEntry } from "@getpaseo/protocol/messages";
+import type { UsageReportEntry } from "@getpaseo/protocol/messages";
 
 export type { UsageReportEntry };
 export type UsageReport = UsageReportEntry["report"];
-export type UsageTone = ProviderUsageTone;
 export type AvailableUsageReport = Extract<UsageReport, { status: "available" }>;
 export type UsageWindow = AvailableUsageReport["windows"][number];
 export type UsageBalance = NonNullable<AvailableUsageReport["balances"]>[number];

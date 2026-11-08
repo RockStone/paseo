@@ -189,7 +189,7 @@ function PinnedUsageLine({
           <Fragment key={window.key}>
             {layout === "meters" ? (
               <View style={[styles.meterSlot, leadStyle]}>
-                <UsageMeter percent={window.percent} tone={window.tone} quiet />
+                <UsageMeter percent={window.percent} quiet />
               </View>
             ) : null}
             <Text

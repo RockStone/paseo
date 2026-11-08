@@ -3,8 +3,7 @@ import { i18n } from "@/i18n/i18next";
 import { formatPct, formatDisplayPct, formatProviderUsageLabel } from "./format";
 import { displayPercent } from "./model";
 import { effectiveUsagePins, type UsagePreferences } from "./preferences";
-import { windowTone } from "./tone";
-import type { UsageReportEntry, UsageTone } from "./types";
+import type { UsageReportEntry } from "./types";
 
 /** One summary window of one account, as the sidebar Usage item shows it. */
 export interface PinnedUsageWindow {
@@ -16,7 +15,6 @@ export interface PinnedUsageWindow {
   /** The share shown, under the user's used/remaining preference. */
   percent: number;
   percentText: string;
-  tone: UsageTone;
 }
 
 /** One account's summary windows, under its source's icon. */
@@ -90,7 +88,6 @@ export function resolvePinnedUsage(
           shortLabel: window.shortLabel ?? formatProviderUsageLabel(window.id, window.label, t),
           percent,
           percentText,
-          tone: windowTone(window),
         };
       });
     if (windows.length === 0) return [];
