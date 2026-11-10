@@ -57,7 +57,12 @@ Selecting transcript text pauses automatic scrolling until you scroll back to th
 bottom or use the down-arrow button. Copy and Reply keep the captured excerpt if
 streaming replaces the selected DOM. Switching back to a chat restores your reading
 position unless a new message arrived while you were away; then the chat opens at the
-bottom. An active selection keeps the position either way.
+bottom. An active selection keeps the position either way. On desktop and web, a return
+with unread messages also shows a **N new messages** pill at the top; it jumps to the
+first message after your read marker, loading older history when needed. The marker is
+the last row you saw whole, kept per agent in app storage, and it only advances while
+the chat is active and the app is visible, so output that streams into a hidden app stays
+unread. Tool calls and thoughts move the marker but are not counted.
 Selections can span sections; code indentation and existing draft text are
 preserved. Native clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry

@@ -151,4 +151,16 @@ describe("reading anchor", () => {
     ).toBe(1000);
     expect(anchor.getRowId()).toBe("destination");
   });
+  it("reports the last row the viewport shows whole", () => {
+    const anchor = createReadingAnchor();
+    anchor.reconcile(0, [
+      { id: "a", top: 0, height: 300 },
+      { id: "b", top: 300, height: 300 },
+      { id: "c", top: 600, height: 300 },
+    ]);
+    expect(anchor.getLastFullyVisibleRowId(650)).toBe("b");
+    expect(anchor.getLastFullyVisibleRowId(900)).toBe("c");
+    // A row taller than the viewport counts once its end shows.
+    expect(anchor.getLastFullyVisibleRowId(200)).toBeNull();
+  });
 });

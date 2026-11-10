@@ -306,6 +306,11 @@ export const es: TranslationResources = {
   agentStream: {
     empty: "Comience a chatear con este agente...",
     scrollToBottom: "Desplazarse hacia abajo",
+    newMessages_one: "{{count}} mensaje nuevo",
+    newMessages_other: "{{count}} mensajes nuevos",
+    newMessagesMore_one: "{{count}}+ mensajes nuevos",
+    newMessagesMore_other: "{{count}}+ mensajes nuevos",
+    jumpToFirstUnread: "Ir al primer mensaje sin leer ({{label}})",
     historyLoadFailed: "No se pudo cargar el historial del agente",
     messageCapped: "Este mensaje fue truncado ({{bytes}} bytes).",
     permission: {

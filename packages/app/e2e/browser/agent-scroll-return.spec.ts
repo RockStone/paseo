@@ -408,3 +408,56 @@ test("editing keys in an embedded question keep output following", async ({ page
     await longChat.cleanup();
   }
 });
+
+test("a desktop return offers a jump to the first message that arrived while away", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const response = Array.from(
+    { length: 24 },
+    (_, index) => `Paragraph ${index + 1}: A long response that fills the transcript.`,
+  ).join("\n\n");
+  const chat = await seedMockAgentWorkspace({
+    repoPrefix: "scroll-return-unread-jump-",
+    title: "Unread jump",
+    initialPrompt: "Read this before leaving",
+    featureValues: { mockAssistantResponse: response },
+  });
+  const otherWorkspace = await seedMockAgentWorkspace({
+    repoPrefix: "scroll-return-unread-jump-other-",
+    title: "Other workspace",
+    initialPrompt: "Open the other workspace",
+  });
+  const firstAwayPrompt = "First prompt sent while the reader is away";
+  const secondAwayPrompt = "Second prompt sent while the reader is away";
+  const switchTo = (workspace: MockAgentWorkspace) =>
+    switchWorkspaceViaSidebar({
+      page,
+      serverId: getServerId(),
+      workspaceId: workspace.workspaceId,
+    });
+  const pill = page.getByTestId("unread-jump-pill").filter({ visible: true });
+
+  try {
+    await chat.client.waitForFinish(chat.agentId, 15_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openAgentRoute(page, chat);
+    await expectChatAtBottom(page);
+    await expect(pill).toHaveCount(0);
+
+    await switchTo(otherWorkspace);
+    for (const prompt of [firstAwayPrompt, secondAwayPrompt]) {
+      await chat.client.sendAgentMessage(chat.agentId, prompt);
+      await chat.client.waitForFinish(chat.agentId, 20_000);
+    }
+    await switchTo(chat);
+
+    await expectChatAtBottom(page);
+    await expect(pill).toHaveText("4 new messages");
+    await pill.click();
+    await expect(page.getByText(firstAwayPrompt).filter({ visible: true })).toBeInViewport();
+    await expect(pill).toHaveCount(0);
+  } finally {
+    await Promise.allSettled([chat.cleanup(), otherWorkspace.cleanup()]);
+  }
+});

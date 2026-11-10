@@ -302,6 +302,11 @@ export const zhCN: TranslationResources = {
   agentStream: {
     empty: "开始和这个 Agent 对话...",
     scrollToBottom: "滚动到底部",
+    newMessages_one: "{{count}} 条新消息",
+    newMessages_other: "{{count}} 条新消息",
+    newMessagesMore_one: "{{count}}+ 条新消息",
+    newMessagesMore_other: "{{count}}+ 条新消息",
+    jumpToFirstUnread: "跳转到第一条未读消息（{{label}}）",
     historyLoadFailed: "无法加载智能体历史记录",
     messageCapped: "此消息已被截断（{{bytes}} 字节）。",
     permission: {

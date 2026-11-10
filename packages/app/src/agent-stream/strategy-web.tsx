@@ -305,6 +305,8 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     isAuthoritativeHistoryReady,
     onNearBottomChange,
     onReadingPositionChange,
+    onReadThroughChange,
+    readThroughBottomInset = 0,
     onNearHistoryStart,
     isLoadingOlderHistory,
     hasOlderHistory,
@@ -714,16 +716,21 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     if (!isActiveRef.current) {
       return;
     }
-    if (!onReadingPositionChange) {
+    if (!onReadingPositionChange && !onReadThroughChange) {
       return;
     }
     const scrollContainer = scrollContainerRef.current;
     const contentNode = contentRef.current;
     if (!scrollContainer || !contentNode) {
-      onReadingPositionChange(null);
+      onReadingPositionChange?.(null);
+      onReadThroughChange?.(null);
       return;
     }
-    onReadingPositionChange(readingAnchor.getReadingRowId(scrollContainer.scrollTop));
+    const { scrollTop, clientHeight } = scrollContainer;
+    onReadingPositionChange?.(readingAnchor.getReadingRowId(scrollTop));
+    onReadThroughChange?.(
+      readingAnchor.getLastFullyVisibleRowId(scrollTop + clientHeight - readThroughBottomInset),
+    );
   });
 
   const updateScrollMetrics = useCallback(() => {

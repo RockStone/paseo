@@ -304,6 +304,11 @@ export const ru: TranslationResources = {
   agentStream: {
     empty: "Начните общаться с этим агентом...",
     scrollToBottom: "Прокрутить вниз",
+    newMessages_one: "Новых сообщений: {{count}}",
+    newMessages_other: "Новых сообщений: {{count}}",
+    newMessagesMore_one: "Новых сообщений: {{count}}+",
+    newMessagesMore_other: "Новых сообщений: {{count}}+",
+    jumpToFirstUnread: "Перейти к первому непрочитанному сообщению ({{label}})",
     historyLoadFailed: "Не удалось загрузить историю агента",
     messageCapped: "Это сообщение было обрезано ({{bytes}} байт).",
     permission: {

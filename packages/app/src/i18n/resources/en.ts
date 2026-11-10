@@ -300,6 +300,11 @@ export const en = {
   agentStream: {
     empty: "Start chatting with this agent...",
     scrollToBottom: "Scroll to bottom",
+    newMessages_one: "{{count}} new message",
+    newMessages_other: "{{count}} new messages",
+    newMessagesMore_one: "{{count}}+ new messages",
+    newMessagesMore_other: "{{count}}+ new messages",
+    jumpToFirstUnread: "Jump to the first unread message ({{label}})",
     historyLoadFailed: "Couldn't load agent history",
     messageCapped: "This message was capped ({{bytes}} bytes).",
     permission: {

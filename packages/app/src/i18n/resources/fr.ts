@@ -305,6 +305,11 @@ export const fr: TranslationResources = {
   agentStream: {
     empty: "Commencez à discuter avec cet agent…",
     scrollToBottom: "Faire défiler vers le bas",
+    newMessages_one: "{{count}} nouveau message",
+    newMessages_other: "{{count}} nouveaux messages",
+    newMessagesMore_one: "{{count}}+ nouveaux messages",
+    newMessagesMore_other: "{{count}}+ nouveaux messages",
+    jumpToFirstUnread: "Aller au premier message non lu ({{label}})",
     historyLoadFailed: "Impossible de charger l’historique de l’agent",
     messageCapped: "Ce message a été tronqué ({{bytes}} octets).",
     permission: {

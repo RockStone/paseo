@@ -305,6 +305,11 @@ export const ptBR: TranslationResources = {
   agentStream: {
     empty: "Comece a conversar com este agente...",
     scrollToBottom: "Rolar para o fim",
+    newMessages_one: "{{count}} nova mensagem",
+    newMessages_other: "{{count}} novas mensagens",
+    newMessagesMore_one: "{{count}}+ novas mensagens",
+    newMessagesMore_other: "{{count}}+ novas mensagens",
+    jumpToFirstUnread: "Ir para a primeira mensagem não lida ({{label}})",
     historyLoadFailed: "Não foi possível carregar o histórico do agente",
     messageCapped: "Esta mensagem foi truncada ({{bytes}} bytes).",
     permission: {

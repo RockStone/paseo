@@ -103,6 +103,8 @@ import {
   type TurnContentStrategy,
 } from "./turn-footer";
 import { resolveBottomOverlayTailInset } from "./bottom-overlay-inset";
+import { UnreadJumpPill } from "./unread-jump/pill";
+import { useUnreadJump } from "./unread-jump/use-unread-jump";
 import { layoutStream, type StreamLayoutItem } from "./layout";
 import {
   type BottomAnchorLocalRequest,
@@ -678,6 +680,22 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       mountedHistoryMessageIds,
       revealLoadedMessage: revealLoadedHistory,
     });
+    // The read marker needs the viewport's read-through row, which only the web viewport reports.
+    const unreadJump = useUnreadJump({
+      enabled: isWeb,
+      serverId: resolvedServerId,
+      agentId,
+      timelineEpoch,
+      tail: effectiveStreamItems,
+      head: effectiveStreamHead,
+      isActive,
+      isNearBottom,
+      isHistoryReady: isAuthoritativeHistoryReady,
+      viewportRef,
+      mountedHistoryMessageIds,
+      revealLoadedMessage: revealLoadedHistory,
+      onJumpError: handleTimelineHistoryLoadError,
+    });
 
     useImperativeHandle(
       ref,
@@ -1209,7 +1227,17 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         rowId === null
           ? undefined
           : (layoutHistoryItemById.get(rowId) ?? layoutLiveHeadItemById.get(rowId));
-      chatOutline.reportReadingPosition(row?.item.timelineCursor?.seq ?? null);
+      const seq = row?.item.timelineCursor?.seq ?? null;
+      chatOutline.reportReadingPosition(seq);
+      unreadJump.reportReadingTop(seq);
+    });
+
+    const handleReadThroughChange = useStableEvent((rowId: string | null) => {
+      const row =
+        rowId === null
+          ? undefined
+          : (layoutHistoryItemById.get(rowId) ?? layoutLiveHeadItemById.get(rowId));
+      unreadJump.reportReadThrough(row?.item.timelineCursor?.seq ?? null);
     });
 
     const renderHistoryRow = useCallback(
@@ -1333,6 +1361,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
                   isAuthoritativeHistoryReady,
                   onNearBottomChange: setIsNearBottom,
                   onReadingPositionChange: handleReadingPositionChange,
+                  onReadThroughChange: handleReadThroughChange,
+                  readThroughBottomInset: bottomOverlayTailClearance,
                   onNearHistoryStart: loadOlder,
                   isLoadingOlderHistory: isLoadingOlder,
                   hasOlderHistory: hasOlder,
@@ -1349,6 +1379,12 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               prompts={chatOutline.prompts}
               activePrompt={chatOutline.activePrompt}
               onJumpToPrompt={chatOutline.jumpToPrompt}
+            />
+            <UnreadJumpPill
+              summary={unreadJump.summary}
+              onPress={unreadJump.jump}
+              entering={scrollIndicatorFadeIn}
+              exiting={scrollIndicatorFadeOut}
             />
             {(!isNearBottom || isTimelineDetached) && (
               <View style={scrollToBottomContainerStyle} pointerEvents="box-none">

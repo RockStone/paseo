@@ -29,6 +29,16 @@ export function createReadingAnchor() {
     getRowId,
     getReadingRowId: (scrollTop: number) =>
       readingRow(scrollTop)?.id ?? geometry.at(-1)?.id ?? null,
+    // The last row whose bottom edge cleared the viewport's visible bottom: the furthest row
+    // the reader has seen whole. A row taller than the viewport counts once its end shows.
+    getLastFullyVisibleRowId(visibleBottom: number): string | null {
+      let last: string | null = null;
+      for (const row of geometry) {
+        if (row.top + row.height > visibleBottom + READING_POSITION_OFFSET_PX) break;
+        last = row.id;
+      }
+      return last;
+    },
     project,
     reset() {
       anchor = null;

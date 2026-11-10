@@ -304,6 +304,11 @@ export const ja: TranslationResources = {
   agentStream: {
     empty: "このエージェントとチャットを始めましょう...",
     scrollToBottom: "下にスクロール",
+    newMessages_one: "新着メッセージ {{count}} 件",
+    newMessages_other: "新着メッセージ {{count}} 件",
+    newMessagesMore_one: "新着メッセージ {{count}}+ 件",
+    newMessagesMore_other: "新着メッセージ {{count}}+ 件",
+    jumpToFirstUnread: "最初の未読メッセージへ移動（{{label}}）",
     historyLoadFailed: "エージェントの履歴を読み込めませんでした",
     messageCapped: "このメッセージは上限で切り詰められました（{{bytes}}バイト）。",
     permission: {

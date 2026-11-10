@@ -302,6 +302,11 @@ export const ar: TranslationResources = {
   agentStream: {
     empty: "ابدأ الدردشة مع هذا الوكيل...",
     scrollToBottom: "قم بالتمرير إلى الأسفل",
+    newMessages_one: "رسائل جديدة: {{count}}",
+    newMessages_other: "رسائل جديدة: {{count}}",
+    newMessagesMore_one: "رسائل جديدة: {{count}}+",
+    newMessagesMore_other: "رسائل جديدة: {{count}}+",
+    jumpToFirstUnread: "الانتقال إلى أول رسالة غير مقروءة ({{label}})",
     historyLoadFailed: "تعذر تحميل سجل الوكيل",
     messageCapped: "تم اقتطاع هذه الرسالة ({{bytes}} بايت).",
     permission: {
