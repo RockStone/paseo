@@ -2755,6 +2755,9 @@ export const ru: TranslationResources = {
         title: "Макет",
         contentWidth: "Ширина содержимого",
         contentWidthHint: "Максимальная ширина чата и файлов Markdown на широких экранах",
+        mergedTitleBar: "Объединить вкладки с заголовком",
+        mergedTitleBarHint:
+          "На компьютере рабочее пространство с одной панелью показывает вкладки в строке заголовка рядом с действиями.",
         contentWidthAccessibility: "Ширина содержимого в пикселях",
         reset: "Сбросить",
         resetAccessibility: "Сбросить ширину содержимого",

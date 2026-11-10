@@ -1,3 +1,7 @@
+import {
+  useWorkspaceTitleBarSlots,
+  type WorkspaceTitleBarSlots,
+} from "@/screens/workspace/workspace-title-bar";
 import { WorkspaceTabContextMenuItem } from "./workspace-tab-context-menu-item";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import React, {
@@ -1072,6 +1076,8 @@ function ResolvedWorkspaceDesktopTabsRow({
   const [tabsContainerWidth, setTabsContainerWidth] = useState<number>(0);
   const tabsScrollRef = useRef<ScrollView>(null);
   const [exitFocusModeWidth, setExitFocusModeWidth] = useState<number>(0);
+  const titleBarSlots = useWorkspaceTitleBarSlots();
+  const [titleBarSlotsWidth, setTitleBarSlotsWidth] = useState({ leading: 0, trailing: 0 });
   const tabScrollBoundary = useHorizontalScrollBoundary();
   const [labelMeasurements, setLabelMeasurements] = useState(
     () => new Map<string, WorkspaceTabLabelMeasurement>(),
@@ -1086,12 +1092,28 @@ function ResolvedWorkspaceDesktopTabsRow({
     updateMeasuredWidth(setExitFocusModeWidth, event);
   }, []);
 
+  const handleTitleBarLeadingLayout = useCallback((event: LayoutChangeEvent) => {
+    const leading = Math.round(event.nativeEvent.layout.width);
+    setTitleBarSlotsWidth((current) =>
+      current.leading === leading ? current : { ...current, leading },
+    );
+  }, []);
+
+  const handleTitleBarTrailingLayout = useCallback((event: LayoutChangeEvent) => {
+    const trailing = Math.round(event.nativeEvent.layout.width);
+    setTitleBarSlotsWidth((current) =>
+      current.trailing === trailing ? current : { ...current, trailing },
+    );
+  }, []);
+  const titleBarReservedWidth = resolveTitleBarReservedWidth(titleBarSlots, titleBarSlotsWidth);
+
   const layoutMetrics = useMemo(
     () => ({
       rowHorizontalInset: 0,
       actionsReservedWidth: Math.max(
         0,
         DEFAULT_INLINE_ADD_BUTTON_RESERVED_WIDTH +
+          titleBarReservedWidth +
           (focusModeEnabled ? exitFocusModeWidth : 0) +
           (showPaneSplitActions ? PANE_SPLIT_ACTIONS_RESERVED_WIDTH : 0) +
           (showPaneMaximizeAction ? PANE_MAXIMIZE_ACTION_RESERVED_WIDTH : 0),
@@ -1105,7 +1127,13 @@ function ResolvedWorkspaceDesktopTabsRow({
       tabHorizontalPadding: TAB_CHIP_HORIZONTAL_PADDING,
       closeButtonWidth: TAB_CLOSE_BUTTON_RESERVED_WIDTH,
     }),
-    [exitFocusModeWidth, focusModeEnabled, showPaneMaximizeAction, showPaneSplitActions],
+    [
+      exitFocusModeWidth,
+      focusModeEnabled,
+      showPaneMaximizeAction,
+      showPaneSplitActions,
+      titleBarReservedWidth,
+    ],
   );
 
   const panePanelKinds = useMemo(() => tabs.map(({ tab }) => tab.kind), [tabs]);
@@ -1399,6 +1427,7 @@ function ResolvedWorkspaceDesktopTabsRow({
           />
         ))}
       </View>
+      <TitleBarSlot slots={titleBarSlots} side="leading" onLayout={handleTitleBarLeadingLayout} />
       <WorkspaceExitFocusModeButton
         visible={focusModeEnabled}
         onPress={onExitFocusMode}
@@ -1464,11 +1493,40 @@ function ResolvedWorkspaceDesktopTabsRow({
         onSplitDown={onSplitDown}
         onTogglePaneMaximized={onTogglePaneMaximized}
       />
+      <TitleBarSlot slots={titleBarSlots} side="trailing" onLayout={handleTitleBarTrailingLayout} />
     </View>
   );
 
   return <RenderProfile id="WorkspaceDesktopTabsRow">{row}</RenderProfile>;
 }
+// The merged title bar's header content, measured so the tabs share only the space left over.
+function TitleBarSlot({
+  slots,
+  side,
+  onLayout,
+}: {
+  slots: WorkspaceTitleBarSlots | null;
+  side: keyof WorkspaceTitleBarSlots;
+  onLayout: (event: LayoutChangeEvent) => void;
+}) {
+  if (!slots) return null;
+  return (
+    <View
+      style={side === "leading" ? styles.titleBarSlot : styles.titleBarTrailingSlot}
+      onLayout={onLayout}
+    >
+      {slots[side]}
+    </View>
+  );
+}
+
+function resolveTitleBarReservedWidth(
+  slots: WorkspaceTitleBarSlots | null,
+  width: { leading: number; trailing: number },
+): number {
+  return slots ? width.leading + width.trailing : 0;
+}
+
 function ResolvedDesktopTabChip({
   serverId,
   workspaceId,
@@ -1640,6 +1698,18 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     flex: 1,
     alignSelf: "stretch",
+  },
+  titleBarSlot: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  titleBarTrailingSlot: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: theme.spacing[2],
+    paddingRight: theme.spacing[2],
   },
   tabsScrollFitContent: {
     flex: 1,

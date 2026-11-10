@@ -2745,6 +2745,9 @@ export const ar: TranslationResources = {
         title: "التخطيط",
         contentWidth: "عرض المحتوى",
         contentWidthHint: "أقصى عرض للمحادثة وملفات Markdown على الشاشات العريضة",
+        mergedTitleBar: "دمج علامات التبويب في شريط العنوان",
+        mergedTitleBarHint:
+          "على سطح المكتب، تعرض مساحة العمل ذات اللوحة الواحدة علامات التبويب في شريط العنوان بجوار الإجراءات.",
         contentWidthAccessibility: "عرض المحتوى بالبكسل",
         reset: "إعادة تعيين",
         resetAccessibility: "إعادة عرض المحتوى إلى الافتراضي",

@@ -11,6 +11,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DropdownTrigger } from "@/components/ui/dropdown-trigger";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
+import { SettingsCard, SettingsSwitch } from "@/components/settings";
 import { ThemePicker } from "@/appearance/theme-picker";
 import { Button } from "@/components/ui/button";
 import {
@@ -301,6 +302,10 @@ function SyntaxRow({ value, onChange }: SyntaxRowProps) {
 export function AppearanceSection() {
   const { t } = useTranslation();
   const { settings, updateSettings } = useAppSettings();
+  const handleMergedTitleBarChange = useCallback(
+    (mergedTitleBar: boolean) => void updateSettings({ mergedTitleBar }),
+    [updateSettings],
+  );
   const showInterfaceFontFamilyRow = !isNative;
   const uiFontPlaceholder = resolveDefaultStackPlaceholder(t, DEFAULT_UI_FONT_STACK);
   const monoFontPlaceholder = resolveDefaultStackPlaceholder(t, DEFAULT_MONO_FONT_STACK);
@@ -489,12 +494,21 @@ export function AppearanceSection() {
         </View>
       </SettingsSection>
       <SettingsSection title={t("settings.appearance.layout.title")}>
-        <View style={settingsStyles.card}>
+        <SettingsCard>
           <ContentWidthRow
             value={settings.contentMaxWidth}
             onChange={handleContentMaxWidthChange}
           />
-        </View>
+          {isNative ? null : (
+            <SettingsSwitch
+              label={t("settings.appearance.layout.mergedTitleBar")}
+              hint={t("settings.appearance.layout.mergedTitleBarHint")}
+              value={settings.mergedTitleBar}
+              onValueChange={handleMergedTitleBarChange}
+              testID="settings-merged-title-bar"
+            />
+          )}
+        </SettingsCard>
       </SettingsSection>
       <SettingsSection title={t("settings.appearance.syntax.title")}>
         <View style={settingsStyles.card}>

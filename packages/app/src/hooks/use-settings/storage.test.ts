@@ -227,6 +227,24 @@ describe("loadAppSettingsFromStorage", () => {
     expect(result.chatOutlineEnabled).toBe(false);
   });
 
+  it("merges tabs into the title bar by default", async () => {
+    const result = await loadAppSettingsFromStorage(makeDeps());
+
+    expect(result.mergedTitleBar).toBe(true);
+  });
+
+  it("loads a separate title bar preference", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ mergedTitleBar: false }),
+      }),
+    });
+
+    const result = await loadAppSettingsFromStorage(deps);
+
+    expect(result.mergedTitleBar).toBe(false);
+  });
+
   it("uses Enter to send by default", async () => {
     const deps = makeDeps();
 

@@ -2679,6 +2679,8 @@ export const zhCN: TranslationResources = {
         title: "布局",
         contentWidth: "内容宽度",
         contentWidthHint: "宽屏上聊天和 Markdown 文件的最大宽度",
+        mergedTitleBar: "将标签页合并到标题栏",
+        mergedTitleBarHint: "在桌面端，单窗格的工作区会在标题栏中显示标签页，位于工作区操作旁边。",
         contentWidthAccessibility: "内容宽度（像素）",
         reset: "重置",
         resetAccessibility: "将内容宽度重置为默认值",

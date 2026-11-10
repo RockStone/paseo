@@ -2733,6 +2733,9 @@ export const ja: TranslationResources = {
         title: "レイアウト",
         contentWidth: "コンテンツ幅",
         contentWidthHint: "ワイド画面でのチャットと Markdown ファイルの最大幅",
+        mergedTitleBar: "タブをタイトルバーに統合",
+        mergedTitleBarHint:
+          "デスクトップでは、ペインが1つのワークスペースのタブをタイトルバーのアクションの横に表示します。",
         contentWidthAccessibility: "コンテンツ幅 (ピクセル)",
         reset: "リセット",
         resetAccessibility: "コンテンツ幅をデフォルトに戻す",

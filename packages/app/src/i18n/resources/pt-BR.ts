@@ -2750,6 +2750,9 @@ export const ptBR: TranslationResources = {
         title: "Layout",
         contentWidth: "Largura do conteúdo",
         contentWidthHint: "Largura máxima do chat e dos arquivos Markdown em telas largas",
+        mergedTitleBar: "Mesclar abas na barra de título",
+        mergedTitleBarHint:
+          "No desktop, um espaço de trabalho com um painel mostra as abas na barra de título, ao lado das ações.",
         contentWidthAccessibility: "Largura do conteúdo em pixels",
         reset: "Redefinir",
         resetAccessibility: "Redefinir a largura do conteúdo",

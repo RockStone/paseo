@@ -186,7 +186,11 @@ const test = daemonTest.extend<{
           // New installs collapse finished turns; specs assert on the rows inside them, so they
           // start from the full chat unless they seed their own settings.
           if (!localStorage.getItem("@paseo:app-settings")) {
-            localStorage.setItem("@paseo:app-settings", JSON.stringify({ chatDisplay: "full" }));
+            // Paseoi merges the tab row into the title bar by default; upstream specs expect the header row.
+            localStorage.setItem(
+              "@paseo:app-settings",
+              JSON.stringify({ chatDisplay: "full", mergedTitleBar: false }),
+            );
           }
           // The shared daemon often has no projects, which would open first-run setup over the app.
           if (onboardingCompleted && !localStorage.getItem("@paseo:onboarding")) {

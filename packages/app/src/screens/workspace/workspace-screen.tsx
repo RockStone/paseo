@@ -54,6 +54,10 @@ import {
   MobileWorkspaceTabSwitcher,
 } from "@/screens/workspace/compact-workspace-header";
 import { WorkspaceHeaderProjectRow } from "@/screens/workspace/workspace-header-project-row";
+import {
+  WorkspaceTitleBarLeading,
+  type WorkspaceTitleBarSlots,
+} from "@/screens/workspace/workspace-title-bar";
 import { ScreenTitle } from "@/components/headers/screen-title";
 import {
   FloatingPanelPortalHost,
@@ -1333,6 +1337,7 @@ function WorkspaceScreenContent({
     [openTab],
   );
   const openInSidePane = useSettings((settings) => settings.openInSidePane);
+  const mergedTitleBarEnabled = useSettings((settings) => settings.mergedTitleBar);
   const pullRequestOpenLocation = useSettings((settings) => settings.pullRequestOpenLocation);
   const selectWorkspaceTabInPane = useWorkspaceLayoutStore((state) => state.selectTabInPane);
   const closeWorkspaceTab = useWorkspaceLayoutStore((state) => state.closeTab);
@@ -3332,6 +3337,43 @@ function WorkspaceScreenContent({
       workspaceHeaderTitle,
     ],
   );
+  const titleBarSlots = useMemo<WorkspaceTitleBarSlots | null>(
+    () =>
+      mergedTitleBarEnabled && !isMobile
+        ? {
+            leading: (
+              <WorkspaceTitleBarLeading
+                projectLabel={workspaceHeaderSubtitle}
+                workspaceTitle={workspaceHeaderTitle}
+                currentBranchName={currentBranchName}
+                showWorkspaceSetup={showWorkspaceSetup}
+                importAgentDisabled={!canOpenImportSheet}
+                copyPathDisabled={!workspaceDirectory}
+                onOpenImportSheet={openImportSheet}
+                onCopyWorkspacePath={handleCopyWorkspacePath}
+                onCopyBranchName={handleCopyBranchName}
+                onOpenSetupTab={handleOpenSetupTab}
+              />
+            ),
+            trailing: headerRight,
+          }
+        : null,
+    [
+      canOpenImportSheet,
+      currentBranchName,
+      handleCopyBranchName,
+      handleCopyWorkspacePath,
+      handleOpenSetupTab,
+      headerRight,
+      isMobile,
+      mergedTitleBarEnabled,
+      openImportSheet,
+      showWorkspaceSetup,
+      workspaceDirectory,
+      workspaceHeaderSubtitle,
+      workspaceHeaderTitle,
+    ],
+  );
   const desktopSplitContent = useMemo(() => {
     if (!canRenderDesktopPaneSplits || !workspaceLayout || !persistenceKey) {
       return null;
@@ -3340,6 +3382,7 @@ function WorkspaceScreenContent({
       <SplitContainer
         layout={workspaceLayout}
         renderMainHeader={renderWorkspaceScreenHeader}
+        titleBarSlots={titleBarSlots}
         focusModeEnabled={desktopFocusModeEnabled}
         onExitFocusMode={toggleFocusMode}
         workspaceKey={persistenceKey}
@@ -3377,6 +3420,7 @@ function WorkspaceScreenContent({
     canRenderDesktopPaneSplits,
     workspaceLayout,
     renderWorkspaceScreenHeader,
+    titleBarSlots,
     persistenceKey,
     desktopFocusModeEnabled,
     toggleFocusMode,

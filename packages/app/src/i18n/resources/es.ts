@@ -2770,6 +2770,9 @@ export const es: TranslationResources = {
         title: "Diseño",
         contentWidth: "Ancho del contenido",
         contentWidthHint: "Ancho máximo del chat y de los archivos Markdown en pantallas anchas",
+        mergedTitleBar: "Combinar pestañas con la barra de título",
+        mergedTitleBarHint:
+          "En escritorio, un espacio de trabajo con un solo panel muestra sus pestañas en la barra de título, junto a las acciones.",
         contentWidthAccessibility: "Ancho del contenido en píxeles",
         reset: "Restablecer",
         resetAccessibility: "Restablecer el ancho del contenido",

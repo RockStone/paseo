@@ -2770,6 +2770,9 @@ export const fr: TranslationResources = {
         contentWidth: "Largeur du contenu",
         contentWidthHint:
           "Largeur maximale de la discussion et des fichiers Markdown sur les grands écrans",
+        mergedTitleBar: "Fusionner les onglets dans la barre de titre",
+        mergedTitleBarHint:
+          "Sur ordinateur, un espace de travail à un seul panneau affiche ses onglets dans la barre de titre, à côté des actions.",
         contentWidthAccessibility: "Largeur du contenu en pixels",
         reset: "Réinitialiser",
         resetAccessibility: "Réinitialiser la largeur du contenu",

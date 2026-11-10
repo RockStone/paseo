@@ -2837,6 +2837,9 @@ export const en = {
         title: "Layout",
         contentWidth: "Content width",
         contentWidthHint: "Max width of chat and Markdown files on wide screens",
+        mergedTitleBar: "Merge tabs into title bar",
+        mergedTitleBarHint:
+          "On desktop, a workspace with one pane shows its tabs in the title bar, beside the workspace actions.",
         contentWidthAccessibility: "Content width in pixels",
         reset: "Reset",
         resetAccessibility: "Reset content width to default",

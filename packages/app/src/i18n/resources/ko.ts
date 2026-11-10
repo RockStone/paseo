@@ -2723,6 +2723,9 @@ export const ko: TranslationResources = {
         title: "레이아웃",
         contentWidth: "콘텐츠 너비",
         contentWidthHint: "와이드 화면에서 채팅과 Markdown 파일의 최대 너비",
+        mergedTitleBar: "탭을 제목 표시줄에 합치기",
+        mergedTitleBarHint:
+          "데스크톱에서 창이 하나인 작업 공간은 탭을 제목 표시줄의 작업 버튼 옆에 표시합니다.",
         contentWidthAccessibility: "콘텐츠 너비(픽셀)",
         reset: "재설정",
         resetAccessibility: "콘텐츠 너비를 기본값으로 재설정",

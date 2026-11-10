@@ -31,7 +31,7 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 ## Paseoi custom desktop build
 
-The current integration branch is `paseoi/v0.15.0`; `paseoi/v0.15.0-beta.1`, `paseoi/v0.14.0`, `paseoi/v0.13.0`, and `paseoi/v0.12.0` retain the previous custom builds.
+The current integration branch is `paseoi/v0.15.4`; `paseoi/v0.15.0`, `paseoi/v0.15.0-beta.1`, `paseoi/v0.14.0`, `paseoi/v0.13.0`, and `paseoi/v0.12.0` retain the previous custom builds.
 The fork keeps only `main` and `paseoi/*` branches. The `upstream` remote fetches only `main` and `v*` release tags.
 Back up `~/.paseo/config.json` before installing a newer build. Older daemons reject settings that
 newer builds save, so rolling back means restoring that backup.
@@ -63,6 +63,16 @@ first message after your read marker, loading older history when needed. The mar
 the last row you saw whole, kept per agent in app storage, and it only advances while
 the chat is active and the app is visible, so output that streams into a hidden app stays
 unread. Tool calls and thoughts move the marker but are not counted.
+
+On desktop and web, **Merge tabs into title bar** (Settings → Appearance → Layout, on by
+default) drops the workspace header row while a workspace shows one pane: the sidebar
+toggle, project name and `···` workspace menu sit left of the tabs, and the header actions
+sit on the right of the same row. Splitting a pane, or focus mode, brings back the header
+row. The split container hands the header content to the lone pane's tab row through
+`packages/app/src/screens/workspace/workspace-title-bar.tsx`, so `workspace-screen.tsx`,
+`split-container.tsx` and the tab row each carry only a small hook into it; keep it that
+way when resolving upstream merges. Browser specs seed the setting off in
+`packages/app/e2e/support/fixtures.ts`, because upstream specs expect the header row.
 Selections can span sections; code indentation and existing draft text are
 preserved. Native clients do not have this action. This adapts the selection interaction from
 [crpboy's PR #3421](https://github.com/getpaseo/paseo/pull/3421); it does not carry
