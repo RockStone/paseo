@@ -31,7 +31,7 @@ export function SessionReferenceScopeFilter({
   );
   return (
     <View style={styles.container}>
-      <SegmentedControl options={options} value={scope} onValueChange={onChange} size="xs" />
+      <SegmentedControl options={options} value={scope} onValueChange={onChange} size="sm" />
     </View>
   );
 }

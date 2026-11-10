@@ -62,7 +62,7 @@ export function ContextWindowCompactButton({
   return (
     <View style={styles.container}>
       <Button
-        size="xs"
+        size="sm"
         variant="secondary"
         onPress={compact}
         loading={pending}

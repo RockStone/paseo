@@ -46,7 +46,7 @@ export function CommitPushButton({ serverId, agentId }: { serverId: string; agen
   return (
     <View style={styles.container}>
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         testID="composer-commit-push"
         accessibilityLabel={t("commitHistoryPill.commitPush")}

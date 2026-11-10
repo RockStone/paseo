@@ -19,9 +19,8 @@ import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-moda
 import { ComboboxItem } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { CombinedModelSelector } from "@/components/combined-model-selector";
-import { useIsCompactFormFactor } from "@/constants/layout";
 import { HostStatusDotSlot } from "@/components/hosts/host-picker";
-import { type FieldControlSize } from "@/components/ui/control-geometry";
+import { type ControlSize } from "@/components/ui/control-geometry";
 import { Field, FormTextInput } from "@/components/ui/form-field";
 import { Switch } from "@/components/ui/switch";
 import { useProviderIcon } from "@/components/provider-icons";
@@ -248,7 +247,7 @@ function OpenScheduleFormSheet({
   mode,
   schedule,
 }: ScheduleFormSheetProps & { onDismiss: () => void }): ReactElement {
-  const controlSize: FieldControlSize = useIsCompactFormFactor() ? "md" : "sm";
+  const controlSize: ControlSize = "md";
   const { projects } = useProjects();
   const { agents } = useAggregatedAgents({ includeArchived: true });
   const hostProfiles = useHosts();
@@ -479,7 +478,7 @@ interface ScheduleFormFieldsProps {
   model: ScheduleFormModel;
   state: ScheduleFormState;
   providerSnapshot: ReturnType<typeof useScheduleFormProviderSnapshot>;
-  controlSize: FieldControlSize;
+  controlSize: ControlSize;
   cadenceError: string | null;
   mutationServerId: string;
 }
@@ -554,7 +553,7 @@ function SchedulePromptField({
 }: {
   model: ScheduleFormModel;
   state: ScheduleFormState;
-  size: FieldControlSize;
+  size: ControlSize;
 }) {
   const input = useRef<EditingTextInputHandle>(null);
   const useWatchdog = useCallback(() => {
@@ -601,7 +600,7 @@ interface ScheduleTargetFieldsProps {
   model: ScheduleFormModel;
   state: ScheduleFormState;
   providerSnapshot: ReturnType<typeof useScheduleFormProviderSnapshot>;
-  controlSize: FieldControlSize;
+  controlSize: ControlSize;
   mutationServerId: string;
 }
 
@@ -900,7 +899,7 @@ function ScheduleIsolationField({
 }: {
   model: ScheduleFormModel;
   state: ScheduleFormState;
-  size: FieldControlSize;
+  size: ControlSize;
 }): ReactElement {
   const options = useMemo<SelectFieldOption<"local" | "worktree">[]>(
     () => [
@@ -975,7 +974,7 @@ function ScheduleAgentTargetField({
 }: {
   model: ScheduleFormModel;
   state: ScheduleFormState;
-  size: FieldControlSize;
+  size: ControlSize;
 }): ReactElement {
   const options = useMemo<SelectFieldOption<string>[]>(
     () =>

@@ -223,10 +223,10 @@ function AddCustomModelSubSheet({
         />
         {error ? <Text style={sheetStyles.errorText}>{error}</Text> : null}
         <View style={sheetStyles.formActions}>
-          <Button variant="secondary" size="sm" onPress={onClose} disabled={saving}>
+          <Button variant="secondary" onPress={onClose} disabled={saving}>
             {t("common.actions.cancel")}
           </Button>
-          <Button variant="default" size="sm" onPress={handleAdd} disabled={!canAdd || saving}>
+          <Button variant="default" onPress={handleAdd} disabled={!canAdd || saving}>
             {saving ? t("settings.providers.models.adding") : t("settings.providers.models.add")}
           </Button>
         </View>
@@ -437,18 +437,11 @@ function renderProviderSheetFooter({
         <ProviderUpdatedLabel fetchedAt={fetchedAt} isCompact={isCompact} />
       ) : null}
       <View style={actionsStyle}>
-        <Button
-          variant="secondary"
-          size="sm"
-          leftIcon={Plus}
-          onPress={onOpenAddSheet}
-          style={buttonStyle}
-        >
+        <Button variant="secondary" leftIcon={Plus} onPress={onOpenAddSheet} style={buttonStyle}>
           {t("settings.providers.models.addModel")}
         </Button>
         <Button
           variant="secondary"
-          size="sm"
           leftIcon={FileText}
           onPress={onOpenDiagSheet}
           style={buttonStyle}
@@ -457,7 +450,6 @@ function renderProviderSheetFooter({
         </Button>
         <Button
           variant="default"
-          size="sm"
           leftIcon={modelsRefreshing ? undefined : RotateCw}
           onPress={onRefreshModels}
           disabled={modelsRefreshing}
@@ -521,7 +513,7 @@ function ProviderModalBody(props: ProviderModalBodyProps) {
       <View style={sheetStyles.emptyState}>
         <AlertTriangle size={theme.iconSize.md} color={theme.colors.foregroundMuted} />
         <Text style={sheetStyles.mutedText}>{providerErrorMessage}</Text>
-        <Button variant="default" size="sm" onPress={onRefresh} disabled={modelsRefreshing}>
+        <Button variant="default" onPress={onRefresh} disabled={modelsRefreshing}>
           {modelsRefreshing
             ? t("settings.providers.models.retrying")
             : t("settings.providers.models.retry")}

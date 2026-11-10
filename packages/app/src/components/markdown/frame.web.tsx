@@ -120,7 +120,7 @@ function TableCopy({ markdownSource, index }: { markdownSource: string; index: n
   return (
     <View dataSet={markdownCopyDataSet.ignore} style={styles.tools}>
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         onPress={copy}
         loading={pending}
