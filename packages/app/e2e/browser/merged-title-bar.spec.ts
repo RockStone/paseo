@@ -5,7 +5,7 @@ import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-
 
 const SCREENSHOT_DIR = process.env.PASEOI_MERGED_TITLE_BAR_SCREENSHOTS;
 
-test("a single-pane desktop workspace shows its header inside the tab row", async ({ page }) => {
+test("a desktop workspace shows its header inside the top tab rows", async ({ page }) => {
   test.setTimeout(120_000);
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -33,13 +33,14 @@ test("a single-pane desktop workspace shows its header inside the tab row", asyn
     await expect(tabsRow.getByTestId("workspace-explorer-toggle")).toBeVisible();
     if (SCREENSHOT_DIR) await page.screenshot({ path: `${SCREENSHOT_DIR}/merged-single-pane.png` });
 
-    // A split brings back the header row and plain per-pane tab rows.
+    // A side-by-side split keeps one title bar: the left pane's row leads, the right pane's trails.
     await runWorkspaceActionFromCommandCenter(page, "Split pane right");
     await expect(tabsRow).toHaveCount(2);
-    await expect(headerTitle).toHaveCount(1);
-    await expect(
-      page.getByTestId("workspace-title-bar-project").filter({ visible: true }),
-    ).toHaveCount(0);
+    await expect(headerTitle).toHaveCount(0);
+    await expect(tabsRow.first().getByTestId("workspace-title-bar-project")).toBeVisible();
+    await expect(tabsRow.first().getByTestId("workspace-explorer-toggle")).toHaveCount(0);
+    await expect(tabsRow.last().getByTestId("workspace-explorer-toggle")).toBeVisible();
+    await expect(tabsRow.last().getByTestId("workspace-title-bar-project")).toHaveCount(0);
     if (SCREENSHOT_DIR) await page.screenshot({ path: `${SCREENSHOT_DIR}/merged-split.png` });
   } finally {
     await agent.cleanup();

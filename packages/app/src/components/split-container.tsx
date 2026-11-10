@@ -1,7 +1,13 @@
 import {
-  WorkspaceTitleBarSlotsProvider,
+  PaneTitleBarSlots,
+  WorkspaceTitleBarAssignmentProvider,
+  type WorkspaceTitleBarAssignment,
   type WorkspaceTitleBarSlots,
 } from "@/screens/workspace/workspace-title-bar";
+import {
+  resolveChildWindowChromeCorners,
+  resolveTitleBarPaneIds,
+} from "@/components/split-container-title-bar";
 import { useWorkspaceTabDrag } from "./workspace-tab-drag-context";
 import {
   Fragment,
@@ -201,9 +207,8 @@ export function SplitContainer({
     [layout.root, explorerSidebarPaneId],
   );
   const workspaceHasMultiplePanes = Boolean(mainRoot && hasMultipleVisiblePanes(mainRoot));
-  // The merged title bar gives a lone pane's tab row the header's place, window corners included.
-  const activeTitleBarSlots =
-    titleBarSlots && !focusModeEnabled && !workspaceHasMultiplePanes ? titleBarSlots : null;
+  // The merged title bar gives the top tab rows the header's place, window corners included.
+  const activeTitleBarSlots = titleBarSlots && !focusModeEnabled ? titleBarSlots : null;
   const windowChromeCorners =
     focusModeEnabled || activeTitleBarSlots ? inheritedWindowChromeCorners : "none";
   useEffect(() => {
@@ -245,6 +250,18 @@ export function SplitContainer({
       : inheritedWindowChromeCorners;
   const mainColumnStyle = styles.mainColumn;
   const renderRoot = useMemo(() => wrapRootPaneForStableMount(splitRoot.root), [splitRoot.root]);
+  const titleBarAssignment = useMemo<WorkspaceTitleBarAssignment | null>(
+    () =>
+      activeTitleBarSlots && renderRoot
+        ? {
+            slots: activeTitleBarSlots,
+            ...resolveTitleBarPaneIds(renderRoot, (node) =>
+              isSplitNodeHiddenForPresentation(node, maximizedPaneId),
+            ),
+          }
+        : null,
+    [activeTitleBarSlots, maximizedPaneId, renderRoot],
+  );
   return (
     <RenderProfile id="SplitContainer">
       <View style={styles.workspaceShell}>
@@ -253,7 +270,7 @@ export function SplitContainer({
             {activeTitleBarSlots ? null : renderMainHeader?.()}
             {splitRoot.usesFallbackStrip && <WindowChromeSafeArea placement="below" />}
             {renderRoot ? (
-              <WorkspaceTitleBarSlotsProvider value={activeTitleBarSlots}>
+              <WorkspaceTitleBarAssignmentProvider value={titleBarAssignment}>
                 <SplitNodeView
                   node={renderRoot}
                   workspaceKey={workspaceKey}
@@ -295,7 +312,7 @@ export function SplitContainer({
                   focusModeEnabled={focusModeEnabled}
                   onExitFocusMode={onExitFocusMode}
                 />
-              </WorkspaceTitleBarSlotsProvider>
+              </WorkspaceTitleBarAssignmentProvider>
             ) : null}
           </View>
         </WindowChromeRegion>
@@ -463,6 +480,11 @@ function SplitNodeView({
     [groupDirection],
   );
 
+  const hiddenByIndex = useMemo(
+    () => groupChildren.map((child) => isSplitNodeHiddenForPresentation(child, maximizedPaneId)),
+    [groupChildren, maximizedPaneId],
+  );
+
   const groupStyle = useMemo(
     () => [
       styles.group,
@@ -527,7 +549,7 @@ function SplitNodeView({
           <SplitGroupChild
             resizeFlex={resizeFlex}
             index={index}
-            hidden={isSplitNodeHiddenForPresentation(child, maximizedPaneId)}
+            hidden={hiddenByIndex[index] ?? false}
           >
             <SplitNodeView
               node={child}
@@ -563,7 +585,12 @@ function SplitNodeView({
               showDropZones={showDropZones}
               dropPreview={dropPreview}
               tabDropPreview={tabDropPreview}
-              windowChromeCorners={windowChromeCorners}
+              windowChromeCorners={resolveChildWindowChromeCorners({
+                corners: windowChromeCorners,
+                direction: node.group.direction,
+                index,
+                hiddenByIndex,
+              })}
               maximizedPaneId={maximizedPaneId}
               workspaceHasMultiplePanes={workspaceHasMultiplePanes}
               onTogglePaneMaximized={onTogglePaneMaximized}
@@ -731,41 +758,43 @@ const SplitPaneView = memo(function SplitPaneView({
       >
         <WindowChromeSafeArea placement="inline" style={styles.paneTabs}>
           <TitlebarDragRegion />
-          <WorkspaceDesktopTabsRow
-            paneId={pane.id}
-            isFocused={isFocused && isWorkspaceFocused}
-            tabs={desktopTabRowItems}
-            normalizedServerId={normalizedServerId}
-            normalizedWorkspaceId={normalizedWorkspaceId}
-            setHoveredCloseTabKey={setHoveredCloseTabKey}
-            onNavigateTab={onNavigateTab}
-            onCloseTab={onCloseTab}
-            onCopyResumeCommand={onCopyResumeCommand}
-            onCopyAgentId={onCopyAgentId}
-            onCopyTerminalId={onCopyTerminalId}
-            onCopyFilePath={onCopyFilePath}
-            onReloadAgent={onReloadAgent}
-            onArchiveAgent={onArchiveAgent}
-            onRenameTab={onRenameTab}
-            onCloseTabsToLeft={handleCloseTabsToLeft}
-            onCloseTabsToRight={handleCloseTabsToRight}
-            onCloseOtherTabs={handleCloseOtherTabs}
-            onCreateNewTab={onCreateNewTab}
-            onReorderTabs={handleReorderTabs}
-            externalDndContext
-            activeDragTabId={activeDragTabId}
-            tabDropPreviewIndex={
-              tabDropPreview?.paneId === pane.id ? tabDropPreview.indicatorIndex : null
-            }
-            showPaneSplitActions={!focusModeEnabled}
-            showPaneMaximizeAction={workspaceHasMultiplePanes && !focusModeEnabled}
-            paneMaximized={paneId === maximizedPaneId}
-            onTogglePaneMaximized={handleTogglePaneMaximized}
-            onSplitRight={handleSplitRight}
-            onSplitDown={handleSplitDown}
-            focusModeEnabled={Boolean(focusModeEnabled)}
-            onExitFocusMode={onExitFocusMode}
-          />
+          <PaneTitleBarSlots paneId={pane.id}>
+            <WorkspaceDesktopTabsRow
+              paneId={pane.id}
+              isFocused={isFocused && isWorkspaceFocused}
+              tabs={desktopTabRowItems}
+              normalizedServerId={normalizedServerId}
+              normalizedWorkspaceId={normalizedWorkspaceId}
+              setHoveredCloseTabKey={setHoveredCloseTabKey}
+              onNavigateTab={onNavigateTab}
+              onCloseTab={onCloseTab}
+              onCopyResumeCommand={onCopyResumeCommand}
+              onCopyAgentId={onCopyAgentId}
+              onCopyTerminalId={onCopyTerminalId}
+              onCopyFilePath={onCopyFilePath}
+              onReloadAgent={onReloadAgent}
+              onArchiveAgent={onArchiveAgent}
+              onRenameTab={onRenameTab}
+              onCloseTabsToLeft={handleCloseTabsToLeft}
+              onCloseTabsToRight={handleCloseTabsToRight}
+              onCloseOtherTabs={handleCloseOtherTabs}
+              onCreateNewTab={onCreateNewTab}
+              onReorderTabs={handleReorderTabs}
+              externalDndContext
+              activeDragTabId={activeDragTabId}
+              tabDropPreviewIndex={
+                tabDropPreview?.paneId === pane.id ? tabDropPreview.indicatorIndex : null
+              }
+              showPaneSplitActions={!focusModeEnabled}
+              showPaneMaximizeAction={workspaceHasMultiplePanes && !focusModeEnabled}
+              paneMaximized={paneId === maximizedPaneId}
+              onTogglePaneMaximized={handleTogglePaneMaximized}
+              onSplitRight={handleSplitRight}
+              onSplitDown={handleSplitDown}
+              focusModeEnabled={Boolean(focusModeEnabled)}
+              onExitFocusMode={onExitFocusMode}
+            />
+          </PaneTitleBarSlots>
         </WindowChromeSafeArea>
 
         <View style={styles.paneContent}>

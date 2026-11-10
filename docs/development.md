@@ -65,11 +65,13 @@ the chat is active and the app is visible, so output that streams into a hidden 
 unread. Tool calls and thoughts move the marker but are not counted.
 
 On desktop and web, **Merge tabs into title bar** (Settings → Appearance → Layout, on by
-default) drops the workspace header row while a workspace shows one pane: the sidebar
-toggle, project name and `···` workspace menu sit left of the tabs, and the header actions
-sit on the right of the same row. Splitting a pane, or focus mode, brings back the header
-row. The split container hands the header content to the lone pane's tab row through
-`packages/app/src/screens/workspace/workspace-title-bar.tsx`, so `workspace-screen.tsx`,
+default) drops the workspace header row. The tab rows along the top edge form the title
+bar: the leftmost one starts with the sidebar toggle, project name and `···` workspace menu,
+and the rightmost one ends with the header actions. In a side-by-side split those are
+different panes; panes stacked below keep plain tab rows. Focus mode brings back the header
+row. `packages/app/src/components/split-container-title-bar.ts` picks the top panes and
+splits the window-chrome corners between them, and
+`packages/app/src/screens/workspace/workspace-title-bar.tsx` hands each pane its share, so `workspace-screen.tsx`,
 `split-container.tsx` and the tab row each carry only a small hook into it; keep it that
 way when resolving upstream merges. Browser specs seed the setting off in
 `packages/app/e2e/support/fixtures.ts`, because upstream specs expect the header row.

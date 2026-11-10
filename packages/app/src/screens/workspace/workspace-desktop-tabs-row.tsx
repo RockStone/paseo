@@ -1509,13 +1509,14 @@ function TitleBarSlot({
   side: keyof WorkspaceTitleBarSlots;
   onLayout: (event: LayoutChangeEvent) => void;
 }) {
-  if (!slots) return null;
+  const content = slots?.[side];
+  if (content == null) return null;
   return (
     <View
       style={side === "leading" ? styles.titleBarSlot : styles.titleBarTrailingSlot}
       onLayout={onLayout}
     >
-      {slots[side]}
+      {content}
     </View>
   );
 }
@@ -1524,7 +1525,10 @@ function resolveTitleBarReservedWidth(
   slots: WorkspaceTitleBarSlots | null,
   width: { leading: number; trailing: number },
 ): number {
-  return slots ? width.leading + width.trailing : 0;
+  if (!slots) return 0;
+  return (
+    (slots.leading == null ? 0 : width.leading) + (slots.trailing == null ? 0 : width.trailing)
+  );
 }
 
 function ResolvedDesktopTabChip({
