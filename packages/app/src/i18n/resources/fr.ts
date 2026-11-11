@@ -2901,8 +2901,8 @@ export const fr: TranslationResources = {
     },
     host: {
       password: {
-        guidance:
-          "Supprimez cet hôte puis ajoutez-le à nouveau avec le mot de passe demandé par ce daemon.",
+        guidance: "Saisissez le mot de passe demandé par ce daemon.",
+        save: "Enregistrer le mot de passe",
       },
       appearance: {
         title: "Apparence",

@@ -24,10 +24,8 @@ import {
   expectHostPageVisible,
   seedSavedSettingsHosts,
   selectSettingsHost,
-  expectHostRejectedWithReAddGuidance,
-  expectNoHostPasswordControls,
-  removeHostFromHostPage,
-  addDirectHostFromSettings,
+  enterHostPasswordOnHostPage,
+  expectHostRejectedWithPasswordGuidance,
   expectHostOnlineWithoutError,
   expectIdleAgentRelease,
   editRestartRecoveryPrompt,
@@ -106,7 +104,7 @@ test.describe("Settings host page", () => {
     await expect(updateButton).toBeEnabled();
   });
 
-  test("a host rejected for its password reconnects after being removed and added again with it", async ({
+  test("a host rejected for its password reconnects once the password is entered on its page", async ({
     page,
   }) => {
     const password = "e2e host password";
@@ -131,15 +129,12 @@ test.describe("Settings host page", () => {
       await selectSettingsHost(page, daemon.serverId);
       await openHostSection(page, daemon.serverId, "host");
 
-      await test.step("the host page shows the reason and the re-add guidance, with no password UI", async () => {
-        await expectHostRejectedWithReAddGuidance(page, "Password required");
-        await expectNoHostPasswordControls(page);
+      await test.step("the host page shows the reason and asks for the password", async () => {
+        await expectHostRejectedWithPasswordGuidance(page, "Password required");
       });
 
-      await test.step("removing the host and adding it again with the password brings it online", async () => {
-        await removeHostFromHostPage(page, daemon.serverId);
-        await addDirectHostFromSettings(page, { host: "127.0.0.1", port: daemon.port, password });
-        await openHostSection(page, daemon.serverId, "host");
+      await test.step("entering the password on the host page brings it online", async () => {
+        await enterHostPasswordOnHostPage(page, password);
         await expectHostOnlineWithoutError(page);
       });
     } finally {

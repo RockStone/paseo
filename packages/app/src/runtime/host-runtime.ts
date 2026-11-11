@@ -3032,6 +3032,8 @@ export interface HostMutations {
     label?: string;
   }) => Promise<{ profile: HostProfile; serverId: string; hostname: string | null }>;
   beginLinkPairing: () => LinkPairing;
+  /** Saves the daemon password for a paired host; the host reconnects with it. */
+  setHostPassword: (serverId: string, password: string) => Promise<void>;
   renameHost: (serverId: string, label: string) => Promise<void>;
   setHostColor: (serverId: string, color: HostColor) => Promise<void>;
   setHostBadgeDisplay: (serverId: string, badgeDisplay: HostBadgeDisplay) => Promise<void>;
@@ -3048,6 +3050,7 @@ export function useHostMutations(): HostMutations {
       probeAndUpsertRemoteSshConnection: (input) => store.probeAndUpsertRemoteSshConnection(input),
       beginLinkPairing: () => store.beginLinkPairing(),
       renameHost: (serverId, label) => store.renameHost(serverId, label),
+      setHostPassword: (serverId, password) => store.setHostPassword(serverId, password),
       setHostColor: (serverId, color) => store.setHostColor(serverId, color),
       setHostBadgeDisplay: (serverId, badgeDisplay) =>
         store.setHostBadgeDisplay(serverId, badgeDisplay),

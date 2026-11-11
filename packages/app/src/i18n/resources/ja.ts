@@ -2864,8 +2864,8 @@ export const ja: TranslationResources = {
     },
     host: {
       password: {
-        guidance:
-          "このホストを削除し、このデーモンが求めるパスワードを入力して追加し直してください。",
+        guidance: "このデーモンが求めるパスワードを入力してください。",
+        save: "パスワードを保存",
       },
       appearance: {
         title: "外観",

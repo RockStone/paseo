@@ -2852,7 +2852,8 @@ export const ko: TranslationResources = {
     },
     host: {
       password: {
-        guidance: "이 호스트를 제거한 뒤 이 데몬이 요구하는 비밀번호로 다시 추가하세요.",
+        guidance: "이 데몬이 요구하는 비밀번호를 입력하세요.",
+        save: "비밀번호 저장",
       },
       appearance: {
         title: "모양",

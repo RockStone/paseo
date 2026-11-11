@@ -2900,7 +2900,8 @@ export const es: TranslationResources = {
     },
     host: {
       password: {
-        guidance: "Elimina este host y vuelve a añadirlo con la contraseña que pide este daemon.",
+        guidance: "Introduce la contraseña que pide este daemon.",
+        save: "Guardar contraseña",
       },
       appearance: {
         title: "Apariencia",

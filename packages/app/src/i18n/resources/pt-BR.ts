@@ -2881,7 +2881,8 @@ export const ptBR: TranslationResources = {
     },
     host: {
       password: {
-        guidance: "Remova este host e adicione-o novamente com a senha que este daemon pede.",
+        guidance: "Digite a senha que este daemon pede.",
+        save: "Salvar senha",
       },
       appearance: {
         title: "Aparência",

@@ -2966,7 +2966,8 @@ export const en = {
     },
     host: {
       password: {
-        guidance: "Remove this host and add it again with the password this daemon asks for.",
+        guidance: "Enter the password this daemon asks for.",
+        save: "Save password",
       },
       appearance: {
         title: "Appearance",

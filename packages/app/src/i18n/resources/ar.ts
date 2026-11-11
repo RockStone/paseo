@@ -2875,7 +2875,8 @@ export const ar: TranslationResources = {
     },
     host: {
       password: {
-        guidance: "أزل هذا المضيف ثم أضفه مرة أخرى بكلمة المرور التي يطلبها هذا الخادم.",
+        guidance: "أدخل كلمة المرور التي يطلبها هذا الخادم.",
+        save: "حفظ كلمة المرور",
       },
       appearance: {
         title: "المظهر",

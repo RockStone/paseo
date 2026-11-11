@@ -27,6 +27,7 @@ import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-moda
 import { SettingsTextAreaCard } from "@/components/settings-textarea";
 import { Alert as InlineAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { EditingTextInput as TextInput } from "@/components/ui/text-input";
 import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -235,15 +236,58 @@ function HostConnectionError({ serverId }: { serverId: string }) {
   const connectionError =
     typeof lastError === "string" && lastError.trim().length > 0 ? lastError.trim() : null;
   if (!connectionError) return null;
+  const needsPassword = Boolean(snapshot?.authFailureReason);
   return (
     <View style={styles.connectionError}>
       <InlineAlert
         size="sm"
         variant="error"
         title={connectionError}
-        description={snapshot?.authFailureReason ? t("settings.host.password.guidance") : undefined}
+        description={needsPassword ? t("settings.host.password.guidance") : undefined}
         testID="host-connection-error"
       />
+      {needsPassword ? <HostPasswordForm serverId={serverId} /> : null}
+    </View>
+  );
+}
+
+// A host paired before its daemon set a password, or whose password changed, takes the new one
+// here instead of being removed and paired again.
+function HostPasswordForm({ serverId }: { serverId: string }) {
+  const { t } = useTranslation();
+  const { setHostPassword } = useHostMutations();
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const save = useCallback(() => {
+    // The daemon compares the password verbatim, so whitespace is kept.
+    if (!password || saving) return;
+    setSaving(true);
+    void setHostPassword(serverId, password).finally(() => setSaving(false));
+  }, [password, saving, setHostPassword, serverId]);
+  return (
+    <View style={styles.passwordForm}>
+      <TextInput
+        initialValue=""
+        onChangeText={setPassword}
+        onSubmitEditing={save}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        placeholder={t("pairing.hostPassword.label")}
+        placeholderTextColor={styles.passwordPlaceholder.color}
+        accessibilityLabel={t("pairing.hostPassword.label")}
+        style={styles.passwordInput}
+        testID="host-password-input"
+      />
+      <Button
+        variant="secondary"
+        size="sm"
+        onPress={save}
+        disabled={!password || saving}
+        testID="host-password-save"
+      >
+        {t("settings.host.password.save")}
+      </Button>
     </View>
   );
 }
@@ -1727,6 +1771,27 @@ const styles = StyleSheet.create((theme) => ({
   },
   connectionError: {
     marginBottom: theme.spacing[6],
+    gap: theme.spacing[3],
+  },
+  passwordForm: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  passwordInput: {
+    flex: 1,
+    minHeight: 36,
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borderRadius.md,
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface2,
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+  },
+  passwordPlaceholder: {
+    color: theme.colors.foregroundMuted,
   },
   connectionLatency: {
     fontSize: theme.fontSize.base,

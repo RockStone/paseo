@@ -2807,7 +2807,8 @@ export const zhCN: TranslationResources = {
     },
     host: {
       password: {
-        guidance: "移除此主机，然后使用此守护进程要求的密码重新添加。",
+        guidance: "输入此守护进程要求的密码。",
+        save: "保存密码",
       },
       appearance: {
         title: "外观",
