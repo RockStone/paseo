@@ -218,7 +218,7 @@ import {
   WorkspaceHeaderMenuDesktop,
   WorkspaceHeaderMenuMobile,
 } from "@/screens/workspace/workspace-header-menu";
-import { PluginHeaderButtons } from "@/plugins";
+import { PluginHeaderButtons, useStickyNotesShortcut } from "@/plugins";
 import {
   createWorkspaceFileTabTarget,
   normalizeWorkspaceFileLocation,
@@ -2726,6 +2726,12 @@ function WorkspaceScreenContent({
     priority: 100,
     isActive: () => true,
     handle: handleWorkspaceSidebarAction,
+  });
+
+  useStickyNotesShortcut({
+    serverId: normalizedServerId,
+    workspaceId: normalizedWorkspaceId,
+    enabled: workspaceActionsEnabled,
   });
 
   // Gated on the same predicate as the header menu item, so the command center never lists a

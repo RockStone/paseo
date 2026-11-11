@@ -57,6 +57,9 @@ import { getServerId } from "../support/helpers/server-id";
 import { expectAppRoute } from "../support/helpers/route-assertions";
 import { clickNewChat, gotoWorkspace } from "../support/helpers/launcher";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+import { installLocalDesktopHost } from "../support/helpers/local-desktop-host";
+
+const SHORTCUTS_SCREENSHOT_DIR = process.env.PASEOI_SHORTCUTS_SCREENSHOTS;
 
 async function openWorkspace(
   page: import("@playwright/test").Page,
@@ -347,6 +350,80 @@ test.describe("Settings sidebar navigation", () => {
 
     await page.keyboard.press("Escape");
     await expect(page).not.toHaveURL(/\/settings(\/|$)/);
+  });
+});
+
+test.describe("Settings — shortcuts search", () => {
+  test("narrows the shortcut rows, rebinds a match, and clears with Escape", async ({ page }) => {
+    // Shortcuts is a desktop-only section; a macOS desktop host fixes the key glyphs too.
+    await installLocalDesktopHost(page, "/tmp");
+    await page.addInitScript(() => {
+      window.paseoDesktop!.platform = "darwin";
+    });
+    await gotoAppShell(page);
+    await openSettings(page);
+    await openSettingsSection(page, "shortcuts");
+
+    const search = page.getByTestId("settings-shortcuts-search");
+    const rows = page.locator("[data-testid^='settings-shortcut-row-']");
+    const sections = page.locator("[data-testid^='settings-shortcuts-section-']");
+    const row = (id: string) => page.getByTestId(`settings-shortcut-row-${id}`);
+    const resetAll = page.getByRole("button", { name: "Reset all", exact: true });
+    await expect(row("new-workspace")).toBeVisible();
+
+    await test.step("matches labels without their accents and case", async () => {
+      await search.fill("STICKY");
+      await expect(row("toggle-sticky-notes")).toBeVisible();
+      await expect(rows).toHaveCount(1);
+      await expect(sections).toHaveCount(1);
+      await expect(page.getByTestId("settings-shortcuts-section-layout")).toBeVisible();
+      if (SHORTCUTS_SCREENSHOT_DIR) {
+        await page.screenshot({ path: `${SHORTCUTS_SCREENSHOT_DIR}/shortcuts-search.png` });
+      }
+    });
+
+    await test.step("matches the rendered key combo", async () => {
+      await search.fill("cmd k");
+      await expect(row("toggle-command-center")).toBeVisible();
+      await expect(row("new-workspace")).toHaveCount(0);
+      await search.fill("⌘K");
+      await expect(row("toggle-command-center")).toBeVisible();
+    });
+
+    await test.step("rebinds a filtered row and resets it", async () => {
+      await search.fill("sticky");
+      await expect(resetAll).toHaveCount(0);
+      await page.getByTestId("shortcut-actions-toggle-sticky-notes").click();
+      await page.getByTestId("shortcut-bind-toggle-sticky-notes").click();
+      await page.keyboard.press("Meta+Shift+KeyJ");
+      await page.getByRole("button", { name: "Done", exact: true }).click();
+      await expect(row("toggle-sticky-notes")).toContainText("J");
+      await expect(rows).toHaveCount(1);
+      if (SHORTCUTS_SCREENSHOT_DIR) {
+        await page.screenshot({ path: `${SHORTCUTS_SCREENSHOT_DIR}/shortcuts-rebound.png` });
+      }
+
+      await resetAll.click();
+      await expect(resetAll).toHaveCount(0);
+      await expect(row("toggle-sticky-notes")).toContainText("N");
+    });
+
+    await test.step("shows an empty state, then Escape and the clear button empty the field", async () => {
+      await search.fill("no shortcut spells this");
+      await expect(rows).toHaveCount(0);
+      await expect(sections).toHaveCount(0);
+      await expect(page.getByTestId("settings-shortcuts-empty")).toHaveText("No results found");
+
+      await search.press("Escape");
+      await expect(search).toHaveValue("");
+      await expect(row("new-workspace")).toBeVisible();
+      await expect(page).toHaveURL(/\/settings\/shortcuts/);
+
+      await search.fill("sticky");
+      await page.getByTestId("settings-shortcuts-search-clear").click();
+      await expect(search).toHaveValue("");
+      await expect(row("new-workspace")).toBeVisible();
+    });
   });
 });
 

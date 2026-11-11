@@ -2796,6 +2796,7 @@ export const es: TranslationResources = {
       capturePrompt: "Presione el acceso directo...",
       captureIndexPrompt: "Termina con un número del 1 al 9.",
       unassigned: "Sin asignar",
+      clearSearch: "Borrar búsqueda",
       actions: {
         menu: "Acciones para {{name}}",
         done: "Hecho",
@@ -2846,6 +2847,7 @@ export const es: TranslationResources = {
         toggleBothSidebars: "Alternar ambas barras laterales",
         toggleSettings: "Alternar configuración",
         toggleFocusMode: "Alternar modo de enfoque",
+        toggleStickyNotes: "Alternar notas adhesivas",
         cycleTheme: "Tema del ciclo",
         pasteTextAsFile: "Pegar texto como archivo",
         focusMessageInput: "Entrada de mensaje de enfoque",

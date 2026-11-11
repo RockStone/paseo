@@ -2781,6 +2781,7 @@ export const ru: TranslationResources = {
       capturePrompt: "Нажмите сочетание клавиш...",
       captureIndexPrompt: "Завершите цифрой от 1 до 9.",
       unassigned: "Не задано",
+      clearSearch: "Очистить поиск",
       actions: {
         menu: "Действия для {{name}}",
         done: "Готово",
@@ -2831,6 +2832,7 @@ export const ru: TranslationResources = {
         toggleBothSidebars: "Переключить обе боковые панели",
         toggleSettings: "Переключить настройки",
         toggleFocusMode: "Переключить режим фокусировки",
+        toggleStickyNotes: "Переключить стикеры",
         cycleTheme: "Переключить тему",
         pasteTextAsFile: "Вставить текст как файл",
         focusMessageInput: "Перейти к полю ввода сообщения",

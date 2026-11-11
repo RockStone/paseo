@@ -2703,6 +2703,7 @@ export const zhCN: TranslationResources = {
       capturePrompt: "按下快捷键...",
       captureIndexPrompt: "请以 1 到 9 的数字结尾。",
       unassigned: "未设置",
+      clearSearch: "清除搜索",
       actions: {
         menu: "{{name}} 的操作",
         done: "完成",
@@ -2753,6 +2754,7 @@ export const zhCN: TranslationResources = {
         toggleBothSidebars: "切换两侧边栏",
         toggleSettings: "切换设置",
         toggleFocusMode: "切换专注模式",
+        toggleStickyNotes: "切换便签",
         cycleTheme: "循环切换主题",
         pasteTextAsFile: "将文本粘贴为文件",
         focusMessageInput: "聚焦消息输入框",

@@ -8,6 +8,7 @@ import type { Theme } from "@/styles/theme";
 import { settingsStyles } from "@/styles/settings";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { Button } from "@/components/ui/button";
+import { SearchField } from "@/components/ui/search-field";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +18,7 @@ import {
 import { Shortcut } from "@/components/ui/shortcut";
 import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-overrides";
 import {
+  buildEffectiveBindings,
   buildKeyboardShortcutHelpSections,
   getBindingIdForAction,
   normalizeCapturedShortcutCombo,
@@ -25,6 +27,7 @@ import {
   resolveShortcutKeysForAction,
   type KeyboardShortcutHelpRow,
 } from "@/keyboard/keyboard-shortcuts";
+import { filterShortcutHelpSections } from "@/keyboard/shortcut-help-search";
 import {
   comboStringToShortcutKeys,
   heldModifiersFromEvent,
@@ -335,15 +338,28 @@ export function KeyboardShortcutsSection() {
   const [capturingBindingId, setCapturingBindingId] = useState<string | null>(null);
   const [capturedCombos, setCapturedCombos] = useState<string[]>([]);
   const [heldModifiers, setHeldModifiers] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const { overrides, hasOverrides, setOverride, clearOverride, removeOverride, resetAll } =
     useKeyboardShortcutOverrides();
   const setCapturingShortcut = useKeyboardShortcutsStore((s) => s.setCapturingShortcut);
   const capturing = useKeyboardShortcutsStore((s) => s.capturingShortcut);
 
   const isFocused = useIsFocused();
-  const isMac = getShortcutOs() === "mac";
+  const shortcutOs = getShortcutOs();
+  const isMac = shortcutOs === "mac";
   const isDesktopApp = getIsElectronRuntime();
-  const sections = buildKeyboardShortcutHelpSections({ isMac, isDesktop: isDesktopApp });
+  // Effective bindings, so a search for keys finds a rebound row by what now fires it.
+  const bindings = useMemo(() => buildEffectiveBindings(overrides), [overrides]);
+  const sections = useMemo(
+    () =>
+      filterShortcutHelpSections({
+        sections: buildKeyboardShortcutHelpSections({ isMac, isDesktop: isDesktopApp }, bindings),
+        query,
+        translate: t,
+        shortcutOs,
+      }),
+    [bindings, isDesktopApp, isMac, query, shortcutOs, t],
+  );
 
   const cancelCapture = useCallback(() => {
     setCapturedCombos([]);
@@ -454,12 +470,30 @@ export function KeyboardShortcutsSection() {
 
   return (
     <>
-      {sections.map(function (section, sectionIndex) {
+      {/* Reset all lives on the rail rather than the first section, so a query that hides that
+          section cannot take it away. */}
+      <View style={styles.searchRail}>
+        <SearchField
+          value={query}
+          onChangeText={setQuery}
+          placeholder={t("settings.shortcuts.searchPlaceholder")}
+          clearAccessibilityLabel={t("settings.shortcuts.clearSearch")}
+          testID="settings-shortcuts-search"
+          clearTestID="settings-shortcuts-search-clear"
+        />
+        {resetAllButton}
+      </View>
+      {sections.length === 0 ? (
+        <Text style={styles.emptyText} testID="settings-shortcuts-empty">
+          {t("common.empty.noResults")}
+        </Text>
+      ) : null}
+      {sections.map(function (section) {
         return (
           <SettingsSection
             key={section.id}
             title={t(section.titleKey)}
-            trailing={sectionIndex === 0 ? resetAllButton : undefined}
+            testID={`settings-shortcuts-section-${section.id}`}
           >
             <View style={settingsStyles.card}>
               {section.rows.map(function (row, index) {
@@ -473,7 +507,7 @@ export function KeyboardShortcutsSection() {
                 const hasDefault = getDefaultKeysForAction(row.id, platform) !== null;
 
                 return (
-                  <View key={row.id}>
+                  <View key={row.id} testID={`settings-shortcut-row-${row.id}`}>
                     <ShortcutRowContainer
                       row={row}
                       bindingId={bindingId}
@@ -504,6 +538,19 @@ export function KeyboardShortcutsSection() {
 }
 
 const styles = StyleSheet.create((theme) => ({
+  searchRail: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[3],
+    marginBottom: theme.spacing[6],
+  },
+  emptyText: {
+    paddingVertical: theme.spacing[6],
+    textAlign: "center",
+    fontSize: theme.fontSize.base,
+    color: theme.colors.foregroundMuted,
+  },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",

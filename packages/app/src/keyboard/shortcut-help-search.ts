@@ -49,6 +49,15 @@ export function shortcutSearchText(chord: ShortcutKey[][], shortcutOs: ShortcutO
     .join(" ");
 }
 
+// Only the Latin, Greek and Cyrillic combining accents. Stripping every mark would also strip the
+// Japanese voicing marks, so a search for カ would find ガ.
+const COMBINING_ACCENTS = /[\u0300-\u036f]/g;
+
+/** Case- and accent-folded, so "categorias" finds "Categorías" and "ecran" finds "Écran". */
+function foldForSearch(text: string): string {
+  return text.normalize("NFD").replace(COMBINING_ACCENTS, "").normalize("NFC").toLocaleLowerCase();
+}
+
 /**
  * The cheat sheet's sections narrowed to a query, matching on the row's label,
  * its note, and every spelling of the keys that actually fire it. A section
@@ -65,11 +74,11 @@ export function filterShortcutHelpSections({
   translate: TranslateHelpKey;
   shortcutOs: ShortcutOs;
 }): KeyboardShortcutHelpSection[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const normalizedQuery = foldForSearch(query.trim());
   if (!normalizedQuery) return [...sections];
 
   return sections.flatMap((section) => {
-    if (translate(section.titleKey).toLocaleLowerCase().includes(normalizedQuery)) {
+    if (foldForSearch(translate(section.titleKey)).includes(normalizedQuery)) {
       return [section];
     }
 
@@ -80,9 +89,8 @@ export function filterShortcutHelpSections({
         row.chord ? shortcutSearchText(row.chord, shortcutOs) : null,
       ]
         .filter(Boolean)
-        .join(" ")
-        .toLocaleLowerCase();
-      return searchText.includes(normalizedQuery);
+        .join(" ");
+      return foldForSearch(searchText).includes(normalizedQuery);
     });
 
     return rows.length > 0 ? [{ ...section, rows }] : [];

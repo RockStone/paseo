@@ -2759,6 +2759,7 @@ export const ja: TranslationResources = {
       capturePrompt: "ショートカットを押してください...",
       captureIndexPrompt: "最後に1〜9の数字を入力してください。",
       unassigned: "未設定",
+      clearSearch: "検索をクリア",
       actions: {
         menu: "{{name}} のアクション",
         done: "完了",
@@ -2809,6 +2810,7 @@ export const ja: TranslationResources = {
         toggleBothSidebars: "両方のサイドバーを切り替え",
         toggleSettings: "設定を切り替え",
         toggleFocusMode: "フォーカスモードを切り替え",
+        toggleStickyNotes: "付箋を切り替え",
         cycleTheme: "テーマを順に切り替え",
         pasteTextAsFile: "テキストをファイルとして貼り付け",
         focusMessageInput: "メッセージ入力にフォーカス",

@@ -2862,6 +2862,7 @@ export const en = {
       capturePrompt: "Press shortcut...",
       captureIndexPrompt: "End with a number from 1 to 9.",
       unassigned: "Not set",
+      clearSearch: "Clear search",
       actions: {
         menu: "Actions for {{name}}",
         done: "Done",
@@ -2912,6 +2913,7 @@ export const en = {
         toggleBothSidebars: "Toggle both sidebars",
         toggleSettings: "Toggle settings",
         toggleFocusMode: "Toggle focus mode",
+        toggleStickyNotes: "Toggle sticky notes",
         cycleTheme: "Cycle theme",
         pasteTextAsFile: "Paste text as file",
         focusMessageInput: "Focus message input",

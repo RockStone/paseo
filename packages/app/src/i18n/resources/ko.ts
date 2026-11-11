@@ -2748,6 +2748,7 @@ export const ko: TranslationResources = {
       capturePrompt: "단축키를 누르세요...",
       captureIndexPrompt: "마지막에 1부터 9까지의 숫자를 입력하세요.",
       unassigned: "설정되지 않음",
+      clearSearch: "검색 지우기",
       actions: {
         menu: "{{name}} 작업",
         done: "완료",
@@ -2798,6 +2799,7 @@ export const ko: TranslationResources = {
         toggleBothSidebars: "양쪽 사이드바 토글",
         toggleSettings: "설정 토글",
         toggleFocusMode: "집중 모드 토글",
+        toggleStickyNotes: "스티커 메모 토글",
         cycleTheme: "테마 순환",
         pasteTextAsFile: "텍스트를 파일로 붙여넣기",
         focusMessageInput: "메시지 입력란에 포커스",

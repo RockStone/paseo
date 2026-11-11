@@ -19,6 +19,8 @@ const EN: Record<string, string> = {
   "settings.shortcuts.sections.projects": "Projects",
   "settings.shortcuts.help.newWorkspace": "New workspace",
   "settings.shortcuts.help.openProject": "Open project",
+  "settings.shortcuts.help.toggleCommandCenter": "Toggle command center",
+  "settings.shortcuts.help.toggleStickyNotes": "Toggle sticky notes",
 };
 
 function translate(key: string): string {
@@ -36,6 +38,20 @@ function filter(query: string, overrides: ShortcutOverrides = {}) {
 
 function matchedRowIds(query: string, overrides: ShortcutOverrides = {}): string[] {
   return filter(query, overrides).flatMap((section) => section.rows.map((row) => row.id));
+}
+
+const FR: Record<string, string> = {
+  "settings.shortcuts.help.toggleFocusMode": "Activer/désactiver le mode focus",
+  "settings.shortcuts.help.newWorkspace": "Nouvel espace de travail",
+};
+
+function matchFrench(query: string): string[] {
+  return filterShortcutHelpSections({
+    sections: buildKeyboardShortcutHelpSections(MAC_DESKTOP),
+    query,
+    translate: (key) => FR[key] ?? key,
+    shortcutOs: "mac",
+  }).flatMap((section) => section.rows.map((row) => row.id));
 }
 
 describe("shortcutSearchText", () => {
@@ -109,5 +125,24 @@ describe("filterShortcutHelpSections", () => {
 
   it("drops a section whose rows all miss", () => {
     expect(filter("no shortcut spells this")).toEqual([]);
+  });
+
+  it.each(["⌘K", "cmd k", "Command+K"])("finds the command center by %s", (query) => {
+    expect(matchedRowIds(query)).toContain("toggle-command-center");
+  });
+
+  it("keeps only the matching rows and the sections that hold them", () => {
+    const sections = filter("sticky");
+
+    expect(sections.map((section) => section.id)).toEqual(["layout"]);
+    expect(sections[0]?.rows.map((row) => row.id)).toEqual(["toggle-sticky-notes"]);
+  });
+
+  // The French labels carry accents a user rarely types, and the query may carry one the label
+  // does not.
+  it("ignores case and accents on both sides", () => {
+    expect(matchFrench("DESACTIVER")).toEqual(["toggle-focus"]);
+    expect(matchFrench("désactiver")).toEqual(["toggle-focus"]);
+    expect(matchFrench("nouvél espace")).toEqual(["new-workspace"]);
   });
 });

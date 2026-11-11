@@ -1,5 +1,10 @@
 import { useCallback, useRef, useState, type ReactElement } from "react";
-import { Pressable, View } from "react-native";
+import {
+  Pressable,
+  View,
+  type NativeSyntheticEvent,
+  type TextInputKeyPressEventData,
+} from "react-native";
 import { Search, X } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { Theme } from "@/styles/theme";
@@ -33,8 +38,8 @@ export interface SearchFieldProps {
  * The standalone search box that leads a screen's filter rail. Its chrome is
  * the host filter pill's, so the two sit on the same rail and read as one row
  * of controls; only the border colour moves on focus, which keeps the leading
- * icon from shifting. It owns its own clear affordance — a caller rendering its
- * own X has been handed the wrong component.
+ * icon from shifting. It owns its own clear affordance, the X and Escape — a
+ * caller rendering its own X has been handed the wrong component.
  */
 export function SearchField({
   value,
@@ -53,6 +58,13 @@ export function SearchField({
     inputRef.current?.replaceText("");
     onChangeText("");
   }, [onChangeText]);
+  const hasValue = value.length > 0;
+  const handleKeyPress = useCallback(
+    (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+      if (event.nativeEvent.key === "Escape" && hasValue) handleClear();
+    },
+    [handleClear, hasValue],
+  );
 
   return (
     <View style={[styles.field, isFocused && styles.fieldFocused]}>
@@ -64,6 +76,7 @@ export function SearchField({
         onChangeText={onChangeText}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onKeyPress={handleKeyPress}
         placeholder={placeholder}
         accessibilityLabel={accessibilityLabel ?? placeholder}
         autoCapitalize="none"
@@ -71,7 +84,7 @@ export function SearchField({
         returnKeyType="search"
         style={styles.input}
       />
-      {value.length > 0 ? (
+      {hasValue ? (
         <Pressable
           testID={clearTestID}
           onPress={handleClear}

@@ -408,6 +408,16 @@ describe("keyboard-shortcuts", () => {
     },
   );
 
+  // Cmd+Alt+N used to open a new agent; it now belongs to the sticky notes.
+  it("does not keep old Mod+Alt+N new-agent binding", () => {
+    const result = resolveShortcut({
+      event: { key: "n", code: "KeyN", metaKey: true, altKey: true },
+      context: { isMac: true },
+    });
+
+    expect(result.match?.action).not.toBe("agent.new");
+  });
+
   it("leaves Escape to an editable field", () => {
     expectNoShortcutResolution({
       event: { key: "Escape", code: "Escape" },
@@ -416,11 +426,6 @@ describe("keyboard-shortcuts", () => {
   });
 
   const nonMatchingCases: NonMatchingShortcutCase[] = [
-    {
-      name: "does not keep old Mod+Alt+N binding",
-      event: { key: "n", code: "KeyN", metaKey: true, altKey: true },
-      context: { isMac: true },
-    },
     {
       name: "does not keep old Alt+Shift+T binding",
       event: { key: "T", code: "KeyT", altKey: true, shiftKey: true },
@@ -1448,6 +1453,58 @@ describe("paste text as file shortcut", () => {
     expect(
       resolveShortcutKeysForAction("paste-as-file", {}, { isMac: true, isDesktop: true }),
     ).toEqual([["mod", "shift", "V"]]);
+  });
+});
+
+describe("toggle sticky notes shortcut", () => {
+  const MAC_BINDING = "sticky-notes-toggle-cmd-alt-n-mac";
+
+  // Option+N is the tilde dead key on a US Mac layout, so event.key never reads "n".
+  it.each([
+    ["web", false],
+    ["desktop", true],
+  ])("fires Cmd+Alt+N on macOS %s when Option rewrites event.key", (_name, isDesktop) => {
+    expectShortcutResolution({
+      event: { key: "Dead", code: "KeyN", metaKey: true, altKey: true },
+      context: { isMac: true, isDesktop },
+      action: "sticky-notes.toggle",
+    });
+  });
+
+  it("fires Ctrl+Alt+N off macOS, but leaves it to a focused terminal", () => {
+    const event = { key: "n", code: "KeyN", ctrlKey: true, altKey: true };
+    expectShortcutResolution({ event, action: "sticky-notes.toggle" });
+    expectNoShortcutResolution({ event, context: { focusScope: "terminal" } });
+  });
+
+  it("keeps the macOS default clear of every other binding on the platform", () => {
+    const stickyCombo = DEFAULT_BINDINGS.find((binding) => binding.id === MAC_BINDING)?.combo;
+    const sharing = DEFAULT_BINDINGS.filter(
+      (binding) => binding.when?.mac !== false && binding.combo === stickyCombo,
+    ).map((binding) => binding.id);
+
+    expect(sharing).toEqual([MAC_BINDING]);
+  });
+
+  it("lists a rebindable Layout row", () => {
+    const platform = { isMac: true, isDesktop: true };
+    const layout = buildKeyboardShortcutHelpSections(platform).find(
+      (section) => section.id === "layout",
+    );
+    const row = layout?.rows.find((candidate) => candidate.id === "toggle-sticky-notes");
+
+    expect(row?.labelKey).toBe("settings.shortcuts.help.toggleStickyNotes");
+    expect(row?.chord).toEqual([["mod", "alt", "N"]]);
+    expect(getBindingIdForAction("toggle-sticky-notes", platform)).toBe(MAC_BINDING);
+
+    const rebound = buildEffectiveBindings({ [MAC_BINDING]: "Cmd+Shift+J" });
+    expect(
+      resolveShortcut({
+        event: { key: "j", code: "KeyJ", metaKey: true, shiftKey: true },
+        context: { isMac: true },
+        bindings: rebound,
+      }).match?.action,
+    ).toBe("sticky-notes.toggle");
   });
 });
 

@@ -28,6 +28,13 @@ export interface RegisteredPluginButton {
   open: boolean;
 }
 
+/** One plugin's header button in one workspace. */
+export interface PluginHeaderButtonTarget {
+  serverId: string;
+  workspaceId: string;
+  pluginId: string;
+}
+
 function resolveAction(
   behavior: PluginButtonBehavior<PluginText>,
   path: readonly string[],
@@ -139,6 +146,21 @@ export class PluginButtonStore {
     if (!entry) return;
     if (open && (!entry.button.visible || entry.button.disabled || entry.pending)) return;
     this.replace(key, { open });
+  }
+
+  /**
+   * Opens or closes a plugin's header button in a workspace, as a press on it would. Returns false
+   * when that workspace has no visible header button from the plugin with a surface to open.
+   */
+  toggleHeaderButton(target: PluginHeaderButtonTarget): boolean {
+    const entry = this.entries.find(
+      (candidate) =>
+        candidate.installation.id === target.pluginId &&
+        buttonMatches(candidate, target.serverId, target.workspaceId, null),
+    );
+    if (!entry || entry.button.behavior.kind === "action") return false;
+    this.setOpen(entry.key, !entry.open);
+    return true;
   }
 
   async run(key: number, path: readonly string[] = []): Promise<void> {

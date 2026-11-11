@@ -2771,6 +2771,7 @@ export const ar: TranslationResources = {
       capturePrompt: "اضغط على الاختصار...",
       captureIndexPrompt: "اختم برقم من 1 إلى 9.",
       unassigned: "غير معين",
+      clearSearch: "مسح البحث",
       actions: {
         menu: "إجراءات {{name}}",
         done: "منتهي",
@@ -2821,6 +2822,7 @@ export const ar: TranslationResources = {
         toggleBothSidebars: "تبديل كلا الشريطين الجانبيين",
         toggleSettings: "تبديل الإعدادات",
         toggleFocusMode: "تبديل وضع التركيز",
+        toggleStickyNotes: "تبديل الملاحظات اللاصقة",
         cycleTheme: "موضوع الدورة",
         pasteTextAsFile: "لصق النص كملف",
         focusMessageInput: "التركيز على إدخال الرسالة",

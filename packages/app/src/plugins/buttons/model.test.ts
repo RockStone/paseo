@@ -6,12 +6,12 @@ import type { PluginButton } from "@getpaseo/plugin/client";
 import type { InstalledPlugin } from "../types";
 import { PluginButtonStore, buttonMatches } from "./model";
 
-function installation(): InstalledPlugin {
+function installation(id = "review"): InstalledPlugin {
   return {
     lifetime: new AbortController(),
     locale: "en",
     i18n: new PluginTranslationRuntime({ getLocale: () => "en", subscribe: () => () => {} }),
-    id: "review",
+    id,
     serverId: "host-a",
     clientBundle: "bundle",
     queryClient: new QueryClient(),
@@ -253,4 +253,45 @@ it("keeps the previous descriptor after rejecting an invalid update", () => {
   expect(buttons.getSnapshot()[0].button.title).toBe("Review");
   registration.remove();
   plugin.i18n.dispose();
+});
+
+it("toggles one plugin's header button in one workspace", () => {
+  const buttons = store();
+  const notes = installation("sticky-notes");
+  const review = installation("review");
+  const popover: PluginButton = {
+    title: "Notes",
+    icon: "Scan",
+    behavior: { kind: "popover", Content: () => null },
+  };
+  buttons.addHeaderButton(review, { id: "notes", workspaceId: "workspace", button: popover });
+  buttons.addComposerPill(notes, {
+    id: "notes",
+    workspaceId: "workspace",
+    agentId: "agent",
+    button: popover,
+  });
+  buttons.addHeaderButton(notes, { id: "notes", workspaceId: "other", button: popover });
+  const target = { serverId: "host-a", workspaceId: "workspace", pluginId: "sticky-notes" };
+  const openStates = () => buttons.getSnapshot().map((entry) => entry.open);
+
+  expect(buttons.toggleHeaderButton(target)).toBe(false);
+  expect(openStates()).toEqual([false, false, false]);
+
+  const header = buttons.addHeaderButton(notes, {
+    id: "notes",
+    workspaceId: "workspace",
+    button: popover,
+  });
+  expect(buttons.toggleHeaderButton(target)).toBe(true);
+  expect(openStates()).toEqual([false, false, false, true]);
+  expect(buttons.toggleHeaderButton(target)).toBe(true);
+  expect(openStates()).toEqual([false, false, false, false]);
+  expect(buttons.toggleHeaderButton({ ...target, serverId: "host-b" })).toBe(false);
+
+  header.update({ behavior: { kind: "action", onPress() {} } });
+  expect(buttons.toggleHeaderButton(target)).toBe(false);
+  header.update({ behavior: popover.behavior, visible: false });
+  expect(buttons.toggleHeaderButton(target)).toBe(false);
+  for (const plugin of [notes, review]) plugin.i18n.dispose();
 });

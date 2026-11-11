@@ -2796,6 +2796,7 @@ export const fr: TranslationResources = {
       capturePrompt: "Appuyez sur le raccourci…",
       captureIndexPrompt: "Terminez par un chiffre de 1 à 9.",
       unassigned: "Non attribué",
+      clearSearch: "Effacer la recherche",
       actions: {
         menu: "Actions pour {{name}}",
         done: "Terminé",
@@ -2846,6 +2847,7 @@ export const fr: TranslationResources = {
         toggleBothSidebars: "Afficher/masquer les deux barres latérales",
         toggleSettings: "Afficher/masquer les paramètres",
         toggleFocusMode: "Activer/désactiver le mode focus",
+        toggleStickyNotes: "Afficher/masquer les notes adhésives",
         cycleTheme: "Parcourir les thèmes",
         pasteTextAsFile: "Coller le texte en fichier",
         focusMessageInput: "Aller à la zone de saisie",

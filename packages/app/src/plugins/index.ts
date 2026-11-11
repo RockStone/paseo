@@ -9,3 +9,4 @@ export {
   useHasPluginComposerPills,
   usePluginWorkspaceMenu,
 } from "./buttons/view";
+export { useStickyNotesShortcut } from "./buttons/sticky-notes-shortcut";

@@ -2776,6 +2776,7 @@ export const ptBR: TranslationResources = {
       capturePrompt: "Pressione o atalho...",
       captureIndexPrompt: "Termine com um número de 1 a 9.",
       unassigned: "Não definido",
+      clearSearch: "Limpar busca",
       actions: {
         menu: "Ações para {{name}}",
         done: "Concluído",
@@ -2826,6 +2827,7 @@ export const ptBR: TranslationResources = {
         toggleBothSidebars: "Alternar ambas as barras laterais",
         toggleSettings: "Alternar Configurações",
         toggleFocusMode: "Alternar modo de foco",
+        toggleStickyNotes: "Alternar notas adesivas",
         cycleTheme: "Alternar tema",
         pasteTextAsFile: "Colar texto como arquivo",
         focusMessageInput: "Focar entrada de mensagem",

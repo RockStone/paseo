@@ -193,7 +193,13 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "workspace-pane-move-tab-down",
     "workspace-pane-close",
   ],
-  layout: ["toggle-left-sidebar", "toggle-right-sidebar", "toggle-both-sidebars", "toggle-focus"],
+  layout: [
+    "toggle-left-sidebar",
+    "toggle-right-sidebar",
+    "toggle-both-sidebars",
+    "toggle-focus",
+    "toggle-sticky-notes",
+  ],
   "agent-input": [
     "focus-message-input",
     "paste-as-file",
@@ -242,6 +248,7 @@ const SHORTCUT_HELP_LABEL_KEYS: Record<string, string> = {
   "toggle-both-sidebars": "settings.shortcuts.help.toggleBothSidebars",
   "toggle-settings": "settings.shortcuts.help.toggleSettings",
   "toggle-focus": "settings.shortcuts.help.toggleFocusMode",
+  "toggle-sticky-notes": "settings.shortcuts.help.toggleStickyNotes",
   "cycle-theme": "settings.shortcuts.help.cycleTheme",
   "focus-message-input": "settings.shortcuts.help.focusMessageInput",
   "paste-as-file": "settings.shortcuts.help.pasteTextAsFile",
@@ -1023,6 +1030,32 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
       id: "toggle-focus",
       section: "layout",
       label: "Toggle focus mode",
+    },
+  },
+
+  // --- Toggle sticky notes (Paseoi) ---
+  // Cmd+Alt+N rather than Cmd+Shift+Y: the app menu carries the macOS Services
+  // submenu, whose stock "Make New Sticky Note" service owns Cmd+Shift+Y.
+  {
+    id: "sticky-notes-toggle-cmd-alt-n-mac",
+    action: "sticky-notes.toggle",
+    combo: "Cmd+Alt+N",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "toggle-sticky-notes",
+      section: "layout",
+      label: "Toggle sticky notes",
+    },
+  },
+  {
+    id: "sticky-notes-toggle-ctrl-alt-n-non-mac",
+    action: "sticky-notes.toggle",
+    combo: "Ctrl+Alt+N",
+    when: { mac: false, commandCenter: false, terminal: false },
+    help: {
+      id: "toggle-sticky-notes",
+      section: "layout",
+      label: "Toggle sticky notes",
     },
   },
 

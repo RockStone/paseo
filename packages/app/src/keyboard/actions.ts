@@ -55,6 +55,7 @@ export type KeyboardActionId =
   | "workspace.archive"
   | "workspace.pin"
   | "view.toggle.focus"
+  | "sticky-notes.toggle"
   | "theme.cycle"
   | "message-input.action";
 

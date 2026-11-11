@@ -96,6 +96,19 @@ test("the sticky-notes plugin adds a workspace note from the header", async ({ p
     await expect(drawer).toBeVisible();
     await page.mouse.click(400, 500);
     await expect(drawer).toHaveCount(0);
+
+    // ⌥⌘N (Ctrl+Alt+N off macOS) toggles the same drawer from the keyboard.
+    await page.keyboard.press("ControlOrMeta+Alt+KeyN");
+    await expect(drawer.getByText("https://example.com/pr/42")).toBeVisible();
+    await expect
+      .poll(async () => {
+        const box = await drawer.boundingBox();
+        return box ? Math.round(box.x + box.width) : null;
+      })
+      .toBe(1440);
+    if (SCREENSHOT_DIR) await page.screenshot({ path: `${SCREENSHOT_DIR}/sticky-shortcut.png` });
+    await page.keyboard.press("ControlOrMeta+Alt+KeyN");
+    await expect(drawer).toHaveCount(0);
   } finally {
     await client.removePlugin("sticky-notes").catch(() => undefined);
     await client.patchDaemonConfig({
