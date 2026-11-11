@@ -209,8 +209,9 @@ function WebHoverCard({
     const focusEntered = (event: FocusEvent) => {
       const target = event.target as Element;
       keyboardFocusedRef.current = target.matches(":focus-visible");
+      // A tap focuses the trigger too; only keyboard focus opens the card.
       if (trigger.contains(target)) {
-        openNow();
+        if (keyboardFocusedRef.current) openNow();
       } else if ((contentRef.current as unknown as HTMLElement | null)?.contains(target)) {
         clearGraceTimer();
       }
@@ -297,6 +298,17 @@ function WebHoverCard({
   );
 }
 
+interface PointerLikeEvent {
+  nativeEvent?: { pointerType?: string };
+  pointerType?: string;
+}
+
+// Paseoi: a touch is not a hover. Opening on a touch's pointerenter changes the page under the
+// finger, and iPad Safari then swallows the tap, so the row shows the card instead of opening.
+function isTouch(event: PointerLikeEvent): boolean {
+  return (event.nativeEvent?.pointerType ?? event.pointerType) === "touch";
+}
+
 export function HoverCardTrigger({
   children,
   inline = false,
@@ -309,13 +321,20 @@ export function HoverCardTrigger({
   accessibilityLabel?: string;
 }): ReactNode {
   const ctx = useContext(HoverCardContext);
+  const openNow = ctx?.openNow;
+  const pointerEntered = useCallback(
+    (event: PointerLikeEvent) => {
+      if (!isTouch(event)) openNow?.();
+    },
+    [openNow],
+  );
   if (!ctx) return children;
   if (isWeb && inline)
     return (
       <span
         ref={ctx.setTriggerRef}
-        onMouseEnter={ctx.openNow}
-        onMouseLeave={ctx.scheduleClose}
+        onPointerEnter={pointerEntered}
+        onPointerLeave={ctx.scheduleClose}
         tabIndex={focusable ? 0 : undefined}
         aria-label={accessibilityLabel}
       >
@@ -329,7 +348,7 @@ export function HoverCardTrigger({
       accessibilityRole={focusable ? "button" : undefined}
       accessibilityLabel={accessibilityLabel}
       collapsable={false}
-      onPointerEnter={ctx.openNow}
+      onPointerEnter={pointerEntered}
       onPointerLeave={ctx.scheduleClose}
     >
       {children}
