@@ -1043,6 +1043,14 @@ async function assertMacSidebarLayout(options) {
 }
 
 async function assertMediaFilePreviews(page) {
+  // The sidebar layout check ends with the sidebar collapsed and its edge preview open. While the
+  // smoke window is in the background, any pointer near the left edge reveals the preview again
+  // over the player's controls, so dock the sidebar before clicking them.
+  const width = await page.evaluate(() => window.innerWidth);
+  await page.mouse.move(width - 40, 400);
+  await page.getByTestId("sidebar-edge-preview").waitFor({ state: "detached" });
+  await page.keyboard.press("Meta+b");
+  await page.getByTestId("sidebar-edge-trigger").waitFor({ state: "detached" });
   let explorer = page.getByTestId("workspace-explorer-sidebar").filter({ visible: true }).first();
   if ((await explorer.count()) === 0) {
     await page.getByTestId("workspace-explorer-toggle").first().click();
