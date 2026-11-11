@@ -168,10 +168,11 @@ Desktop **Settings → Layout → Open location** has independent Main panel or 
 Explorer Files, diffs, files opened from diffs, and subagents. They default to Main panel. Mobile
 ignores them.
 
-Paseoi: what you open from the chat or the Driveboard always goes to the side pane, with no
-setting. Workspace files and image files open there as file tabs. On Electron, web links and web
-images open there as browser tabs; elsewhere links fall back to the default browser and web images
-to the lightbox. Data and attachment images keep the lightbox. The workspace screen gives
+Paseoi: links and file paths you open from the chat or the Driveboard always go to the side pane,
+with no setting. Workspace files, image files included, open there as file tabs. On Electron, web
+links open there as browser tabs; elsewhere they fall back to the default browser. Images shown in
+the chat (inline images, tool-result previews and attachments) open in the lightbox instead, which
+a click outside dismisses. The workspace screen gives
 `AssistantFileLinkResolverProvider` an `onOpenUrlInApp` that nested providers inherit, and
 header-button popovers get the same routing through `navigation` (`openBrowser`, `openFile`; see
 `packages/app/src/plugins/buttons/navigation.ts`).

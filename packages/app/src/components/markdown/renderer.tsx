@@ -152,22 +152,11 @@ const MarkdownPart = memo(function MarkdownPart({
     if (onLinkPress && !actions.canResolveFile(source)) onLinkPress(url);
     else actions.open(source, "preferred");
   });
-  // Paseoi: an image opens beside the session like a link does: a workspace image file in the
-  // side pane's image viewer, a web image in a browser tab there. Data, blob and attachment
-  // images (and web images outside the desktop app) keep the lightbox.
+  // Paseoi: images shown in the chat (inline images and tool-result previews) open in the
+  // lightbox, which a click outside dismisses. Only links and paths written as text open in the
+  // side pane.
   const openImage = useStableEvent((url: string) => {
-    if (url === PENDING_MARKDOWN_IMAGE) return;
-    const source = imageSources[url] ?? url;
-    if (/^https?:/i.test(source)) {
-      if (actions.openUrlInApp(source)) return;
-    } else if (!/^(data|blob|attachment):/i.test(source)) {
-      const link = linkSource(source, "markdown");
-      if (actions.canResolveFile(link)) {
-        actions.open(link, "side");
-        return;
-      }
-    }
-    setImage({ type: "uri", uri: url });
+    if (url !== PENDING_MARKDOWN_IMAGE) setImage({ type: "uri", uri: url });
   });
   const pressImage = useStableEvent(({ url }: { url: string }) => openImage(url));
   const closeImage = useStableEvent(() => setImage(null));
