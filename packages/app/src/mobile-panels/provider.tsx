@@ -14,7 +14,6 @@ import { Keyboard, useWindowDimensions } from "react-native";
 import type { GestureType } from "react-native-gesture-handler";
 import {
   cancelAnimation,
-  Easing,
   useAnimatedReaction,
   useSharedValue,
   withTiming,
@@ -37,9 +36,7 @@ import {
   type MobilePanelMotionState,
   type MobilePanelTransition,
 } from "./model";
-
-const ANIMATION_DURATION = 220;
-const ANIMATION_EASING = Easing.bezier(0.25, 0.1, 0.25, 1);
+import { PANEL_SLIDE_DURATION_MS, PANEL_SLIDE_EASING } from "./motion";
 
 interface MobilePanelsRuntime {
   beginGesture: (input: BeginGestureInput) => number;
@@ -127,8 +124,8 @@ export function MobilePanelsProvider({ children }: { children: ReactNode }) {
       }
       const target = transition.animationTarget;
       position.value = withTiming(getMobilePanelAnchor(target), {
-        duration: ANIMATION_DURATION,
-        easing: ANIMATION_EASING,
+        duration: PANEL_SLIDE_DURATION_MS,
+        easing: PANEL_SLIDE_EASING,
       });
     },
     [position],

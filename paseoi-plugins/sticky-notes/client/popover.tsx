@@ -11,7 +11,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { Pressable, Text, type TextStyle, View } from "react-native";
+import {
+  type NativeSyntheticEvent,
+  Pressable,
+  Text,
+  type TextInputKeyPressEventData,
+  type TextStyle,
+  View,
+} from "react-native";
 import { formatRelativeTime, splitLinks } from "../shared/format";
 import {
   addNoteRpc,
@@ -25,7 +32,7 @@ import {
 const OPEN_REFETCH_MS = 5_000;
 const CLOCK_TICK_MS = 30_000;
 
-function createStyles(theme: PluginTheme, compact: boolean) {
+function createStyles(theme: PluginTheme) {
   const { colors } = theme;
   // A round add button floating in the input's corner, like the composer's expand button:
   // translucent at rest, solid on hover.
@@ -50,7 +57,8 @@ function createStyles(theme: PluginTheme, compact: boolean) {
     backgroundColor: colors.surface1,
   };
   return {
-    root: { gap: 12, width: compact ? undefined : 380, maxWidth: "100%" as const },
+    // Fills its surface: the right-edge drawer on wide layouts, the sheet on compact ones.
+    root: { gap: 12 },
     composer: { position: "relative" as const },
     input: {
       minHeight: 64,
@@ -88,6 +96,22 @@ function createStyles(theme: PluginTheme, compact: boolean) {
 }
 
 type Styles = ReturnType<typeof createStyles>;
+
+// ⌘↵ on macOS, Ctrl+↵ elsewhere, adds the draft; plain Enter keeps inserting a newline.
+// The plugin builds without the DOM lib; `navigator` exists on web and in React Native.
+const platformName = (globalThis as { navigator?: { platform?: string } }).navigator?.platform;
+const IS_MAC = /Mac|iPhone|iPad/.test(platformName ?? "");
+const SUBMIT_HINT = IS_MAC ? "⌘↵ to add" : "Ctrl+↵ to add";
+
+/** On web the key event is the DOM's, so it carries the modifier keys. */
+function isSubmitChord(event: NativeSyntheticEvent<TextInputKeyPressEventData>): boolean {
+  const native = event.nativeEvent as TextInputKeyPressEventData & {
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+  };
+  if (native.key !== "Enter") return false;
+  return IS_MAC ? native.metaKey === true : native.ctrlKey === true;
+}
 
 function open(url: string) {
   void openExternalUrl(url).catch((error: unknown) => {
@@ -180,8 +204,8 @@ function errorMessage(error: unknown): string {
 export function createNotesPopover(
   refreshBadges: () => Promise<void>,
 ): ComponentType<PluginButtonContentProps> {
-  return function StickyNotesPopover({ theme, layout, host, workspaceId }) {
-    const styles = useMemo(() => createStyles(theme, layout.compact), [theme, layout.compact]);
+  return function StickyNotesPopover({ theme, host, workspaceId, layout }) {
+    const styles = useMemo(() => createStyles(theme), [theme]);
     const queryClient = useQueryClient();
     const listNotes = useRpc(listNotesRpc);
     const addNote = useRpc(addNoteRpc);
@@ -233,6 +257,14 @@ export function createNotesPopover(
     const submit = useCallback(() => {
       if (canAdd) addMutate({ workspaceId, text });
     }, [canAdd, addMutate, workspaceId, text]);
+    const handleKeyPress = useCallback(
+      (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+        if (!isSubmitChord(event)) return;
+        event.preventDefault();
+        submit();
+      },
+      [submit],
+    );
     const { mutate: removeMutate } = remove;
     const handleDelete = useCallback(
       (id: string) => removeMutate({ workspaceId, id }),
@@ -278,12 +310,14 @@ export function createNotesPopover(
           <TextInput
             value={draft}
             onChangeText={setDraft}
+            onKeyPress={handleKeyPress}
             placeholder="Write a note for yourself or your agents"
             placeholderTextColor={theme.colors.foregroundMuted}
             multiline
             maxLength={MAX_TEXT_LENGTH}
             style={styles.input}
             accessibilityLabel="New sticky note"
+            accessibilityHint={layout.platform === "web" ? SUBMIT_HINT : undefined}
           />
           <Pressable
             accessibilityRole="button"

@@ -46,6 +46,7 @@ import {
 } from "../popover";
 import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { toPluginTheme } from "../theme";
+import { PluginDrawerSurface } from "./drawer";
 import { buttonMatches, type RegisteredPluginButton } from "./model";
 import { pluginButtonStore } from "./store";
 import { resolvePluginPlatform } from "../platform";
@@ -265,6 +266,9 @@ function ButtonControl({ view }: { view: ButtonView }) {
   const disabled = button.disabled || entry.pending;
   const expanded = button.behavior.kind !== "action";
   const { bare, chevron, label, badge } = resolveButtonPresentation(entry, props.layout.compact);
+  // Paseoi: on wide layouts a bare header popover (the sticky notes) opens as a right-edge drawer.
+  // Compact layouts keep the sheet; menus and labeled popovers keep the anchored surface.
+  const drawer = bare && !props.layout.compact && button.behavior.kind === "popover";
   const press = useCallback(() => pressButton(view, []), [view]);
   const setOpen = useCallback(
     (open: boolean) => pluginButtonStore.setOpen(entry.key, open),
@@ -349,7 +353,12 @@ function ButtonControl({ view }: { view: ButtonView }) {
           <Text style={styles.tooltipLabel}>{button.title}</Text>
         </TooltipContent>
       </Tooltip>
-      {expanded ? (
+      {expanded && drawer ? (
+        <PluginDrawerSurface testID="plugin-button-drawer">
+          <ButtonSurfaceBody view={view} behavior={button.behavior} path={ROOT_PATH} />
+        </PluginDrawerSurface>
+      ) : null}
+      {expanded && !drawer ? (
         <PluginPopoverSurface
           sheetTitle={button.title}
           side={composer ? "top" : "bottom"}

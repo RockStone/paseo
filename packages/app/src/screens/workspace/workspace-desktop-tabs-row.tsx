@@ -47,6 +47,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/component
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { WORKSPACE_SECONDARY_HEADER_HEIGHT, useIsCompactFormFactor } from "@/constants/layout";
+import { HeaderRowProvider } from "@/components/headers/header-row-context";
 import { CONTROL_HEIGHTS } from "@/components/ui/control-geometry";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import { Shortcut } from "@/components/ui/shortcut";
@@ -1075,6 +1076,7 @@ function ResolvedWorkspaceDesktopTabsRow({
   const newTabKeys = useShortcutKeys("workspace-tab-new");
   const [tabsContainerWidth, setTabsContainerWidth] = useState<number>(0);
   const tabsScrollRef = useRef<ScrollView>(null);
+  const rowRef = useRef<View>(null);
   const [exitFocusModeWidth, setExitFocusModeWidth] = useState<number>(0);
   const titleBarSlots = useWorkspaceTitleBarSlots();
   const [titleBarSlotsWidth, setTitleBarSlotsWidth] = useState({ leading: 0, trailing: 0 });
@@ -1408,6 +1410,8 @@ function ResolvedWorkspaceDesktopTabsRow({
 
   const row = (
     <View
+      ref={rowRef}
+      collapsable={false}
       style={[styles.tabsContainer, onSidebar && styles.tabsContainerSidebar]}
       testID="workspace-tabs-row"
       onLayout={handleTabsContainerLayout}
@@ -1493,7 +1497,13 @@ function ResolvedWorkspaceDesktopTabsRow({
         onSplitDown={onSplitDown}
         onTogglePaneMaximized={onTogglePaneMaximized}
       />
-      <TitleBarSlot slots={titleBarSlots} side="trailing" onLayout={handleTitleBarTrailingLayout} />
+      <HeaderRowProvider value={rowRef}>
+        <TitleBarSlot
+          slots={titleBarSlots}
+          side="trailing"
+          onLayout={handleTitleBarTrailingLayout}
+        />
+      </HeaderRowProvider>
     </View>
   );
 

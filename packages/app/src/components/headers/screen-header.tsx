@@ -1,5 +1,5 @@
 import { ComposerDockBackground } from "@/composer/dock";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import type { LayoutChangeEvent } from "react-native";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import {
 } from "@/constants/layout";
 import { WindowChromeSafeArea } from "@/utils/desktop-window";
 import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
+import { HeaderRowProvider } from "./header-row-context";
 
 interface ScreenHeaderProps {
   left?: ReactNode;
@@ -48,10 +49,12 @@ export function ScreenHeader({
   const rowStyle = useMemo(() => [styles.row, borderless && styles.borderless], [borderless]);
   const leftCombinedStyle = useMemo(() => [styles.left, leftStyle], [leftStyle]);
   const rightCombinedStyle = useMemo(() => [styles.right, rightStyle], [rightStyle]);
+  // The inner view ends where the row does; surfaces opened from the header hang below it.
+  const rowRef = useRef<View>(null);
 
   return (
     <ComposerDockBackground style={styles.header} testID="composer-dock-header">
-      <View style={innerStyle}>
+      <View ref={rowRef} collapsable={false} style={innerStyle}>
         <WindowChromeSafeArea
           placement="inline"
           horizontalPadding={baseHorizontalPadding}
@@ -60,7 +63,9 @@ export function ScreenHeader({
         >
           <TitlebarDragRegion />
           <View style={leftCombinedStyle}>{left}</View>
-          <View style={rightCombinedStyle}>{right}</View>
+          <View style={rightCombinedStyle}>
+            <HeaderRowProvider value={rowRef}>{right}</HeaderRowProvider>
+          </View>
         </WindowChromeSafeArea>
       </View>
     </ComposerDockBackground>

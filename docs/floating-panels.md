@@ -13,10 +13,13 @@ canonical files and are trying to add or change one.
 | `components/ui/tooltip.tsx`              | Non-interactive hover/long-press tooltip                                  |
 | `components/ui/hover-card.tsx`           | Desktop-web hover card the pointer can move onto; shared web overlay root |
 | `components/ui/autocomplete-popover.tsx` | Slash-command autocomplete anchored to the focused composer input         |
+| `components/ui/edge-drawer-layer.tsx`    | Paseoi: right-edge drawer below the header row (sticky notes)             |
 
 Each handles a different mix of concerns: combobox owns input focus, tooltip is
 non-interactive, hover-card is web-only desktop, autocomplete keeps the composer
-input focused while its scrollable list lives in a Portal. There is no shared
+input focused while its scrollable list lives in a Portal, and the edge drawer
+measures the header row from `components/headers/header-row-context.ts` instead of
+its trigger, so it sits flush under the title bar. There is no shared
 "floating panel" primitive yet — when a fifth use case shows up we can revisit;
 until then prefer copying the closest file and trimming.
 
