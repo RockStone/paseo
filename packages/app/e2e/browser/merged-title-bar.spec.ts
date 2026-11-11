@@ -28,8 +28,10 @@ test("a desktop workspace shows its header inside the top tab rows", async ({ pa
 
     await expect(tabsRow).toHaveCount(1);
     await expect(headerTitle).toHaveCount(0);
-    await expect(tabsRow.getByTestId("workspace-title-bar-project")).toBeVisible();
-    await expect(tabsRow.getByTestId("workspace-header-menu-trigger")).toBeVisible();
+    // Paseoi keeps only the sidebar toggle on the left and drops the git actions on the right.
+    await expect(tabsRow.getByTestId("workspace-title-bar-leading")).toBeVisible();
+    await expect(tabsRow.getByTestId("workspace-header-menu-trigger")).toHaveCount(0);
+    await expect(tabsRow.getByTestId("changes-actions-menu-trigger")).toHaveCount(0);
     await expect(tabsRow.getByTestId("workspace-explorer-toggle")).toBeVisible();
     if (SCREENSHOT_DIR) await page.screenshot({ path: `${SCREENSHOT_DIR}/merged-single-pane.png` });
 
@@ -37,10 +39,10 @@ test("a desktop workspace shows its header inside the top tab rows", async ({ pa
     await runWorkspaceActionFromCommandCenter(page, "Split pane right");
     await expect(tabsRow).toHaveCount(2);
     await expect(headerTitle).toHaveCount(0);
-    await expect(tabsRow.first().getByTestId("workspace-title-bar-project")).toBeVisible();
+    await expect(tabsRow.first().getByTestId("workspace-title-bar-leading")).toBeVisible();
     await expect(tabsRow.first().getByTestId("workspace-explorer-toggle")).toHaveCount(0);
     await expect(tabsRow.last().getByTestId("workspace-explorer-toggle")).toBeVisible();
-    await expect(tabsRow.last().getByTestId("workspace-title-bar-project")).toHaveCount(0);
+    await expect(tabsRow.last().getByTestId("workspace-title-bar-leading")).toHaveCount(0);
     if (SCREENSHOT_DIR) await page.screenshot({ path: `${SCREENSHOT_DIR}/merged-split.png` });
   } finally {
     await agent.cleanup();

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StreamItem } from "@/types/stream";
 import {
   collectAssistantResponseContentForStreamRenderStrategy,
+  collectAssistantResponseMessagesForStreamRenderStrategy,
   getBottomOffsetForStreamRenderStrategy,
   getFrameChildOrderForStreamRenderStrategy,
   getHistoryLiveBoundaryIndexForStreamRenderStrategy,
@@ -212,6 +213,21 @@ describe("neighbor and traversal semantics", () => {
         startIndex: invertedStartIndex,
       }),
     ).toBe("assistant-1\n\nassistant-2");
+    // Selection from a response's Copy button covers the same messages, in conversation order.
+    expect(
+      collectAssistantResponseMessagesForStreamRenderStrategy({
+        strategy: inverted,
+        items: invertedItems,
+        startIndex: invertedStartIndex,
+      }).map((item) => item.id),
+    ).toEqual(["a1", "a2"]);
+    expect(
+      collectAssistantResponseMessagesForStreamRenderStrategy({
+        strategy: forward,
+        items: chronological,
+        startIndex: forwardStartIndex,
+      }).map((item) => item.id),
+    ).toEqual(["a1", "a2"]);
   });
 
   it("keeps copied content within the canonical turn without a visible prompt", () => {

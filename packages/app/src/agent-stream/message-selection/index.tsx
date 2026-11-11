@@ -8,13 +8,16 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, type GestureResponderEvent } from "react-native";
 import { Check, Copy, ListChecks, X } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import type { Theme } from "@/styles/theme";
 import { ToolbarButton, paneContentToolbarIconSize } from "@/components/ui/pane-content-toolbar";
 import { useIsCompactFormFactor } from "@/constants/layout";
+import { isNative } from "@/constants/platform";
+import { formatShortcut } from "@/utils/format-shortcut";
+import { getShortcutOs } from "@/utils/shortcut-platform";
 import { useToast } from "@/contexts/toast-context";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { Alert } from "@/components/ui/alert";
@@ -23,6 +26,13 @@ import { getDefaultMarkdownClipboardEnvironment } from "@/utils/rich-clipboard-d
 import { openMessageSelection, type MessageSelectionModel, type SelectableMessage } from "./model";
 
 const Context = createContext<MessageSelectionModel | null>(null);
+interface CopyScope {
+  target: string;
+  /** One user message, or every assistant message in a response. */
+  read: () => readonly SelectableMessage[];
+}
+/** What a message's Copy button selects. */
+const CopyScopeContext = createContext<CopyScope | null>(null);
 const CopyIcon = withUnistyles(Copy);
 const CancelIcon = withUnistyles(X);
 const ListIcon = withUnistyles(ListChecks);
@@ -42,6 +52,65 @@ export function useMessageSelectionActive(target: string) {
   return useSyncExternalStore(
     model?.subscribe ?? noopSubscribe,
     () => model?.getState().target === target,
+  );
+}
+
+export function SelectableMessages({
+  target,
+  read,
+  children,
+}: CopyScope & { children: ReactNode }) {
+  const scope = useMemo(() => ({ target, read }), [target, read]);
+  return <CopyScopeContext.Provider value={scope}>{children}</CopyScopeContext.Provider>;
+}
+
+/** Native has no modifier key; there selection starts from the header button. */
+function hasSelectModifier(event: GestureResponderEvent): boolean {
+  if (isNative) return false;
+  const { nativeEvent } = event;
+  if (getShortcutOs() === "mac") return "metaKey" in nativeEvent && nativeEvent.metaKey === true;
+  return "ctrlKey" in nativeEvent && nativeEvent.ctrlKey === true;
+}
+
+export interface MessageCopyGesture {
+  /** While selecting, the Copy button adds or removes its messages instead of copying. */
+  isSelecting: boolean;
+  /** How the button's label mentions the modifier, or null where there is none. */
+  hint: string | null;
+  /** True when the press belonged to selection, so the caller must not copy. */
+  press: (event: GestureResponderEvent) => boolean;
+}
+
+/**
+ * A modifier-click on a message's Copy button starts selection with that message
+ * checked; while selecting, any click on it toggles. A plain click copies as before.
+ */
+export function useMessageCopyGesture(action: string): MessageCopyGesture | null {
+  const model = useMessageSelection();
+  const scope = useContext(CopyScopeContext);
+  const { t } = useTranslation();
+  const isSelecting = useSyncExternalStore(
+    model?.subscribe ?? noopSubscribe,
+    () => scope !== null && model?.getState().target === scope.target,
+  );
+  const press = useCallback(
+    (event: GestureResponderEvent) => {
+      if (!model || !scope) return false;
+      if (model.getState().target !== scope.target) {
+        if (!hasSelectModifier(event)) return false;
+        model.start(scope.target);
+      }
+      model.toggle(scope.target, scope.read());
+      return true;
+    },
+    [model, scope],
+  );
+  const hint = isNative
+    ? null
+    : t("message.selection.copyHint", { action, key: formatShortcut(["mod"], getShortcutOs()) });
+  return useMemo(
+    () => (model && scope ? { isSelecting, hint, press } : null),
+    [model, scope, isSelecting, hint, press],
   );
 }
 
@@ -65,7 +134,10 @@ export function MessageSelectionToolbar({ target }: { target: string | null }) {
     if (copied) toast.show(t("message.selection.copied"), { variant: "success" });
   }, [model, toast, t]);
   if (!target || !model || !state) return null;
-  if (state.target !== target)
+  if (state.target !== target) {
+    // Desktop and web start selection with a modifier-click on a message's Copy button.
+    // Touch layouts have no modifier, so they keep this button.
+    if (!isNative && !compact) return null;
     return (
       <ToolbarButton
         label={t("message.selection.start")}
@@ -75,6 +147,7 @@ export function MessageSelectionToolbar({ target }: { target: string | null }) {
         <ListIcon size={size} uniProps={iconColor} />
       </ToolbarButton>
     );
+  }
   return (
     <View style={styles.controls}>
       <ToolbarButton
@@ -115,6 +188,7 @@ export function MessageSelectionRow({
   const disabled = mode.startsWith("pending:");
   const accessibilityState = useMemo(() => ({ checked, disabled }), [checked, disabled]);
   const toggle = useCallback(() => model?.toggle(target, item), [model, target, item]);
+  const readMessages = useCallback(() => [item], [item]);
   const { t } = useTranslation();
   if (!model) return children;
   // Keep the message subtree mounted when the selection gutter appears, including
@@ -141,7 +215,9 @@ export function MessageSelectionRow({
         </PressHighlight>
       ) : null}
       <View key="message" style={styles.message}>
-        {children}
+        <SelectableMessages target={target} read={readMessages}>
+          {children}
+        </SelectableMessages>
       </View>
     </View>
   );

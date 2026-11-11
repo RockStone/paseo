@@ -404,6 +404,8 @@ export const fr: TranslationResources = {
       assistant: "Sélectionner le message assistant",
       failed: "Impossible de copier les messages",
       retry: "Votre sélection est conservée. Utilisez Copier pour réessayer ou Annuler.",
+      copyHint: "{{action}} · {{key}}-clic pour en sélectionner plusieurs",
+      toggle: "Ajouter à la sélection ou l’en retirer",
     },
     diagram: {
       diagram: "Diagramme",

@@ -27,11 +27,19 @@ const CLOCK_TICK_MS = 30_000;
 
 function createStyles(theme: PluginTheme, compact: boolean) {
   const { colors } = theme;
+  // A round add button floating in the input's corner, like the composer's expand button:
+  // translucent at rest, solid on hover.
   const addButton = {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
+    position: "absolute" as const,
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
     backgroundColor: colors.accent,
+    opacity: 0.45,
   };
   const note = {
     gap: 4,
@@ -43,11 +51,12 @@ function createStyles(theme: PluginTheme, compact: boolean) {
   };
   return {
     root: { gap: 12, width: compact ? undefined : 380, maxWidth: "100%" as const },
-    composer: { gap: 8 },
+    composer: { position: "relative" as const },
     input: {
       minHeight: 64,
       maxHeight: 160,
-      paddingHorizontal: 10,
+      paddingLeft: 10,
+      paddingRight: 42,
       paddingVertical: 8,
       borderRadius: 8,
       borderWidth: 1,
@@ -57,16 +66,9 @@ function createStyles(theme: PluginTheme, compact: boolean) {
       fontSize: 14,
       textAlignVertical: "top" as const,
     },
-    composerRow: {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      justifyContent: "space-between" as const,
-      gap: 8,
-    },
-    hint: { color: colors.foregroundMuted, fontSize: 12, flexShrink: 1 },
     addButton,
-    addButtonDisabled: { ...addButton, opacity: 0.5 },
-    addButtonText: { color: colors.accentForeground, fontSize: 13, fontWeight: "600" as const },
+    addButtonHovered: { ...addButton, opacity: 1 },
+    addButtonDisabled: { ...addButton, opacity: 0.25 },
     error: { color: colors.statusDanger, fontSize: 12 },
     empty: { color: colors.foregroundMuted, fontSize: 13, paddingVertical: 8 },
     list: { gap: 8 },
@@ -237,6 +239,14 @@ export function createNotesPopover(
       [removeMutate, workspaceId],
     );
 
+    const addButtonStyle = useCallback(
+      ({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => {
+        if (!canAdd) return styles.addButtonDisabled;
+        return hovered || pressed ? styles.addButtonHovered : styles.addButton;
+      },
+      [canAdd, styles],
+    );
+
     const error = add.error ?? remove.error ?? notes.error;
     const list = notes.data?.notes ?? [];
     const deletingId = remove.isPending ? remove.variables?.id : undefined;
@@ -275,18 +285,16 @@ export function createNotesPopover(
             style={styles.input}
             accessibilityLabel="New sticky note"
           />
-          <View style={styles.composerRow}>
-            <Text style={styles.hint}>Agents can read and add notes here.</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add note"
-              disabled={!canAdd}
-              onPress={submit}
-              style={canAdd ? styles.addButton : styles.addButtonDisabled}
-            >
-              <Text style={styles.addButtonText}>{add.isPending ? "Adding…" : "Add"}</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add note"
+            accessibilityHint="Agents can read and add notes here"
+            disabled={!canAdd}
+            onPress={submit}
+            style={addButtonStyle}
+          >
+            <Icon name="Plus" size={16} color={theme.colors.accentForeground} />
+          </Pressable>
         </View>
         {error ? <Text style={styles.error}>{errorMessage(error)}</Text> : null}
         {body}

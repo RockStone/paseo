@@ -399,6 +399,8 @@ export const ar: TranslationResources = {
       assistant: "تحديد رسالة المساعد",
       failed: "تعذر نسخ الرسائل",
       retry: "تم الاحتفاظ بالتحديد. اضغط نسخ للمحاولة مجدداً أو إلغاء.",
+      copyHint: "{{action}} · انقر مع {{key}} لتحديد عدة رسائل",
+      toggle: "إضافة إلى التحديد أو إزالة منه",
     },
     diagram: {
       diagram: "مخطط",

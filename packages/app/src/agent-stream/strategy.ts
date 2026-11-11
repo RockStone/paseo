@@ -1,6 +1,6 @@
 import type { ComponentType, ReactElement, ReactNode, RefObject } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import type { StreamItem } from "@/types/stream";
+import type { AssistantMessageItem, StreamItem } from "@/types/stream";
 import type { ReadingRowReplacements } from "./reading-anchor";
 import { continuesResponse } from "./turn-membership";
 import type { StreamHistoryBoundary, StreamRenderSegments } from "./model";
@@ -122,7 +122,10 @@ export interface StreamStrategy {
     index: number,
     relation: NeighborRelation,
   ) => StreamItem | undefined;
-  collectAssistantResponseContent: (items: StreamItem[], startIndex: number) => string;
+  collectAssistantResponseMessages: (
+    items: StreamItem[],
+    startIndex: number,
+  ) => AssistantMessageItem[];
   isNearBottom: (input: StreamNearBottomInput) => boolean;
   getBottomOffset: (metrics: StreamViewportMetrics) => number;
   getEdgeSlotProps: (
@@ -187,8 +190,8 @@ export function createStreamStrategy(config: StreamStrategyConfig): StreamStrate
       }
       return items[neighborIndex];
     },
-    collectAssistantResponseContent: (items, startIndex) => {
-      const messages: string[] = [];
+    collectAssistantResponseMessages: (items, startIndex) => {
+      const messages: AssistantMessageItem[] = [];
       let laterItem: StreamItem | null = null;
       for (
         let index = startIndex;
@@ -200,11 +203,11 @@ export function createStreamStrategy(config: StreamStrategyConfig): StreamStrate
           break;
         }
         if (currentItem.kind === "assistant_message") {
-          messages.push(currentItem.text);
+          messages.push(currentItem);
         }
         laterItem = currentItem;
       }
-      return messages.toReversed().join("\n\n");
+      return messages.toReversed();
     },
     isNearBottom: (input) => config.isNearBottom(input),
     getBottomOffset: (metrics) => config.getBottomOffset(metrics),
@@ -304,7 +307,18 @@ export function collectAssistantResponseContentForStreamRenderStrategy(params: {
   items: StreamItem[];
   startIndex: number;
 }): string {
-  return params.strategy.collectAssistantResponseContent(params.items, params.startIndex);
+  return collectAssistantResponseMessagesForStreamRenderStrategy(params)
+    .map((message) => message.text)
+    .join("\n\n");
+}
+
+/** The assistant messages one response's Copy button covers, in conversation order. */
+export function collectAssistantResponseMessagesForStreamRenderStrategy(params: {
+  strategy: StreamStrategy;
+  items: StreamItem[];
+  startIndex: number;
+}): AssistantMessageItem[] {
+  return params.strategy.collectAssistantResponseMessages(params.items, params.startIndex);
 }
 
 export function isNearBottomForStreamRenderStrategy(

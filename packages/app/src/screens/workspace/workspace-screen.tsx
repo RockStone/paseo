@@ -3057,10 +3057,13 @@ function WorkspaceScreenContent({
         : null,
     [focusedPaneAgentId, isRouteFocused, normalizedServerId],
   );
-  const headerRight = useMemo(
-    () => (
+  // The merged title bar drops the git actions to save space and moves plugin buttons right.
+  const [headerRight, titleBarTrailing] = useMemo(() => {
+    const renderActions = (inTitleBar: boolean) => (
       <View style={styles.headerRight}>
-        <PluginHeaderButtons serverId={normalizedServerId} workspaceId={normalizedWorkspaceId} />
+        {inTitleBar ? null : (
+          <PluginHeaderButtons serverId={normalizedServerId} workspaceId={normalizedWorkspaceId} />
+        )}
         <MessageSelectionToolbar target={selectionTarget} />
         {workspaceDescriptor ? (
           <WorkspaceScriptsButton
@@ -3084,40 +3087,45 @@ function WorkspaceScreenContent({
             hideLabels
           />
         ) : null}
+        {workspaceDirectory && !inTitleBar ? (
+          <WorkspaceActions serverId={normalizedServerId} cwd={workspaceDirectory} />
+        ) : null}
+        {/* The merged title bar keeps plugin buttons (sticky notes) next to the explorer toggle;
+            the header row and its compact menu keep upstream's order. */}
+        {inTitleBar ? (
+          <PluginHeaderButtons serverId={normalizedServerId} workspaceId={normalizedWorkspaceId} />
+        ) : null}
         {workspaceDirectory ? (
-          <>
-            <WorkspaceActions serverId={normalizedServerId} cwd={workspaceDirectory} />
-            <WorkspaceHeaderExplorerToggle
-              owner={explorerToggleOwner}
-              onPress={handleToggleExplorerSidebar}
-              label={explorerSidebarToggleLabel}
-              tooltipLabel={t("workspace.tabs.explorerSidebar.toggle")}
-              tooltipKeys={EXPLORER_TOGGLE_KEYS}
-              style={styles.compactHeaderActionButton}
-              accessibilityState={explorerSidebarToggleAccessibilityState}
-            />
-          </>
+          <WorkspaceHeaderExplorerToggle
+            owner={explorerToggleOwner}
+            onPress={handleToggleExplorerSidebar}
+            label={explorerSidebarToggleLabel}
+            tooltipLabel={t("workspace.tabs.explorerSidebar.toggle")}
+            tooltipKeys={EXPLORER_TOGGLE_KEYS}
+            style={styles.compactHeaderActionButton}
+            accessibilityState={explorerSidebarToggleAccessibilityState}
+          />
         ) : null}
       </View>
-    ),
-    [
-      selectionTarget,
-      workspaceDescriptor,
-      normalizedServerId,
-      normalizedWorkspaceId,
-      workspaceDirectory,
-      activeFileLocation,
-      liveTerminalIds,
-      handleScriptTerminalStarted,
-      handleViewScriptTerminal,
-      handleOpenUrlInBrowserTab,
-      handleToggleExplorerSidebar,
-      explorerSidebarToggleLabel,
-      explorerSidebarToggleAccessibilityState,
-      explorerToggleOwner,
-      t,
-    ],
-  );
+    );
+    return [renderActions(false), renderActions(true)];
+  }, [
+    selectionTarget,
+    workspaceDescriptor,
+    normalizedServerId,
+    normalizedWorkspaceId,
+    workspaceDirectory,
+    activeFileLocation,
+    liveTerminalIds,
+    handleScriptTerminalStarted,
+    handleViewScriptTerminal,
+    handleOpenUrlInBrowserTab,
+    handleToggleExplorerSidebar,
+    explorerSidebarToggleLabel,
+    explorerSidebarToggleAccessibilityState,
+    explorerToggleOwner,
+    t,
+  ]);
 
   const showScreenHeader = useMemo(
     () => shouldShowWorkspaceScreenHeader({ isFocusModeEnabled, isMobile }),
@@ -3340,39 +3348,9 @@ function WorkspaceScreenContent({
   const titleBarSlots = useMemo<WorkspaceTitleBarSlots | null>(
     () =>
       mergedTitleBarEnabled && !isMobile
-        ? {
-            leading: (
-              <WorkspaceTitleBarLeading
-                projectLabel={workspaceHeaderSubtitle}
-                workspaceTitle={workspaceHeaderTitle}
-                currentBranchName={currentBranchName}
-                showWorkspaceSetup={showWorkspaceSetup}
-                importAgentDisabled={!canOpenImportSheet}
-                copyPathDisabled={!workspaceDirectory}
-                onOpenImportSheet={openImportSheet}
-                onCopyWorkspacePath={handleCopyWorkspacePath}
-                onCopyBranchName={handleCopyBranchName}
-                onOpenSetupTab={handleOpenSetupTab}
-              />
-            ),
-            trailing: headerRight,
-          }
+        ? { leading: <WorkspaceTitleBarLeading />, trailing: titleBarTrailing }
         : null,
-    [
-      canOpenImportSheet,
-      currentBranchName,
-      handleCopyBranchName,
-      handleCopyWorkspacePath,
-      handleOpenSetupTab,
-      headerRight,
-      isMobile,
-      mergedTitleBarEnabled,
-      openImportSheet,
-      showWorkspaceSetup,
-      workspaceDirectory,
-      workspaceHeaderSubtitle,
-      workspaceHeaderTitle,
-    ],
+    [isMobile, mergedTitleBarEnabled, titleBarTrailing],
   );
   const desktopSplitContent = useMemo(() => {
     if (!canRenderDesktopPaneSplits || !workspaceLayout || !persistenceKey) {

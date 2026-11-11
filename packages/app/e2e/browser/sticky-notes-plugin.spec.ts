@@ -38,6 +38,7 @@ test("the sticky-notes plugin adds a workspace note from the header", async ({ p
       .getByRole("button", { name: "Sticky notes" })
       .filter({ visible: true });
     await expect(button).toBeVisible({ timeout: 30_000 });
+    await expect(button.getByTestId("plugin-button-chevron")).toHaveCount(0);
     if (SCREENSHOT_DIR) await page.screenshot({ path: `${SCREENSHOT_DIR}/sticky-button.png` });
     await button.click();
 

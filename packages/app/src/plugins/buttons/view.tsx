@@ -241,16 +241,30 @@ function buttonPages(
   });
 }
 
+const COUNT_LABEL = /^\d+\+?$/;
+
+// Paseoi: a header popover with no label or a count label (the sticky notes) is a bare icon like
+// the explorer toggle, with the count as a badge. Menus and text-labeled buttons keep the box.
+function resolveButtonPresentation(entry: ButtonView["entry"], compact: boolean) {
+  const { button } = entry;
+  const composer = entry.placement === "composer";
+  const countOrBlank = !button.label || COUNT_LABEL.test(button.label);
+  const bare = !composer && (compact || (button.behavior.kind === "popover" && countOrBlank));
+  const chevron = !composer && !bare && button.behavior.kind !== "action";
+  let label = button.label;
+  if (composer) label = button.label ?? button.title;
+  else if (compact) label = undefined;
+  if (bare && label) return { bare, chevron, label: undefined, badge: label };
+  return { bare, chevron, label, badge: undefined };
+}
+
 function ButtonControl({ view }: { view: ButtonView }) {
   const { entry, props } = view;
   const { button } = entry;
   const composer = entry.placement === "composer";
   const disabled = button.disabled || entry.pending;
   const expanded = button.behavior.kind !== "action";
-  const chevron = !composer && !props.layout.compact && expanded;
-  let label = button.label;
-  if (composer) label = button.label ?? button.title;
-  else if (props.layout.compact) label = undefined;
+  const { bare, chevron, label, badge } = resolveButtonPresentation(entry, props.layout.compact);
   const press = useCallback(() => pressButton(view, []), [view]);
   const setOpen = useCallback(
     (open: boolean) => pluginButtonStore.setOpen(entry.key, open),
@@ -265,8 +279,8 @@ function ButtonControl({ view }: { view: ButtonView }) {
             (hovered || pressed || entry.open) && styles.active,
             disabled && styles.disabled,
           ]
-        : headerButtonStyle(props.layout.compact, { hovered, pressed, open: entry.open }, disabled),
-    [composer, disabled, entry.open, props.layout.compact],
+        : headerButtonStyle(bare, { hovered, pressed, open: entry.open }, disabled),
+    [bare, composer, disabled, entry.open],
   );
   const contents = (
     <>
@@ -281,6 +295,11 @@ function ButtonControl({ view }: { view: ButtonView }) {
         <Text numberOfLines={1} style={composer ? styles.composerLabel : styles.label}>
           {label}
         </Text>
+      ) : null}
+      {badge ? (
+        <View style={styles.badge} pointerEvents="none" testID="plugin-button-badge">
+          <Text style={styles.badgeText}>{badge}</Text>
+        </View>
       ) : null}
       {chevron ? (
         <View testID="plugin-button-chevron">
@@ -681,6 +700,24 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 1,
   },
   label: { fontSize: theme.fontSize.sm, color: theme.colors.foregroundMuted, flexShrink: 1 },
+  badge: {
+    position: "absolute",
+    top: 1,
+    right: 1,
+    minWidth: 14,
+    height: 14,
+    paddingHorizontal: 3,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: "600",
+    color: theme.colors.accentForeground,
+  },
   icon: {
     width: 16,
     height: 16,

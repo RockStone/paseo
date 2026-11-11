@@ -399,6 +399,8 @@ export const zhCN: TranslationResources = {
       assistant: "选择助手消息",
       failed: "无法复制消息",
       retry: "已保留所选消息。点击复制重试，或点击取消。",
+      copyHint: "{{action}} · {{key}}-点击可多选",
+      toggle: "加入或移出所选",
     },
     diagram: {
       diagram: "图表",
