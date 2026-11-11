@@ -104,7 +104,7 @@ export function useScrollToMessage({
   }, [active, settleController]);
 
   const scrollToMessage = useCallback(
-    (messageId: string, occurrence?: ScrollToMessageOccurrence) => {
+    (messageId: string, occurrence?: ScrollToMessageOccurrence, onLanded?: () => void) => {
       occurrenceRef.current = occurrence;
       removeAbortListener.current?.();
       const cancel = () => settleController.cancel();
@@ -126,7 +126,7 @@ export function useScrollToMessage({
           container.getBoundingClientRect().top -
           PROMPT_JUMP_TOP_INSET_PX;
         container.scrollTop += delta;
-        settleController.start(messageId);
+        settleController.start(messageId, onLanded);
         onNearBottomChange(false);
         return;
       }
@@ -136,7 +136,7 @@ export function useScrollToMessage({
       );
       if (index >= 0) {
         rowVirtualizer.scrollToIndex(index, { align: "start" });
-        settleController.start(messageId);
+        settleController.start(messageId, onLanded);
         onNearBottomChange(false);
       }
     },

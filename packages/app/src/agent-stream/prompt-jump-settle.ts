@@ -13,7 +13,12 @@ export interface PromptJumpSettleViewport {
 }
 
 export interface PromptJumpSettleController {
-  start(messageId: string): void;
+  /**
+   * Paseoi: `onLanded` runs once the target holds its landing position, is clamped at the end
+   * of the list, or the frame budget runs out with the target mounted. A user scroll, `cancel`,
+   * or a newer `start` drops it.
+   */
+  start(messageId: string, onLanded?: () => void): void;
   cancel(): void;
   isActive(): boolean;
 }
@@ -37,6 +42,14 @@ export function createPromptJumpSettleController(input: {
   let sampledFrames = 0;
   let stableFrames = 0;
   let unsubscribeFromUserIntent: (() => void) | null = null;
+  let landedListener: (() => void) | null = null;
+
+  // Paseoi: the jump stopped moving the viewport on its own, so the caller may react to it.
+  function land(): void {
+    const listener = landedListener;
+    finish();
+    listener?.();
+  }
 
   function finish(): void {
     if (frameId !== null) input.cancelFrame(frameId);
@@ -46,6 +59,7 @@ export function createPromptJumpSettleController(input: {
     sampledFrames = 0;
     stableFrames = 0;
     unsubscribeFromUserIntent = null;
+    landedListener = null;
   }
 
   function scheduleNextFrame(): void {
@@ -64,7 +78,7 @@ export function createPromptJumpSettleController(input: {
       if (Math.abs(delta) <= POSITION_TOLERANCE_PX) {
         stableFrames += 1;
         if (stableFrames >= REQUIRED_STABLE_FRAMES) {
-          finish();
+          land();
           return;
         }
       } else {
@@ -83,23 +97,26 @@ export function createPromptJumpSettleController(input: {
         const maxScrollTop = Math.max(0, after.scrollHeight - after.clientHeight);
         const isClampedAtBottom = after.scrollTop >= maxScrollTop - POSITION_TOLERANCE_PX;
         if (remainingDelta > POSITION_TOLERANCE_PX && isClampedAtBottom) {
-          finish();
+          land();
           return;
         }
       }
     }
 
     if (sampledFrames >= FRAME_BUDGET) {
-      finish();
+      // Paseoi: out of budget, the target still counts as landed if it is mounted at all.
+      if (targetTop !== null) land();
+      else finish();
       return;
     }
     scheduleNextFrame();
   }
 
   return {
-    start(messageId) {
+    start(messageId, onLanded) {
       finish();
       activeMessageId = messageId;
+      landedListener = onLanded ?? null;
       unsubscribeFromUserIntent = input.viewport.subscribeToUserIntent(finish);
       scheduleNextFrame();
     },

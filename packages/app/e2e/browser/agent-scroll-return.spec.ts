@@ -457,6 +457,19 @@ test("a desktop return offers a jump to the first message that arrived while awa
     await pill.click();
     await expect(page.getByText(firstAwayPrompt).filter({ visible: true })).toBeInViewport();
     await expect(pill).toHaveCount(0);
+
+    // Paseoi: the first unread message flashes once the jump lands, then the flash clears.
+    const highlight = page.getByTestId("unread-jump-highlight");
+    const firstUnreadRow = page
+      .locator("[data-history-row-id]")
+      .filter({ hasText: firstAwayPrompt })
+      .filter({ visible: true });
+    await expect(firstUnreadRow.getByTestId("unread-jump-highlight")).toHaveCount(1, {
+      timeout: 3_000,
+    });
+    await expect(highlight).toHaveCount(1);
+    await expect(firstUnreadRow).toBeInViewport();
+    await expect(highlight).toHaveCount(0, { timeout: 3_000 });
   } finally {
     await Promise.allSettled([chat.cleanup(), otherWorkspace.cleanup()]);
   }

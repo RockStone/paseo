@@ -178,6 +178,44 @@ describe("prompt jump settle", () => {
     expect(controller.isActive()).toBe(false);
   });
 
+  // Paseoi: the unread jump highlights its target only once the viewport stops moving.
+  it("reports the landing only after the target holds its position", () => {
+    const frames = createFakeFrameScheduler();
+    const viewport = createFakeViewport();
+    const controller = createController(viewport, frames);
+    const landings: string[] = [];
+    viewport.setTargetTop("target", 48);
+
+    controller.start("target", () => landings.push("target"));
+    frames.runNextFrame();
+    expect(landings).toEqual([]);
+    frames.runNextFrame();
+    expect(landings).toEqual([]);
+    frames.runNextFrame();
+
+    expect({ landings, active: controller.isActive() }).toEqual({
+      landings: ["target"],
+      active: false,
+    });
+  });
+
+  it("does not report a landing for a jump the reader or a newer jump interrupted", () => {
+    const frames = createFakeFrameScheduler();
+    const viewport = createFakeViewport();
+    const controller = createController(viewport, frames);
+    const landings: string[] = [];
+    viewport.setTargetTop("old", 8);
+    viewport.setTargetTop("new", 8);
+
+    controller.start("old", () => landings.push("old"));
+    controller.start("new", () => landings.push("new"));
+    viewport.emitUserIntent();
+    controller.start("missing", () => landings.push("missing"));
+    for (let frame = 0; frame < 24; frame += 1) frames.runNextFrame();
+
+    expect(landings).toEqual([]);
+  });
+
   it("cancels the previous target when a newer jump starts", () => {
     const frames = createFakeFrameScheduler();
     const viewport = createFakeViewport();

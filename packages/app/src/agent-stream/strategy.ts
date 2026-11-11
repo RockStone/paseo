@@ -63,7 +63,15 @@ export interface StreamViewportHandle {
    * sits on in place. Following output stops; it resumes if the change leaves the list at its end.
    */
   holdRow: (rowId: string, apply: () => void, triggerEdge: DisclosureTriggerEdge) => void;
-  scrollToMessage?: (messageId: string, occurrence?: ScrollToMessageOccurrence) => void;
+  /**
+   * Paseoi: `onLanded` runs once the viewport stops settling on the message by itself, after any
+   * animated scroll or layout correction. It does not run when the jump is cancelled.
+   */
+  scrollToMessage?: (
+    messageId: string,
+    occurrence?: ScrollToMessageOccurrence,
+    onLanded?: () => void,
+  ) => void;
 }
 
 export interface StreamSegmentRenderers {

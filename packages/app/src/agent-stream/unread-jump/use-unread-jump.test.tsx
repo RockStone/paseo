@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamItem } from "@/types/stream";
 import { chatReadMarkerKey, useChatReadMarkerStore } from "@/stores/chat-read-marker-store";
 import type { StreamViewportHandle } from "../strategy";
+import {
+  createUnreadJumpHighlightStore,
+  UNREAD_JUMP_HIGHLIGHT_DURATION_MS,
+  type UnreadJumpHighlightStore,
+} from "./highlight";
 import { useUnreadJump, type UseUnreadJumpInput } from "./use-unread-jump";
 
 const visibility = vi.hoisted(() => ({ visible: true }));
@@ -42,7 +47,7 @@ function assistant(seq: number): StreamItem {
 
 type Props = Pick<UseUnreadJumpInput, "tail" | "isActive" | "isNearBottom">;
 
-function renderUnreadJump(initialProps: Props) {
+function renderUnreadJump(initialProps: Props, highlight?: UnreadJumpHighlightStore) {
   const scrollToMessage = vi.fn();
   const viewportRef = createRef<StreamViewportHandle>() as RefObject<StreamViewportHandle | null>;
   viewportRef.current = {
@@ -63,6 +68,7 @@ function renderUnreadJump(initialProps: Props) {
         isHistoryReady: true,
         viewportRef,
         onJumpError,
+        highlight,
         ...props,
       }),
     { initialProps },
@@ -175,7 +181,7 @@ describe("useUnreadJump", () => {
     });
     await waitFor(() => expect(result.current.summary).not.toBeNull());
     act(() => result.current.jump());
-    expect(scrollToMessage).toHaveBeenCalledWith("user-3");
+    expect(scrollToMessage).toHaveBeenCalledWith("user-3", undefined, expect.any(Function));
     expect(result.current.summary).toBeNull();
     expect(runtime.fetchAgentTimeline).not.toHaveBeenCalled();
   });
@@ -207,8 +213,63 @@ describe("useUnreadJump", () => {
       isActive: true,
       isNearBottom: false,
     });
-    expect(scrollToMessage).toHaveBeenCalledWith("user-11");
+    expect(scrollToMessage).toHaveBeenCalledWith("user-11", undefined, expect.any(Function));
     await act(async () => resolveFetch());
     expect(scrollToMessage).toHaveBeenCalledTimes(1);
+  });
+
+  // Paseoi: the highlight waits for the viewport to land on the row, then clears itself.
+  it("highlights the first unread message only after the jump settles", async () => {
+    const timers: { callback: () => void; ms: number }[] = [];
+    const highlight = createUnreadJumpHighlightStore({
+      setTimeout: (callback, ms) => timers.push({ callback, ms }),
+      clearTimeout: () => undefined,
+    });
+    useChatReadMarkerStore.getState().markRead(KEY, EPOCH, 2);
+    const { result, scrollToMessage } = renderUnreadJump(
+      {
+        tail: [user(1), assistant(2), user(3), assistant(4)],
+        isActive: true,
+        isNearBottom: false,
+      },
+      highlight,
+    );
+    await waitFor(() => expect(result.current.summary).not.toBeNull());
+
+    act(() => result.current.jump());
+    // The scroll started; the row is not highlighted while the viewport is still settling.
+    expect(scrollToMessage).toHaveBeenCalledTimes(1);
+    expect(highlight.getActive()).toBeNull();
+
+    const onLanded = scrollToMessage.mock.calls[0]?.[2] as () => void;
+    act(() => onLanded());
+    expect(highlight.getActive()).toMatchObject({ messageId: "user-3" });
+    expect(timers.map((timer) => timer.ms)).toEqual([UNREAD_JUMP_HIGHLIGHT_DURATION_MS]);
+
+    // The highlight clears itself once its fade has run.
+    act(() => timers[0]?.callback());
+    expect(highlight.getActive()).toBeNull();
+  });
+
+  it("does not highlight on scrolls other than the pill's jump", async () => {
+    const highlight = createUnreadJumpHighlightStore();
+    useChatReadMarkerStore.getState().markRead(KEY, EPOCH, 2);
+    const { result } = renderUnreadJump(
+      {
+        tail: [user(1), assistant(2), user(3), assistant(4)],
+        isActive: true,
+        isNearBottom: false,
+      },
+      highlight,
+    );
+    await waitFor(() => expect(result.current.summary).not.toBeNull());
+
+    // Scrolling up to the first unread message by hand dismisses the pill without a flash.
+    act(() => {
+      result.current.reportReadingTop(3);
+      result.current.reportReadThrough(4);
+    });
+    expect(result.current.summary).toBeNull();
+    expect(highlight.getActive()).toBeNull();
   });
 });

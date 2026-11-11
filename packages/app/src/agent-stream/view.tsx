@@ -110,6 +110,11 @@ import {
 } from "./turn-footer";
 import { resolveBottomOverlayTailInset } from "./bottom-overlay-inset";
 import { UnreadJumpPill } from "./unread-jump/pill";
+import {
+  createUnreadJumpHighlightStore,
+  UnreadJumpHighlightContext,
+} from "./unread-jump/highlight";
+import { UnreadJumpHighlight } from "./unread-jump/highlight-view";
 import { useUnreadJump } from "./unread-jump/use-unread-jump";
 import { layoutStream, type StreamLayoutItem } from "./layout";
 import {
@@ -188,6 +193,7 @@ type TurnIndent = "none" | "openedHost" | "nested" | "lastNested";
 
 function renderStreamItemWithTurnFooter(input: {
   content: ReactNode;
+  messageId: string;
   layoutItem: StreamLayoutItem;
   turnIndent: TurnIndent;
   strategy: TurnContentStrategy;
@@ -210,7 +216,11 @@ function renderStreamItemWithTurnFooter(input: {
     />
   ) : null;
   const content = (
-    <StreamItemWrapper gapBelow={input.layoutItem.gapBelow} turnIndent={input.turnIndent}>
+    <StreamItemWrapper
+      gapBelow={input.layoutItem.gapBelow}
+      turnIndent={input.turnIndent}
+      messageId={input.messageId}
+    >
       {input.content}
     </StreamItemWrapper>
   );
@@ -683,6 +693,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       mountedHistoryMessageIds,
       revealLoadedMessage: revealLoadedHistory,
     });
+    // Paseoi: the row the unread jump landed on flashes through this store, not through a
+    // stream re-render; each row subscribes for its own message id.
+    const [unreadJumpHighlight] = useState(createUnreadJumpHighlightStore);
+    useEffect(() => () => unreadJumpHighlight.dispose(), [unreadJumpHighlight]);
     // The read marker needs the viewport's read-through row, which only the web viewport reports.
     const unreadJump = useUnreadJump({
       enabled: isWeb,
@@ -697,6 +711,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       viewportRef,
       mountedHistoryMessageIds,
       revealLoadedMessage: revealLoadedHistory,
+      highlight: unreadJumpHighlight,
       onJumpError: handleTimelineHistoryLoadError,
     });
 
@@ -1098,6 +1113,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           );
         return renderStreamItemWithTurnFooter({
           content: selectableContent,
+          messageId: getStreamItemMessageId(item),
           layoutItem,
           turnIndent: getTurnIndent(layoutItem),
           strategy: streamRenderStrategy,
@@ -1321,38 +1337,40 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           >
             <MessageSelectionError target={selectionTarget} />
             <MessageOuterSpacingProvider disableOuterSpacing>
-              <ToolCallExpansionContext.Provider value={toolCallExpansion}>
-                <UserMessageExpansionContext.Provider value={userMessageExpansion}>
-                  {streamRenderStrategy.render({
-                    readingRowReplacements: presentation.readingRowReplacements,
-                    agentId,
-                    segments: renderModel.segments,
-                    historyRowRevision,
-                    liveHeadRowRevision: expandedToolCallGroups,
-                    boundary,
-                    renderers,
-                    listEmptyComponent,
-                    viewportRef,
-                    routeBottomAnchorRequest,
-                    isAuthoritativeHistoryReady,
-                    isInitialHistoryLoading,
-                    revealInitialHistory,
-                    onNearBottomChange: nearBottom.set,
-                    onReadingPositionChange: handleReadingPositionChange,
-                    onReadThroughChange: handleReadThroughChange,
-                    readThroughBottomInset: bottomOverlayTailClearance,
-                    onNearHistoryStart: loadOlder,
-                    isLoadingOlderHistory: isLoadingOlder,
-                    hasOlderHistory: hasOlder,
-                    olderHistoryProgressKey: progressKey,
-                    scrollEnabled: streamScrollEnabled,
-                    listStyle: stylesheet.list,
-                    baseListContentContainerStyle: stylesheet.listContentContainer,
-                    forwardListContentContainerStyle: stylesheet.forwardListContentContainer,
-                    contentMaxWidth,
-                  })}
-                </UserMessageExpansionContext.Provider>
-              </ToolCallExpansionContext.Provider>
+              <UnreadJumpHighlightContext.Provider value={unreadJumpHighlight}>
+                <ToolCallExpansionContext.Provider value={toolCallExpansion}>
+                  <UserMessageExpansionContext.Provider value={userMessageExpansion}>
+                    {streamRenderStrategy.render({
+                      readingRowReplacements: presentation.readingRowReplacements,
+                      agentId,
+                      segments: renderModel.segments,
+                      historyRowRevision,
+                      liveHeadRowRevision: expandedToolCallGroups,
+                      boundary,
+                      renderers,
+                      listEmptyComponent,
+                      viewportRef,
+                      routeBottomAnchorRequest,
+                      isAuthoritativeHistoryReady,
+                      isInitialHistoryLoading,
+                      revealInitialHistory,
+                      onNearBottomChange: nearBottom.set,
+                      onReadingPositionChange: handleReadingPositionChange,
+                      onReadThroughChange: handleReadThroughChange,
+                      readThroughBottomInset: bottomOverlayTailClearance,
+                      onNearHistoryStart: loadOlder,
+                      isLoadingOlderHistory: isLoadingOlder,
+                      hasOlderHistory: hasOlder,
+                      olderHistoryProgressKey: progressKey,
+                      scrollEnabled: streamScrollEnabled,
+                      listStyle: stylesheet.list,
+                      baseListContentContainerStyle: stylesheet.listContentContainer,
+                      forwardListContentContainerStyle: stylesheet.forwardListContentContainer,
+                      contentMaxWidth,
+                    })}
+                  </UserMessageExpansionContext.Provider>
+                </ToolCallExpansionContext.Provider>
+              </UnreadJumpHighlightContext.Provider>
             </MessageOuterSpacingProvider>
             <ChatOutlineRail
               prompts={chatOutline.prompts}
@@ -2017,10 +2035,12 @@ const permissionStyles = StyleSheet.create((theme) => ({
 interface StreamItemWrapperProps {
   gapBelow: number;
   turnIndent: TurnIndent;
+  /** Paseoi: the message whose unread-jump highlight this row shows. */
+  messageId: string;
   children: ReactNode;
 }
 
-function StreamItemWrapper({ gapBelow, turnIndent, children }: StreamItemWrapperProps) {
+function StreamItemWrapper({ gapBelow, turnIndent, messageId, children }: StreamItemWrapperProps) {
   const wrapperStyle = useMemo(
     () => [
       stylesheet.streamItemWrapper,
@@ -2034,6 +2054,8 @@ function StreamItemWrapper({ gapBelow, turnIndent, children }: StreamItemWrapper
     case "openedHost":
       return (
         <View style={wrapperStyle}>
+          {/* Paseoi: first, so the message paints over the shaded box. */}
+          <UnreadJumpHighlight messageId={messageId} />
           {children}
           {turnIndent === "openedHost" ? <IndentRail style={gapStyle} /> : null}
         </View>
@@ -2041,12 +2063,14 @@ function StreamItemWrapper({ gapBelow, turnIndent, children }: StreamItemWrapper
     case "nested":
       return (
         <View style={wrapperStyle}>
+          <UnreadJumpHighlight messageId={messageId} />
           <IndentRail style={gapStyle}>{children}</IndentRail>
         </View>
       );
     case "lastNested":
       return (
         <View style={wrapperStyle}>
+          <UnreadJumpHighlight messageId={messageId} />
           <IndentRail>{children}</IndentRail>
         </View>
       );

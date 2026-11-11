@@ -10,6 +10,7 @@ import {
 import { planTimelinePromptJump } from "@/timeline/timeline-sync-plan";
 import { getStreamItemMessageId, type StreamItem } from "@/types/stream";
 import type { StreamViewportHandle } from "../strategy";
+import type { UnreadJumpHighlightStore } from "./highlight";
 import {
   findFirstMessageAfter,
   hasReachedUnreadTarget,
@@ -45,6 +46,8 @@ export interface UseUnreadJumpInput {
   viewportRef: RefObject<StreamViewportHandle | null>;
   mountedHistoryMessageIds?: ReadonlySet<string>;
   revealLoadedMessage?: (messageId: string) => boolean;
+  /** Paseoi: flashes the first unread message once the pill's jump lands on it. */
+  highlight?: UnreadJumpHighlightStore;
   onJumpError: () => void;
 }
 
@@ -77,6 +80,7 @@ export function useUnreadJump({
   viewportRef,
   mountedHistoryMessageIds,
   revealLoadedMessage,
+  highlight,
   onJumpError,
 }: UseUnreadJumpInput): UnreadJump {
   const isAppVisible = useAppVisible();
@@ -179,10 +183,12 @@ export function useUnreadJump({
       loadedHead.includes(target);
     // Revealing mounts it on the next render, and this effect scrolls then.
     if (!isMounted && revealLoadedMessage?.(messageId)) return;
-    viewportRef.current?.scrollToMessage?.(messageId);
+    // Paseoi: highlight after the viewport settles on the row, not while it is still moving.
+    viewportRef.current?.scrollToMessage?.(messageId, undefined, () => highlight?.flash(messageId));
     setPendingJump(null);
   }, [
     epoch,
+    highlight,
     loadedTail,
     loadedHead,
     mountedHistoryMessageIds,
