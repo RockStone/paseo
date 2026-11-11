@@ -1,0 +1,9 @@
+{
+  "id": "driveboard",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.15.4"
+  },
+  "name": "Driveboard",
+  "description": "A project board in the workspace header: owner to-dos you can reply to, progress, and sticky notes"
+}

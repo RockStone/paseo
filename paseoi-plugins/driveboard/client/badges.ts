@@ -3,25 +3,25 @@ import type {
   PluginButtonRegistration,
   PluginClientContext,
 } from "@getpaseo/plugin/client";
-import { type NotesSummary, summaryRpc } from "../shared/notes";
-import { unseenLabelFor } from "../shared/labels";
-import { createNotesPopover } from "./popover";
+import { badgeLabel, badgeSummaryRpc } from "../shared/board";
+import { createDriveboard } from "./drawer";
 
 const POLL_INTERVAL_MS = 10_000;
-const BUTTON_ID = "sticky-notes";
+const BUTTON_ID = "driveboard";
 
 /**
  * Registers one header button per workspace by following the workspace directory, and keeps
- * each button's unseen-count label current by polling the cheap summary RPC.
+ * each button's count current by polling the summary RPC: owner to-dos that are new to the owner
+ * plus unseen agent notes.
  */
 export function contributeHeaderButtons(client: PluginClientContext) {
   const lifetime = new AbortController();
   const buttons = new Map<string, { registration: PluginButtonRegistration; label?: string }>();
-  let summary: NotesSummary["workspaces"] = {};
+  let summary: Record<string, number> = {};
 
   const applyLabels = () => {
     for (const [workspaceId, entry] of buttons) {
-      const label = unseenLabelFor(summary, workspaceId);
+      const label = badgeLabel(summary[workspaceId]);
       if (label === entry.label) continue;
       entry.label = label;
       entry.registration.update({ label });
@@ -34,23 +34,23 @@ export function contributeHeaderButtons(client: PluginClientContext) {
   const refreshBadges = async (): Promise<void> => {
     const request = ++latestRequest;
     try {
-      const next = await client.rpc(summaryRpc, {});
+      const next = await client.rpc(badgeSummaryRpc, {});
       if (lifetime.signal.aborted || request !== latestRequest) return;
       summary = next.workspaces;
       applyLabels();
     } catch (error) {
-      if (!lifetime.signal.aborted) console.warn("[sticky-notes] Summary failed", error);
+      if (!lifetime.signal.aborted) console.warn("[driveboard] Summary failed", error);
     }
   };
 
-  const Content = createNotesPopover(refreshBadges);
+  const Content = createDriveboard(refreshBadges);
 
   const register = (workspaceId: string) => {
     if (lifetime.signal.aborted || buttons.has(workspaceId)) return;
-    const label = unseenLabelFor(summary, workspaceId);
+    const label = badgeLabel(summary[workspaceId]);
     const button: PluginButton = {
-      title: "Sticky notes",
-      icon: "StickyNote",
+      title: "Driveboard",
+      icon: "ListTodo",
       label,
       behavior: { kind: "popover", Content },
     };
@@ -101,7 +101,7 @@ export function contributeHeaderButtons(client: PluginClientContext) {
     })
     .catch((error: unknown) => {
       if (!lifetime.signal.aborted)
-        console.error("[sticky-notes] Workspace observation failed", error);
+        console.error("[driveboard] Workspace observation failed", error);
     });
 
   const timer = setInterval(() => void refreshBadges(), POLL_INTERVAL_MS);

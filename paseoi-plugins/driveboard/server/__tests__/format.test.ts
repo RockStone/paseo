@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatRelativeTime, splitLinks } from "../../shared/format";
-import { unseenLabelFor } from "../../shared/labels";
+import { badgeLabel } from "../../shared/board";
 
 describe("splitLinks", () => {
   it("returns plain text unchanged", () => {
@@ -54,13 +54,13 @@ describe("formatRelativeTime", () => {
   });
 });
 
-describe("unseenLabelFor", () => {
-  it("omits the label when nothing is unseen", () => {
-    expect(unseenLabelFor({}, "ws-1")).toBeUndefined();
-    expect(unseenLabelFor({ "ws-1": { total: 3, unseen: 0 } }, "ws-1")).toBeUndefined();
+describe("badgeLabel", () => {
+  it("omits the label when nothing is new", () => {
+    expect(badgeLabel(undefined)).toBeUndefined();
+    expect(badgeLabel(0)).toBeUndefined();
   });
-  it("shows the unseen count, capped", () => {
-    expect(unseenLabelFor({ "ws-1": { total: 3, unseen: 2 } }, "ws-1")).toBe("2");
-    expect(unseenLabelFor({ "ws-1": { total: 300, unseen: 150 } }, "ws-1")).toBe("99+");
+  it("shows the count, capped", () => {
+    expect(badgeLabel(2)).toBe("2");
+    expect(badgeLabel(150)).toBe("99+");
   });
 });

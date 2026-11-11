@@ -2820,7 +2820,7 @@ export const ja: TranslationResources = {
         toggleBothSidebars: "両方のサイドバーを切り替え",
         toggleSettings: "設定を切り替え",
         toggleFocusMode: "フォーカスモードを切り替え",
-        toggleStickyNotes: "付箋を切り替え",
+        toggleStickyNotes: "Driveboard を切り替え",
         cycleTheme: "テーマを順に切り替え",
         pasteTextAsFile: "テキストをファイルとして貼り付け",
         focusMessageInput: "メッセージ入力にフォーカス",

@@ -4,9 +4,10 @@ import { buildWorkspaceKeyboardHandlerId } from "@/keyboard/handler-id";
 import type { KeyboardActionId } from "@/keyboard/keyboard-action-dispatcher";
 import { pluginButtonStore } from "./store";
 
-// Paseoi: the plugin API has no keyboard hook, so the host owns the sticky notes' shortcut and
-// presses the plugin's own header button.
-const STICKY_NOTES_PLUGIN_ID = "sticky-notes";
+// Paseoi: the plugin API has no keyboard hook, so the host owns the Driveboard's shortcut and
+// presses the plugin's own header button. The action and hook names predate the Driveboard
+// replacing the sticky notes plugin; renaming the action would drop customized bindings.
+const STICKY_NOTES_PLUGIN_ID = "driveboard";
 const STICKY_NOTES_ACTIONS: readonly KeyboardActionId[] = ["workspace.sticky-notes.toggle"];
 
 interface StickyNotesShortcutInput {
@@ -15,7 +16,7 @@ interface StickyNotesShortcutInput {
   enabled: boolean;
 }
 
-/** Toggles the sticky notes of the workspace this screen shows. A no-op without the plugin. */
+/** Toggles the Driveboard of the workspace this screen shows. A no-op without the plugin. */
 export function useStickyNotesShortcut({
   serverId,
   workspaceId,

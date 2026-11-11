@@ -31,16 +31,16 @@ afterEach(async () => {
 describe("resolveNotesFile", () => {
   it("uses PASEO_HOME", () => {
     expect(resolveNotesFile({ PASEO_HOME: "/srv/paseo" })).toBe(
-      "/srv/paseo/plugin-data/sticky-notes/notes.json",
+      "/srv/paseo/plugin-data/driveboard/notes.json",
     );
   });
 
   it("defaults to ~/.paseo like the daemon", () => {
     expect(resolveNotesFile({})).toBe(
-      path.join(os.homedir(), ".paseo", "plugin-data", "sticky-notes", "notes.json"),
+      path.join(os.homedir(), ".paseo", "plugin-data", "driveboard", "notes.json"),
     );
     expect(resolveNotesFile({ PASEO_HOME: "~/alt" })).toBe(
-      path.join(os.homedir(), "alt", "plugin-data", "sticky-notes", "notes.json"),
+      path.join(os.homedir(), "alt", "plugin-data", "driveboard", "notes.json"),
     );
   });
 });

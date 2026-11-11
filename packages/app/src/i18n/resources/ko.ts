@@ -2809,7 +2809,7 @@ export const ko: TranslationResources = {
         toggleBothSidebars: "양쪽 사이드바 토글",
         toggleSettings: "설정 토글",
         toggleFocusMode: "집중 모드 토글",
-        toggleStickyNotes: "스티커 메모 토글",
+        toggleStickyNotes: "Driveboard 토글",
         cycleTheme: "테마 순환",
         pasteTextAsFile: "텍스트를 파일로 붙여넣기",
         focusMessageInput: "메시지 입력란에 포커스",

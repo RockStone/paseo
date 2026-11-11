@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ScrollView, StyleSheet as RNStyleSheet, View, useWindowDimensions } from "react-native";
+import { StyleSheet as RNStyleSheet, View, useWindowDimensions } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { StyleSheet } from "react-native-unistyles";
@@ -9,13 +9,14 @@ import { measureElement } from "@/components/ui/anchor";
 import { EdgeDrawerLayer } from "@/components/ui/edge-drawer-layer";
 import { useMenuContext } from "@/components/ui/menu";
 import { PANEL_SLIDE_DURATION_MS, PANEL_SLIDE_EASING } from "@/mobile-panels/motion";
+import { PluginDrawerFillContext } from "../popover";
 
-export const PLUGIN_DRAWER_WIDTH = 380;
+export const PLUGIN_DRAWER_WIDTH = 420;
 
 const SLIDE_TIMING = { duration: PANEL_SLIDE_DURATION_MS, easing: PANEL_SLIDE_EASING };
 
 /**
- * Paseoi: the surface a bare header popover (the sticky notes) opens in on wide layouts. A drawer
+ * Paseoi: the surface a bare header popover (the Driveboard) opens in on wide layouts. A drawer
  * flush with the window's right edge, from the bottom of the header row its trigger sits in down
  * to the bottom of the window, sliding in and out like the sidebars. Open state stays on the
  * enclosing `MenuRoot`, so the trigger toggles it and keeps its open highlight.
@@ -87,7 +88,8 @@ export function PluginDrawerSurface({
   const slideStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
-  // Full height below the header row: the notes list grows long quickly.
+  // Full height below the header row: the owner list and notes grow long quickly. The content
+  // fills the panel and scrolls itself.
   const frameStyle = useMemo(
     () => ({ top: top ?? 0, pointerEvents: open ? ("auto" as const) : ("none" as const) }),
     [top, open],
@@ -98,9 +100,7 @@ export function PluginDrawerSurface({
     <EdgeDrawerLayer active={open} onClose={close} triggerRef={triggerRef}>
       <Animated.View testID={testID} style={[staticStyles.frame, frameStyle, slideStyle]}>
         <View style={styles.panel}>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
-            {children}
-          </ScrollView>
+          <PluginDrawerFillContext.Provider value>{children}</PluginDrawerFillContext.Provider>
         </View>
       </Animated.View>
     </EdgeDrawerLayer>
@@ -133,5 +133,4 @@ const styles = StyleSheet.create((theme) => ({
     overflow: "hidden",
     ...theme.shadow.md,
   },
-  scroll: { flex: 1 },
 }));

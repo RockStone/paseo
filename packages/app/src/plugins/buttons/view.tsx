@@ -244,7 +244,7 @@ function buttonPages(
 
 const COUNT_LABEL = /^\d+\+?$/;
 
-// Paseoi: a header popover with no label or a count label (the sticky notes) is a bare icon like
+// Paseoi: a header popover with no label or a count label (the Driveboard) is a bare icon like
 // the explorer toggle, with the count as a badge. Menus and text-labeled buttons keep the box.
 function resolveButtonPresentation(entry: ButtonView["entry"], compact: boolean) {
   const { button } = entry;
@@ -266,7 +266,7 @@ function ButtonControl({ view }: { view: ButtonView }) {
   const disabled = button.disabled || entry.pending;
   const expanded = button.behavior.kind !== "action";
   const { bare, chevron, label, badge } = resolveButtonPresentation(entry, props.layout.compact);
-  // Paseoi: on wide layouts a bare header popover (the sticky notes) opens as a right-edge drawer.
+  // Paseoi: on wide layouts a bare header popover (the Driveboard) opens as a right-edge drawer.
   // Compact layouts keep the sheet; menus and labeled popovers keep the anchored surface.
   const drawer = bare && !props.layout.compact && button.behavior.kind === "popover";
   const press = useCallback(() => pressButton(view, []), [view]);

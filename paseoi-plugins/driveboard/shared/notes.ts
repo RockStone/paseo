@@ -73,10 +73,6 @@ export const workspaceSummarySchema = z.object({
   unseen: z.number().int().nonnegative(),
 });
 
-export const summaryRpc = defineRpc({
-  name: "notes.summary",
-  input: z.object({}),
-  output: z.object({ workspaces: z.record(z.string(), workspaceSummarySchema) }),
-});
-
-export type NotesSummary = z.infer<typeof summaryRpc.output>;
+export interface NotesSummary {
+  workspaces: Record<string, z.infer<typeof workspaceSummarySchema>>;
+}

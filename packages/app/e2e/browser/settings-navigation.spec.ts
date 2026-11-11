@@ -372,7 +372,7 @@ test.describe("Settings — shortcuts search", () => {
     await expect(row("new-workspace")).toBeVisible();
 
     await test.step("matches labels without their accents and case", async () => {
-      await search.fill("STICKY");
+      await search.fill("DRIVEBOARD");
       await expect(row("toggle-sticky-notes")).toBeVisible();
       await expect(rows).toHaveCount(1);
       await expect(sections).toHaveCount(1);
@@ -391,7 +391,7 @@ test.describe("Settings — shortcuts search", () => {
     });
 
     await test.step("rebinds a filtered row and resets it", async () => {
-      await search.fill("sticky");
+      await search.fill("driveboard");
       await expect(resetAll).toHaveCount(0);
       await page.getByTestId("shortcut-actions-toggle-sticky-notes").click();
       await page.getByTestId("shortcut-bind-toggle-sticky-notes").click();
@@ -419,7 +419,7 @@ test.describe("Settings — shortcuts search", () => {
       await expect(row("new-workspace")).toBeVisible();
       await expect(page).toHaveURL(/\/settings\/shortcuts/);
 
-      await search.fill("sticky");
+      await search.fill("driveboard");
       await page.getByTestId("settings-shortcuts-search-clear").click();
       await expect(search).toHaveValue("");
       await expect(row("new-workspace")).toBeVisible();

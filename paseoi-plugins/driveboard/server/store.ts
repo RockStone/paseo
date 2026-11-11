@@ -27,12 +27,20 @@ type StoreFile = z.infer<typeof storeFileSchema>;
  * subprocess inherits the daemon's environment, so notes live beside the daemon's own
  * plugin-settings directory, never in a repository.
  */
-export function resolveNotesFile(env: NodeJS.ProcessEnv = process.env): string {
+export function resolvePaseoHome(env: NodeJS.ProcessEnv = process.env): string {
   const raw = env.PASEO_HOME?.trim() || "~/.paseo";
   let home = raw;
   if (raw === "~") home = os.homedir();
   else if (raw.startsWith("~/")) home = path.join(os.homedir(), raw.slice(2));
-  return path.join(path.resolve(home), "plugin-data", "sticky-notes", "notes.json");
+  return path.resolve(home);
+}
+
+export function resolveDataDirectory(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(resolvePaseoHome(env), "plugin-data", "driveboard");
+}
+
+export function resolveNotesFile(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(resolveDataDirectory(env), "notes.json");
 }
 
 export interface NoteStoreOptions {
@@ -150,7 +158,7 @@ export class NoteStore {
       const aside = `${this.filePath}.corrupt-${this.now().toISOString().replace(/[:.]/g, "-")}`;
       await rename(this.filePath, aside).catch(() => undefined);
       const reason = error instanceof Error ? error.message : String(error);
-      this.log(`[sticky-notes] Notes file was invalid and was moved to ${aside}: ${reason}`);
+      this.log(`[driveboard] Notes file was invalid and was moved to ${aside}: ${reason}`);
       return emptyStore();
     }
   }

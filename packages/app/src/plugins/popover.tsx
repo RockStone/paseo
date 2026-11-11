@@ -1,5 +1,5 @@
 import { PluginClientStateProvider } from "@getpaseo/plugin/client/host";
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { MenuSurface, type MenuSurfaceProps } from "@/components/ui/menu";
@@ -50,10 +50,18 @@ export function PluginPopoverSurface(props: PluginPopoverSurfaceProps) {
   return <MenuSurface {...props} minWidth={280} maxWidth={420} maxHeight={440} scrollable />;
 }
 
+/**
+ * Paseoi: true inside the edge drawer. The drawer has a fixed height and does not scroll, so the
+ * content fills it and scrolls its own lists under a pinned header (the Driveboard's tabs).
+ */
+export const PluginDrawerFillContext = createContext(false);
+
 export function PluginPopoverContent({ children }: { children: ReactNode }) {
-  return <View style={styles.content}>{children}</View>;
+  const fill = useContext(PluginDrawerFillContext);
+  return <View style={fill ? styles.fill : styles.content}>{children}</View>;
 }
 
 const styles = StyleSheet.create((theme) => ({
   content: { padding: theme.spacing[3], gap: theme.spacing[2] },
+  fill: { flex: 1, padding: theme.spacing[3], paddingBottom: 0, gap: theme.spacing[2] },
 }));

@@ -3096,7 +3096,7 @@ function WorkspaceScreenContent({
         {workspaceDirectory && !inTitleBar ? (
           <WorkspaceActions serverId={normalizedServerId} cwd={workspaceDirectory} />
         ) : null}
-        {/* The merged title bar keeps plugin buttons (sticky notes) next to the explorer toggle;
+        {/* The merged title bar keeps plugin buttons (the Driveboard) next to the explorer toggle;
             the header row and its compact menu keep upstream's order. */}
         {inTitleBar ? (
           <PluginHeaderButtons serverId={normalizedServerId} workspaceId={normalizedWorkspaceId} />

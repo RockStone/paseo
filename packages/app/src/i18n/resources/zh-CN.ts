@@ -2764,7 +2764,7 @@ export const zhCN: TranslationResources = {
         toggleBothSidebars: "切换两侧边栏",
         toggleSettings: "切换设置",
         toggleFocusMode: "切换专注模式",
-        toggleStickyNotes: "切换便签",
+        toggleStickyNotes: "切换 Driveboard",
         cycleTheme: "循环切换主题",
         pasteTextAsFile: "将文本粘贴为文件",
         focusMessageInput: "聚焦消息输入框",

@@ -2857,7 +2857,7 @@ export const es: TranslationResources = {
         toggleBothSidebars: "Alternar ambas barras laterales",
         toggleSettings: "Alternar configuración",
         toggleFocusMode: "Alternar modo de enfoque",
-        toggleStickyNotes: "Alternar notas adhesivas",
+        toggleStickyNotes: "Alternar Driveboard",
         cycleTheme: "Tema del ciclo",
         pasteTextAsFile: "Pegar texto como archivo",
         focusMessageInput: "Entrada de mensaje de enfoque",

@@ -2842,7 +2842,7 @@ export const ru: TranslationResources = {
         toggleBothSidebars: "Переключить обе боковые панели",
         toggleSettings: "Переключить настройки",
         toggleFocusMode: "Переключить режим фокусировки",
-        toggleStickyNotes: "Переключить стикеры",
+        toggleStickyNotes: "Переключить Driveboard",
         cycleTheme: "Переключить тему",
         pasteTextAsFile: "Вставить текст как файл",
         focusMessageInput: "Перейти к полю ввода сообщения",

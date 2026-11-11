@@ -13,7 +13,7 @@ canonical files and are trying to add or change one.
 | `components/ui/tooltip.tsx`              | Non-interactive hover/long-press tooltip                                  |
 | `components/ui/hover-card.tsx`           | Desktop-web hover card the pointer can move onto; shared web overlay root |
 | `components/ui/autocomplete-popover.tsx` | Slash-command autocomplete anchored to the focused composer input         |
-| `components/ui/edge-drawer-layer.tsx`    | Paseoi: right-edge drawer below the header row (sticky notes)             |
+| `components/ui/edge-drawer-layer.tsx`    | Paseoi: right-edge drawer below the header row (the Driveboard)           |
 
 Each handles a different mix of concerns: combobox owns input focus, tooltip is
 non-interactive, hover-card is web-only desktop, autocomplete keeps the composer

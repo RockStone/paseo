@@ -2837,7 +2837,7 @@ export const ptBR: TranslationResources = {
         toggleBothSidebars: "Alternar ambas as barras laterais",
         toggleSettings: "Alternar Configurações",
         toggleFocusMode: "Alternar modo de foco",
-        toggleStickyNotes: "Alternar notas adesivas",
+        toggleStickyNotes: "Alternar Driveboard",
         cycleTheme: "Alternar tema",
         pasteTextAsFile: "Colar texto como arquivo",
         focusMessageInput: "Focar entrada de mensagem",

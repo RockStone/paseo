@@ -2923,7 +2923,7 @@ export const en = {
         toggleBothSidebars: "Toggle both sidebars",
         toggleSettings: "Toggle settings",
         toggleFocusMode: "Toggle focus mode",
-        toggleStickyNotes: "Toggle sticky notes",
+        toggleStickyNotes: "Toggle Driveboard",
         cycleTheme: "Cycle theme",
         pasteTextAsFile: "Paste text as file",
         focusMessageInput: "Focus message input",

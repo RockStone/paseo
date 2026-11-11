@@ -1033,7 +1033,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     },
   },
 
-  // --- Toggle sticky notes (Paseoi) ---
+  // --- Toggle the Driveboard (Paseoi; ids predate its rename from sticky notes) ---
   // Cmd+Alt+N rather than Cmd+Shift+Y: the app menu carries the macOS Services
   // submenu, whose stock "Make New Sticky Note" service owns Cmd+Shift+Y.
   {
@@ -1044,7 +1044,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     help: {
       id: "toggle-sticky-notes",
       section: "layout",
-      label: "Toggle sticky notes",
+      label: "Toggle Driveboard",
     },
   },
   {
@@ -1055,7 +1055,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     help: {
       id: "toggle-sticky-notes",
       section: "layout",
-      label: "Toggle sticky notes",
+      label: "Toggle Driveboard",
     },
   },
 

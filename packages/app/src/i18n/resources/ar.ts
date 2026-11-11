@@ -2832,7 +2832,7 @@ export const ar: TranslationResources = {
         toggleBothSidebars: "تبديل كلا الشريطين الجانبيين",
         toggleSettings: "تبديل الإعدادات",
         toggleFocusMode: "تبديل وضع التركيز",
-        toggleStickyNotes: "تبديل الملاحظات اللاصقة",
+        toggleStickyNotes: "تبديل Driveboard",
         cycleTheme: "موضوع الدورة",
         pasteTextAsFile: "لصق النص كملف",
         focusMessageInput: "التركيز على إدخال الرسالة",

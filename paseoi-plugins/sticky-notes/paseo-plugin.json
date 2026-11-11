@@ -1,9 +1,0 @@
-{
-  "id": "sticky-notes",
-  "media": [],
-  "requirements": {
-    "paseo": ">=0.15.4"
-  },
-  "name": "Sticky notes",
-  "description": "A sticky note per workspace that you and your agents can pin links and reminders to"
-}

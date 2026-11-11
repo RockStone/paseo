@@ -2857,7 +2857,7 @@ export const fr: TranslationResources = {
         toggleBothSidebars: "Afficher/masquer les deux barres latérales",
         toggleSettings: "Afficher/masquer les paramètres",
         toggleFocusMode: "Activer/désactiver le mode focus",
-        toggleStickyNotes: "Afficher/masquer les notes adhésives",
+        toggleStickyNotes: "Afficher/masquer le Driveboard",
         cycleTheme: "Parcourir les thèmes",
         pasteTextAsFile: "Coller le texte en fichier",
         focusMessageInput: "Aller à la zone de saisie",

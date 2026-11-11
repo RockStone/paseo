@@ -20,7 +20,7 @@ const EN: Record<string, string> = {
   "settings.shortcuts.help.newWorkspace": "New workspace",
   "settings.shortcuts.help.openProject": "Open project",
   "settings.shortcuts.help.toggleCommandCenter": "Toggle command center",
-  "settings.shortcuts.help.toggleStickyNotes": "Toggle sticky notes",
+  "settings.shortcuts.help.toggleStickyNotes": "Toggle Driveboard",
 };
 
 function translate(key: string): string {
@@ -132,7 +132,7 @@ describe("filterShortcutHelpSections", () => {
   });
 
   it("keeps only the matching rows and the sections that hold them", () => {
-    const sections = filter("sticky");
+    const sections = filter("driveboard");
 
     expect(sections.map((section) => section.id)).toEqual(["layout"]);
     expect(sections[0]?.rows.map((row) => row.id)).toEqual(["toggle-sticky-notes"]);
