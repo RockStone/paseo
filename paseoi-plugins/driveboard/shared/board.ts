@@ -65,6 +65,8 @@ export const boardSchema = z.object({
   notifiedReplyIds: z.array(z.string()),
   /** Owner items that are new or changed since the owner last opened the board. */
   newOwnerIds: z.array(z.string()),
+  /** Tasks that are new or changed since the owner last opened the Progress tab. */
+  newTaskIds: z.array(z.string()),
   /** The workspace's top-level agent that notifications go to. */
   agent: z.object({ id: z.string(), title: z.string() }).nullable(),
 });
@@ -116,6 +118,12 @@ export const dismissRpc = defineRpc({
 
 export const markOwnersSeenRpc = defineRpc({
   name: "board.owners.mark_seen",
+  input: workspace,
+  output: z.object({ marked: z.number() }),
+});
+
+export const markProgressSeenRpc = defineRpc({
+  name: "board.progress.mark_seen",
   input: workspace,
   output: z.object({ marked: z.number() }),
 });

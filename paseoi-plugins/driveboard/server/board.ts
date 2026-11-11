@@ -1,5 +1,5 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
-import type { Board, TrackerBoard } from "../shared/board";
+import type { Board, TrackerBoard, TrackerItem } from "../shared/board";
 import { notificationText, notifiedBaseline } from "../shared/prompt";
 import type { BoardStateStore } from "./board-state";
 import {
@@ -86,6 +86,7 @@ export class BoardService {
       summary: null,
       notifiedReplyIds: [],
       newOwnerIds: [],
+      newTaskIds: [],
       agent: null,
     };
     const workspace = await this.workspace(paseo, workspaceId);
@@ -112,6 +113,7 @@ export class BoardService {
         .flatMap((item) => item.replies.map((reply) => reply.id))
         .filter((id) => state.notified.includes(id)),
       newOwnerIds: newOwnerIds(board, state.seen),
+      newTaskIds: changedIds(board.tasks, state.progressSeen),
       agent,
     };
   }
@@ -144,7 +146,20 @@ export class BoardService {
       (await this.state.get(workspace.projectId))?.seen ?? {},
     ).length;
     await this.state.update(workspace.projectId, (state) => {
-      state.seen = seenMap(board);
+      state.seen = versionMap(board.owners);
+    });
+    return marked;
+  }
+
+  async markProgressSeen(paseo: Paseo, workspaceId: string): Promise<number> {
+    const workspace = await this.requireWorkspace(paseo, workspaceId);
+    const board = await this.boards.read(workspace.root);
+    const marked = changedIds(
+      board.tasks,
+      (await this.state.get(workspace.projectId))?.progressSeen ?? {},
+    ).length;
+    await this.state.update(workspace.projectId, (state) => {
+      state.progressSeen = versionMap(board.tasks);
     });
     return marked;
   }
@@ -247,9 +262,10 @@ export class BoardService {
 
   private async ensureBaseline(projectId: string, board: TrackerBoard) {
     const existing = await this.state.get(projectId);
-    if (existing?.seen) return existing;
+    if (existing?.seen && existing.progressSeen) return existing;
     return this.state.update(projectId, (state) => {
-      state.seen ??= seenMap(board);
+      state.seen ??= versionMap(board.owners);
+      state.progressSeen ??= versionMap(board.tasks);
       if (!existing) state.notified.push(...notifiedBaseline(board.owners, this.now()));
     });
   }
@@ -268,16 +284,21 @@ export class BoardService {
   }
 }
 
-function seenMap(board: TrackerBoard): Record<string, string> {
-  return Object.fromEntries(board.owners.map((item) => [item.id, item.contentVersion]));
+function versionMap(items: TrackerItem[]): Record<string, string> {
+  return Object.fromEntries(items.map((item) => [item.id, item.contentVersion]));
+}
+
+/** Valid items whose content differs from the version last seen, including added ones. */
+function changedIds(items: TrackerItem[], seen: Record<string, string> | null): string[] {
+  if (!seen) return [];
+  return items
+    .filter((item) => item.warnings.length === 0 && seen[item.id] !== item.contentVersion)
+    .map((item) => item.id);
 }
 
 function newOwnerIds(board: TrackerBoard, seen: Record<string, string> | null): string[] {
-  if (!seen) return [];
-  return board.owners
-    .filter((item) => item.status !== "done" && item.warnings.length === 0)
-    .filter((item) => seen[item.id] !== item.contentVersion)
-    .map((item) => item.id);
+  const done = new Set(board.owners.filter((item) => item.status === "done").map((i) => i.id));
+  return changedIds(board.owners, seen).filter((id) => !done.has(id));
 }
 
 function errorMessage(error: unknown): string {

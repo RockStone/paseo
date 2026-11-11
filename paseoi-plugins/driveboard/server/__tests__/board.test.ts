@@ -115,6 +115,21 @@ describe("BoardService", () => {
     expect(await boards.badgeCounts(paseo, {})).toEqual({});
   });
 
+  it("flags changed and added tasks until the Progress tab is seen", async () => {
+    const paseo = fakePaseo(AGENTS);
+    const boards = service();
+    expect((await boards.read(paseo, "ws-1")).newTaskIds).toEqual([]);
+    await writeFile(
+      path.join(root, "docs", "drive.md"),
+      `${TASKS.replace("[~] Z-2", "[x] Z-2")}- [ ] Z-4 Add dots. <!-- priority:2 -->\n`,
+    );
+    expect((await boards.read(paseo, "ws-1")).newTaskIds).toEqual(["Z-2", "Z-4"]);
+    // Progress changes do not count toward the header badge.
+    expect(await boards.badgeCounts(paseo, {})).toEqual({});
+    expect(await boards.markProgressSeen(paseo, "ws-1")).toBe(2);
+    expect((await boards.read(paseo, "ws-1")).newTaskIds).toEqual([]);
+  });
+
   it("writes a reply and sends only the new replies to the agent", async () => {
     const paseo = fakePaseo(AGENTS);
     const boards = service();
@@ -210,7 +225,11 @@ describe("migrateLegacyData", () => {
     await migrateLegacyData(home, target);
     expect(await readFile(path.join(target, "notes.json"), "utf8")).toBe('{"version":1}');
     const state = new BoardStateStore(path.join(target, "board.json"));
-    expect(await state.get("prj-1")).toEqual({ notified: ["reply-a-0"], seen: null });
+    expect(await state.get("prj-1")).toEqual({
+      notified: ["reply-a-0"],
+      seen: null,
+      progressSeen: null,
+    });
 
     // A second start keeps what the new plugin wrote since.
     await writeFile(path.join(target, "notes.json"), '{"version":2}');

@@ -4,11 +4,12 @@ import { ScrollView } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ComponentType, type ReactElement, useCallback, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { readBoardRpc } from "../shared/board";
+import { type Board, readBoardRpc } from "../shared/board";
+import { listNotesRpc, type Note } from "../shared/notes";
 import { pendingReplyIds } from "../shared/prompt";
 import { errorMessage } from "./keys";
 import { createOpeners, type HostNavigation, OpenersProvider } from "./links";
-import { NotesTab } from "./notes-tab";
+import { NotesTab, notesQueryKey } from "./notes-tab";
 import { OwnerTab } from "./owner-tab";
 import { ProgressTab } from "./progress-tab";
 import { createStyles, type Styles } from "./theme";
@@ -44,6 +45,14 @@ export function createDriveboard(
       queryFn: () => readBoard({ workspaceId }),
       refetchInterval: BOARD_REFETCH_MS,
     });
+    // Shares the Notes tab's query, so the dot clears as soon as the tab marks notes seen.
+    const listNotes = useRpc(listNotesRpc);
+    const notesKey = useMemo(() => notesQueryKey(host.id, workspaceId), [host.id, workspaceId]);
+    const notes = useQuery({
+      queryKey: notesKey,
+      queryFn: () => listNotes({ workspaceId }),
+      refetchInterval: BOARD_REFETCH_MS,
+    });
     const [tab, setTabState] = useState<TabId>(() => lastTabs.get(workspaceId) ?? "owner");
     const setTab = useCallback(
       (next: TabId) => {
@@ -61,6 +70,7 @@ export function createDriveboard(
     const waiting = data?.summary?.waiting ?? 0;
     const pending = data ? pendingReplyIds(data.owners, data.notifiedReplyIds).length : 0;
     const web = layout.platform === "web";
+    const dots = tabDots(tab, data, notes.data?.notes);
 
     let body: ReactElement;
     if (tab === "notes") {
@@ -94,7 +104,15 @@ export function createDriveboard(
         />
       );
     } else {
-      body = <ProgressTab board={data} theme={theme} styles={styles} />;
+      body = (
+        <ProgressTab
+          board={data}
+          theme={theme}
+          styles={styles}
+          workspaceId={workspaceId}
+          onChanged={onChanged}
+        />
+      );
     }
 
     const tabs = (
@@ -105,6 +123,7 @@ export function createDriveboard(
           label="Owner todo"
           count={ownerCount(pending, waiting)}
           active={tab === "owner"}
+          dot={dots.owner}
           onSelect={setTab}
         />
         <TabButton
@@ -113,6 +132,7 @@ export function createDriveboard(
           label="Progress"
           count={data?.hasTasks && data.summary ? `${data.summary.percent}%` : undefined}
           active={tab === "progress"}
+          dot={dots.progress}
           onSelect={setTab}
         />
         <TabButton
@@ -120,6 +140,7 @@ export function createDriveboard(
           id="notes"
           label="Notes"
           active={tab === "notes"}
+          dot={dots.notes}
           onSelect={setTab}
         />
       </View>
@@ -155,6 +176,15 @@ export function createDriveboard(
   };
 }
 
+/** A dot marks a tab with updates the owner has not seen; the open tab marks them seen. */
+function tabDots(tab: TabId, board: Board | undefined, notes: Note[] | undefined) {
+  return {
+    owner: tab !== "owner" && (board?.newOwnerIds.length ?? 0) > 0,
+    progress: tab !== "progress" && (board?.newTaskIds.length ?? 0) > 0,
+    notes: tab !== "notes" && (notes ?? []).some((note) => note.seenAt === null),
+  };
+}
+
 /** New replies to send come first; otherwise how many to-dos wait on the owner. */
 function ownerCount(pending: number, waiting: number): string | undefined {
   if (pending > 0) return `${pending} new`;
@@ -167,20 +197,22 @@ function TabButton(props: {
   label: string;
   count?: string;
   active: boolean;
+  dot: boolean;
   onSelect(id: TabId): void;
 }) {
-  const { styles, id, label, count, active, onSelect } = props;
+  const { styles, id, label, count, active, dot, onSelect } = props;
   const select = useCallback(() => onSelect(id), [onSelect, id]);
   return (
     <Pressable
       accessibilityRole="tab"
-      accessibilityLabel={label}
+      accessibilityLabel={dot ? `${label}, updated` : label}
       aria-selected={active}
       onPress={select}
       style={active ? styles.tabActive : styles.tab}
     >
       <Text style={active ? styles.tabLabelActive : styles.tabLabel}>{label}</Text>
       {count ? <Text style={styles.tabCount}>{count}</Text> : null}
+      {dot ? <View style={styles.tabDot} testID={`driveboard-tab-dot-${id}`} /> : null}
     </Pressable>
   );
 }

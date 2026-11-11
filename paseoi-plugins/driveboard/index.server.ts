@@ -11,6 +11,7 @@ import {
   dismissRpc,
   editReplyRpc,
   markOwnersSeenRpc,
+  markProgressSeenRpc,
   notifyRpc,
   readBoardRpc,
   removeReplyRpc,
@@ -62,6 +63,10 @@ export default function contribute(server: PluginServerContext) {
   server.handle(markOwnersSeenRpc, async ({ workspaceId }, { paseo }) => {
     await ready;
     return { marked: await board.markOwnersSeen(paseo, workspaceId) };
+  });
+  server.handle(markProgressSeenRpc, async ({ workspaceId }, { paseo }) => {
+    await ready;
+    return { marked: await board.markProgressSeen(paseo, workspaceId) };
   });
   server.handle(badgeSummaryRpc, async (_input, { paseo }) => {
     await ready;

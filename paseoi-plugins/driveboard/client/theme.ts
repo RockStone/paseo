@@ -59,6 +59,15 @@ export function createStyles(theme: PluginTheme) {
     tabActive: { ...tab, backgroundColor: colors.surface2 },
     tabLabel: { color: colors.foregroundMuted, fontSize: 13, fontWeight: "500" as const },
     tabLabelActive: { color: colors.foreground, fontSize: 13, fontWeight: "600" as const },
+    tabDot: {
+      position: "absolute" as const,
+      top: 4,
+      right: 6,
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: colors.statusDanger,
+    },
     tabCount: { color: colors.accent, fontSize: 12, fontWeight: "600" as const },
     composer: { position: "relative" as const },
     input: {

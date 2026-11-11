@@ -8,6 +8,8 @@ const projectStateSchema = z.object({
   notified: z.array(z.string()).default([]),
   /** Owner item id → content version the owner last saw. Null until the first read. */
   seen: z.record(z.string(), z.string()).nullable().default(null),
+  /** Task id → content version the owner last saw on the Progress tab. Null until the first read. */
+  progressSeen: z.record(z.string(), z.string()).nullable().default(null),
 });
 
 const stateFileSchema = z.object({
@@ -33,7 +35,7 @@ export class BoardStateStore {
 
   update(projectId: string, change: (state: ProjectState) => void): Promise<ProjectState> {
     return this.mutate((file) => {
-      const current = file.projects[projectId] ?? { notified: [], seen: null };
+      const current = file.projects[projectId] ?? { notified: [], seen: null, progressSeen: null };
       change(current);
       current.notified = [...new Set(current.notified)].slice(-MAX_NOTIFIED);
       file.projects[projectId] = current;
