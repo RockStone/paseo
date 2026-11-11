@@ -123,12 +123,24 @@ export function OpenProjectScreen() {
   );
 }
 
+// Opens the host's page, which explains the error and takes a missing password.
 function HostError({ serverId, label }: { serverId: string; label: string }) {
   const error = useHostRuntimeLastError(serverId);
+  const router = useRouter();
+  const openHost = useCallback(
+    () => router.push(buildSettingsHostSectionRoute(serverId, "host")),
+    [router, serverId],
+  );
   return error ? (
-    <Text accessibilityRole="alert" style={styles.hostError}>
-      {label}: {error}
-    </Text>
+    <Pressable
+      accessibilityRole="link"
+      onPress={openHost}
+      testID={`open-project-host-error-${serverId}`}
+    >
+      <Text accessibilityRole="alert" style={styles.hostError}>
+        {label}: {error}
+      </Text>
+    </Pressable>
   ) : null;
 }
 
