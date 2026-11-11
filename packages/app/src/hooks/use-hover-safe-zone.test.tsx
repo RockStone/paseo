@@ -2,7 +2,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { useHoverSafeZone } from "./use-hover-safe-zone";
-import { useSidebarEdgeReveal } from "./use-sidebar-edge-reveal";
+import { crossesSidebarEdge, useSidebarEdgeReveal } from "./use-sidebar-edge-reveal";
 
 afterEach(() => {
   cleanup();
@@ -173,4 +173,90 @@ test("a preview revealed after pointerout still tracks an outside pointer immedi
     await vi.advanceTimersByTimeAsync(250);
   });
   expect(leave).toHaveBeenCalledTimes(1);
+});
+
+function inactivePointerStream() {
+  const listeners = new Set<(point: { x: number; y: number }) => void>();
+  return {
+    subscribe: vi.fn((listener: (point: { x: number; y: number }) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    }),
+    emit(point: { x: number; y: number }) {
+      for (const listener of listeners) listener(point);
+    },
+    get size() {
+      return listeners.size;
+    },
+  };
+}
+
+test("an inactive window reveals from streamed cursor samples and unsubscribes on cleanup", () => {
+  vi.spyOn(document, "hasFocus").mockReturnValue(false);
+  const stream = inactivePointerStream();
+  const reveal = vi.fn();
+  const { unmount } = renderHook(() =>
+    useSidebarEdgeReveal({
+      enabled: true,
+      triggerRef: sidebarRef(),
+      onReveal: reveal,
+      subscribeInactivePointer: stream.subscribe,
+    }),
+  );
+  act(() => {
+    stream.emit({ x: -60, y: 300 });
+    stream.emit({ x: -10, y: 300 });
+  });
+  expect(reveal).not.toHaveBeenCalled();
+  act(() => {
+    stream.emit({ x: 40, y: 300 });
+  });
+  expect(reveal).toHaveBeenCalledTimes(1);
+  unmount();
+  expect(stream.size).toBe(0);
+});
+
+test("streamed samples dismiss an inactive window's preview once the cursor leaves the margin", async () => {
+  vi.useFakeTimers();
+  const ref = sidebarRef();
+  const stream = inactivePointerStream();
+  const leave = vi.fn();
+  const { unmount } = renderHook(() =>
+    useHoverSafeZone({
+      enabled: true,
+      triggerRef: ref,
+      contentRef: ref,
+      margin: 140,
+      leaveDelayMs: 180,
+      subscribeInactivePointer: stream.subscribe,
+      onEnterSafeZone: () => {},
+      onLeaveSafeZone: leave,
+    }),
+  );
+  act(() => {
+    stream.emit({ x: 400, y: 300 });
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(leave).not.toHaveBeenCalled();
+  act(() => {
+    stream.emit({ x: 600, y: 300 });
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(leave).toHaveBeenCalledTimes(1);
+  unmount();
+  expect(stream.size).toBe(0);
+});
+
+test("crossesSidebarEdge detects crossings in either direction within the strip height", () => {
+  const rect = { left: 0, top: 40, bottom: 800 };
+  expect(crossesSidebarEdge({ x: -20, y: 300 }, { x: 30, y: 300 }, rect)).toBe(true);
+  expect(crossesSidebarEdge({ x: 30, y: 300 }, { x: -20, y: 300 }, rect)).toBe(true);
+  expect(crossesSidebarEdge({ x: 30, y: 300 }, { x: 0, y: 300 }, rect)).toBe(true);
+  expect(crossesSidebarEdge({ x: -20, y: 300 }, { x: -1, y: 300 }, rect)).toBe(false);
+  expect(crossesSidebarEdge({ x: -20, y: 10 }, { x: 30, y: 10 }, rect)).toBe(false);
+  expect(crossesSidebarEdge({ x: 0, y: 100 }, { x: 0, y: 200 }, rect)).toBe(false);
 });

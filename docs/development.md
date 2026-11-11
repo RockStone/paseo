@@ -86,7 +86,12 @@ and out over 180 ms and respects reduced-motion settings. In Electron, it stays 
 half the sidebar's current width beyond the preview, including outside the window,
 then dismisses after a short grace period. Browsers cannot read the pointer outside
 their window and use the grace period alone. Clicking away, pressing Escape, or
-switching windows dismisses the preview. An open sidebar menu holds the preview, even where the
+switching windows dismisses the preview. The edge also works while another app is
+active. Chromium sends an inactive window no mouse moves, so while the window is
+visible, unfocused and the sidebar collapsed, the main process samples the cursor every
+50 ms (`packages/desktop/src/window/inactive-pointer.ts`) and the renderer runs those
+samples through the same reveal and dismiss logic. The window cannot tell whether
+another app covers its edge, so the preview can open behind a covering window. An open sidebar menu holds the preview, even where the
 menu reaches past that margin, so in-place actions such as copying an ID leave it revealed; it
 dismisses once the pointer leaves after the menu closes, or when you press the menu backdrop
 beside the sidebar.

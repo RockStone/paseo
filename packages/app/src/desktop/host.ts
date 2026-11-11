@@ -102,6 +102,9 @@ export interface DesktopWindowChromeUpdate {
 
 export interface DesktopWindowBridge {
   getPointerPosition?: () => Promise<{ x: number; y: number } | null>;
+  /** Asks the main process to stream the cursor while this window is inactive. */
+  setInactivePointerTracking?: (enabled: boolean) => Promise<void>;
+  onInactivePointer?: (handler: (payload: unknown) => void) => () => void;
   label?: string;
   minimize?: () => Promise<void>;
   close?: () => Promise<void>;

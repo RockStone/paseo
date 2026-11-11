@@ -67,7 +67,10 @@ import {
 import { isNative, isWeb } from "@/constants/platform";
 import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
 import { useSidebarEdgeReveal } from "@/hooks/use-sidebar-edge-reveal";
-import { readSidebarPreviewPointer } from "@/desktop/sidebar-preview-pointer";
+import {
+  readSidebarPreviewPointer,
+  subscribeInactiveWindowPointer,
+} from "@/desktop/sidebar-preview-pointer";
 import { HorizontalScrollProvider } from "@/contexts/horizontal-scroll-context";
 import { SessionProvider } from "@/contexts/session-context";
 import { SidebarCalloutProvider } from "@/contexts/sidebar-callout-context";
@@ -730,6 +733,7 @@ function SidebarPreviewFrame({
     margin: frameWidth / 2,
     leaveDelayMs: 180,
     readWindowPointer: readSidebarPreviewPointer,
+    subscribeInactivePointer: subscribeInactiveWindowPointer,
   });
   useEffect(() => {
     if (!isWeb || !preview || closing) return;
@@ -795,6 +799,7 @@ function SidebarEdgeTrigger({ visible, onReveal }: { visible: boolean; onReveal:
     triggerRef,
     onReveal,
     readWindowPointer: readSidebarPreviewPointer,
+    subscribeInactivePointer: subscribeInactiveWindowPointer,
   });
   const mouseHandlers = useMemo(() => ({ onMouseEnter: onReveal }), [onReveal]);
   if (!visible) return null;

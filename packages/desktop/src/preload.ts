@@ -78,6 +78,17 @@ contextBridge.exposeInMainWorld("paseoDesktop", {
         };
       },
       setBadgeCount: (count?: number) => ipcRenderer.invoke("paseo:window:setBadgeCount", count),
+      setInactivePointerTracking: (enabled: boolean) =>
+        ipcRenderer.invoke("paseo:window:setInactivePointerTracking", enabled),
+      onInactivePointer: (handler: EventHandler): (() => void) => {
+        const listener = (_ipcEvent: Electron.IpcRendererEvent, payload: unknown) => {
+          handler(payload);
+        };
+        ipcRenderer.on("paseo:window:inactivePointer", listener);
+        return () => {
+          ipcRenderer.removeListener("paseo:window:inactivePointer", listener);
+        };
+      },
     }),
   },
   dialog: {

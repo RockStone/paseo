@@ -48,6 +48,7 @@ import {
 } from "./window/window-manager.js";
 import { setupDarwinCompositorWatchdog } from "./window/compositor-watchdog/index.js";
 import { showWindowWhenReady } from "./window/show-when-ready.js";
+import { setupInactivePointerTracking } from "./window/inactive-pointer.js";
 import { resolveDesktopWindowChromeMode, windowChromeModeArgument } from "./window/chrome.js";
 import { registerDialogHandlers } from "./features/dialogs.js";
 import {
@@ -751,6 +752,7 @@ async function createWindow(
 
   setupDarwinCompositorWatchdog(mainWindow);
   setupWindowResizeEvents(mainWindow);
+  setupInactivePointerTracking(mainWindow);
   if (windowStateStore) {
     setupWindowStatePersistence(mainWindow, windowStateStore);
   }

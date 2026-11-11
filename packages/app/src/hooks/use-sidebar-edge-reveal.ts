@@ -7,16 +7,36 @@ interface Point {
   y: number;
 }
 
+interface EdgeRect {
+  left: number;
+  top: number;
+  bottom: number;
+}
+
+// Intersects the movement segment with the trigger's left edge. A fast move need not
+// deliver any sample inside the narrow strip, and an inactive window is sampled only
+// every 50 ms.
+export function crossesSidebarEdge(from: Point, to: Point, rect: EdgeRect): boolean {
+  const dx = to.x - from.x;
+  if (!dx) return false;
+  const fraction = (rect.left - from.x) / dx;
+  const y = from.y + (to.y - from.y) * fraction;
+  return fraction >= 0 && fraction <= 1 && y >= rect.top && y <= rect.bottom;
+}
+
 export function useSidebarEdgeReveal({
   enabled,
   triggerRef,
   onReveal,
   readWindowPointer,
+  subscribeInactivePointer,
 }: {
   enabled: boolean;
   triggerRef: RefObject<View | HTMLElement | null>;
   onReveal: () => void;
   readWindowPointer?: () => Promise<Point | null>;
+  /** Cursor samples while the window is inactive and receives no pointer events. */
+  subscribeInactivePointer?: (listener: (point: Point) => void) => () => void;
 }) {
   useEffect(() => {
     if (!isWeb || !enabled) return;
@@ -31,14 +51,8 @@ export function useSidebarEdgeReveal({
       previous = point;
       const node = triggerRef.current as unknown as HTMLElement | null;
       const rect = node?.getBoundingClientRect();
-      if (!from || !rect || revealed || !document.hasFocus()) return;
-      // Intersect the movement segment with the window boundary. A fast move
-      // need not deliver any event inside the narrow DOM edge strip.
-      const dx = point.x - from.x;
-      if (!dx) return;
-      const fraction = (rect.left - from.x) / dx;
-      const y = from.y + (point.y - from.y) * fraction;
-      if (fraction >= 0 && fraction <= 1 && y >= rect.top && y <= rect.bottom) {
+      if (!from || !rect || revealed) return;
+      if (crossesSidebarEdge(from, point, rect)) {
         revealed = true;
         onReveal();
       }
@@ -82,18 +96,25 @@ export function useSidebarEdgeReveal({
       previous = null;
     }
 
+    function inactiveMove(point: Point) {
+      stopPolling();
+      sample(point);
+    }
+
     document.addEventListener("pointermove", move, true);
     window.addEventListener("pointerout", leave);
     window.addEventListener("focus", startPolling);
     window.addEventListener("blur", blur);
+    const unsubscribeInactive = subscribeInactivePointer?.(inactiveMove);
     startPolling();
     return () => {
       disposed = true;
       stopPolling();
+      unsubscribeInactive?.();
       document.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerout", leave);
       window.removeEventListener("focus", startPolling);
       window.removeEventListener("blur", blur);
     };
-  }, [enabled, triggerRef, onReveal, readWindowPointer]);
+  }, [enabled, triggerRef, onReveal, readWindowPointer, subscribeInactivePointer]);
 }

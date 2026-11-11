@@ -12,6 +12,8 @@ interface UseHoverSafeZoneParams {
   margin?: number;
   leaveDelayMs?: number;
   readWindowPointer?: () => Promise<{ x: number; y: number } | null>;
+  /** Cursor samples while the window is inactive and receives no pointer events. */
+  subscribeInactivePointer?: (listener: (point: { x: number; y: number }) => void) => () => void;
 }
 
 function readRect(
@@ -33,6 +35,7 @@ export function useHoverSafeZone({
   margin,
   leaveDelayMs = 0,
   readWindowPointer,
+  subscribeInactivePointer,
 }: UseHoverSafeZoneParams): void {
   useEffect(() => {
     if (!isWeb || !enabled) return;
@@ -109,9 +112,15 @@ export function useHoverSafeZone({
       tracker.windowBlurred();
     }
 
+    function handleInactivePointer(point: { x: number; y: number }) {
+      stopPolling();
+      tracker.pointerMoved(point.x, point.y);
+    }
+
     document.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerout", handlePointerOut);
     window.addEventListener("blur", handleBlur);
+    const unsubscribeInactive = subscribeInactivePointer?.(handleInactivePointer);
     // Crossing can reveal the panel after the pointer already left the window;
     // there may be no subsequent pointerout event to start native tracking.
     if (readWindowPointer) {
@@ -122,6 +131,7 @@ export function useHoverSafeZone({
       disposed = true;
       stopPolling();
       cancelLeave();
+      unsubscribeInactive?.();
       document.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerout", handlePointerOut);
       window.removeEventListener("blur", handleBlur);
@@ -135,5 +145,6 @@ export function useHoverSafeZone({
     margin,
     leaveDelayMs,
     readWindowPointer,
+    subscribeInactivePointer,
   ]);
 }

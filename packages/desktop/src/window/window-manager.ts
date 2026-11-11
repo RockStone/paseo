@@ -8,10 +8,10 @@ import {
   ipcMain,
   nativeTheme,
   shell,
-  screen,
 } from "electron";
 
 import type { WindowState, WindowStateStore } from "../settings/window-state.js";
+import { readWindowPointer, registerInactivePointerTracking } from "./inactive-pointer.js";
 import type { DesktopWindowChromeMode } from "./chrome.js";
 
 const WINDOW_STATE_SAVE_DEBOUNCE_MS = 400;
@@ -149,16 +149,9 @@ export function applyMacWindowControlsUpdate(input: {
 export function registerWindowManager(input: { mode: DesktopWindowChromeMode }): void {
   ipcMain.handle("paseo:window:getPointerPosition", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || win.isDestroyed() || !win.isVisible() || win.isMinimized()) return null;
-    try {
-      const point = screen.getCursorScreenPoint();
-      const bounds = win.getContentBounds();
-      const zoom = win.webContents.getZoomFactor();
-      return { x: (point.x - bounds.x) / zoom, y: (point.y - bounds.y) / zoom };
-    } catch {
-      return null;
-    }
+    return win ? readWindowPointer(win) : null;
   });
+  registerInactivePointerTracking();
   ipcMain.handle("paseo:window:minimize", (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();
   });
