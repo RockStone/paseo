@@ -1,6 +1,6 @@
 import { shellBackgroundTaskId } from "@/tool-calls/shell-task";
 import { ResponseReplyButton } from "@/agent-stream/response-reply-button";
-import { SelectMessageButton } from "@/agent-stream/message-selection";
+import { SelectMessageButton, useMessageSelectionCopy } from "@/agent-stream/message-selection";
 import type { SelectableMessage } from "@/agent-stream/message-selection/model";
 import { buildRewoundComposerMessage } from "@/components/rewind/attachments";
 import { useToast } from "@/contexts/toast-context";
@@ -758,6 +758,14 @@ const assistantTurnFooterStylesheet = StyleSheet.create((theme) => ({
     marginTop: 0,
     marginLeft: -theme.spacing[1],
   },
+  copyButtonDisabled: {
+    alignSelf: "center",
+    padding: theme.spacing[1],
+    paddingTop: theme.spacing[1],
+    marginTop: 0,
+    marginLeft: -theme.spacing[1],
+    opacity: 0.4,
+  },
   label: {
     color: theme.colors.foregroundMuted,
     fontSize: STREAM_METADATA_FONT_SIZE,
@@ -789,6 +797,33 @@ const MessageTimeLabel = memo(function MessageTimeLabel({
   ) : null;
 });
 
+// Paseoi: while messages are being selected, the footer's Copy copies the selection instead.
+function FooterCopyButton({ getContent }: { getContent: () => string }) {
+  const { t } = useTranslation();
+  const selection = useMessageSelectionCopy();
+  if (!selection)
+    return (
+      <TurnCopyButton
+        getContent={getContent}
+        containerStyle={assistantTurnFooterStylesheet.copyButton}
+      />
+    );
+  return (
+    <TurnCopyButton
+      getContent={getContent}
+      onCopy={selection.copy}
+      disabled={selection.count === 0}
+      accessibilityLabel={t("message.selection.copy", { count: selection.count })}
+      testID="message-selection-copy"
+      containerStyle={
+        selection.count === 0
+          ? assistantTurnFooterStylesheet.copyButtonDisabled
+          : assistantTurnFooterStylesheet.copyButton
+      }
+    />
+  );
+}
+
 /**
  * Footer rendered next to the copy button at the end of an assistant turn.
  * Keeps duration, completion time and relative age visible together.
@@ -811,12 +846,7 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
 
   return (
     <View style={assistantTurnFooterStylesheet.container}>
-      {getContent ? (
-        <TurnCopyButton
-          getContent={getContent}
-          containerStyle={assistantTurnFooterStylesheet.copyButton}
-        />
-      ) : null}
+      {getContent ? <FooterCopyButton getContent={getContent} /> : null}
       {canFork ? <AssistantForkMenu onFork={handleFork} /> : null}
       {replyCursor ? <ResponseReplyButton cursor={replyCursor} /> : null}
       {selectItem ? <SelectMessageButton item={selectItem} /> : null}
@@ -956,6 +986,10 @@ interface TurnCopyButtonProps {
   containerStyle?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
   copiedAccessibilityLabel?: string;
+  /** Copies something else (a message selection); resolves whether it copied. */
+  onCopy?: () => Promise<boolean>;
+  disabled?: boolean;
+  testID?: string;
 }
 
 export const TurnCopyButton = memo(function TurnCopyButton({
@@ -963,18 +997,24 @@ export const TurnCopyButton = memo(function TurnCopyButton({
   containerStyle,
   accessibilityLabel,
   copiedAccessibilityLabel,
+  onCopy,
+  disabled,
+  testID,
 }: TurnCopyButtonProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCopy = useCallback(async () => {
-    const content = getContent();
-    if (!content) {
-      return;
+    if (onCopy) {
+      if (!(await onCopy())) return;
+    } else {
+      const content = getContent();
+      if (!content) {
+        return;
+      }
+      await writeMarkdownToRichClipboard(content, getDefaultMarkdownClipboardEnvironment());
     }
-
-    await writeMarkdownToRichClipboard(content, getDefaultMarkdownClipboardEnvironment());
     setCopied(true);
 
     if (copyTimeoutRef.current) {
@@ -985,7 +1025,7 @@ export const TurnCopyButton = memo(function TurnCopyButton({
       setCopied(false);
       copyTimeoutRef.current = null;
     }, 1500);
-  }, [getContent]);
+  }, [getContent, onCopy]);
 
   useEffect(() => {
     return () => {
@@ -1003,6 +1043,8 @@ export const TurnCopyButton = memo(function TurnCopyButton({
   return (
     <Pressable
       onPress={handleCopy}
+      disabled={disabled}
+      testID={testID}
       style={pressableStyle}
       accessibilityRole="button"
       accessibilityLabel={

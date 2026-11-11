@@ -1,7 +1,7 @@
 import { useHostFeature } from "@/runtime/host-features";
 import {
   MessageSelectionProvider,
-  MessageSelectionToolbar,
+  useEndMessageSelectionOnSwitch,
   useStartMessageSelection,
 } from "@/agent-stream/message-selection";
 import { messageSelectionTarget } from "@/agent-stream/message-selection/model";
@@ -3082,6 +3082,7 @@ function WorkspaceScreenContent({
     [focusedPaneAgentId, isRouteFocused, normalizedServerId],
   );
   const startMessageSelection = useStartMessageSelection(selectionTarget);
+  useEndMessageSelectionOnSwitch(selectionTarget);
   // The merged title bar drops the git actions to save space and moves plugin buttons right.
   const [headerRight, titleBarTrailing] = useMemo(() => {
     const renderActions = (inTitleBar: boolean) => (
@@ -3089,7 +3090,6 @@ function WorkspaceScreenContent({
         {inTitleBar ? null : (
           <PluginHeaderButtons serverId={normalizedServerId} workspaceId={normalizedWorkspaceId} />
         )}
-        <MessageSelectionToolbar target={selectionTarget} />
         {workspaceDescriptor ? (
           <WorkspaceScriptsButton
             serverId={normalizedServerId}
@@ -3135,7 +3135,6 @@ function WorkspaceScreenContent({
     );
     return [renderActions(false), renderActions(true)];
   }, [
-    selectionTarget,
     workspaceDescriptor,
     normalizedServerId,
     normalizedWorkspaceId,
@@ -3309,7 +3308,6 @@ function WorkspaceScreenContent({
             onCloseTabsBelow={handleCloseTabsToRight}
             onCloseOtherTabs={handleCloseOtherTabs}
           />
-          <MessageSelectionToolbar target={selectionTarget} />
           <PluginHeaderButtons
             serverId={normalizedServerId}
             workspaceId={normalizedWorkspaceId}
@@ -3336,7 +3334,6 @@ function WorkspaceScreenContent({
         </CompactWorkspaceHeader>
       ) : null,
     [
-      selectionTarget,
       startMessageSelection,
       activeTabKey,
       canOpenImportSheet,

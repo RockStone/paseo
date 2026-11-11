@@ -1523,11 +1523,11 @@ for (const layout of ["desktop", "compact"] as const) {
       // Reverse click order must still copy chronological conversation order.
       await assistants.last().click();
       await users.first().click();
-      await expect(page.getByTestId("message-selection-copy")).toHaveAccessibleName(
+      await expect(page.getByTestId("message-selection-copy").last()).toHaveAccessibleName(
         "Copy selected messages (2)",
       );
       await page.screenshot({ path: testInfo.outputPath(`multi-message-${layout}.png`) });
-      await page.getByTestId("message-selection-copy").click();
+      await page.getByTestId("message-selection-copy").last().click();
       await expect(page.getByText("Messages copied", { exact: true })).toBeVisible();
       expect(await readPlainClipboard(page)).toBe(
         `### User\n\n${prompt}\n\n---\n\n### Assistant\n\n${response}`,
@@ -1536,14 +1536,14 @@ for (const layout of ["desktop", "compact"] as const) {
       await expect(users).toHaveCount(0);
       await page.getByTestId("message-selection-start").last().click();
       await users.first().click();
-      await page.getByTestId("message-selection-cancel").click();
+      await page.getByTestId("message-selection-cancel").last().click();
       await expect(users).toHaveCount(0);
       if (layout === "compact") {
         // The workspace menu starts an empty selection.
         await page.getByTestId("workspace-header-menu-trigger").click();
         await page.getByTestId("workspace-header-select-messages").click();
-        await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
-        await page.getByTestId("message-selection-cancel").click();
+        await expect(page.getByTestId("message-selection-copy").last()).toBeDisabled();
+        await page.getByTestId("message-selection-cancel").last().click();
       }
     } finally {
       await agent.cleanup();
@@ -1570,14 +1570,14 @@ test("keeps message checkboxes selected after clipboard denial and allows Copy t
     await page.getByRole("checkbox", { name: "Select assistant message", exact: true }).click();
     const checkbox = page.getByRole("checkbox", { name: "Select user message", exact: true });
     await checkbox.click();
-    await page.getByTestId("message-selection-copy").click();
+    await page.getByTestId("message-selection-copy").last().click();
     await expect(page.getByTestId("message-selection-error")).toContainText(
       "Your selection is kept",
     );
     await expect(checkbox).toBeChecked();
-    await expect(page.getByTestId("message-selection-copy")).toBeEnabled();
+    await expect(page.getByTestId("message-selection-copy").last()).toBeEnabled();
     await page.evaluate(() => window.dispatchEvent(new Event("allow-test-clipboard")));
-    await page.getByTestId("message-selection-copy").click();
+    await page.getByTestId("message-selection-copy").last().click();
     await expect(page.getByTestId("message-selection-start")).toBeVisible();
     await expect(page.getByTestId("message-selection-error")).toHaveCount(0);
     expect(await readPlainClipboard(page)).toBe("### User\n\nKeep my selection.");
@@ -1622,10 +1622,10 @@ test("keeps message selections while loading and scrolling to older conversation
       .locator("[data-message-id]")
       .filter({ has: page.getByText(firstPrompt, { exact: true }) });
     await earliest.getByRole("checkbox", { name: "Select user message", exact: true }).click();
-    await expect(page.getByTestId("message-selection-copy")).toHaveAccessibleName(
+    await expect(page.getByTestId("message-selection-copy").last()).toHaveAccessibleName(
       "Copy selected messages (2)",
     );
-    await page.getByTestId("message-selection-copy").click();
+    await page.getByTestId("message-selection-copy").last().click();
     await expect(page.getByTestId("message-selection-start").last()).toBeVisible();
     expect(await readPlainClipboard(page)).toBe(
       `### User\n\n${firstPrompt}\n\n---\n\n### Assistant\n\n${response}`,
@@ -1657,14 +1657,14 @@ test("keeps an expanded compaction summary open when entering and leaving messag
     await expect(summary).toHaveAttribute("aria-expanded", "true");
     await page.getByTestId("message-selection-start").click();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
-    await page.getByTestId("message-selection-cancel").click();
+    await page.getByTestId("message-selection-cancel").last().click();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
     await page.getByTestId("message-selection-start").click();
     await page
       .getByRole("checkbox", { name: "Select assistant message", exact: true })
       .last()
       .click();
-    await page.getByTestId("message-selection-copy").click();
+    await page.getByTestId("message-selection-copy").last().click();
     await expect(page.getByTestId("message-selection-start")).toBeVisible();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
     expect(await readPlainClipboard(page)).toBe(`### Assistant\n\n${intro}`);

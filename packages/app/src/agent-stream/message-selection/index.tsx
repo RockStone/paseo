@@ -8,12 +8,12 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { ActivityIndicator, View } from "react-native";
-import { Check, Copy, ListChecks, X } from "lucide-react-native";
+import { View } from "react-native";
+import { Check, ListChecks, X } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
-import { ToolbarButton, paneContentToolbarIconSize } from "@/components/ui/pane-content-toolbar";
+import { ToolbarButton } from "@/components/ui/pane-content-toolbar";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useToast } from "@/contexts/toast-context";
 import { PressHighlight } from "@/components/ui/press-highlight";
@@ -26,7 +26,6 @@ const Context = createContext<MessageSelectionModel | null>(null);
 // The conversation a stream renders, so footer buttons know which selection to start.
 const TargetContext = createContext<string | null>(null);
 export const MessageSelectionTargetProvider = TargetContext.Provider;
-const CopyIcon = withUnistyles(Copy);
 const CancelIcon = withUnistyles(X);
 const ListIcon = withUnistyles(ListChecks);
 const CheckIcon = withUnistyles(Check);
@@ -48,44 +47,34 @@ export function useMessageSelectionActive(target: string) {
   );
 }
 
-export function MessageSelectionToolbar({ target }: { target: string | null }) {
+/** Ends a selection when the focused conversation changes, so it never carries into another tab. */
+export function useEndMessageSelectionOnSwitch(target: string | null) {
   const model = useMessageSelection();
-  const state = useSyncExternalStore(model?.subscribe ?? noopSubscribe, () => model?.getState());
-  const { t } = useTranslation();
-  const toast = useToast();
-  const compact = useIsCompactFormFactor();
-  const size = paneContentToolbarIconSize(compact);
-  // Changing the focused conversation never carries its selection into another tab.
   useEffect(() => () => model?.cancel(), [model, target]);
-  const cancel = useCallback(() => model?.cancel(), [model]);
+}
+
+/**
+ * Paseoi: while this conversation is selecting, a response footer's Copy copies the selected
+ * messages; null otherwise, and the footer copies its own response.
+ */
+export function useMessageSelectionCopy() {
+  const model = useMessageSelection();
+  const target = useContext(TargetContext);
+  const count = useSyncExternalStore(model?.subscribe ?? noopSubscribe, () => {
+    const state = model?.getState();
+    return state && state.target === target ? state.selected.size : -1;
+  });
+  const toast = useToast();
+  const { t } = useTranslation();
   const copy = useCallback(async () => {
-    const copied = await model?.copy((text) =>
-      writeMarkdownToRichClipboard(text, getDefaultMarkdownClipboardEnvironment()),
-    );
+    const copied =
+      (await model?.copy((text) =>
+        writeMarkdownToRichClipboard(text, getDefaultMarkdownClipboardEnvironment()),
+      )) ?? false;
     if (copied) toast.show(t("message.selection.copied"), { variant: "success" });
+    return copied;
   }, [model, toast, t]);
-  // Paseoi: selection starts from a response's Select button or the workspace menu; the header
-  // only shows Copy and Cancel while selecting.
-  if (!target || !model || !state || state.target !== target) return null;
-  return (
-    <View style={styles.controls}>
-      <ToolbarButton
-        label={t("message.selection.copy", { count: state.selected.size })}
-        disabled={state.pending || state.selected.size === 0}
-        onPress={copy}
-        testID="message-selection-copy"
-      >
-        {state.pending ? (
-          <ActivityIndicator size="small" />
-        ) : (
-          <CopyIcon size={size} uniProps={iconColor} />
-        )}
-      </ToolbarButton>
-      <ToolbarButton label={t("common.cancel")} onPress={cancel} testID="message-selection-cancel">
-        <CancelIcon size={size} uniProps={iconColor} />
-      </ToolbarButton>
-    </View>
-  );
+  return useMemo(() => (count < 0 ? null : { count, copy }), [count, copy]);
 }
 
 /** Starts selecting messages in this conversation with `item` checked. */
@@ -100,7 +89,20 @@ export function SelectMessageButton({ item }: { item: SelectableMessage }) {
   const start = useCallback(() => {
     if (target) model?.start(target, item);
   }, [model, target, item]);
-  if (!model || !target || active) return null;
+  const cancel = useCallback(() => model?.cancel(), [model]);
+  if (!model || !target) return null;
+  // While selecting, the same spot cancels the selection.
+  if (active)
+    return (
+      <ToolbarButton
+        label={t("common.cancel")}
+        onPress={cancel}
+        testID="message-selection-cancel"
+        compact
+      >
+        <CancelIcon size={ICON_SIZE.sm} uniProps={iconColor} />
+      </ToolbarButton>
+    );
   return (
     <ToolbarButton
       label={t("message.selection.start")}
