@@ -6,10 +6,8 @@ import type { TurnTiming } from "@/timeline/turn-time";
 import type { StreamItem } from "@/types/stream";
 import {
   collectAssistantResponseContentForStreamRenderStrategy,
-  collectAssistantResponseMessagesForStreamRenderStrategy,
   type StreamStrategy,
 } from "./strategy";
-import { SelectableMessages } from "./message-selection";
 import { resolveAssistantTurnForkBoundary, type AssistantTurnForkBoundary } from "./turn-boundary";
 import {
   AssistantTurnFooter,
@@ -49,7 +47,6 @@ export const TurnFooter = memo(function TurnFooter({
   host,
   strategy,
   supportsTimelineCursor,
-  selectionTarget,
   onForkAssistantTurn,
   onForkInFlightTurn,
 }: {
@@ -58,7 +55,6 @@ export const TurnFooter = memo(function TurnFooter({
   host: TurnFooterHost | null;
   strategy: TurnContentStrategy;
   supportsTimelineCursor: boolean;
-  selectionTarget: string;
   onForkAssistantTurn?: AssistantTurnForkHandler;
   onForkInFlightTurn?: InFlightTurnForkHandler;
 }) {
@@ -82,7 +78,6 @@ export const TurnFooter = memo(function TurnFooter({
       timing={host.timing}
       startIndex={host.startIndex}
       supportsTimelineCursor={supportsTimelineCursor}
-      selectionTarget={selectionTarget}
       onForkAssistantTurn={onForkAssistantTurn}
     />
   );
@@ -94,7 +89,6 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
   timing,
   startIndex,
   supportsTimelineCursor,
-  selectionTarget,
   onForkAssistantTurn,
 }: {
   strategy: TurnContentStrategy;
@@ -102,7 +96,6 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
   timing?: TurnTiming;
   startIndex: number;
   supportsTimelineCursor: boolean;
-  selectionTarget: string;
   onForkAssistantTurn?: AssistantTurnForkHandler;
 }) {
   return (
@@ -113,7 +106,6 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
         timing={timing}
         startIndex={startIndex}
         supportsTimelineCursor={supportsTimelineCursor}
-        selectionTarget={selectionTarget}
         onForkAssistantTurn={onForkAssistantTurn}
       />
     </TurnFooterRow>
@@ -170,7 +162,6 @@ function CompletedTurnFooter({
   timing,
   startIndex,
   supportsTimelineCursor,
-  selectionTarget,
   onForkAssistantTurn,
 }: {
   strategy: TurnContentStrategy;
@@ -178,21 +169,11 @@ function CompletedTurnFooter({
   timing?: TurnTiming;
   startIndex: number;
   supportsTimelineCursor: boolean;
-  selectionTarget: string;
   onForkAssistantTurn?: AssistantTurnForkHandler;
 }) {
   const getContent = useCallback(
     () =>
       collectAssistantResponseContentForStreamRenderStrategy({
-        strategy,
-        items,
-        startIndex,
-      }),
-    [strategy, items, startIndex],
-  );
-  const readMessages = useCallback(
-    () =>
-      collectAssistantResponseMessagesForStreamRenderStrategy({
         strategy,
         items,
         startIndex,
@@ -215,19 +196,17 @@ function CompletedTurnFooter({
   );
   return (
     <View style={stylesheet.turnFooterSlot}>
-      <SelectableMessages target={selectionTarget} read={readMessages}>
-        <AssistantTurnFooter
-          replyCursor={
-            items[startIndex]?.kind === "assistant_message"
-              ? items[startIndex].timelineCursor
-              : undefined
-          }
-          getContent={items[startIndex]?.kind === "assistant_message" ? getContent : undefined}
-          completedAt={timing?.completedAt}
-          durationMs={timing?.durationMs}
-          onFork={boundary && onForkAssistantTurn ? handleFork : undefined}
-        />
-      </SelectableMessages>
+      <AssistantTurnFooter
+        replyCursor={
+          items[startIndex]?.kind === "assistant_message"
+            ? items[startIndex].timelineCursor
+            : undefined
+        }
+        getContent={items[startIndex]?.kind === "assistant_message" ? getContent : undefined}
+        completedAt={timing?.completedAt}
+        durationMs={timing?.durationMs}
+        onFork={boundary && onForkAssistantTurn ? handleFork : undefined}
+      />
     </View>
   );
 }

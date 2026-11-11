@@ -398,8 +398,6 @@ export const en = {
       assistant: "Select assistant message",
       failed: "Could not copy messages",
       retry: "Your selection is kept. Use Copy to retry, or Cancel.",
-      copyHint: "{{action}} · {{key}}-click to select several",
-      toggle: "Add to or remove from selection",
     },
     diagram: {
       diagram: "Diagram",

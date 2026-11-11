@@ -404,8 +404,6 @@ export const ja: TranslationResources = {
       assistant: "アシスタントのメッセージを選択",
       failed: "メッセージをコピーできませんでした",
       retry: "選択は保持されています。コピーで再試行するか、キャンセルしてください。",
-      copyHint: "{{action}} · {{key}}+クリックで複数選択",
-      toggle: "選択に追加、または選択から削除",
     },
     diagram: {
       diagram: "図",

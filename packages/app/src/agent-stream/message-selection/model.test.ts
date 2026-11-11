@@ -75,24 +75,6 @@ describe("message selection", () => {
     expect(write).toHaveBeenCalledTimes(2);
   });
 
-  it("toggles a response's assistant messages as one group from its Copy button", () => {
-    const first = message("first", 3, "assistant_message", "First part.");
-    const second = message("second", 4, "assistant_message", "Second part.");
-    const model = openMessageSelection();
-    model.registerSource("agent", () => [user, first, second]);
-    model.start("agent");
-    model.toggle("agent", first);
-    model.toggle("agent", [first, second]);
-    expect([...model.getState().selected.keys()]).toEqual(["first", "second"]);
-    expect(model.markdown()).toBe(
-      `### Assistant\n\n${first.text}\n\n---\n\n### Assistant\n\n${second.text}`,
-    );
-    model.toggle("agent", [first, second]);
-    expect(model.getState().selected.size).toBe(0);
-    model.toggle("agent", []);
-    expect(model.getState()).toMatchObject({ target: "agent", error: false });
-  });
-
   it("isolates conversations and ignores a completed copy after cancellation or a new selection", async () => {
     const model = openMessageSelection();
     model.start("first");

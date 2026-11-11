@@ -11,7 +11,6 @@ import { useMenuContext } from "@/components/ui/menu";
 import { PANEL_SLIDE_DURATION_MS, PANEL_SLIDE_EASING } from "@/mobile-panels/motion";
 
 export const PLUGIN_DRAWER_WIDTH = 380;
-const PLUGIN_DRAWER_MAX_HEIGHT = 560;
 
 const SLIDE_TIMING = { duration: PANEL_SLIDE_DURATION_MS, easing: PANEL_SLIDE_EASING };
 
@@ -88,14 +87,10 @@ export function PluginDrawerSurface({
   const slideStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
-  // A card as tall as its content, capped above the window's bottom edge.
+  // Full height below the header row: the notes list grows long quickly.
   const frameStyle = useMemo(
-    () => ({
-      top: top ?? 0,
-      maxHeight: Math.max(0, Math.min(PLUGIN_DRAWER_MAX_HEIGHT, windowHeight - (top ?? 0) - 16)),
-      pointerEvents: open ? ("auto" as const) : ("none" as const),
-    }),
-    [top, open, windowHeight],
+    () => ({ top: top ?? 0, pointerEvents: open ? ("auto" as const) : ("none" as const) }),
+    [top, open],
   );
 
   if (!active || !placed) return null;
@@ -118,22 +113,25 @@ const staticStyles = RNStyleSheet.create({
   frame: {
     position: "absolute",
     right: 0,
+    bottom: 0,
     width: PLUGIN_DRAWER_WIDTH,
     maxWidth: "100%",
   },
 });
 
-// The menu card's look, flush against the window's right edge: only the left corners round.
+// The menu card's look, flush against the window's right and bottom edges: only the top-left
+// corner rounds.
 const styles = StyleSheet.create((theme) => ({
   panel: {
-    flexShrink: 1,
+    flex: 1,
     backgroundColor: theme.colors.surface1,
     borderWidth: 1,
     borderRightWidth: 0,
+    borderBottomWidth: 0,
     borderColor: theme.colors.borderAccent,
     borderTopLeftRadius: theme.borderRadius.lg,
-    borderBottomLeftRadius: theme.borderRadius.lg,
     overflow: "hidden",
     ...theme.shadow.md,
   },
+  scroll: { flex: 1 },
 }));

@@ -406,8 +406,6 @@ export const es: TranslationResources = {
       assistant: "Seleccionar mensaje del asistente",
       failed: "No se pudieron copiar los mensajes",
       retry: "Se conserva la selección. Usa Copiar para reintentar o Cancelar.",
-      copyHint: "{{action}} · {{key}}+clic para seleccionar varios",
-      toggle: "Añadir a la selección o quitar de ella",
     },
     diagram: {
       diagram: "Diagrama",

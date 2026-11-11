@@ -400,8 +400,6 @@ export const ko: TranslationResources = {
       assistant: "어시스턴트 메시지 선택",
       failed: "메시지를 복사하지 못했습니다",
       retry: "선택이 유지됩니다. 복사로 다시 시도하거나 취소하세요.",
-      copyHint: "{{action}} · {{key}}-클릭으로 여러 개 선택",
-      toggle: "선택에 추가 또는 선택에서 제거",
     },
     diagram: {
       diagram: "다이어그램",

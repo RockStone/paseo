@@ -122,20 +122,6 @@ function assistantMessageBlocks(page: Page): Locator {
   return page.locator("[data-message-id]").filter({ has: page.getByTestId("assistant-message") });
 }
 
-/** The modifier that turns a message's Copy button into "select this message". */
-const SELECT_MODIFIER = ["ControlOrMeta"] as const;
-const COPY_HINT = /^Copy (turn|message) · (⌘|Ctrl)-click to select several$/;
-
-function assistantCopyButtons(page: Page): Locator {
-  return page.getByTestId("assistant-turn-copy");
-}
-
-/** A user message shows its Copy button on hover. */
-async function hoveredUserCopyButton(message: Locator): Promise<Locator> {
-  await message.getByTestId("user-message-bubble").hover();
-  return message.getByTestId("user-message-copy");
-}
-
 async function selectStructuredClipboardFixture(page: Page): Promise<void> {
   await selectAssistantTextRange(page, "Direct matches:", "ready");
 }
@@ -1515,34 +1501,25 @@ for (const layout of ["desktop", "compact"] as const) {
       await agent.client.sendAgentMessage(agent.agentId, "Leave this middle prompt unselected.");
       await agent.client.waitForFinish(agent.agentId, 15_000);
       await openAgentRoute(page, agent);
+      const middle = page.getByText("Leave this middle prompt unselected.", { exact: true });
+      const before = await middle.boundingBox();
+      await page.getByTestId("message-selection-start").click();
+      await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
+      if (layout === "desktop") {
+        // Paseoi floats the checkboxes in the margin; the messages don't move.
+        await expect(page.getByRole("checkbox").first()).toBeVisible();
+        const after = await middle.boundingBox();
+        expect(Math.round(after?.x ?? 0)).toBe(Math.round(before?.x ?? -1));
+      }
       const users = page.getByRole("checkbox", { name: "Select user message", exact: true });
       const assistants = page.getByRole("checkbox", {
         name: "Select assistant message",
         exact: true,
       });
-      if (layout === "compact") {
-        // Touch layouts have no modifier key, so the header keeps the start button.
-        await page.getByTestId("message-selection-start").click();
-        await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
-        await expect(users).toHaveCount(2);
-        await expect(assistants).toHaveCount(2);
-        // Reverse click order must still copy chronological conversation order.
-        await assistants.last().click();
-      } else {
-        await expect(page.getByTestId("message-selection-start")).toHaveCount(0);
-        await expect(assistantCopyButtons(page)).toHaveCount(2);
-        await expect(assistantCopyButtons(page).last()).toHaveAccessibleName(COPY_HINT);
-        // A modifier-click starts selection with that response checked and copies nothing.
-        await page.evaluate(() => navigator.clipboard.writeText("untouched"));
-        await assistantCopyButtons(page)
-          .last()
-          .click({ modifiers: [...SELECT_MODIFIER] });
-        await expect(users).toHaveCount(2);
-        await expect(assistants).toHaveCount(2);
-        await expect(assistants.last()).toBeChecked();
-        await expect(assistants.first()).not.toBeChecked();
-        expect(await readPlainClipboard(page)).toBe("untouched");
-      }
+      await expect(users).toHaveCount(2);
+      await expect(assistants).toHaveCount(2);
+      // Reverse click order must still copy chronological conversation order.
+      await assistants.last().click();
       await users.first().click();
       await expect(page.getByTestId("message-selection-copy")).toHaveAccessibleName(
         "Copy selected messages (2)",
@@ -1553,41 +1530,15 @@ for (const layout of ["desktop", "compact"] as const) {
       expect(await readPlainClipboard(page)).toBe(
         `### User\n\n${prompt}\n\n---\n\n### Assistant\n\n${response}`,
       );
+      await expect(page.getByTestId("message-selection-start")).toBeVisible();
       await expect(users).toHaveCount(0);
-      if (layout === "compact") {
-        await expect(page.getByTestId("message-selection-start")).toBeVisible();
-        await page.getByTestId("message-selection-start").click();
-        await users.first().click();
-        await page.getByTestId("message-selection-cancel").click();
-        await expect(users).toHaveCount(0);
-        await page.getByTestId("message-selection-start").click();
-        await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
-        await page.getByTestId("message-selection-cancel").click();
-        return;
-      }
-      await expect(page.getByTestId("message-selection-copy")).toHaveCount(0);
-      // A plain click outside selection still copies the one response.
-      await assistantCopyButtons(page).first().click();
-      await expect.poll(() => readPlainClipboard(page)).toBe(response);
-      await expect(users).toHaveCount(0);
-      // While selecting, a Copy button toggles its message with or without the modifier.
-      const userCopy = await hoveredUserCopyButton(page.getByTestId("user-message").first());
-      await expect(userCopy).toHaveAccessibleName(COPY_HINT);
-      await userCopy.click({ modifiers: [...SELECT_MODIFIER] });
-      await expect(users.first()).toBeChecked();
-      await expect(page.getByTestId("message-selection-copy")).toHaveAccessibleName(
-        "Copy selected messages (1)",
-      );
-      await (await hoveredUserCopyButton(page.getByTestId("user-message").first())).click();
-      await expect(users.first()).not.toBeChecked();
-      await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
-      await assistantCopyButtons(page)
-        .first()
-        .click({ modifiers: [...SELECT_MODIFIER] });
-      await expect(assistants.first()).toBeChecked();
+      await page.getByTestId("message-selection-start").click();
+      await users.first().click();
       await page.getByTestId("message-selection-cancel").click();
       await expect(users).toHaveCount(0);
-      await expect(page.getByTestId("message-selection-copy")).toHaveCount(0);
+      await page.getByTestId("message-selection-start").click();
+      await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
+      await page.getByTestId("message-selection-cancel").click();
     } finally {
       await agent.cleanup();
     }
@@ -1609,11 +1560,9 @@ test("keeps message checkboxes selected after clipboard denial and allows Copy t
     await agent.client.waitForFinish(agent.agentId, 15_000);
     await openAgentRoute(page, agent);
     await denyClipboardUntilAllowed(page);
-    await (
-      await hoveredUserCopyButton(page.getByTestId("user-message").first())
-    ).click({ modifiers: [...SELECT_MODIFIER] });
+    await page.getByTestId("message-selection-start").click();
     const checkbox = page.getByRole("checkbox", { name: "Select user message", exact: true });
-    await expect(checkbox).toBeChecked();
+    await checkbox.click();
     await page.getByTestId("message-selection-copy").click();
     await expect(page.getByTestId("message-selection-error")).toContainText(
       "Your selection is kept",
@@ -1622,7 +1571,7 @@ test("keeps message checkboxes selected after clipboard denial and allows Copy t
     await expect(page.getByTestId("message-selection-copy")).toBeEnabled();
     await page.evaluate(() => window.dispatchEvent(new Event("allow-test-clipboard")));
     await page.getByTestId("message-selection-copy").click();
-    await expect(checkbox).toHaveCount(0);
+    await expect(page.getByTestId("message-selection-start")).toBeVisible();
     await expect(page.getByTestId("message-selection-error")).toHaveCount(0);
     expect(await readPlainClipboard(page)).toBe("### User\n\nKeep my selection.");
   } finally {
@@ -1651,12 +1600,11 @@ test("keeps message selections while loading and scrolling to older conversation
     }
     await openAgentRoute(page, agent);
     await expect(page.getByText(firstPrompt, { exact: true })).toHaveCount(0);
-    await assistantCopyButtons(page)
-      .last()
-      .click({ modifiers: [...SELECT_MODIFIER] });
+    await page.getByTestId("message-selection-start").click();
     const latestCheckbox = page
       .getByRole("checkbox", { name: "Select assistant message", exact: true })
       .last();
+    await latestCheckbox.click();
     await expect(latestCheckbox).toBeChecked();
     await page.getByTestId("assistant-message").last().click();
     await page.keyboard.press("ControlOrMeta+f");
@@ -1672,7 +1620,7 @@ test("keeps message selections while loading and scrolling to older conversation
       "Copy selected messages (2)",
     );
     await page.getByTestId("message-selection-copy").click();
-    await expect(page.getByTestId("message-selection-copy")).toHaveCount(0);
+    await expect(page.getByTestId("message-selection-start")).toBeVisible();
     expect(await readPlainClipboard(page)).toBe(
       `### User\n\n${firstPrompt}\n\n---\n\n### Assistant\n\n${response}`,
     );
@@ -1701,20 +1649,17 @@ test("keeps an expanded compaction summary open when entering and leaving messag
     const summary = page.getByRole("button", { name: "Compaction summary", exact: true }).last();
     await summary.click();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
-    await assistantCopyButtons(page)
-      .last()
-      .click({ modifiers: [...SELECT_MODIFIER] });
+    await page.getByTestId("message-selection-start").click();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
     await page.getByTestId("message-selection-cancel").click();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
-    await assistantCopyButtons(page)
+    await page.getByTestId("message-selection-start").click();
+    await page
+      .getByRole("checkbox", { name: "Select assistant message", exact: true })
       .last()
-      .click({ modifiers: [...SELECT_MODIFIER] });
-    await expect(
-      page.getByRole("checkbox", { name: "Select assistant message", exact: true }).last(),
-    ).toBeChecked();
+      .click();
     await page.getByTestId("message-selection-copy").click();
-    await expect(page.getByTestId("message-selection-copy")).toHaveCount(0);
+    await expect(page.getByTestId("message-selection-start")).toBeVisible();
     await expect(summary).toHaveAttribute("aria-expanded", "true");
     expect(await readPlainClipboard(page)).toBe(`### Assistant\n\n${intro}`);
   } finally {

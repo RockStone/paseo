@@ -61,8 +61,8 @@ test("the sticky-notes plugin adds a workspace note from the header", async ({ p
     expect(drawerBox).not.toBeNull();
     if (rowBox && drawerBox) {
       expect(drawerBox.y).toBeGreaterThanOrEqual(rowBox.y + rowBox.height - 0.5);
-      // A card as tall as its notes, not a full-height panel.
-      expect(drawerBox.y + drawerBox.height).toBeLessThan(600);
+      // Full height: the notes list grows long quickly.
+      expect(Math.round(drawerBox.y + drawerBox.height)).toBe(900);
     }
     if (SCREENSHOT_DIR) await page.screenshot({ path: `${SCREENSHOT_DIR}/sticky-drawer.png` });
 

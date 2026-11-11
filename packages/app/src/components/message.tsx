@@ -1,6 +1,5 @@
 import { shellBackgroundTaskId } from "@/tool-calls/shell-task";
 import { ResponseReplyButton } from "@/agent-stream/response-reply-button";
-import { useMessageCopyGesture } from "@/agent-stream/message-selection";
 import { buildRewoundComposerMessage } from "@/components/rewind/attachments";
 import { useToast } from "@/contexts/toast-context";
 import {
@@ -29,7 +28,6 @@ import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
 import { TaskListRow } from "@/components/task-list-row";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative, isWeb } from "@/constants/platform";
 import { useRevealedText, type MarkdownPhase } from "@/hooks/use-revealed-text";
@@ -715,7 +713,6 @@ const UserMessageContent = memo(function UserMessageContent({
             ) : null}
             <TurnCopyButton
               getContent={getMessageContent}
-              testID="user-message-copy"
               containerStyle={userMessageStylesheet.copyButton}
               accessibilityLabel={t("message.actions.copyMessage")}
             />
@@ -808,7 +805,6 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
       {getContent ? (
         <TurnCopyButton
           getContent={getContent}
-          testID="assistant-turn-copy"
           containerStyle={assistantTurnFooterStylesheet.copyButton}
         />
       ) : null}
@@ -945,18 +941,8 @@ const turnCopyButtonStylesheet = StyleSheet.create((theme) => ({
   },
 }));
 
-/** Copied feedback wins, then the selection toggle, then the plain copy action. */
-function resolveTurnCopyLabel(labels: {
-  copied: string | null;
-  selecting: string | null;
-  copy: string;
-}): string {
-  return labels.copied ?? labels.selecting ?? labels.copy;
-}
-
 interface TurnCopyButtonProps {
   getContent: () => string;
-  testID: string;
   containerStyle?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
   copiedAccessibilityLabel?: string;
@@ -964,7 +950,6 @@ interface TurnCopyButtonProps {
 
 export const TurnCopyButton = memo(function TurnCopyButton({
   getContent,
-  testID,
   containerStyle,
   accessibilityLabel,
   copiedAccessibilityLabel,
@@ -972,10 +957,8 @@ export const TurnCopyButton = memo(function TurnCopyButton({
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const copyLabel = accessibilityLabel ?? t("message.actions.copyTurn");
-  const selection = useMessageCopyGesture(copyLabel);
 
-  const copy = useCallback(async () => {
+  const handleCopy = useCallback(async () => {
     const content = getContent();
     if (!content) {
       return;
@@ -993,13 +976,6 @@ export const TurnCopyButton = memo(function TurnCopyButton({
       copyTimeoutRef.current = null;
     }, 1500);
   }, [getContent]);
-  const handlePress = useCallback(
-    (event: GestureResponderEvent) => {
-      if (selection?.press(event)) return;
-      void copy();
-    },
-    [copy, selection],
-  );
 
   useEffect(() => {
     return () => {
@@ -1014,36 +990,28 @@ export const TurnCopyButton = memo(function TurnCopyButton({
     [containerStyle],
   );
 
-  const label = resolveTurnCopyLabel({
-    copied: copied ? (copiedAccessibilityLabel ?? t("message.actions.copied")) : null,
-    selecting: selection?.isSelecting ? t("message.selection.toggle") : null,
-    copy: selection?.hint ?? copyLabel,
-  });
-
   return (
-    <Tooltip delayDuration={300} enabledOnDesktop enabledOnMobile={false}>
-      <TooltipTrigger
-        onPress={handlePress}
-        style={pressableStyle}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        testID={testID}
-      >
-        {({ hovered }) => {
-          const iconColor = hovered
-            ? turnCopyButtonStylesheet.iconHoveredColor.color
-            : turnCopyButtonStylesheet.iconColor.color;
-          return copied ? (
-            <Check size={ICON_SIZE.sm} color={iconColor} />
-          ) : (
-            <Copy size={ICON_SIZE.sm} color={iconColor} />
-          );
-        }}
-      </TooltipTrigger>
-      <TooltipContent side="top" align="center" offset={8}>
-        {label}
-      </TooltipContent>
-    </Tooltip>
+    <Pressable
+      onPress={handleCopy}
+      style={pressableStyle}
+      accessibilityRole="button"
+      accessibilityLabel={
+        copied
+          ? (copiedAccessibilityLabel ?? t("message.actions.copied"))
+          : (accessibilityLabel ?? t("message.actions.copyTurn"))
+      }
+    >
+      {({ hovered }) => {
+        const iconColor = hovered
+          ? turnCopyButtonStylesheet.iconHoveredColor.color
+          : turnCopyButtonStylesheet.iconColor.color;
+        return copied ? (
+          <Check size={ICON_SIZE.sm} color={iconColor} />
+        ) : (
+          <Copy size={ICON_SIZE.sm} color={iconColor} />
+        );
+      }}
+    </Pressable>
   );
 });
 

@@ -72,21 +72,18 @@ export function openMessageSelection() {
       publish({ target, selected: new Map(), pending: false, error: false });
     },
     cancel,
-    /** Toggles the messages as one unit: a response's Copy button covers every assistant
-     * message in it. Any unselected member selects the rest; a fully selected group clears. */
-    toggle: (target: string, messages: SelectableMessage | readonly SelectableMessage[]) => {
-      const group = "kind" in messages ? [messages] : messages;
-      if (state.target !== target || state.pending || !group.length) return;
+    toggle: (target: string, item: SelectableMessage) => {
+      if (state.target !== target || state.pending) return;
       const selected = new Map(state.selected);
-      if (group.every((item) => selected.has(item.id))) {
-        for (const item of group) selected.delete(item.id);
-      } else {
-        const source = sources.get(target)?.() ?? [];
-        for (const item of group) {
-          if (selected.has(item.id)) continue;
-          selected.set(item.id, { item, order: source.findIndex((row) => row.id === item.id) });
-        }
-      }
+      if (selected.has(item.id)) selected.delete(item.id);
+      else
+        selected.set(item.id, {
+          item,
+          order:
+            sources
+              .get(target)?.()
+              .findIndex((row) => row.id === item.id) ?? 0,
+        });
       publish({ ...state, selected, error: false });
     },
     markdown,
