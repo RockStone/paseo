@@ -42,6 +42,16 @@ interface PluginNavigableHostProps extends PluginHostProps {
       readonly workspaceId: string;
       readonly serverId?: string;
     }) => void;
+    /**
+     * Paseoi: opens a file of the workspace, relative to its root. Present for header-button
+     * popovers, which open it in the side pane beside the session.
+     */
+    readonly openFile?: (input: {
+      readonly path: string;
+      readonly workspaceId: string;
+      readonly lineStart?: number;
+      readonly serverId?: string;
+    }) => void;
     readonly openAgent: (input: { readonly agentId: string; readonly serverId?: string }) => void;
     readonly openWorkspace: (input: {
       readonly workspaceId: string;

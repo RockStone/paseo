@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelativeTime, splitLinks } from "../../shared/format";
+import { formatRelativeTime, splitLinks, splitLinksAndPaths } from "../../shared/format";
 import { badgeLabel } from "../../shared/board";
 
 describe("splitLinks", () => {
@@ -37,6 +37,46 @@ describe("splitLinks", () => {
     expect(splitLinks("javascript:alert(1)")).toEqual([
       { kind: "text", text: "javascript:alert(1)", start: 0 },
     ]);
+  });
+});
+
+describe("splitLinksAndPaths", () => {
+  const paths = (text: string) =>
+    splitLinksAndPaths(text).flatMap((segment) =>
+      segment.kind === "path" ? [{ path: segment.path, line: segment.line }] : [],
+    );
+
+  it("finds workspace paths with extensions, trailing slashes and line numbers", () => {
+    expect(
+      paths(
+        "Read docs/owner-todo.md, then run scripts/vm-test.sh and see packages/app/ or README.md:12.",
+      ),
+    ).toEqual([
+      { path: "docs/owner-todo.md", line: undefined },
+      { path: "scripts/vm-test.sh", line: undefined },
+      { path: "packages/app/", line: undefined },
+      { path: "README.md", line: 12 },
+    ]);
+  });
+
+  it("leaves prose, absolute paths and URL paths alone", () => {
+    expect(paths("and/or OT-17/OT-18 ~/.local/state/cost.jsonl /etc/hosts v1.2")).toEqual([]);
+    expect(splitLinksAndPaths("see https://example.com/docs/a.md")).toEqual([
+      { kind: "text", text: "see ", start: 0 },
+      {
+        kind: "link",
+        text: "https://example.com/docs/a.md",
+        url: "https://example.com/docs/a.md",
+        start: 4,
+      },
+    ]);
+  });
+
+  it("keeps segment offsets in the original text", () => {
+    const text = "x docs/a.md y";
+    for (const segment of splitLinksAndPaths(text)) {
+      expect(text.slice(segment.start, segment.start + segment.text.length)).toBe(segment.text);
+    }
   });
 });
 

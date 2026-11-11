@@ -96,6 +96,8 @@ export function createStyles(theme: PluginTheme) {
     muted: { color: colors.foregroundMuted, fontSize: 13, lineHeight: 19 },
     strong: { color: colors.accent, fontSize: 13, fontWeight: "600" as const, lineHeight: 19 },
     link: { color: colors.accent, textDecorationLine: "underline" as const },
+    // File paths read like the chat file links: accent text, no underline.
+    path: { color: colors.accent, fontFamily: "monospace", fontSize: 13 },
     url: { color: colors.accent, fontSize: 13, textDecorationLine: "underline" as const },
     pill,
     pillText: { color: colors.foregroundMuted, fontSize: 11, fontWeight: "600" as const },

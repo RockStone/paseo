@@ -7,6 +7,7 @@ import { Pressable, Text, View } from "react-native";
 import { readBoardRpc } from "../shared/board";
 import { pendingReplyIds } from "../shared/prompt";
 import { errorMessage } from "./keys";
+import { createOpeners, type HostNavigation, OpenersProvider } from "./links";
 import { NotesTab } from "./notes-tab";
 import { OwnerTab } from "./owner-tab";
 import { ProgressTab } from "./progress-tab";
@@ -23,8 +24,15 @@ const lastTabs = new Map<string, TabId>();
 export function createDriveboard(
   refreshBadges: () => Promise<void>,
 ): ComponentType<PluginButtonContentProps> {
-  return function Driveboard({ theme, host, workspaceId, layout }) {
+  return function Driveboard(props) {
+    const { theme, host, workspaceId, layout } = props;
+    // Paseoi hosts pass navigation to header-button popovers; the published SDK types predate it.
+    const { navigation } = props as { navigation?: HostNavigation };
     const styles = useMemo(() => createStyles(theme), [theme]);
+    const openers = useMemo(
+      () => createOpeners(navigation, workspaceId),
+      [navigation, workspaceId],
+    );
     const queryClient = useQueryClient();
     const readBoard = useRpc(readBoardRpc);
     const queryKey = useMemo(
@@ -121,24 +129,28 @@ export function createDriveboard(
     // everything itself.
     if (layout.compact) {
       return (
-        <View style={styles.root}>
-          {tabs}
-          {body}
-        </View>
+        <OpenersProvider value={openers}>
+          <View style={styles.root}>
+            {tabs}
+            {body}
+          </View>
+        </OpenersProvider>
       );
     }
     return (
-      <View style={styles.rootFill}>
-        {tabs}
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator
-        >
-          {body}
-        </ScrollView>
-      </View>
+      <OpenersProvider value={openers}>
+        <View style={styles.rootFill}>
+          {tabs}
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
+            {body}
+          </ScrollView>
+        </View>
+      </OpenersProvider>
     );
   };
 }

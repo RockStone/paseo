@@ -8,9 +8,12 @@ import {
 } from "@/agent-stream/section-expansion";
 import { messageReferenceDetails } from "@/attachments/reference-details";
 import { MarkdownReferenceContext } from "@/components/markdown/reference-context";
-import { AssistantFileLinkResolverProvider, type InlinePathTarget } from "@/assistant-file-links";
+import {
+  AssistantFileLinkResolverProvider,
+  type InlinePathTarget,
+  useAssistantFileLinkActions,
+} from "@/assistant-file-links";
 import type { OpenFileDisposition } from "@/workspace/file-open";
-import { openExternalUrl } from "@/utils/open-external-url";
 import { useMarkdownSource } from "@/components/markdown/images";
 import { MessagePreview, MessageSender } from "@/components/user-message";
 import { useStableEvent } from "@/hooks/use-stable-event";
@@ -537,6 +540,7 @@ const UserMessageContent = memo(function UserMessageContent({
     [message, attachments],
   );
   const hasAttachments = visibleAttachments.length > 0;
+  const fileLinkActions = useAssistantFileLinkActions();
   const handleUserLinkPress = useCallback(
     (url: string) => {
       const imagePosition = details.get(url)?.imagePosition;
@@ -547,7 +551,7 @@ const UserMessageContent = memo(function UserMessageContent({
       }
       if (/^(attachment|thread|terminal|workspace|agent-profile):/.test(url)) return;
       if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
-        void openExternalUrl(url);
+        fileLinkActions.openUrl(url);
         return;
       }
       let path = url;
@@ -558,7 +562,7 @@ const UserMessageContent = memo(function UserMessageContent({
       }
       onOpenWorkspaceFile?.({ raw: url, path }, "preferred");
     },
-    [details, images, onOpenWorkspaceFile],
+    [details, images, onOpenWorkspaceFile, fileLinkActions],
   );
   const showTrailingRow = showUserMessageActions(isPending, hasText, isCompact, isHovered);
   const timestampDate = useMemo(() => new Date(timestamp), [timestamp]);

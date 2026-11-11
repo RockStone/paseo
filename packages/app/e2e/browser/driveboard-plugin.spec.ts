@@ -10,7 +10,7 @@ const SCREENSHOT_DIR = process.env.PASEOI_DRIVEBOARD_SCREENSHOTS;
 
 const OWNER_TODO = `# Owner to-do
 
-- [ ] **OT-1 Pick the release name.** Choose between **Atlas** and **Birch**. <!-- priority:3 -->
+- [ ] **OT-1 Pick the release name.** Choose between **Atlas** and **Birch**; see docs/drive.md. <!-- priority:3 -->
 - [~] **OT-2 Check the build on your phone.** See https://example.com/build/7 first. <!-- priority:2 -->
 - [x] **OT-3 Approve the budget.** Approved. <!-- priority:1 -->
 `;
@@ -88,6 +88,16 @@ test("the Driveboard shows owner to-dos, progress and notes from the header", as
     await expect(reply).toHaveValue("");
     const saved = await readFile(path.join(agent.cwd, "docs", "owner-todo.md"), "utf8");
     expect(saved).toMatch(/ {2}> Owner reply \(\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC\): Go with Atlas/);
+
+    // A file path in an item opens beside the session, in a pane of its own.
+    const tabRows = page.getByTestId("workspace-tabs-row").filter({ visible: true });
+    await expect(tabRows).toHaveCount(1);
+    await drawer.getByRole("link", { name: "docs/drive.md" }).click();
+    await expect(tabRows).toHaveCount(2);
+    await expect(tabRows.nth(1)).toContainText("drive.md");
+    if (SCREENSHOT_DIR) await page.screenshot({ path: `${SCREENSHOT_DIR}/driveboard-path.png` });
+    // The header actions moved to the new rightmost pane; the drawer stays open from there.
+    await expect(drawer).toBeVisible();
 
     // The new reply goes to the workspace's agent without picking one.
     await expect(drawer.getByText("1 new reply for Board demo.")).toBeVisible();

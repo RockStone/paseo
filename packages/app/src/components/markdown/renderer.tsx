@@ -152,11 +152,26 @@ const MarkdownPart = memo(function MarkdownPart({
     if (onLinkPress && !actions.canResolveFile(source)) onLinkPress(url);
     else actions.open(source, "preferred");
   });
-  const pressImage = useStableEvent(({ url }: { url: string }) => {
-    if (url !== PENDING_MARKDOWN_IMAGE) setImage({ type: "uri", uri: url });
+  // Paseoi: an image opens beside the session like a link does: a workspace image file in the
+  // side pane's image viewer, a web image in a browser tab there. Data, blob and attachment
+  // images (and web images outside the desktop app) keep the lightbox.
+  const openImage = useStableEvent((url: string) => {
+    if (url === PENDING_MARKDOWN_IMAGE) return;
+    const source = imageSources[url] ?? url;
+    if (/^https?:/i.test(source)) {
+      if (actions.openUrlInApp(source)) return;
+    } else if (!/^(data|blob|attachment):/i.test(source)) {
+      const link = linkSource(source, "markdown");
+      if (actions.canResolveFile(link)) {
+        actions.open(link, "side");
+        return;
+      }
+    }
+    setImage({ type: "uri", uri: url });
   });
+  const pressImage = useStableEvent(({ url }: { url: string }) => openImage(url));
   const closeImage = useStableEvent(() => setImage(null));
-  const openGalleryImage = useStableEvent((uri: string) => setImage({ type: "uri", uri }));
+  const openGalleryImage = useStableEvent((uri: string) => openImage(uri));
   const gallerySources = useMemo<ImageLightboxSource[]>(
     () =>
       imagePreviews.flatMap(({ uri, status }) =>

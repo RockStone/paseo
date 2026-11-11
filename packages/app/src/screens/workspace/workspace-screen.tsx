@@ -82,7 +82,7 @@ import {
 } from "@/workspace-tabs/explorer-sidebar";
 import {
   openPreferredWorkspacePreview,
-  openPreferredWorkspaceTarget,
+  openWorkspaceTargetAtLocation,
   openWorkspaceTargetBeside,
 } from "@/workspace-tabs/open-beside";
 import { openWorkspacePullRequest } from "@/workspace-tabs/open-supporting-view";
@@ -1686,15 +1686,16 @@ function WorkspaceScreenContent({
         return;
       }
 
-      openPreferredWorkspaceTarget({
+      // Paseoi: files opened from the chat always land in the one reused side pane beside the
+      // session, like the links and images opened from it.
+      openWorkspaceTargetAtLocation({
         workspaceKey: persistenceKey,
         target: createWorkspaceFileTabTarget(location),
-        source: "chatFiles",
-        preferences: openInSidePane,
+        location: "side",
         parentTabId: input.parentTabId,
       });
     },
-    [openInSidePane, persistenceKey],
+    [persistenceKey],
   );
 
   const handleOpenWorkspaceFileFromPane = useStableEvent(function handleOpenWorkspaceFileFromPane({
@@ -1866,6 +1867,19 @@ function WorkspaceScreenContent({
     },
     [openWorkspaceTabFocused, persistenceKey],
   );
+
+  // Paseoi: web links opened from the chat or a plugin open as browser tabs in the reused side
+  // pane. Outside the desktop app there is no browser pane, so the caller uses the default browser.
+  const handleOpenUrlInApp = useStableEvent((url: string): boolean => {
+    if (!persistenceKey || !getIsElectron() || !/^https?:\/\//i.test(url)) return false;
+    const { browserId } = createWorkspaceBrowser({ initialUrl: url });
+    openWorkspaceTargetAtLocation({
+      workspaceKey: persistenceKey,
+      target: { kind: "browser", browserId },
+      location: "side",
+    });
+    return true;
+  });
 
   useDesktopBrowserNewTabRequests({
     enabled: Boolean(persistenceKey),
@@ -3696,6 +3710,7 @@ function WorkspaceScreenContent({
         serverId={normalizedServerId}
         workspaceRoot={workspaceDirectory ?? undefined}
         onOpenWorkspaceFile={openMarkdownPath}
+        onOpenUrlInApp={handleOpenUrlInApp}
         toast={toast}
       >
         {renderedWorkspaceScreen}

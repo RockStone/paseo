@@ -48,12 +48,14 @@ import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { toPluginTheme } from "../theme";
 import { PluginDrawerSurface } from "./drawer";
 import { buttonMatches, type RegisteredPluginButton } from "./model";
+import { type PluginButtonNavigation, usePluginButtonNavigation } from "./navigation";
 import { pluginButtonStore } from "./store";
 import { resolvePluginPlatform } from "../platform";
 
 interface ButtonView {
   entry: RegisteredPluginButton;
-  props: PluginHostProps & RegisteredPluginButton["context"];
+  props: PluginHostProps &
+    RegisteredPluginButton["context"] & { navigation?: PluginButtonNavigation };
   environment: PluginEnvironment;
   toast: ReturnType<typeof useToast>;
 }
@@ -406,6 +408,7 @@ function createButtonView({
   compact,
   hostLabel,
   theme,
+  navigation,
 }: {
   entry: RegisteredPluginButton;
   client: ReturnType<typeof useHostRuntimeClient>;
@@ -413,6 +416,7 @@ function createButtonView({
   compact: boolean;
   hostLabel: string;
   theme: PluginTheme;
+  navigation: PluginButtonNavigation;
 }): ButtonView | null {
   if (!client) return null;
   return {
@@ -428,6 +432,7 @@ function createButtonView({
       theme,
       host: { id: entry.installation.serverId, label: hostLabel },
       layout: { compact, platform: resolvePluginPlatform() },
+      navigation,
     },
   };
 }
@@ -445,9 +450,10 @@ function PluginButtonHost({
 }) {
   const client = useHostRuntimeClient(entry.installation.serverId);
   const toast = useToast();
+  const navigation = usePluginButtonNavigation(entry.installation.serverId);
   const view = useMemo(
-    () => createButtonView({ entry, client, toast, compact, hostLabel, theme }),
-    [entry, client, toast, compact, hostLabel, theme],
+    () => createButtonView({ entry, client, toast, compact, hostLabel, theme, navigation }),
+    [entry, client, toast, compact, hostLabel, theme, navigation],
   );
   const renderError = useCallback(
     (error: string) => <BrokenButton title={entry.button.title} error={error} compact={compact} />,
@@ -480,9 +486,10 @@ function useMenuButtonView(entry: RegisteredPluginButton, theme: PluginTheme): B
   const hosts = useHosts();
   const serverId = entry.installation.serverId;
   const hostLabel = hosts.find((host) => host.serverId === serverId)?.label ?? serverId;
+  const navigation = usePluginButtonNavigation(serverId);
   return useMemo(
-    () => createButtonView({ entry, client, toast, compact, hostLabel, theme }),
-    [entry, client, toast, compact, hostLabel, theme],
+    () => createButtonView({ entry, client, toast, compact, hostLabel, theme, navigation }),
+    [entry, client, toast, compact, hostLabel, theme, navigation],
   );
 }
 

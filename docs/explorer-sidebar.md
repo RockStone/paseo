@@ -165,8 +165,16 @@ new target and never yanks an existing tab out of a user-selected pane.
 ## Routing preferences
 
 Desktop **Settings → Layout → Open location** has independent Main panel or On the side choices for
-Explorer Files, diffs, chat files, files opened from diffs, and subagents. They default to Main
-panel. Mobile ignores them.
+Explorer Files, diffs, files opened from diffs, and subagents. They default to Main panel. Mobile
+ignores them.
+
+Paseoi: what you open from the chat or the Driveboard always goes to the side pane, with no
+setting. Workspace files and image files open there as file tabs. On Electron, web links and web
+images open there as browser tabs; elsewhere links fall back to the default browser and web images
+to the lightbox. Data and attachment images keep the lightbox. The workspace screen gives
+`AssistantFileLinkResolverProvider` an `onOpenUrlInApp` that nested providers inherit, and
+header-button popovers get the same routing through `navigation` (`openBrowser`, `openFile`; see
+`packages/app/src/plugins/buttons/navigation.ts`).
 
 Pull requests have a three-way open location: Main panel, On the side, or Explorer sidebar. Explorer
 sidebar is the default. Compact layouts always open pull requests in Explorer regardless of this

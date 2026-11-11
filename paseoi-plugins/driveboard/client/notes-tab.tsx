@@ -1,5 +1,5 @@
 import type { PluginTheme } from "@getpaseo/plugin";
-import { openExternalUrl, useRpc } from "@getpaseo/plugin/client";
+import { useRpc } from "@getpaseo/plugin/client";
 import { Icon, TextInput } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -11,7 +11,8 @@ import {
   type TextStyle,
   View,
 } from "react-native";
-import { formatRelativeTime, splitLinks } from "../shared/format";
+import { formatRelativeTime } from "../shared/format";
+import { Link, Segments } from "./links";
 import {
   addNoteRpc,
   deleteNoteRpc,
@@ -25,26 +26,6 @@ import type { Styles } from "./theme";
 
 const OPEN_REFETCH_MS = 5_000;
 const CLOCK_TICK_MS = 30_000;
-
-function open(url: string) {
-  void openExternalUrl(url).catch((error: unknown) => {
-    console.warn("[driveboard] Could not open link", error);
-  });
-}
-
-function Link({ url, label, style }: { url: string; label: string; style: TextStyle }) {
-  const onPress = useCallback(() => open(url), [url]);
-  return (
-    <Text
-      style={style}
-      numberOfLines={label === url ? undefined : 1}
-      accessibilityRole="link"
-      onPress={onPress}
-    >
-      {label}
-    </Text>
-  );
-}
 
 /** A bullet starts its own line; punctuation hugs the text before it; anything else gets a space. */
 function separatorBefore(text: string): string {
@@ -77,36 +58,14 @@ export function RichText({
   return (
     <Text style={style} selectable>
       {joined.map((part) => (
-        <LinkSegments
+        <Segments
           key={part.key}
           text={part.text}
           style={part.bold ? boldStyle : undefined}
-          styles={styles}
+          linkStyle={styles.link}
+          pathStyle={styles.path}
         />
       ))}
-    </Text>
-  );
-}
-
-function LinkSegments({
-  text,
-  style,
-  styles,
-}: {
-  text: string;
-  style?: TextStyle;
-  styles: Styles;
-}) {
-  const segments = useMemo(() => splitLinks(text), [text]);
-  return (
-    <Text style={style}>
-      {segments.map((segment) =>
-        segment.kind === "link" ? (
-          <Link key={segment.start} url={segment.url} label={segment.text} style={styles.link} />
-        ) : (
-          <Text key={segment.start}>{segment.text}</Text>
-        ),
-      )}
     </Text>
   );
 }
@@ -120,17 +79,14 @@ export function LinkedText({
   style: TextStyle;
   styles: Styles;
 }) {
-  const segments = useMemo(() => splitLinks(text), [text]);
   return (
-    <Text style={style} selectable>
-      {segments.map((segment) =>
-        segment.kind === "link" ? (
-          <Link key={segment.start} url={segment.url} label={segment.text} style={styles.link} />
-        ) : (
-          <Text key={segment.start}>{segment.text}</Text>
-        ),
-      )}
-    </Text>
+    <Segments
+      text={text}
+      style={style}
+      linkStyle={styles.link}
+      pathStyle={styles.path}
+      selectable
+    />
   );
 }
 

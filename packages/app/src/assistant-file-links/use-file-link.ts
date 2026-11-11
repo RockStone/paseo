@@ -33,6 +33,10 @@ export interface AssistantFileLinkActions {
   open(source: AssistantFileLinkSource, disposition: OpenFileDisposition): void;
   canOpen(source: AssistantFileLinkSource): boolean;
   canResolveFile(source: AssistantFileLinkSource): boolean;
+  /** Opens a web URL inside Paseoi when it can; false means the caller picks a fallback. */
+  openUrlInApp(url: string): boolean;
+  /** Opens a web URL inside Paseoi, or in the default browser. */
+  openUrl(url: string): void;
 }
 
 interface AssistantFileLinkLookupKey {
@@ -174,7 +178,21 @@ export function useAssistantFileLinkActions(): AssistantFileLinkActions {
     [context.configRef],
   );
 
-  return useMemo(() => ({ open, canOpen, canResolveFile }), [open, canOpen, canResolveFile]);
+  const openUrlInApp = useCallback(
+    (url: string) => context.configRef.current.onOpenUrlInApp?.(url) === true,
+    [context.configRef],
+  );
+  const openUrl = useCallback(
+    (url: string) => {
+      if (!openUrlInApp(url)) void openExternalUrl(url);
+    },
+    [openUrlInApp],
+  );
+
+  return useMemo(
+    () => ({ open, canOpen, canResolveFile, openUrlInApp, openUrl }),
+    [open, canOpen, canResolveFile, openUrlInApp, openUrl],
+  );
 }
 
 function openAssistantFileLink(input: {
@@ -343,6 +361,7 @@ async function dispatchExternalUrl(input: {
   ) {
     return;
   }
+  if (current.onOpenUrlInApp?.(input.url)) return;
   await openExternalUrl(input.url);
 }
 

@@ -8,10 +8,10 @@ import {
   type ServiceUrlBehavior,
 } from "@/hooks/use-settings";
 
+// Paseoi: chat files always open in the side pane, so `chatFiles` has no row.
 const SOURCES = [
   "explorerFiles",
   "diffs",
-  "chatFiles",
   "diffFiles",
   "subagents",
 ] as const satisfies readonly (keyof OpenInSidePanePreferences)[];

@@ -24,6 +24,11 @@ export interface AssistantFileLinkResolverConfig {
   workspaceRoot?: string;
   relativePathBase?: string;
   onOpenWorkspaceFile?: (target: InlinePathTarget, disposition: OpenFileDisposition) => void;
+  /**
+   * Paseoi: opens a web URL inside Paseoi (a browser tab in the side pane). Returns false when it
+   * cannot, and the caller falls back to the default browser (or, for images, the lightbox).
+   */
+  onOpenUrlInApp?: (url: string) => boolean;
   toast?: ToastApi | null;
 }
 
@@ -57,15 +62,25 @@ export function AssistantFileLinkResolverProvider({
   workspaceRoot,
   relativePathBase,
   onOpenWorkspaceFile,
+  onOpenUrlInApp,
   toast,
   children,
 }: AssistantFileLinkResolverProviderProps) {
+  // A nested provider (an agent stream, a user message, a markdown preview) keeps the workspace's
+  // in-app URL opener unless it brings its own.
+  const parent = useContext(AssistantFileLinkResolverContext);
+  const inheritedOpenUrlInApp = useCallback(
+    (url: string) => parent?.configRef.current.onOpenUrlInApp?.(url) === true,
+    [parent],
+  );
+  onOpenUrlInApp ??= parent ? inheritedOpenUrlInApp : undefined;
   const configRef = useRef<AssistantFileLinkResolverConfig>({
     client,
     serverId,
     workspaceRoot,
     relativePathBase,
     onOpenWorkspaceFile,
+    onOpenUrlInApp,
     toast,
   });
   configRef.current = {
@@ -74,6 +89,7 @@ export function AssistantFileLinkResolverProvider({
     workspaceRoot,
     relativePathBase,
     onOpenWorkspaceFile,
+    onOpenUrlInApp,
     toast,
   };
 

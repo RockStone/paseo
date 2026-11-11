@@ -1,7 +1,7 @@
 import type { PluginText } from "../text.js";
 import type { ComponentType } from "react";
 import type { PluginIconProps } from "../icons.js";
-import type { PluginHostProps, PluginIcon } from "./contracts.js";
+import type { PluginHostProps, PluginIcon, PluginSurfaceProps } from "./contracts.js";
 
 export type PluginButtonContext =
   | { context: "workspace"; workspaceId: string }
@@ -9,7 +9,15 @@ export type PluginButtonContext =
 
 export type PluginButtonIconProps = PluginHostProps & PluginButtonContext & PluginIconProps;
 
-export type PluginButtonContentProps = PluginHostProps & PluginButtonContext & { close(): void };
+export type PluginButtonContentProps = PluginHostProps &
+  PluginButtonContext & {
+    close(): void;
+    /**
+     * Paseoi: client-owned navigation. Links and workspace files open in the side pane beside the
+     * session. Undefined on older hosts.
+     */
+    readonly navigation?: PluginSurfaceProps["navigation"];
+  };
 
 export type PluginButtonIcon = PluginIcon<PluginButtonIconProps>;
 
