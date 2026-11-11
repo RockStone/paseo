@@ -13,6 +13,7 @@ import {
   Circle,
   CircleCheck,
   Copy,
+  ListChecks,
   MoreVertical,
   Pencil,
   Pin,
@@ -69,6 +70,7 @@ const ThemedCircleCheck = withUnistyles(CircleCheck);
 const ThemedPin = withUnistyles(Pin);
 const ThemedPinOff = withUnistyles(PinOff);
 const ThemedTag = withUnistyles(Tag);
+const ThemedListChecks = withUnistyles(ListChecks);
 
 const copyLeadingIcon = <ThemedCopy size={14} uniProps={foregroundMutedColorMapping} />;
 const renameLeadingIcon = <ThemedPencil size={14} uniProps={foregroundMutedColorMapping} />;
@@ -76,6 +78,7 @@ const markAsReadLeadingIcon = (
   <ThemedCircleCheck size={14} uniProps={foregroundMutedColorMapping} />
 );
 const markAsUnreadLeadingIcon = <ThemedCircle size={14} uniProps={foregroundMutedColorMapping} />;
+const selectLeadingIcon = <ThemedListChecks size={14} uniProps={foregroundMutedColorMapping} />;
 const archiveLeadingIcon = <ThemedArchive size={14} uniProps={foregroundMutedColorMapping} />;
 const pinLeadingIcon = <ThemedPin size={14} uniProps={foregroundMutedColorMapping} />;
 const unpinLeadingIcon = <ThemedPinOff size={14} uniProps={foregroundMutedColorMapping} />;
@@ -102,6 +105,8 @@ export interface SidebarWorkspaceMenuProps {
   archiveShortcutKeys?: ShortcutKey[][] | null;
   isPinned?: boolean;
   onTogglePin?: () => void;
+  /** Enters select mode with this workspace checked. Absent while select mode is already on. */
+  onSelectWorkspaces?: () => void;
   /**
    * Lifted so the row that reveals the kebab can keep it mounted while its menu is up. See
    * `useOpenKebabMenuVisibility`.
@@ -196,6 +201,7 @@ function SidebarWorkspaceMenuItems({
   archiveShortcutKeys,
   isPinned,
   onTogglePin,
+  onSelectWorkspaces,
 }: SidebarWorkspaceMenuItemsProps & { surface: MenuSurface }): ReactNode {
   const { t } = useTranslation();
   const archiveTrailing = useMemo(
@@ -266,6 +272,16 @@ function SidebarWorkspaceMenuItems({
           {t("workspaceLabels.title")}
         </DropdownMenuSubTrigger>
       ) : null}
+      {onSelectWorkspaces ? (
+        <WorkspaceMenuItem
+          surface={surface}
+          testID={`sidebar-workspace-menu-select-${workspaceKey}`}
+          leading={selectLeadingIcon}
+          onSelect={onSelectWorkspaces}
+        >
+          {t("sidebar.workspace.selection.start")}
+        </WorkspaceMenuItem>
+      ) : null}
       {onArchive ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -298,6 +314,7 @@ export function SidebarWorkspaceMenu({
   archiveShortcutKeys,
   isPinned,
   onTogglePin,
+  onSelectWorkspaces,
   open,
   onOpenChange,
 }: SidebarWorkspaceMenuProps) {
@@ -341,6 +358,7 @@ export function SidebarWorkspaceMenu({
           archiveShortcutKeys={archiveShortcutKeys}
           isPinned={isPinned}
           onTogglePin={onTogglePin}
+          onSelectWorkspaces={onSelectWorkspaces}
         />
       </DropdownMenuContent>
     </DropdownMenu>
@@ -371,6 +389,7 @@ export function SidebarWorkspaceContextMenu({
   archiveShortcutKeys,
   isPinned,
   onTogglePin,
+  onSelectWorkspaces,
   accessibilityLabel,
   highlightStyle,
   ...triggerProps
@@ -449,6 +468,7 @@ export function SidebarWorkspaceContextMenu({
           archiveShortcutKeys={archiveShortcutKeys}
           isPinned={isPinned}
           onTogglePin={onTogglePin}
+          onSelectWorkspaces={onSelectWorkspaces}
         />
       </ContextMenuContent>
     </ContextMenu>

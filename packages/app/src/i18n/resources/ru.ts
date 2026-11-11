@@ -1456,6 +1456,18 @@ export const ru: TranslationResources = {
         submit: "Переименовать",
         invalidBranchName: "Недопустимое имя ветки",
       },
+      selection: {
+        start: "Выбрать рабочие пространства",
+        selectAllInProject: "Выбрать все в проекте",
+        archive: "Архивировать ({{count}})",
+        archiving: "Архивирование {{settled}}/{{total}}...",
+        cancel: "Отмена",
+        confirmTitle: "Архивировать выбранные рабочие пространства ({{count}})?",
+        confirmRiskLine: "{{name}}: {{reasons}}",
+        more: "Ещё: {{count}}",
+        archived: "Архивировано рабочих пространств: {{count}}",
+        failed: "Не удалось архивировать: {{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "Путь к рабочему пространству недоступен",
         pathCopied: "Путь скопирован",

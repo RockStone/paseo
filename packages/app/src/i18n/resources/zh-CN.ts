@@ -1427,6 +1427,18 @@ export const zhCN: TranslationResources = {
         submit: "重命名",
         invalidBranchName: "无效的分支名称",
       },
+      selection: {
+        start: "选择工作区",
+        selectAllInProject: "选择项目中的全部工作区",
+        archive: "归档 {{count}} 个",
+        archiving: "正在归档 {{settled}}/{{total}}...",
+        cancel: "取消",
+        confirmTitle: "归档所选工作区（{{count}} 个）？",
+        confirmRiskLine: "{{name}}：{{reasons}}",
+        more: "另外 {{count}} 个",
+        archived: "已归档工作区：{{count}} 个",
+        failed: "无法归档：{{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "Workspace 路径不可用",
         pathCopied: "路径已复制",

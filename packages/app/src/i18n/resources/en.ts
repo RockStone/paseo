@@ -1448,6 +1448,18 @@ export const en = {
         submit: "Rename",
         invalidBranchName: "Invalid branch name",
       },
+      selection: {
+        start: "Select workspaces",
+        selectAllInProject: "Select all in project",
+        archive: "Archive {{count}}",
+        archiving: "Archiving {{settled}}/{{total}}...",
+        cancel: "Cancel",
+        confirmTitle: "Archive selected workspaces ({{count}})?",
+        confirmRiskLine: "{{name}}: {{reasons}}",
+        more: "+{{count}} more",
+        archived: "Archived workspaces: {{count}}",
+        failed: "Could not archive: {{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "Workspace path not available",
         pathCopied: "Path copied",

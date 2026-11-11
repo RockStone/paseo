@@ -1466,6 +1466,18 @@ export const ptBR: TranslationResources = {
         submit: "Renomear",
         invalidBranchName: "Nome de branch inválido",
       },
+      selection: {
+        start: "Selecionar workspaces",
+        selectAllInProject: "Selecionar tudo no projeto",
+        archive: "Arquivar ({{count}})",
+        archiving: "Arquivando {{settled}}/{{total}}...",
+        cancel: "Cancelar",
+        confirmTitle: "Arquivar os workspaces selecionados ({{count}})?",
+        confirmRiskLine: "{{name}}: {{reasons}}",
+        more: "+{{count}} a mais",
+        archived: "Workspaces arquivados: {{count}}",
+        failed: "Não foi possível arquivar: {{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "Caminho do workspace indisponível",
         pathCopied: "Caminho copiado",

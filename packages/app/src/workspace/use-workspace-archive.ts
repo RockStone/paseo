@@ -8,16 +8,10 @@ import {
   type WorktreeArchiveWarningLabels,
 } from "@/git/worktree-archive-warning";
 import type { WorkspaceDescriptor } from "@/stores/session-store";
-import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
-import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
-import { archiveWorkspaceOptimistically } from "@/workspace/workspace-archive";
-
-function purgeArchivedWorkspaceState(input: { serverId: string; workspaceId: string }): void {
-  const workspaceKey = buildWorkspaceTabPersistenceKey(input);
-  if (workspaceKey) {
-    useWorkspaceLayoutStore.getState().purgeWorkspace(workspaceKey);
-  }
-}
+import {
+  archiveWorkspaceOptimistically,
+  purgeArchivedWorkspaceState,
+} from "@/workspace/workspace-archive";
 
 export interface ArchiveWorkspaceInput {
   serverId: string;

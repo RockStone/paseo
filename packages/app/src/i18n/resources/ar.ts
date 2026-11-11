@@ -1438,6 +1438,18 @@ export const ar: TranslationResources = {
         submit: "إعادة تسمية",
         invalidBranchName: "اسم الفرع غير صالح",
       },
+      selection: {
+        start: "تحديد مساحات العمل",
+        selectAllInProject: "تحديد الكل في المشروع",
+        archive: "أرشفة ({{count}})",
+        archiving: "جارٍ الأرشفة {{settled}}/{{total}}...",
+        cancel: "إلغاء",
+        confirmTitle: "أرشفة مساحات العمل المحددة ({{count}})؟",
+        confirmRiskLine: "{{name}}: {{reasons}}",
+        more: "+{{count}} أخرى",
+        archived: "مساحات العمل المؤرشفة: {{count}}",
+        failed: "تعذّرت الأرشفة: {{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "مسار Workspace غير متوفر",
         pathCopied: "تم نسخ المسار",

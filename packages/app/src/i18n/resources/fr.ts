@@ -1468,6 +1468,18 @@ export const fr: TranslationResources = {
         submit: "Renommer",
         invalidBranchName: "Nom de branche invalide",
       },
+      selection: {
+        start: "Sélectionner des espaces de travail",
+        selectAllInProject: "Tout sélectionner dans le projet",
+        archive: "Archiver ({{count}})",
+        archiving: "Archivage {{settled}}/{{total}}...",
+        cancel: "Annuler",
+        confirmTitle: "Archiver les espaces de travail sélectionnés ({{count}}) ?",
+        confirmRiskLine: "{{name}} : {{reasons}}",
+        more: "+{{count}} de plus",
+        archived: "Espaces de travail archivés : {{count}}",
+        failed: "Impossible d’archiver : {{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "Chemin de l’espace de travail indisponible",
         pathCopied: "Chemin copié",

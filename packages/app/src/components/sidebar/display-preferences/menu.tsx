@@ -59,6 +59,10 @@ import { SIDEBAR_ROW_ITEMS, type SidebarRowItem } from "./row-items";
 import { useWorkspaceLabelProjection } from "@/workspace-labels";
 import { WorkspaceLabelDot } from "@/workspace-labels/swatch";
 import { WorkspaceLabelManagerModal } from "@/workspace-labels/manager-modal";
+import {
+  startWorkspaceSelection,
+  useWorkspaceSelectionActive,
+} from "@/components/sidebar/workspace-selection";
 
 const mutedIconMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
@@ -171,6 +175,8 @@ export function SidebarDisplayPreferencesMenu(): ReactElement {
   const { allProjects, resolvedProjectFilters, workspaceSortSupported } = useSidebarModel();
   const { labels } = useWorkspaceLabelProjection();
   const [managerOpen, setManagerOpen] = useState(false);
+  const isSelecting = useWorkspaceSelectionActive();
+  const startSelection = useCallback(() => startWorkspaceSelection(), []);
   const openManager = useCallback(() => setManagerOpen(true), []);
   const closeManager = useCallback(() => setManagerOpen(false), []);
 
@@ -391,6 +397,14 @@ export function SidebarDisplayPreferencesMenu(): ReactElement {
           >
             {t("sidebar.display.showBackground")}
           </MenuItem>
+          {isSelecting ? null : (
+            <>
+              <MenuSeparator />
+              <MenuItem onSelect={startSelection} testID="sidebar-display-select-workspaces">
+                {t("sidebar.workspace.selection.start")}
+              </MenuItem>
+            </>
+          )}
         </MenuSurface>
       </MenuRoot>
       <WorkspaceLabelManagerModal visible={managerOpen} onClose={closeManager} />

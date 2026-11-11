@@ -51,6 +51,7 @@ import { useTranslation } from "react-i18next";
 import { isNative } from "@/constants/platform";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useWorkspaceLabelDefinitions } from "@/workspace-labels";
+import { WorkspaceSelectionCheckbox } from "@/components/sidebar/workspace-selection";
 
 const needsInputColorMapping = (theme: Theme) => ({
   color: theme.colors.surface0,
@@ -144,6 +145,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   shortcutNumber = null,
   showShortcutBadge = false,
   reserveIdleStatusIndicatorSpace = true,
+  selectionChecked = null,
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
@@ -161,6 +163,8 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   showShortcutBadge?: boolean;
   /** Keep the empty leading slot when the workspace has no active status. */
   reserveIdleStatusIndicatorSpace?: boolean;
+  /** Select mode: the checkbox takes the leading slot. `null` while select mode is off. */
+  selectionChecked?: boolean | null;
   children?: ReactNode;
 }) {
   const {
@@ -205,13 +209,21 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   return (
     <View style={styles.workspaceRowContent}>
       <View style={styles.workspaceRowMain}>
-        <WorkspaceAgentDisclosure
-          isHovered={isHovered}
-          title={workspaceLabel}
-          workspaceKey={workspace.workspaceKey}
-        >
-          {leadingVisual}
-        </WorkspaceAgentDisclosure>
+        {selectionChecked === null ? (
+          <WorkspaceAgentDisclosure
+            isHovered={isHovered}
+            title={workspaceLabel}
+            workspaceKey={workspace.workspaceKey}
+          >
+            {leadingVisual}
+          </WorkspaceAgentDisclosure>
+        ) : (
+          // Outside the agent-tree disclosure, whose own press would swallow the toggle.
+          <WorkspaceSelectionCheckbox
+            checked={selectionChecked}
+            testID={`sidebar-workspace-select-${workspace.workspaceKey}`}
+          />
+        )}
         <View style={styles.workspaceContentColumn}>
           <View style={styles.workspaceTitleRow}>
             <Text

@@ -95,8 +95,9 @@ beforeEach(() => {
 
 afterEach(() => {
   seedSessionHosts([]);
-  clearWorkspaceArchivePending({ serverId: SERVER_ID, workspaceId: "workspace-1" });
-  clearWorkspaceArchivePending({ serverId: SERVER_ID, workspaceId: "workspace-2" });
+  for (let index = 1; index <= 5; index += 1) {
+    clearWorkspaceArchivePending({ serverId: SERVER_ID, workspaceId: `workspace-${index}` });
+  }
   clearWorkspaceArchivePending({ serverId: SECOND_SERVER_ID, workspaceId: "workspace-1" });
   clearWorkspaceArchivePending({ serverId: SECOND_SERVER_ID, workspaceId: "workspace-2" });
   useSessionStore.setState((state) => ({ ...state, sessions: {} }));
@@ -173,6 +174,7 @@ describe("archiveWorkspacesOptimistically", () => {
     const failures = await archiveWorkspacesOptimistically({
       getClient: () => client,
       workspaces: [target({ workspaceId: first.id }), target({ workspaceId: second.id })],
+      concurrency: 3,
     });
 
     expect(failures).toHaveLength(1);
@@ -211,6 +213,7 @@ describe("archiveWorkspacesOptimistically", () => {
           workspaceId: second.id,
         }),
       ],
+      concurrency: 3,
     });
 
     expect(failures).toEqual([]);
@@ -222,5 +225,93 @@ describe("archiveWorkspacesOptimistically", () => {
     );
     expect(storedWorkspaceOn(SERVER_ID, first.id)).toBeUndefined();
     expect(storedWorkspaceOn(SECOND_SERVER_ID, second.id)).toBeUndefined();
+  });
+
+  it("never runs more archives at once than the concurrency limit", async () => {
+    const ids = ["workspace-1", "workspace-2", "workspace-3", "workspace-4", "workspace-5"];
+    getHostRuntimeStore().acceptWorkspaceSnapshots(
+      SERVER_ID,
+      ids.map((id) => workspace({ id, workspaceDirectory: `/repo/project/${id}`, name: id })),
+    );
+    const pending = new Map<string, ReturnType<typeof deferred<ArchiveWorkspacePayload>>>();
+    let running = 0;
+    let peak = 0;
+    const client = createClient(async (workspaceId) => {
+      running += 1;
+      peak = Math.max(peak, running);
+      const request = deferred<ArchiveWorkspacePayload>();
+      pending.set(workspaceId, request);
+      const payload = await request.promise;
+      running -= 1;
+      return payload;
+    });
+    const settled: string[] = [];
+
+    const batch = archiveWorkspacesOptimistically({
+      getClient: () => client,
+      workspaces: ids.map((workspaceId) => target({ workspaceId })),
+      concurrency: 2,
+      onSettled: (settledWorkspace) => settled.push(settledWorkspace.workspaceId),
+    });
+
+    for (const id of ids) {
+      await vi.waitFor(() => expect(pending.has(id)).toBe(true));
+      expect(running).toBeLessThanOrEqual(2);
+      pending.get(id)?.resolve(archivePayload({ workspaceId: id }));
+    }
+    const failures = await batch;
+
+    expect(failures).toEqual([]);
+    expect(peak).toBe(2);
+    expect(settled).toEqual(ids);
+    for (const id of ids) expect(storedWorkspace(id)).toBeUndefined();
+  });
+
+  it("reports failures in input order and keeps archiving after one fails", async () => {
+    const ids = ["workspace-1", "workspace-2", "workspace-3"];
+    getHostRuntimeStore().acceptWorkspaceSnapshots(
+      SERVER_ID,
+      ids.map((id) => workspace({ id, workspaceDirectory: `/repo/project/${id}`, name: id })),
+    );
+    const client = createClient(
+      vi.fn(async (workspaceId) =>
+        archivePayload({
+          workspaceId,
+          error: workspaceId === "workspace-2" ? null : `failed ${workspaceId}`,
+        }),
+      ),
+    );
+    const progress: [string, boolean][] = [];
+
+    const failures = await archiveWorkspacesOptimistically({
+      getClient: () => client,
+      workspaces: ids.map((workspaceId) => target({ workspaceId })),
+      concurrency: 1,
+      onSettled: (settled, failure) => progress.push([settled.workspaceId, failure !== null]),
+    });
+
+    expect(failures.map((failure) => failure.workspaceId)).toEqual(["workspace-1", "workspace-3"]);
+    expect(progress).toEqual([
+      ["workspace-1", true],
+      ["workspace-2", false],
+      ["workspace-3", true],
+    ]);
+    expect(storedWorkspace("workspace-1")?.id).toBe("workspace-1");
+    expect(storedWorkspace("workspace-2")).toBeUndefined();
+    expect(storedWorkspace("workspace-3")?.id).toBe("workspace-3");
+  });
+
+  it("fails a workspace whose host is not connected", async () => {
+    getHostRuntimeStore().acceptWorkspaceSnapshots(SERVER_ID, [workspace()]);
+
+    const failures = await archiveWorkspacesOptimistically({
+      getClient: () => null,
+      workspaces: [target()],
+      concurrency: 3,
+    });
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.workspaceId).toBe("workspace-1");
+    expect(storedWorkspace("workspace-1")?.id).toBe("workspace-1");
   });
 });

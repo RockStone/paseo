@@ -1445,6 +1445,18 @@ export const ko: TranslationResources = {
         submit: "이름 변경",
         invalidBranchName: "잘못된 브랜치 이름",
       },
+      selection: {
+        start: "워크스페이스 선택",
+        selectAllInProject: "프로젝트 전체 선택",
+        archive: "{{count}}개 보관",
+        archiving: "보관 중 {{settled}}/{{total}}...",
+        cancel: "취소",
+        confirmTitle: "선택한 워크스페이스({{count}}개)를 보관할까요?",
+        confirmRiskLine: "{{name}}: {{reasons}}",
+        more: "외 {{count}}개",
+        archived: "보관한 워크스페이스: {{count}}개",
+        failed: "보관하지 못했습니다: {{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "워크스페이스 경로를 사용할 수 없습니다",
         pathCopied: "경로가 복사되었습니다",

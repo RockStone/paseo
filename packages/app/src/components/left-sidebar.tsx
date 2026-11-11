@@ -32,6 +32,7 @@ import {
 } from "@/components/sidebar-resize-handle-layout";
 import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
+import { SidebarWorkspaceSelectionBar } from "@/components/sidebar/workspace-selection";
 import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
 import { SidebarFooterIconHighlight } from "@/components/sidebar/sidebar-footer-icon-highlight";
@@ -607,6 +608,8 @@ function MobileSidebar({
           />
         )}
 
+        <SidebarWorkspaceSelectionBar />
+
         <SidebarFooter
           handleOpenProject={handleOpenProject}
           handleSettings={handleSettings}
@@ -785,6 +788,8 @@ function DesktopSidebar({
             listHeaderComponent={workspacesSectionHeaderElement}
           />
         )}
+
+        <SidebarWorkspaceSelectionBar />
 
         <SidebarCalloutSlot />
 

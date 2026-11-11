@@ -1452,6 +1452,18 @@ export const ja: TranslationResources = {
         submit: "名前を変更",
         invalidBranchName: "無効なブランチ名",
       },
+      selection: {
+        start: "ワークスペースを選択",
+        selectAllInProject: "プロジェクト内をすべて選択",
+        archive: "{{count}} 件をアーカイブ",
+        archiving: "アーカイブ中 {{settled}}/{{total}}...",
+        cancel: "キャンセル",
+        confirmTitle: "選択したワークスペース ({{count}} 件) をアーカイブしますか？",
+        confirmRiskLine: "{{name}}: {{reasons}}",
+        more: "ほか {{count}} 件",
+        archived: "アーカイブしたワークスペース: {{count}} 件",
+        failed: "アーカイブできませんでした: {{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "ワークスペースパスが利用できません",
         pathCopied: "パスをコピーしました",

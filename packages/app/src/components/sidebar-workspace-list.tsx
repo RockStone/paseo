@@ -38,10 +38,12 @@ import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop";
 import { type GestureType } from "react-native-gesture-handler";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
+import { useSidebarModel } from "@/components/sidebar/sidebar-model";
 import {
   Copy,
   ExternalLink,
   Hash,
+  ListChecks,
   Settings,
   MoreVertical,
   Plus,
@@ -150,6 +152,12 @@ import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-ar
 import { openExternalUrl } from "@/utils/open-external-url";
 import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
 import {
+  selectAllWorkspaces,
+  startWorkspaceSelection,
+  toggleWorkspaceSelected,
+  useWorkspaceSelectionChecked,
+} from "@/components/sidebar/workspace-selection";
+import {
   getCurrentProjectRemoveReadiness,
   removeProjectFromHosts,
 } from "@/projects/project-remove";
@@ -176,6 +184,7 @@ const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const ThemedPlus = withUnistyles(Plus);
 const ThemedMoreVertical = withUnistyles(MoreVertical);
 const ThemedTrash2 = withUnistyles(Trash2);
+const ThemedListChecks = withUnistyles(ListChecks);
 const ThemedSettings = withUnistyles(Settings);
 const ThemedCopy = withUnistyles(Copy);
 const ThemedHash = withUnistyles(Hash);
@@ -303,6 +312,9 @@ interface WorkspaceRowInnerProps {
   isPinned?: boolean;
   onTogglePin?: () => void;
   reserveIdleStatusIndicatorSpace?: boolean;
+  /** Select mode: whether the row is checked. `null` while select mode is off. */
+  selectionChecked: boolean | null;
+  onSelectWorkspaces?: () => void;
 }
 
 export function PrBadge({ hint, style }: { hint: PrHint; style?: StyleProp<ViewStyle> }) {
@@ -469,6 +481,7 @@ function ProjectRowTrailingActions({
 }
 
 const trash2LeadingIcon = <ThemedTrash2 size={14} uniProps={foregroundMutedColorMapping} />;
+const selectAllLeadingIcon = <ThemedListChecks size={14} uniProps={foregroundMutedColorMapping} />;
 const settingsLeadingIcon = <ThemedSettings size={14} uniProps={foregroundMutedColorMapping} />;
 const copyLeadingIcon = <ThemedCopy size={14} uniProps={foregroundMutedColorMapping} />;
 const openInNewWindowLeadingIcon = (
@@ -603,6 +616,17 @@ function ProjectMenuItems({
   const handleCopyProjectId = useCallback(() => {
     if (settingsTarget) void copyProjectId(settingsTarget.projectId);
   }, [copyProjectId, settingsTarget]);
+  const { projects } = useSidebarModel();
+  const projectWorkspaceKeys = useMemo(
+    () =>
+      projects
+        .find((project) => project.viewKey === projectViewKey)
+        ?.workspaces.map((workspace) => workspace.workspaceKey) ?? [],
+    [projectViewKey, projects],
+  );
+  const handleSelectAllInProject = useCallback(() => {
+    selectAllWorkspaces(projectWorkspaceKeys);
+  }, [projectWorkspaceKeys]);
   const handleOpenProjectSettings = useCallback(() => {
     if (!settingsTarget) return;
     router.navigate(buildProjectSettingsRoute(settingsTarget.serverId, settingsTarget.projectId));
@@ -656,6 +680,16 @@ function ProjectMenuItems({
         path={projectPath}
         testID={`sidebar-project-menu-open-folder-${projectViewKey}`}
       />
+      {projectWorkspaceKeys.length > 0 ? (
+        <ProjectMenuItem
+          surface={surface}
+          testID={`sidebar-project-menu-select-all-${projectViewKey}`}
+          leading={selectAllLeadingIcon}
+          onSelect={handleSelectAllInProject}
+        >
+          {t("sidebar.workspace.selection.selectAllInProject")}
+        </ProjectMenuItem>
+      ) : null}
       <ProjectMenuItem
         surface={surface}
         testID={`sidebar-project-menu-remove-${projectViewKey}`}
@@ -688,6 +722,7 @@ function WorkspaceRowRightGroup({
   onRename,
   isPinned,
   onTogglePin,
+  onSelectWorkspaces,
 }: {
   workspace: SidebarWorkspaceEntry;
   backdrop: SidebarSurfaceBackdrop;
@@ -706,6 +741,7 @@ function WorkspaceRowRightGroup({
   onRename?: () => void;
   isPinned?: boolean;
   onTogglePin?: () => void;
+  onSelectWorkspaces?: () => void;
 }) {
   const { t } = useTranslation();
   const trailing = useSidebarWorkspaceTrailing();
@@ -757,6 +793,7 @@ function WorkspaceRowRightGroup({
                 archiveShortcutKeys={archiveShortcutKeys}
                 isPinned={isPinned}
                 onTogglePin={onTogglePin}
+                onSelectWorkspaces={onSelectWorkspaces}
               />
             ) : null}
           </SidebarWorkspaceTrailingActionOverlay>
@@ -1137,6 +1174,8 @@ function WorkspaceRowInner({
   isPinned,
   onTogglePin,
   reserveIdleStatusIndicatorSpace = true,
+  selectionChecked,
+  onSelectWorkspaces,
 }: WorkspaceRowInnerProps) {
   const isCompact = useIsCompactFormFactor();
   const [isPressed, setIsPressed] = useState(false);
@@ -1171,7 +1210,11 @@ function WorkspaceRowInner({
     interaction.handlePressOut();
   }, [interaction]);
 
-  const accessibilityState = useMemo(() => ({ selected }), [selected]);
+  const isSelecting = selectionChecked !== null;
+  const accessibilityState = useMemo(
+    () => (isSelecting ? { selected, checked: selectionChecked } : { selected }),
+    [isSelecting, selected, selectionChecked],
+  );
 
   return (
     <SidebarWorkspaceRowFrame workspace={workspace} isDragging={isDragging} selected={selected}>
@@ -1210,9 +1253,11 @@ function WorkspaceRowInner({
               archiveShortcutKeys={archiveShortcutKeys}
               isPinned={isPinned}
               onTogglePin={onTogglePin}
+              onSelectWorkspaces={onSelectWorkspaces}
               disabled={isArchiving}
               aria-selected={selected}
-              accessibilityRole="button"
+              aria-checked={isSelecting ? selectionChecked : undefined}
+              accessibilityRole={isSelecting ? "checkbox" : "button"}
               accessibilityState={accessibilityState}
               style={workspaceRowStyle}
               highlightStyle={styles.workspaceRowPressed}
@@ -1235,6 +1280,7 @@ function WorkspaceRowInner({
                 shortcutNumber={shortcutNumber}
                 showShortcutBadge={showShortcutBadge}
                 reserveIdleStatusIndicatorSpace={reserveIdleStatusIndicatorSpace}
+                selectionChecked={selectionChecked}
               >
                 <WorkspaceRowRightGroup
                   workspace={workspace}
@@ -1254,6 +1300,7 @@ function WorkspaceRowInner({
                   onMarkAsUnread={onMarkAsUnread}
                   isPinned={isPinned}
                   onTogglePin={onTogglePin}
+                  onSelectWorkspaces={onSelectWorkspaces}
                 />
               </SidebarWorkspaceRowContent>
             </SidebarWorkspaceContextMenu>
@@ -1358,10 +1405,18 @@ function WorkspaceRowWithMenu({
     });
   }, [markUnread, toast]);
 
+  const selectionChecked = useWorkspaceSelectionChecked(workspace.workspaceKey);
   const handleOpenWorkspace = useCallback(() => {
+    if (selectionChecked !== null) {
+      toggleWorkspaceSelected(workspace.workspaceKey);
+      return;
+    }
     onPress();
     handleMarkAsRead();
-  }, [handleMarkAsRead, onPress]);
+  }, [handleMarkAsRead, onPress, selectionChecked, workspace.workspaceKey]);
+  const handleSelectWorkspaces = useCallback(() => {
+    startWorkspaceSelection([workspace.workspaceKey]);
+  }, [workspace.workspaceKey]);
 
   useKeyboardActionHandler({
     handlerId: `workspace-archive-${workspace.workspaceKey}`,
@@ -1402,6 +1457,8 @@ function WorkspaceRowWithMenu({
         isPinned={isPinned}
         onTogglePin={onTogglePin}
         reserveIdleStatusIndicatorSpace={reserveIdleStatusIndicatorSpace}
+        selectionChecked={selectionChecked}
+        onSelectWorkspaces={selectionChecked === null ? handleSelectWorkspaces : undefined}
       />
       <WorkspaceRenameModal
         visible={isRenameOpen}

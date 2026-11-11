@@ -1476,6 +1476,18 @@ export const es: TranslationResources = {
         submit: "Rebautizar",
         invalidBranchName: "Nombre de sucursal no válido",
       },
+      selection: {
+        start: "Seleccionar espacios de trabajo",
+        selectAllInProject: "Seleccionar todo en el proyecto",
+        archive: "Archivar ({{count}})",
+        archiving: "Archivando {{settled}}/{{total}}...",
+        cancel: "Cancelar",
+        confirmTitle: "¿Archivar los espacios de trabajo seleccionados ({{count}})?",
+        confirmRiskLine: "{{name}}: {{reasons}}",
+        more: "+{{count}} más",
+        archived: "Espacios de trabajo archivados: {{count}}",
+        failed: "No se pudo archivar: {{names}}",
+      },
       toasts: {
         workspacePathUnavailable: "RutaWorkspaceno disponible",
         pathCopied: "Ruta copiada",

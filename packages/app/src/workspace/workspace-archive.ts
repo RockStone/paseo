@@ -6,6 +6,8 @@ import {
 import { useSessionStore, type WorkspaceDescriptor } from "@/stores/session-store";
 import { resolveWorkspaceMapKeyByIdentity } from "@/utils/workspace-identity";
 import { i18n } from "@/i18n/i18next";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 
 export interface WorkspaceArchiveTarget {
   serverId: string;
@@ -24,18 +26,6 @@ export interface WorkspaceArchiveFailure {
   serverId: string;
   workspaceId: string;
   error: unknown;
-}
-
-function isWorkspaceArchiveFailure(error: unknown): error is WorkspaceArchiveFailure {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "serverId" in error &&
-    typeof error.serverId === "string" &&
-    "workspaceId" in error &&
-    typeof error.workspaceId === "string" &&
-    "error" in error
-  );
 }
 
 function hideWorkspaceOptimistically(
@@ -100,37 +90,63 @@ export async function archiveWorkspaceOptimistically(input: {
   }
 }
 
-export async function archiveWorkspacesOptimistically(input: {
+/** Drops the archived workspace's tabs and panes; the single and batch archive both finish here. */
+export function purgeArchivedWorkspaceState(input: WorkspaceArchiveTarget): void {
+  const workspaceKey = buildWorkspaceTabPersistenceKey(input);
+  if (workspaceKey) {
+    useWorkspaceLayoutStore.getState().purgeWorkspace(workspaceKey);
+  }
+}
+
+async function archiveWorkspaceTarget(input: {
   getClient: (serverId: string) => WorkspaceArchiveClient | null;
-  workspaces: WorkspaceArchiveTarget[];
-}): Promise<WorkspaceArchiveFailure[]> {
-  const results = await Promise.allSettled(
-    input.workspaces.map(async (workspace) => {
-      const client = input.getClient(workspace.serverId);
-      if (!client) {
-        throw {
-          serverId: workspace.serverId,
-          workspaceId: workspace.workspaceId,
-          error: new Error(i18n.t("sidebar.workspace.toasts.hostDisconnected")),
-        } satisfies WorkspaceArchiveFailure;
-      }
+  workspace: WorkspaceArchiveTarget;
+}): Promise<WorkspaceArchiveFailure | null> {
+  const { serverId, workspaceId } = input.workspace;
+  const client = input.getClient(serverId);
+  if (!client) {
+    return {
+      serverId,
+      workspaceId,
+      error: new Error(i18n.t("sidebar.workspace.toasts.hostDisconnected")),
+    };
+  }
+  try {
+    await archiveWorkspaceOptimistically({ client, workspace: input.workspace });
+  } catch (error) {
+    // The batch reports every failure together instead of stopping at the first.
+    return { serverId, workspaceId, error };
+  }
+  purgeArchivedWorkspaceState(input.workspace);
+  return null;
+}
 
-      try {
-        await archiveWorkspaceOptimistically({
-          client,
-          workspace,
-        });
-      } catch (error) {
-        throw {
-          serverId: workspace.serverId,
-          workspaceId: workspace.workspaceId,
-          error,
-        } satisfies WorkspaceArchiveFailure;
-      }
-    }),
-  );
+export interface ArchiveWorkspacesInput {
+  getClient: (serverId: string) => WorkspaceArchiveClient | null;
+  workspaces: readonly WorkspaceArchiveTarget[];
+  /**
+   * How many archives run at once. Each one can remove a worktree on its host, so a large
+   * selection is fed through a few at a time rather than all together.
+   */
+  concurrency: number;
+  onSettled?: (workspace: WorkspaceArchiveTarget, failure: WorkspaceArchiveFailure | null) => void;
+}
 
-  return results.flatMap((result) =>
-    result.status === "rejected" && isWorkspaceArchiveFailure(result.reason) ? [result.reason] : [],
-  );
+/** Archives each workspace through the single-archive path. Failures come back in input order. */
+export async function archiveWorkspacesOptimistically(
+  input: ArchiveWorkspacesInput,
+): Promise<WorkspaceArchiveFailure[]> {
+  const failures: (WorkspaceArchiveFailure | null)[] = input.workspaces.map(() => null);
+  // One iterator shared by every worker, so each workspace is taken exactly once.
+  const queue = input.workspaces.entries();
+  async function drain(): Promise<void> {
+    for (const [index, workspace] of queue) {
+      const failure = await archiveWorkspaceTarget({ getClient: input.getClient, workspace });
+      failures[index] = failure;
+      input.onSettled?.(workspace, failure);
+    }
+  }
+  const workerCount = Math.max(1, Math.min(input.concurrency, input.workspaces.length));
+  await Promise.all(Array.from({ length: workerCount }, drain));
+  return failures.filter((failure): failure is WorkspaceArchiveFailure => failure !== null);
 }
