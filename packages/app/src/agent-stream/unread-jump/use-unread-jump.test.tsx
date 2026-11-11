@@ -48,7 +48,7 @@ function renderUnreadJump(initialProps: Props) {
   viewportRef.current = {
     scrollToBottom: vi.fn(),
     prepareForViewportChange: vi.fn(),
-    holdReadingPosition: vi.fn(),
+    holdRow: vi.fn(),
     scrollToMessage,
   };
   const onJumpError = vi.fn();

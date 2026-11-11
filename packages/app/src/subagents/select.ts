@@ -19,6 +19,7 @@ export interface PaseoSubagentRow {
   description: null;
   subtitle: null;
   status: Agent["status"];
+  backgroundWork?: Agent["backgroundWork"];
   turn: Agent["turn"];
   requiresAttention: Agent["requiresAttention"];
   createdAt: Agent["createdAt"];
@@ -67,6 +68,7 @@ function toSubagentRow(agent: Agent): SubagentRow {
     subtitle: null,
     status: agent.status,
     backgroundTaskCount: agent.backgroundTaskCount,
+    backgroundWork: agent.backgroundWork,
     turn: agent.turn,
     requiresAttention: agent.requiresAttention,
     createdAt: agent.createdAt,
@@ -84,6 +86,7 @@ export function selectSubagentsForParent(
       const parent = getParentAddressFromLabels(agent.labels, serverId);
       if (
         agent.archivedAt ||
+        agent.background ||
         pendingArchiveIds.has(`${serverId}:${agent.id}`) ||
         parent?.serverId !== params.serverId ||
         parent.agentId !== params.parentAgentId

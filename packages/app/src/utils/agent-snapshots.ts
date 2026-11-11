@@ -57,6 +57,15 @@ export function derivePendingPermissionKey(
   return `${agentId}:${fallbackId}`;
 }
 
+// Paseoi: our Claude task fields ride next to upstream's backgroundWork.
+function projectBackground(agent: Agent) {
+  return {
+    backgroundTaskCount: agent.backgroundTaskCount ?? 0,
+    backgroundTaskIds: agent.backgroundTaskIds ?? [],
+    backgroundWork: agent.backgroundWork,
+  };
+}
+
 export function projectAgentSnapshot(agent: Agent): AgentSnapshotPayload {
   return {
     id: agent.id,
@@ -64,15 +73,15 @@ export function projectAgentSnapshot(agent: Agent): AgentSnapshotPayload {
     cwd: agent.cwd,
     ...(agent.workspaceId ? { workspaceId: agent.workspaceId } : {}),
     model: agent.model,
-    ...(agent.features ? { features: agent.features } : {}),
+    ...(agent.options ? { options: agent.options } : {}),
+    ...(agent.controls ? { controls: agent.controls } : {}),
     thinkingOptionId: agent.thinkingOptionId ?? null,
     createdAt: agent.createdAt.toISOString(),
     updatedAt: agent.updatedAt.toISOString(),
     lastActivityAt: agent.lastActivityAt.toISOString(),
     lastUserMessageAt: agent.lastUserMessageAt?.toISOString() ?? null,
     status: agent.status,
-    backgroundTaskCount: agent.backgroundTaskCount ?? 0,
-    backgroundTaskIds: agent.backgroundTaskIds ?? [],
+    ...projectBackground(agent),
     ...projectActiveTurn(agent),
     capabilities: agent.capabilities,
     currentModeId: agent.currentModeId,
@@ -80,14 +89,17 @@ export function projectAgentSnapshot(agent: Agent): AgentSnapshotPayload {
     pendingPermissions: agent.pendingPermissions,
     persistence: agent.persistence,
     ...(agent.runtimeInfo ? { runtimeInfo: agent.runtimeInfo } : {}),
+    ...(agent.usageScopeKey ? { usageScopeKey: agent.usageScopeKey } : {}),
     ...(agent.lastUsage ? { lastUsage: agent.lastUsage } : {}),
     ...(agent.lastError ? { lastError: agent.lastError } : {}),
     title: agent.title,
     labels: agent.labels,
+    ...(agent.metadata ? { metadata: agent.metadata } : {}),
     requiresAttention: agent.requiresAttention ?? false,
     attentionReason: agent.attentionReason ?? null,
     attentionTimestamp: agent.attentionTimestamp?.toISOString() ?? null,
     archivedAt: agent.archivedAt?.toISOString() ?? null,
+    ...(agent.background ? { background: true } : {}),
   };
 }
 
@@ -115,6 +127,7 @@ export function normalizeAgentSnapshot(snapshot: AgentSnapshotPayload, serverId:
     status: snapshot.status,
     backgroundTaskCount: snapshot.backgroundTaskCount ?? 0,
     backgroundTaskIds: snapshot.backgroundTaskIds,
+    backgroundWork: snapshot.backgroundWork,
     turn,
     createdAt,
     updatedAt,
@@ -127,19 +140,23 @@ export function normalizeAgentSnapshot(snapshot: AgentSnapshotPayload, serverId:
     pendingPermissions: snapshot.pendingPermissions ?? [],
     persistence: snapshot.persistence ?? null,
     runtimeInfo: snapshot.runtimeInfo,
+    usageScopeKey: snapshot.usageScopeKey,
     lastUsage: snapshot.lastUsage,
     lastError: snapshot.lastError ?? null,
     title: snapshot.title ?? null,
     cwd: snapshot.cwd,
     workspaceId: snapshot.workspaceId,
     model: snapshot.model ?? null,
-    features: snapshot.features,
+    options: snapshot.options,
+    controls: snapshot.controls,
     thinkingOptionId: snapshot.thinkingOptionId ?? null,
     requiresAttention: snapshot.requiresAttention ?? false,
     attentionReason: snapshot.attentionReason ?? null,
     attentionTimestamp,
     archivedAt,
+    background: snapshot.background === true,
     parentAgentId,
     labels: snapshot.labels,
+    metadata: snapshot.metadata,
   };
 }

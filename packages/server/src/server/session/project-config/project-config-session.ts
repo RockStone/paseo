@@ -18,7 +18,7 @@ export interface ProjectConfigSessionHost {
 export interface ProjectConfigSessionOptions {
   host: ProjectConfigSessionHost;
   projectRegistry: Pick<ProjectRegistry, "list">;
-  workspaceRegistry: Pick<WorkspaceRegistry, "list">;
+  workspaceRegistry: Pick<WorkspaceRegistry, "listAll">;
   logger: pino.Logger;
   sharedScriptsRoot?: string;
 }
@@ -33,7 +33,7 @@ export interface ProjectConfigSessionOptions {
 export class ProjectConfigSession {
   private readonly host: ProjectConfigSessionHost;
   private readonly projectRegistry: Pick<ProjectRegistry, "list">;
-  private readonly workspaceRegistry: Pick<WorkspaceRegistry, "list">;
+  private readonly workspaceRegistry: Pick<WorkspaceRegistry, "listAll">;
   private readonly logger: pino.Logger;
   private readonly sharedScriptsRoot: string | undefined;
 
@@ -196,7 +196,7 @@ export class ProjectConfigSession {
     const activeProjectIds = new Set(
       projects.filter((p) => p.archivedAt === null).map((p) => p.projectId),
     );
-    const workspaces = await this.workspaceRegistry.list();
+    const workspaces = await this.workspaceRegistry.listAll();
     const activeRoots = new Set([
       ...projects.filter((p) => p.archivedAt === null).map((p) => resolve(p.rootPath)),
       ...workspaces
@@ -213,7 +213,7 @@ export class ProjectConfigSession {
       current.filter((p) => p.archivedAt === null).map((p) => p.projectId),
     );
     if (current.some((p) => p.archivedAt === null && resolve(p.rootPath) === root)) return root;
-    const currentWorkspaces = await this.workspaceRegistry.list();
+    const currentWorkspaces = await this.workspaceRegistry.listAll();
     return currentWorkspaces.some(
       (w) => w.archivedAt === null && currentProjectIds.has(w.projectId) && resolve(w.cwd) === root,
     )

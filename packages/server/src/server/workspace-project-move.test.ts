@@ -230,7 +230,7 @@ describe("mergeProjects", () => {
       ["ws-1", false],
       ["ws-2", true],
     ]);
-    const workspaces = await workspaceRegistry.list();
+    const workspaces = await workspaceRegistry.listAll();
     expect(workspaces.map((workspace) => [workspace.workspaceId, workspace.projectId])).toEqual([
       ["ws-1", "prj-b"],
       ["ws-2", "prj-b"],

@@ -12,7 +12,11 @@ import { Portal } from "@gorhom/portal";
 import Animated, { useAnimatedReaction, useAnimatedStyle } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Autocomplete, type AutocompleteOption } from "@/components/ui/autocomplete";
+import {
+  Autocomplete,
+  type AutocompleteOption,
+  type AutocompleteStatus,
+} from "@/components/ui/autocomplete";
 import {
   resolveInsideAutocompleteLayout,
   type VerticalSpan,
@@ -53,10 +57,7 @@ interface AutocompletePopoverProps {
   options: readonly AutocompleteOption[];
   selectedIndex: number;
   onSelect: (option: AutocompleteOption) => void;
-  isLoading?: boolean;
-  errorMessage?: string;
-  loadingText?: string;
-  emptyText?: string;
+  status?: AutocompleteStatus | null;
   placement?: AutocompletePlacement;
   /** Inside placement reads the caret each time it measures, to keep clear of it. */
   readCaret?: AutocompleteCaretReader;
@@ -70,10 +71,7 @@ export function AutocompletePopover({
   options,
   selectedIndex,
   onSelect,
-  isLoading,
-  errorMessage,
-  loadingText,
-  emptyText,
+  status,
   placement = "above",
   readCaret,
 }: AutocompletePopoverProps): ReactElement | null {
@@ -235,10 +233,7 @@ export function AutocompletePopover({
                 options={options}
                 selectedIndex={selectedIndex}
                 onSelect={onSelect}
-                isLoading={isLoading}
-                errorMessage={errorMessage}
-                loadingText={loadingText}
-                emptyText={emptyText}
+                status={status}
               />
             </Animated.View>
           </KeyboardTranslateView>

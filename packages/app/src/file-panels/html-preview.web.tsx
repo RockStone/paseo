@@ -48,7 +48,10 @@ export function FileHtmlPreview({
   const document = useMemo(() => {
     const id = crypto.randomUUID();
     const bootstrap = assets.length ? imageBootstrap(id) : "";
-    return { id, html: withPreviewCsp(bootstrap + html) };
+    // A document URL lets the browser resolve fragment links within the preview.
+    // srcDoc would inherit the app URL and navigate the frame back into Paseo.
+    const source = `data:text/html;charset=utf-8,${encodeURIComponent(withPreviewCsp(bootstrap + html))}`;
+    return { id, source };
   }, [html, assets]);
   useLayoutEffect(() => {
     if (assets.length === 0) return;
@@ -72,7 +75,7 @@ export function FileHtmlPreview({
       ref={frame}
       data-testid={testID}
       title={t("panels.file.filePanels.builtin.html")}
-      srcDoc={document.html}
+      src={document.source}
       sandbox={SANDBOX}
       referrerPolicy="no-referrer"
       style={iframeStyle}

@@ -115,7 +115,7 @@ function resolveComposerSlotStyle(input: {
 const styles = StyleSheet.create((theme) => ({
   surface: { flex: 1, overflow: "hidden" },
   content: { flex: 1, justifyContent: "flex-end" },
-  composer: { width: "100%", flexShrink: 1 },
+  composer: { width: "100%", flexShrink: 1, paddingBottom: theme.spacing[4] },
   splitSurface: { flex: 1, flexDirection: "row", overflow: "hidden" },
   splitContent: { flex: 1, flexBasis: 0, minWidth: 0, justifyContent: "flex-end" },
   splitComposer: {
@@ -124,6 +124,7 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     minHeight: 0,
     paddingTop: theme.spacing[4],
+    paddingBottom: theme.spacing[4],
     borderLeftWidth: theme.borderWidth[1],
     borderLeftColor: theme.colors.border,
   },

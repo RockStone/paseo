@@ -13,7 +13,7 @@ import {
 } from "react";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { AlertCircle, ChevronDown, MoreHorizontal } from "lucide-react-native";
+import { AlertCircle, ChevronDown, ChevronUp, MoreHorizontal } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import {
   MenuRoot,
@@ -253,7 +253,10 @@ function resolveButtonPresentation(entry: ButtonView["entry"], compact: boolean)
   const composer = entry.placement === "composer";
   const countOrBlank = !button.label || COUNT_LABEL.test(button.label);
   const bare = !composer && (compact || (button.behavior.kind === "popover" && countOrBlank));
-  const chevron = !composer && !bare && button.behavior.kind !== "action";
+  // A chevron marks a button that opens something. Composer pills keep their label on compact and
+  // open their surface above, so theirs points up and shows at every width; compact headers drop
+  // the label and the chevron with it, and bare icons (Paseoi) never carry one.
+  const chevron = !bare && button.behavior.kind !== "action";
   let label = button.label;
   if (composer) label = button.label ?? button.title;
   else if (compact) label = undefined;
@@ -268,6 +271,7 @@ function ButtonControl({ view }: { view: ButtonView }) {
   const disabled = button.disabled || entry.pending;
   const expanded = button.behavior.kind !== "action";
   const { bare, chevron, label, badge } = resolveButtonPresentation(entry, props.layout.compact);
+  const Chevron = composer ? ChevronUp : ChevronDown;
   // Paseoi: on wide layouts a bare header popover (the Driveboard) opens as a right-edge drawer.
   // Compact layouts keep the sheet; menus and labeled popovers keep the anchored surface.
   const drawer = bare && !props.layout.compact && button.behavior.kind === "popover";
@@ -309,7 +313,7 @@ function ButtonControl({ view }: { view: ButtonView }) {
       ) : null}
       {chevron ? (
         <View testID="plugin-button-chevron">
-          <ChevronDown size={12} color={props.theme.colors.foregroundMuted} />
+          <Chevron size={12} color={props.theme.colors.foregroundMuted} />
         </View>
       ) : null}
     </>
@@ -594,14 +598,6 @@ function useButtons(serverId: string, workspaceId: string, agentId: string | nul
   );
 }
 
-export function useHasPluginComposerPills(
-  serverId: string,
-  workspaceId: string,
-  agentId: string,
-): boolean {
-  return useButtons(serverId, workspaceId, agentId).length > 0;
-}
-
 export function PluginComposerPills({
   serverId,
   workspaceId,
@@ -705,8 +701,8 @@ const styles = StyleSheet.create((theme) => ({
     gap: { xs: theme.spacing[1], md: theme.spacing[2] },
   },
   headerButton: {
-    height: { xs: 32, md: HEADER_CONTROL_HEIGHT },
-    minWidth: { xs: 32, md: HEADER_CONTROL_HEIGHT },
+    height: HEADER_CONTROL_HEIGHT,
+    minWidth: HEADER_CONTROL_HEIGHT,
     paddingHorizontal: theme.spacing[2],
     flexDirection: "row",
     alignItems: "center",

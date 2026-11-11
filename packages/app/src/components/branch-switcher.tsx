@@ -78,7 +78,15 @@ export function BranchSwitcher({
   const queryClient = useQueryClient();
   const { copyBranchName } = useWorkspaceClipboardActions();
 
-  const { branchOptions, isOpen, setIsOpen, handleBranchSelect } = useBranchSwitcher({
+  const {
+    branchOptions,
+    isLoadingBranches,
+    isFetchingBranches,
+    branchError,
+    isOpen,
+    setIsOpen,
+    handleBranchSelect,
+  } = useBranchSwitcher({
     client,
     normalizedServerId: serverId,
     normalizedWorkspaceId: workspaceId,
@@ -124,9 +132,20 @@ export function BranchSwitcher({
     [branchLeadingSlot, handleCopyBranch],
   );
 
+  let emptyText = t("branchSwitcher.empty");
+  if (isLoadingBranches) emptyText = t("common.states.loading");
+  else if (branchError) emptyText = "";
+
   const checkoutFooter = useMemo(
     () => (
       <View>
+        {branchError ? (
+          <View style={styles.footer}>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {isFetchingBranches ? t("common.states.loading") : t("branchSwitcher.failedToLoad")}
+            </Text>
+          </View>
+        ) : null}
         {currentBranchName ? (
           <Button
             testID="branch-copy-current"
@@ -144,7 +163,7 @@ export function BranchSwitcher({
         ) : null}
       </View>
     ),
-    [checkoutPath, currentBranchName, handleCopyCurrentBranch, t],
+    [branchError, checkoutPath, currentBranchName, handleCopyCurrentBranch, isFetchingBranches, t],
   );
 
   if (!currentBranchName && variant !== "composer") {
@@ -162,6 +181,7 @@ export function BranchSwitcher({
               testID={testID}
               accessibilityRole="button"
               accessibilityLabel={accessibilityLabel}
+              disabled={!isConnected}
               onPress={handleOpen}
               style={[
                 composerPillStyles.body,
@@ -184,6 +204,7 @@ export function BranchSwitcher({
               testID={testID}
               label={label}
               open={isOpen}
+              disabled={!isConnected}
               onPress={handleOpen}
               accessibilityRole="button"
               accessibilityLabel={accessibilityLabel}
@@ -208,7 +229,7 @@ export function BranchSwitcher({
         searchable
         placeholder={t("branchSwitcher.placeholder")}
         searchPlaceholder={t("branchSwitcher.searchPlaceholder")}
-        emptyText={t("branchSwitcher.empty")}
+        emptyText={emptyText}
         title={t("branchSwitcher.title")}
         open={isOpen}
         onOpenChange={setIsOpen}
@@ -232,6 +253,8 @@ const styles = StyleSheet.create((theme) => ({
   branchLabel: { flexShrink: 1 },
   checkoutPath: { padding: theme.spacing[3] },
   copyAction: { alignSelf: "flex-start", margin: theme.spacing[1] },
+  footer: { padding: theme.spacing[3], gap: theme.spacing[2] },
+  error: { color: theme.colors.destructive, fontSize: theme.fontSize.sm },
   tooltipText: {
     color: theme.colors.popoverForeground,
     fontSize: theme.fontSize.sm,

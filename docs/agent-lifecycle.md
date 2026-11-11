@@ -157,6 +157,12 @@ in their actual workspaces. A workspace with an independent root, a missing or a
 or a parent outside the current project/filter stays visible on its own. Grouping changes only
 sidebar presentation; parentage, ownership and the Subagents panel stay unchanged.
 
+Agent-scoped workspace creation records the caller's workspace as `parentWorkspaceId`.
+This is informational ancestry for future workspace grouping. It does not change placement,
+visibility, status, or archive behavior. Archiving a parent workspace preserves its children's
+records and parentage. Unscoped creation and existing workspaces have no parent; ancestry is
+never inferred from directories, projects, or Git branches.
+
 Runtime ownership is resolved from explicit workspace ID and caller context, never from `cwd`. Workspace creation is a separate operation with `local | worktree` isolation; agent creation reuses that workspace unless a new workspace is explicitly requested.
 
 Setup belongs to the workspace, including combined workspace-plus-agent creation and the supported agent `worktree` request. Run setup through the workspace workflow before launching configured terminals or scripts. Setup output is read in the Setup panel from per-command snapshots; never produce setup chat timeline rows or concatenate command logs. Legacy agent `git`/`worktreeName` inputs and hidden MCP worktree placement are rejected with workspace-creation guidance. Existing wire schemas retain an empty combined-log string for parsing compatibility.
@@ -225,23 +231,42 @@ Claude transcript replay is evidence of past work, not a running process. A nati
 that ends without a terminal outcome restores as canceled; live task announcements can mark it running
 again. Preserve completed tool results even when the child's final reply was interrupted.
 
-## Background workspaces
+## Background visibility
 
-`workspace.background` controls discovery only. Background workspaces contain ordinary durable
-agents and terminals: provider history, plugin hooks, parentage, archive, and restart recovery
-keep their normal behavior. Visibility is creation-only; selecting an existing workspace cannot
-change it. New workspaces default to false, inherit the caller workspace's value when an agent
-creates one without an override, and accept explicit true or false.
+An agent is effectively background when it or its workspace is background:
+`agent.background || workspace.background`. Background controls discovery only. Background agents
+and the agents in background workspaces are ordinary durable agents: provider history, plugin
+hooks, parentage, finish notifications to a caller, archive, and restart recovery keep their
+normal behavior. Both flags are fixed at creation.
 
-The daemon derives agent discovery from workspace ownership. Default workspace and agent lists,
-including History requests, exclude background work; `filter.includeBackground` includes it.
-Exact-ID operations bypass discovery filtering. The app replicates both kinds and filters only
-its sidebar with **Show background**, so direct navigation and restored tabs remain available.
+- **Agent.** `create_agent_request.background` marks the agent. Use it for helpers the user does
+  not watch, such as a plugin's classifier in the user's open workspace. A background agent never
+  raises attention, adds nothing to its workspace's status bucket or Last prompt time, and stays
+  out of tabs, the parent's subagent track and agent lists in the app. A tab opened by id still
+  works.
+- **Workspace.** `workspace.background` hides the workspace from the sidebar unless **Show
+  background** is on.
+- **Inheritance.** When `background` is omitted, an agent created by a caller agent takes the
+  caller's own `background`. A new workspace takes the caller's effective background. A request
+  that creates its workspace applies `background` to both the agent and the workspace. Explicit
+  true or false always wins.
+
+`AgentDirectory` (`packages/server/src/server/agent/directory.ts`) owns visibility for lists.
+Default workspace and agent lists, including History requests, exclude background work;
+`includeBackground` includes it. Exact-ID operations bypass discovery filtering. The app
+replicates inclusively and filters at each surface.
+
+Sources without the `background_agents` hello capability get workspace-only visibility on
+inclusive reads and subscriptions: agents in background workspaces, but no agent-level background
+agents. Older apps replicate inclusively and auto-open a tab for every root agent, so a classifier
+run would otherwise open a tab each turn. That visibility has its own directory sync generation.
 
 Sequenced directories keep complete canonical collections. A filtered read must never replace
 those collections with its subset. Inclusive and default observations have distinct cursor
 scopes, so changing scope requires a fresh snapshot rather than reusing an incomplete cache.
-Clients gate creation and inclusive discovery on `features.backgroundWorkspaces`.
+Clients gate background workspaces and inclusive discovery on `features.backgroundWorkspaces`.
+They gate a background agent placed in an existing workspace or under a caller on
+`features.backgroundAgents`.
 
 ### Private daemon helpers
 
@@ -274,12 +299,36 @@ Workspace archive is a separate lifecycle. Archiving or removing a worktree can 
 agent record without setting the agent's `archivedAt`, while its `workspaceId` still points at the
 archived workspace. History navigation must not infer workspace lifecycle from `agent.archivedAt`
 or mutate either lifecycle. The workspace route asks the daemon for authoritative recovery state;
-only the route's explicit Unarchive or Restore action changes the archived workspace.
+the route exposes explicit Unarchive and Restore actions.
+
+Workspace archive is undoable from the archived toast, or with Cmd/Ctrl+Z, while the toast is up.
+The daemon runs one archive lane per workspace, shared by every connection
+(`packages/server/src/server/workspace-archive-operations.ts`):
+
+| A request arrives while  | Result                                                    |
+| ------------------------ | --------------------------------------------------------- |
+| an archive runs: archive | joins the running archive                                 |
+| an archive runs: undo    | aborts the archive, waits for it to settle, then restores |
+| an undo runs: archive    | waits for the undo, then archives                         |
+| an undo runs: undo       | joins the running undo                                    |
+
+A request takes its place in the lane before its first `await`. Arrival order decides, so an undo
+sent right behind its archive still cancels it.
+
+An aborted archive stops at its next checkpoint and reports `canceled`; the undo unarchives only
+the agents that archive itself archived. Deleting the worktree directory is the point of no
+return: an undo after it recreates the worktree through workspace recovery. The client shows or
+hides the row by the latest local intent, so a late remove or upsert from a superseded request
+does not flip it back. Tabs and layout are purged only once the undo window closes with the
+archive committed.
 
 History navigation opens the selected agent without changing either archive state. Workspace
-**Restore** recovers only the workspace; the selected archived agent stays open with its callout.
-The agent's **Unarchive** runs the provider's native unarchive hook before interactive resume and
-history hydration. Other archived agents stay archived.
+**Unarchive**, **Restore**, Undo, and reopening the directory recover the agents closed by that
+workspace archive, including
+after a daemon restart or after the toast expires. Agents archived individually beforehand stay
+archived. A failed worktree recreation leaves the workspace and its agents archived for retry.
+Each recovered agent runs the provider's native unarchive hook before interactive resume and
+history hydration.
 
 Opening an agent is a navigation choice, independent of whether its details are cached. The
 layout retains that choice across reload while the panel fetches the agent from the daemon.
@@ -346,23 +395,36 @@ Workspace status is an aggregate activity signal computed **per `workspaceId`**.
 
 Running provider-native subagents contribute `running` to the workspace owned by their parent agent. Their completed, failed, and canceled states stay in the parent's subagents track.
 
-A finished workspace can be marked unread after it has been reviewed. The daemon restores
-`finished` attention on its newest eligible workspace-root agent without sending a new completion
-notification. Opening the workspace clears that attention through the normal focus flow.
-If a turn finishes in the chat you are already viewing, its completion stays unread until you
-interact with that chat. Clicking or typing acknowledges completion across its owning workspace,
-including closed agents. Other workspaces and permission requests remain unread.
+A finished or failed workspace can be marked unread after it has been reviewed. The daemon restores
+attention on its newest eligible workspace-root agent, `error` for an agent whose lifecycle is
+`error` and `finished` otherwise, without sending a new notification. Opening a workspace restores
+its selected tab and does not switch to the unread agent.
 
-Attention is set by the agent finishing or failing and cleared by the client's
-`workspace.clear_attention`, which fires when the user reads the chat. While unread, the reason and
-timestamp track the latest finished or failed turn; desktop attention alerts fire only on the first
-unread transition. Parent finish notifications are independent of that unread flag.
-Acknowledging a failure clears its sidebar badge while the agent lifecycle stays `error` and its
-failure remains in the conversation. A later failure creates unread attention again.
-Loading an agent's runtime changes neither attention nor activity timestamps, so resuming carries
-their stored values through untouched. Forging either makes a background resume look like the user read a workspace and like the
+Attention is set by the agent finishing or failing and acknowledged by deliberate focus or
+interaction with its chat, including repeat clicks in an already focused pane. A completion
+arriving while focused stays unread until the next interaction; leaving does not acknowledge it.
+Paseoi: opening a workspace from the sidebar, or clicking or typing in one of its chats,
+acknowledges completion across that workspace, including closed agents, through
+`workspace.clear_attention`. Upstream keeps another agent's attention unread until that agent is
+focused. Other workspaces and permission requests remain unread.
+
+While unread, the reason and timestamp track the latest finished or failed turn; desktop attention
+alerts fire only on the first unread transition. Parent finish notifications are independent of
+that unread flag. Acknowledging a failure clears its sidebar
+badge while the agent lifecycle stays `error` and its failure remains in the conversation. A later
+failure creates unread attention again.
+
+Loading an agent's runtime is neither focus nor interaction, so resuming carries the stored attention and the stored
+last-activity time through untouched. Forging either makes a background resume look like the user read a workspace and like the
 agent worked in it just now, which rewrites the sidebar timestamp permanently — persisted
 `updatedAt` is what workspace `statusEnteredAt` is re-derived from on the next daemon start.
+
+The `failed` bucket follows unread `error` attention, not lifecycle status. An agent stays `error`
+until its next turn starts, so reading the chat dismisses the red dot the same way it dismisses the
+green one. For the same reason every new failure raises `error` attention, including a failed reload
+that leaves the lifecycle at `error`, and replaces unread `finished` attention; otherwise the failed
+agent would show the green dot or none. Subagents track marks are the exception: they follow the
+child's lifecycle, because the track is where a failed child stays visible.
 
 ## The subagents track
 

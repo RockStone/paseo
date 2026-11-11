@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppState } from "react-native";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import {
-  shouldClearAgentAttention,
-  type AgentAttentionClearTrigger,
-} from "@/utils/agent-attention";
+import { DaemonConnectionError, type DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import { createAgentAttentionController } from "@/utils/agent-attention";
 import { getIsAppActivelyVisible } from "@/utils/app-visibility";
 import { isWeb } from "@/constants/platform";
+import { useStableEvent } from "@/hooks/use-stable-event";
 
 type AttentionReason = "finished" | "error" | "permission" | null | undefined;
 
@@ -16,16 +14,18 @@ interface UseAgentAttentionClearParams {
   workspaceHasFinishedAttention: boolean;
   client: DaemonClient | null;
   isConnected: boolean;
-  requiresAttention: boolean | null | undefined;
+  isAgentDataReady: boolean;
+  requiresAttention: boolean;
   attentionReason: AttentionReason;
   isScreenFocused: boolean;
+  focusRequest: object | null;
+  onError: (error: unknown) => void;
 }
 
 interface AgentAttentionClearController {
   clearOnInteraction: () => void;
   clearOnInputFocus: () => void;
   clearOnPromptSend: () => void;
-  clearOnAgentBlur: () => void;
 }
 
 export function useAgentAttentionClear({
@@ -34,51 +34,34 @@ export function useAgentAttentionClear({
   workspaceHasFinishedAttention,
   client,
   isConnected,
+  isAgentDataReady,
   requiresAttention,
   attentionReason,
   isScreenFocused,
+  focusRequest,
+  onError,
 }: UseAgentAttentionClearParams): AgentAttentionClearController {
-  const hasAttention = Boolean(requiresAttention) || workspaceHasFinishedAttention;
   const [isAppVisible, setIsAppVisible] = useState<boolean>(() => getIsAppActivelyVisible());
-  const deferredFocusEntryClearRef = useRef(false);
-  const prevRequiresAttentionRef = useRef(hasAttention);
-  const prevActivelyViewedRef = useRef(isScreenFocused && getIsAppActivelyVisible());
-  const prevScreenFocusedRef = useRef(false);
-  const prevAppVisibleRef = useRef(getIsAppActivelyVisible());
-
-  const clearAttention = useCallback(
-    (trigger: AgentAttentionClearTrigger) => {
-      const resolvedAgentId = agentId?.trim();
-      const resolvedWorkspaceId = workspaceId.trim();
-      if (!client || !resolvedAgentId || !resolvedWorkspaceId) {
-        return;
-      }
-      if (
-        !shouldClearAgentAttention({
-          agentId: resolvedAgentId,
-          isConnected,
-          requiresAttention,
-          workspaceHasFinishedAttention,
-          attentionReason,
-          trigger,
-          hasDeferredFocusEntryClear: deferredFocusEntryClearRef.current,
-        })
-      ) {
-        return;
-      }
-      deferredFocusEntryClearRef.current = false;
-      // The sidebar badge aggregates the owning workspace, including stored-only closed agents.
-      client.clearWorkspaceAttention(resolvedWorkspaceId).catch(() => {});
-    },
-    [
-      agentId,
-      attentionReason,
-      client,
-      isConnected,
-      requiresAttention,
-      workspaceHasFinishedAttention,
-      workspaceId,
-    ],
+  const clearAttention = useStableEvent(async (id: string) => {
+    // Paseoi: the sidebar badge aggregates the owning workspace, including stored-only closed
+    // agents, so reading one chat reads its workspace.
+    if (client) await client.clearWorkspaceAttention(id);
+  });
+  const reportError = useStableEvent((error: unknown) => {
+    // The timeline's reconnect status already explains a lost connection.
+    if (error instanceof DaemonConnectionError && error.code === "DAEMON_CONNECTION_LOST") return;
+    onError(error);
+  });
+  const resolvedWorkspaceId = workspaceId.trim();
+  const controller = useMemo(
+    () =>
+      createAgentAttentionController({
+        clear: async () => {
+          if (resolvedWorkspaceId) await clearAttention(resolvedWorkspaceId);
+        },
+        onError: reportError,
+      }),
+    [resolvedWorkspaceId, clearAttention, reportError],
   );
 
   useEffect(() => {
@@ -107,51 +90,32 @@ export function useAgentAttentionClear({
   }, []);
 
   useEffect(() => {
-    if (!hasAttention) {
-      deferredFocusEntryClearRef.current = false;
-    }
-  }, [hasAttention]);
-
-  useEffect(() => {
-    const isActivelyViewed = isScreenFocused && isAppVisible;
-    if (
-      !prevRequiresAttentionRef.current &&
-      hasAttention &&
-      prevActivelyViewedRef.current &&
-      isActivelyViewed
-    ) {
-      deferredFocusEntryClearRef.current = true;
-    }
-    prevRequiresAttentionRef.current = hasAttention;
-    prevActivelyViewedRef.current = isActivelyViewed;
-  }, [hasAttention, isAppVisible, isScreenFocused]);
-
-  useEffect(() => {
-    const enteredScreenFocus = !prevScreenFocusedRef.current && isScreenFocused && isAppVisible;
-    const resumedIntoFocusedAgent = !prevAppVisibleRef.current && isAppVisible && isScreenFocused;
-
-    if (enteredScreenFocus || resumedIntoFocusedAgent) {
-      clearAttention("focus-entry");
-    }
-
-    prevScreenFocusedRef.current = isScreenFocused;
-    prevAppVisibleRef.current = isAppVisible;
-  }, [clearAttention, isAppVisible, isScreenFocused]);
+    controller.update({
+      focused: isScreenFocused && isAppVisible,
+      ready: Boolean(client && agentId && resolvedWorkspaceId && isConnected && isAgentDataReady),
+      requiresAttention,
+      workspaceHasFinishedAttention,
+      attentionReason,
+      focusRequest,
+    });
+  }, [
+    controller,
+    client,
+    agentId,
+    resolvedWorkspaceId,
+    isConnected,
+    isAgentDataReady,
+    isScreenFocused,
+    isAppVisible,
+    requiresAttention,
+    workspaceHasFinishedAttention,
+    attentionReason,
+    focusRequest,
+  ]);
 
   return {
-    clearOnInteraction: useCallback(() => {
-      if (workspaceHasFinishedAttention && isScreenFocused && getIsAppActivelyVisible()) {
-        clearAttention("interaction");
-      }
-    }, [clearAttention, isScreenFocused, workspaceHasFinishedAttention]),
-    clearOnInputFocus: useCallback(() => {
-      clearAttention("input-focus");
-    }, [clearAttention]),
-    clearOnPromptSend: useCallback(() => {
-      clearAttention("prompt-send");
-    }, [clearAttention]),
-    clearOnAgentBlur: useCallback(() => {
-      clearAttention("agent-blur");
-    }, [clearAttention]),
+    clearOnInteraction: controller.interaction,
+    clearOnInputFocus: controller.focus,
+    clearOnPromptSend: controller.focus,
   };
 }

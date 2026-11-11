@@ -10,6 +10,7 @@ export interface AgentStateBucketInput {
   pendingPermissionCount?: number;
   requiresAttention?: boolean;
   attentionReason?: AgentAttentionReason;
+  backgroundWork?: { count: number } | null;
 }
 
 const WORKSPACE_STATE_BUCKET_PRIORITY = {
@@ -20,15 +21,17 @@ const WORKSPACE_STATE_BUCKET_PRIORITY = {
   done: 4,
 } as const satisfies Record<WorkspaceStateBucket, number>;
 
+// An error is a notification like a finish: once the user has seen it, the agent stops showing as
+// failed even though its lifecycle stays "error" until the next turn starts.
+function hasUnreadError(input: AgentStateBucketInput): boolean {
+  return input.requiresAttention === true && input.attentionReason === "error";
+}
+
 export function deriveAgentStateBucket(input: AgentStateBucketInput): WorkspaceStateBucket {
   if ((input.pendingPermissionCount ?? 0) > 0 || input.attentionReason === "permission") {
     return "needs_input";
   }
-  // Acknowledging a failure clears its badge without rewriting the provider lifecycle.
-  if (
-    input.requiresAttention !== false &&
-    (input.status === "error" || input.attentionReason === "error")
-  ) {
+  if (hasUnreadError(input)) {
     return "failed";
   }
   if (hasAgentActivity(input)) {
@@ -48,7 +51,7 @@ export function getAgentStatusPriority(input: AgentStateBucketInput): number {
   if ((input.pendingPermissionCount ?? 0) > 0 || input.attentionReason === "permission") {
     return 0;
   }
-  if (input.status === "error" || input.attentionReason === "error") {
+  if (hasUnreadError(input)) {
     return 1;
   }
   if (hasAgentActivity(input)) {
@@ -60,8 +63,12 @@ export function getAgentStatusPriority(input: AgentStateBucketInput): number {
   return 4;
 }
 
+// Upstream's backgroundWork summary is the shared signal. Paseoi: backgroundTaskCount is the
+// older Claude task count the app's Shell indicators still read, so it still counts while idle.
 export function hasAgentActivity(input: AgentStateBucketInput): boolean {
   return (
-    input.status === "running" || (input.status === "idle" && (input.backgroundTaskCount ?? 0) > 0)
+    input.status === "running" ||
+    (input.backgroundWork?.count ?? 0) > 0 ||
+    (input.status === "idle" && (input.backgroundTaskCount ?? 0) > 0)
   );
 }

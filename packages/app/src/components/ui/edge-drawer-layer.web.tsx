@@ -2,12 +2,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import {
-  getOverlayRoot,
-  OverlayLayerProvider,
-  useOverlayLayer,
-  useWebOverlayRegistration,
-} from "@/lib/overlay-root";
+import { useOverlayRegistration, type KeyboardInputEvent } from "@/keyboard";
+import { getOverlayRoot, OverlayLayerProvider, useOverlayLayer } from "@/lib/overlay-root";
 import type { EdgeDrawerLayerProps } from "./edge-drawer-layer";
 
 export type { EdgeDrawerLayerProps } from "./edge-drawer-layer";
@@ -23,7 +19,7 @@ export function EdgeDrawerLayer({ active, onClose, triggerRef, children }: EdgeD
   const layer = useOverlayLayer("floating");
   const scopeRef = useRef<HTMLElement | null>(null);
   const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
+    (event: KeyboardInputEvent) => {
       if (event.key !== "Escape") return false;
       event.preventDefault();
       onClose();
@@ -31,7 +27,8 @@ export function EdgeDrawerLayer({ active, onClose, triggerRef, children }: EdgeD
     },
     [onClose],
   );
-  const setRegistrationScope = useWebOverlayRegistration({
+  const setRegistrationScope = useOverlayRegistration({
+    keys: ["Escape"],
     active,
     layer,
     onKeyDown: handleKeyDown,

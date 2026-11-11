@@ -28,7 +28,7 @@ export class WorkspaceProjectMoveError extends Error {
 }
 
 export interface WorkspaceProjectMoveDependencies {
-  workspaceRegistry: Pick<WorkspaceRegistry, "get" | "list" | "update">;
+  workspaceRegistry: Pick<WorkspaceRegistry, "get" | "listAll" | "update">;
   projectRegistry: Pick<ProjectRegistry, "get" | "update">;
   /** Hostnames of the workspace's running services that are registered with the service proxy. */
   listWorkspaceServiceHostnames?: (workspaceId: string) => string[];
@@ -131,7 +131,7 @@ export async function moveWorkspaceToProject(
   let emptiedProject: PersistedProjectRecord | null = null;
   if (
     !moved.archivedAt &&
-    !hasActiveWorkspace(await deps.workspaceRegistry.list(), previousProjectId)
+    !hasActiveWorkspace(await deps.workspaceRegistry.listAll(), previousProjectId)
   ) {
     const source = await deps.projectRegistry.get(previousProjectId);
     if (source && !source.archivedAt) {
@@ -189,7 +189,7 @@ export async function mergeProjects(
   }
   await requireActiveProject(deps.projectRegistry, input.targetProjectId);
 
-  const members = (await deps.workspaceRegistry.list()).filter(
+  const members = (await deps.workspaceRegistry.listAll()).filter(
     (workspace) => workspace.projectId === source.projectId,
   );
   const workspaces = members.map(summarizeWorkspace);
@@ -217,7 +217,7 @@ export async function mergeProjects(
   }
 
   // Re-read after the moves: a workspace created in the source meanwhile keeps it alive.
-  const remaining = (await deps.workspaceRegistry.list()).filter(
+  const remaining = (await deps.workspaceRegistry.listAll()).filter(
     (workspace) => workspace.projectId === source.projectId,
   );
   if (input.keepSource || remaining.length > 0) {

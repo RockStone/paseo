@@ -44,7 +44,7 @@ export function useProfileReferenceAutocomplete(input: ProfileReferenceAutocompl
       label: `@@${profile.name}`,
       detail: [profile.provider, profile.model].filter(Boolean).join(" · "),
       description: profile.notes,
-      kind: "agent_profile",
+      icon: "agent_profile",
       profile,
       serverId: input.serverId,
     }));

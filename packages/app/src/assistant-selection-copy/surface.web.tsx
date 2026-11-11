@@ -19,7 +19,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/contexts/toast-context";
 import { getDefaultMarkdownClipboardEnvironment } from "@/utils/rich-clipboard-default-environment";
 import { writeRichClipboardContent, type MarkdownClipboardContent } from "@/utils/rich-clipboard";
-import { getOverlayRoot, useOverlayLayer, useWebOverlayRegistration } from "@/lib/overlay-root";
+import { useOverlayRegistration } from "@/keyboard";
+import { getOverlayRoot, useOverlayLayer } from "@/lib/overlay-root";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import {
   createAssistantSelectionClipboardContent,
@@ -150,7 +151,8 @@ export function AssistantSelectionCopySurface({
     };
   }, [onReply, active, selectionReplyEnabled, dismiss]);
 
-  const overlay = useWebOverlayRegistration({
+  const overlay = useOverlayRegistration({
+    keys: ["Escape"],
     active:
       reply !== null && !pointerSelecting && active && selectionReplyEnabled && onReply !== null,
     layer,

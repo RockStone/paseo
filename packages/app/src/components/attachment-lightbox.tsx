@@ -1,3 +1,4 @@
+import { useOverlayRegistration, type KeyboardInputEvent } from "@/keyboard";
 import { Modal } from "@/components/ui/modal";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -8,12 +9,12 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { useAttachmentPreview } from "@/attachments/use-attachment-preview-url";
-import { isNative, isWeb } from "@/constants/platform";
+import { isNative } from "@/constants/platform";
 import { SPACING } from "@/styles/theme";
 import { WindowChromeRootRegion } from "@/utils/desktop-window";
 import { ZoomableImage } from "@/components/zoomable-viewport/image";
 import type { ViewportSize } from "@/components/zoomable-viewport/geometry";
-import { useGlobalWebOverlayLayer, useWebOverlayRegistration } from "@/lib/overlay-root";
+import { useGlobalOverlayLayer } from "@/lib/overlay-root";
 
 export type ImageLightboxSource =
   | { type: "attachment"; metadata: AttachmentMetadata }
@@ -28,6 +29,8 @@ interface AttachmentLightboxProps {
 
 const ModalRoot = isNative ? GestureHandlerRootView : View;
 const LIGHTBOX_FIT = { padding: SPACING[4], maxWidth: 960, maxHeight: 640 };
+const CLOSE_KEYS = ["Escape"];
+const GALLERY_KEYS = ["Escape", "ArrowLeft", "ArrowRight"];
 
 function sourceKey(source: ImageLightboxSource): string {
   return source.type === "attachment" ? `attachment:${source.metadata.id}` : `uri:${source.uri}`;
@@ -53,10 +56,10 @@ export function AttachmentLightbox({
   );
   const previous = useCallback(() => navigate(-1), [navigate]);
   const next = useCallback(() => navigate(1), [navigate]);
-  const modalLayer = useGlobalWebOverlayLayer("modal", isWeb && source !== null);
+  const modalLayer = useGlobalOverlayLayer("modal", source !== null);
 
-  const handleWebOverlayKeyDown = useCallback(
-    (event: KeyboardEvent) => {
+  const handleOverlayKeyDown = useCallback(
+    (event: KeyboardInputEvent) => {
       if (hasGallery && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
         event.preventDefault();
         event.stopPropagation();
@@ -71,10 +74,11 @@ export function AttachmentLightbox({
     },
     [onClose, hasGallery, navigate],
   );
-  const setWebOverlayScope = useWebOverlayRegistration({
-    active: isWeb && source !== null,
+  const setOverlayScope = useOverlayRegistration({
+    keys: hasGallery ? GALLERY_KEYS : CLOSE_KEYS,
+    active: source !== null,
     layer: modalLayer,
-    onKeyDown: handleWebOverlayKeyDown,
+    onKeyDown: handleOverlayKeyDown,
   });
 
   if (!source) {
@@ -88,7 +92,7 @@ export function AttachmentLightbox({
             image was opened (inside a sheet tab, the bottom one is already spent). */}
         <SafeAreaProvider>
           <WindowChromeRootRegion corners="both">
-            <View ref={setWebOverlayScope} style={styles.root}>
+            <View ref={setOverlayScope} style={styles.root}>
               <Pressable
                 testID="attachment-lightbox-backdrop"
                 accessibilityRole="button"

@@ -199,6 +199,13 @@ const test = daemonTest.extend<{
               JSON.stringify({ completedAt: new Date(0).toISOString() }),
             );
           }
+          // The shared daemon often has no projects, which would open first-run setup over the app.
+          if (onboardingCompleted && !localStorage.getItem("@paseo:onboarding")) {
+            localStorage.setItem(
+              "@paseo:onboarding",
+              JSON.stringify({ completedAt: new Date(0).toISOString() }),
+            );
+          }
         },
         {
           daemon: testDaemon,

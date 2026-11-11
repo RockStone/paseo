@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { Pressable, Text, View } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
+import Animated from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
 import {
   MENU_ITEM_HEIGHT,
@@ -22,8 +24,14 @@ import {
   type MenuTriggerState,
 } from "@/components/ui/menu";
 import { StatusRing } from "@/components/status-ring";
+import { bySizing } from "@/components/ui/control-geometry";
+import {
+  HorizontalScrollBoundaryShades,
+  useHorizontalScrollBoundary,
+} from "@/components/ui/horizontal-scroll-boundary";
 import { STATUS_RING_HALO_INSET } from "@/components/status-ring/geometry";
 import { isWeb } from "@/constants/platform";
+import { usePanelAwareHorizontalScrollGesture } from "@/mobile-panels/gestures";
 import { getStatusDotColor } from "@/utils/status-dot-color";
 import { STATUS_INDICATOR_FILLED_DOT_SIZE } from "@/utils/status-indicator-geometry";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
@@ -40,10 +48,13 @@ import { useHoverSafeZone } from "@/hooks/use-hover-safe-zone";
  * on every platform.
  *
  * The bar floats over the transcript with no background, so content remains visible underneath.
- * Its host gives the scroll viewport a small bottom inset only when the bar exists; that keeps
- * the final footer clear without turning the overlay into a layout band.
+ * Its host gives the scroll viewport a small bottom inset for as long as the bar is mounted, with
+ * or without pills: that keeps the final footer clear, and pills that come and go every turn do not
+ * move the transcript.
  */
 export function ComposerTrackBar({ children }: { children: ReactNode }): ReactElement {
+  const scrollGesture = usePanelAwareHorizontalScrollGesture();
+  const scrollBoundary = useHorizontalScrollBoundary();
   // Over the transcript the bar floats above the composer; in the split column it heads the
   // composer in flow, and its panels open downward because there is no room above.
   const { split } = useComposerSurface();
@@ -53,8 +64,32 @@ export function ComposerTrackBar({ children }: { children: ReactNode }): ReactEl
       pointerEvents="box-none"
       dataSet={COMPOSER_PILLS_DATASET}
     >
-      <View style={styles.track} pointerEvents="box-none">
-        {children}
+      <View style={styles.trackViewport} pointerEvents="box-none">
+        <GestureDetector gesture={scrollGesture}>
+          <Animated.ScrollView
+            testID="composer-track-scroll"
+            style={styles.trackScroller}
+            horizontal
+            keyboardShouldPersistTaps="handled"
+            showsHorizontalScrollIndicator={false}
+            onLayout={scrollBoundary.onLayout}
+            onContentSizeChange={scrollBoundary.onContentSizeChange}
+            onScroll={scrollBoundary.onScroll}
+            scrollEventThrottle={16}
+          >
+            <View style={styles.track} pointerEvents="box-none">
+              {children}
+            </View>
+          </Animated.ScrollView>
+        </GestureDetector>
+        <HorizontalScrollBoundaryShades
+          visible
+          backdrop="surface"
+          testIDPrefix="composer-track-scroll-shade"
+          bottomInset={0}
+          leftStyle={scrollBoundary.leftShadeStyle}
+          rightStyle={scrollBoundary.rightShadeStyle}
+        />
       </View>
     </View>
   );
@@ -425,16 +460,17 @@ const styles = StyleSheet.create((theme) => {
   // The rail every panel row sits on: inset from the panel edge so the fill is a rounded block
   // inside it, and tall enough that revealing an action button cannot resize the row.
   //
-  // Compact and desktop differ here and only here. A finger needs the taller row a menu row gets
-  // on compact; a pointer does not, and the popover keeps its density.
+  // Touch and pointer sizing differ here and only here. A finger needs the row a menu row gets
+  // on touch (`MENU_ITEM_HEIGHT` is always its touch value at `xs`); a pointer does not, and the
+  // popover keeps its density.
   const trackRow = {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-    minHeight: { xs: MENU_ITEM_HEIGHT.xs, md: 32 },
+    minHeight: bySizing({ touch: MENU_ITEM_HEIGHT.xs, pointer: 32 }),
     marginHorizontal: theme.spacing[1],
     paddingHorizontal: theme.spacing[2],
-    paddingVertical: { xs: theme.spacing[2], md: theme.spacing[1] },
+    paddingVertical: bySizing({ touch: theme.spacing[2], pointer: theme.spacing[1] }),
     borderRadius: theme.borderRadius.md,
   } as const;
 
@@ -456,9 +492,21 @@ const styles = StyleSheet.create((theme) => {
       paddingHorizontal: theme.spacing[4],
       paddingBottom: COMPOSER_PILL_CLEARANCE.wide,
     },
-    track: {
+    trackViewport: {
       width: "100%",
       maxWidth: theme.contentMaxWidth,
+      minWidth: 0,
+      flexGrow: 0,
+      flexShrink: 1,
+    },
+    // Only as wide as its pills, so the rest of the row passes touches to the transcript. The
+    // scroller can't use box-none for that: Android's horizontal ScrollView won't scroll with it.
+    trackScroller: {
+      alignSelf: "flex-start",
+      // Web sizes a flex-start scroller to its content, so without a cap it overflows the bar.
+      maxWidth: "100%",
+    },
+    track: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing[1],

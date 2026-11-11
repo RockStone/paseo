@@ -22,7 +22,7 @@ export interface ArchiveFinishedOutcome {
 
 export type ManagedSubagentSnapshot = Pick<
   Agent,
-  "id" | "status" | "parentAgentId" | "archivedAt" | "backgroundTaskCount"
+  "id" | "status" | "parentAgentId" | "archivedAt" | "backgroundTaskCount" | "backgroundWork"
 >;
 
 export interface ArchiveFinishedSubagentsDeps {
@@ -54,6 +54,7 @@ function canArchiveManagedSubagent(
     !hasAgentActivity(agent) &&
     !agent.archivedAt &&
     agent.parentAgentId === parentAgentId &&
+    (agent.backgroundWork?.count ?? 0) === 0 &&
     (agent.status === "idle" || agent.status === "error"),
   );
 }

@@ -6,7 +6,7 @@ import type { WorkspaceRegistry } from "./workspace-registry.js";
 
 /** A named workspace owns the name of its sole independent agent. */
 export async function attachWorkspaceAgentNames(input: {
-  workspaceRegistry: Pick<WorkspaceRegistry, "get" | "list" | "subscribeToMutations">;
+  workspaceRegistry: Pick<WorkspaceRegistry, "get" | "listAll" | "subscribeToMutations">;
   agentStorage: Pick<AgentStorage, "listByWorkspace">;
   agentManager: Pick<AgentManager, "subscribe" | "updateAgentMetadata">;
   logger: Logger;
@@ -52,7 +52,7 @@ export async function attachWorkspaceAgentNames(input: {
   );
   // Repair existing names without loading or resuming their provider sessions.
   await Promise.all(
-    (await input.workspaceRegistry.list()).map((workspace) => enqueue(workspace.workspaceId)),
+    (await input.workspaceRegistry.listAll()).map((workspace) => enqueue(workspace.workspaceId)),
   );
   return async () => {
     unsubscribeWorkspaces?.();

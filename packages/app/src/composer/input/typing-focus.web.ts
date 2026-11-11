@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { resolveKeyboardFocusScope } from "@/keyboard/focus-scope";
-import { hasFocusManagingWebOverlay, hasOpenDomPopover } from "@/lib/overlay-root";
+import { hasFocusManagingWebOverlay, hasOpenDomPopover } from "@/keyboard";
 import type { TypingFocusInput } from "./typing-focus";
 
 export function useTypingFocus({ enabled, inputRef }: TypingFocusInput): void {

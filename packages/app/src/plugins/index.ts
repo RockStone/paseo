@@ -7,7 +7,6 @@ export {
   PluginComposerPills,
   COMPACT_HEADER_PLUGIN_BUTTONS,
   PluginHeaderButtons,
-  useHasPluginComposerPills,
   usePluginWorkspaceMenu,
 } from "./buttons/view";
 export { useStickyNotesShortcut } from "./buttons/sticky-notes-shortcut";

@@ -182,7 +182,7 @@ export function useSessionReferenceAutocomplete(input: SessionReferenceAutocompl
       label: `${t(`sessionReference.${reference.referenceType}`)} · ${reference.title}`,
       detail: (reference.subagentId ?? reference.id).slice(0, 8),
       description: reference.cwd,
-      kind: reference.referenceType,
+      icon: reference.referenceType,
       reference,
     }));
   }, [

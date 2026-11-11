@@ -1,89 +1,68 @@
-import type { Agent } from "@/stores/session-store";
-
-interface ShouldClearAgentAttentionInput {
-  agentId: string | null | undefined;
-  isConnected: boolean;
-  requiresAttention: boolean | null | undefined;
+interface AttentionState {
+  focused: boolean;
+  ready: boolean;
+  requiresAttention: boolean;
+  // Paseoi: another chat in the owning workspace finished unread. Reading this chat reads it too.
   workspaceHasFinishedAttention?: boolean;
-  attentionReason?: "finished" | "error" | "permission" | null | undefined;
-  trigger?: AgentAttentionClearTrigger;
-  hasDeferredFocusEntryClear?: boolean;
+  attentionReason: "finished" | "error" | "permission" | null | undefined;
+  focusRequest: object | null;
 }
 
-export type AgentAttentionClearTrigger =
-  | "focus-entry"
-  | "input-focus"
-  | "interaction"
-  | "prompt-send"
-  | "agent-blur";
-
-const ATTENTION_REASON_PRIORITY = {
-  permission: 0,
-  error: 1,
-  finished: 2,
-} as const;
-
-function getAttentionPriority(reason: Agent["attentionReason"]): number | null {
-  if (!reason) {
-    return null;
-  }
-  return ATTENTION_REASON_PRIORITY[reason];
+function hasAttention(state: AttentionState): boolean {
+  return state.requiresAttention || state.workspaceHasFinishedAttention === true;
 }
 
-export function pickAttentionAgent(agents: Agent[]): string | null {
-  let selectedAgentId: string | null = null;
-  let selectedPriority = Number.POSITIVE_INFINITY;
-  let selectedTimestamp = Number.POSITIVE_INFINITY;
-
-  for (const agent of agents) {
-    if (agent.requiresAttention !== true) {
-      continue;
-    }
-
-    if (agent.parentAgentId) {
-      continue;
-    }
-
-    const priority = getAttentionPriority(agent.attentionReason);
-    if (priority === null) {
-      continue;
-    }
-
-    const timestamp = agent.attentionTimestamp?.getTime() ?? Number.POSITIVE_INFINITY;
-    const isHigherPriority = priority < selectedPriority;
-    const isOlderAtSamePriority = priority === selectedPriority && timestamp < selectedTimestamp;
-    if (isHigherPriority || isOlderAtSamePriority) {
-      selectedAgentId = agent.id;
-      selectedPriority = priority;
-      selectedTimestamp = timestamp;
-    }
-  }
-
-  return selectedAgentId;
+function hasFinishedAttention(state: AttentionState): boolean {
+  return state.requiresAttention
+    ? state.attentionReason === "finished"
+    : state.workspaceHasFinishedAttention === true;
 }
 
-export function shouldClearAgentAttention(input: ShouldClearAgentAttentionInput): boolean {
-  const agentId = input.agentId?.trim();
-  if (!agentId) {
-    return false;
+export function createAgentAttentionController(deps: {
+  clear: () => Promise<void>;
+  onError: (error: unknown) => void;
+}) {
+  let state: AttentionState | null = null;
+  let inFlight = false;
+  let pendingFocus = false;
+
+  function acknowledgeFocus() {
+    if (!pendingFocus || !state?.focused || !state.ready) return;
+    pendingFocus = false;
+    if (!hasAttention(state) || state.attentionReason === "permission" || inFlight) return;
+    inFlight = true;
+    void deps.clear().then(
+      () => {
+        inFlight = false;
+        return undefined;
+      },
+      (error: unknown) => {
+        inFlight = false;
+        deps.onError(error);
+      },
+    );
   }
-  if (!input.isConnected) {
-    return false;
-  }
-  if (!input.requiresAttention && !input.workspaceHasFinishedAttention) {
-    return false;
-  }
-  if (input.attentionReason === "permission") {
-    return false;
-  }
-  const hasFinishedAttention = input.requiresAttention
-    ? input.attentionReason === "finished"
-    : input.workspaceHasFinishedAttention === true;
-  if (input.trigger === "interaction" && !hasFinishedAttention) {
-    return false;
-  }
-  if (input.trigger === "focus-entry" && input.hasDeferredFocusEntryClear === true) {
-    return false;
-  }
-  return true;
+
+  return {
+    focus() {
+      if (!state?.focused) return;
+      pendingFocus = true;
+      acknowledgeFocus();
+    },
+    // Paseoi: a touch or key press in the chat reads a finished completion, even one that arrived
+    // while the chat was in view. Errors and permission requests wait for a deliberate focus.
+    interaction() {
+      if (!state?.focused || !hasFinishedAttention(state)) return;
+      pendingFocus = true;
+      acknowledgeFocus();
+    },
+    update(next: AttentionState) {
+      const entered = next.focused && !state?.focused;
+      const requested = next.focusRequest !== null && next.focusRequest !== state?.focusRequest;
+      state = { ...next };
+      if (!next.focused) pendingFocus = false;
+      else if (entered || requested) pendingFocus = true;
+      acknowledgeFocus();
+    },
+  };
 }

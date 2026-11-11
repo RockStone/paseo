@@ -77,7 +77,7 @@ export function useAggregatedAgents(options?: {
       }
       const serverLabel = serverLabelById.get(serverId) ?? serverId;
       for (const agent of agents.values()) {
-        if (!includeArchived && agent.archivedAt) {
+        if (agent.background || (!includeArchived && agent.archivedAt)) {
           continue;
         }
         const nextAgent: AggregatedAgent = {
@@ -86,6 +86,7 @@ export function useAggregatedAgents(options?: {
           serverLabel,
           title: agent.title ?? null,
           status: agent.status,
+          backgroundWork: agent.backgroundWork,
           turn: agent.turn,
           lastActivityAt: agent.lastActivityAt,
           cwd: agent.cwd,
