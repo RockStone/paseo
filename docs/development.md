@@ -31,7 +31,7 @@ the titlebar row. Production builds leave the variable unset and show no label.
 
 ## Paseoi custom desktop build
 
-The current integration branch is `paseoi/v0.15.4`; `paseoi/v0.15.0`, `paseoi/v0.15.0-beta.1`, `paseoi/v0.14.0`, `paseoi/v0.13.0`, and `paseoi/v0.12.0` retain the previous custom builds.
+The current integration branch is `paseoi/v0.16.0`; `paseoi/v0.15.4`, `paseoi/v0.15.0`, `paseoi/v0.15.0-beta.1`, `paseoi/v0.14.0`, `paseoi/v0.13.0`, and `paseoi/v0.12.0` retain the previous custom builds.
 The fork keeps only `main` and `paseoi/*` branches. The `upstream` remote fetches only `main` and `v*` release tags.
 Back up `~/.paseo/config.json` before installing a newer build. Older daemons reject settings that
 newer builds save, so rolling back means restoring that backup.
@@ -293,6 +293,22 @@ typecheck, lint, and the focused tests for every file both sides changed, then
 rebuild. Drop a build
 compatibility commit if upstream has already fixed it. Keep each updated custom
 branch on the fork so you can recover the source for an installed build.
+
+Upstream cuts releases from short-lived release workspaces, so a release tag is not
+an ancestor of the next one. Git's merge base for `v0.16.0` was a `v0.13`-era `main`
+commit, and conflicts already settled in the previous merge come back. Keep the cost
+down:
+
+- `git rerere` is on in this repo (`rerere.enabled`, `rerere.autoupdate`). Merge each
+  beta into the next `paseoi/*` branch as it ships; the stable merge then replays the
+  recorded resolutions and only the last fixes conflict.
+- When a file conflicts on hunks you already merged, re-run the 3-way merge against
+  the previous release tag:
+  `git merge-file -p <ours> <(git show vPREV:<file>) <(git show vNEXT:<file>)`.
+- Put new customizations in a plugin (`paseoi-plugins/`) or behind a small hook in an
+  upstream file, and mark the hook `Paseoi:`. Large edits to upstream files are what
+  conflict.
+- Prefer upstream's version when it now covers a customization, and drop ours.
 
 ## Nix desktop package
 
