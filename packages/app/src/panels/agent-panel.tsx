@@ -1,3 +1,5 @@
+import { MessageSelectionTargetProvider } from "@/agent-stream/message-selection";
+import { messageSelectionTarget } from "@/agent-stream/message-selection/model";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -1581,26 +1583,28 @@ const AgentStreamSection = memo(function AgentStreamSection({
   }, [pendingPermissionList]);
 
   return (
-    <SelectionReplyContext.Provider value={onReplyToSelection}>
-      <ResponseReplyContext.Provider value={onReplyToResponse}>
-        <AgentStreamView
-          ref={streamViewRef}
-          agentId={agent.id}
-          serverId={serverId}
-          context={agent}
-          streamItems={streamItems}
-          pendingPermissions={pendingPermissions}
-          routeBottomAnchorRequest={routeBottomAnchorRequest}
-          isAuthoritativeHistoryReady={hasAppliedAuthoritativeHistory}
-          bottomOverlayTailClearance={bottomOverlayTailClearance}
-          bottomOverlayControlClearance={bottomOverlayControlClearance}
-          toast={toast}
-          pendingMessageSubmissions={pendingMessageSubmissions}
-          turnPresentation={turnPresentation}
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
-        />
-      </ResponseReplyContext.Provider>
-    </SelectionReplyContext.Provider>
+    <MessageSelectionTargetProvider value={messageSelectionTarget(serverId, agent.id)}>
+      <SelectionReplyContext.Provider value={onReplyToSelection}>
+        <ResponseReplyContext.Provider value={onReplyToResponse}>
+          <AgentStreamView
+            ref={streamViewRef}
+            agentId={agent.id}
+            serverId={serverId}
+            context={agent}
+            streamItems={streamItems}
+            pendingPermissions={pendingPermissions}
+            routeBottomAnchorRequest={routeBottomAnchorRequest}
+            isAuthoritativeHistoryReady={hasAppliedAuthoritativeHistory}
+            bottomOverlayTailClearance={bottomOverlayTailClearance}
+            bottomOverlayControlClearance={bottomOverlayControlClearance}
+            toast={toast}
+            pendingMessageSubmissions={pendingMessageSubmissions}
+            turnPresentation={turnPresentation}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
+          />
+        </ResponseReplyContext.Provider>
+      </SelectionReplyContext.Provider>
+    </MessageSelectionTargetProvider>
   );
 });
 

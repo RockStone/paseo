@@ -23,6 +23,19 @@ const assistant = message(
 );
 
 describe("message selection", () => {
+  it("starts from a response with that response already checked", async () => {
+    const model = openMessageSelection();
+    model.registerSource("agent", () => [user, assistant]);
+    model.start("agent", assistant);
+    expect([...model.getState().selected.keys()]).toEqual(["assistant"]);
+    model.toggle("agent", user);
+    const write = vi.fn().mockResolvedValue(undefined);
+    expect(await model.copy(write)).toBe(true);
+    expect(write).toHaveBeenCalledExactlyOnceWith(
+      `### User\n\n${user.text}\n\n---\n\n### Assistant\n\n${assistant.text}`,
+    );
+  });
+
   it("copies original Markdown in conversation order despite reverse selection and unmounted history", async () => {
     const model = openMessageSelection();
     let source = [user, assistant];

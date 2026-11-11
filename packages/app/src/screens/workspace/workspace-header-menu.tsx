@@ -2,7 +2,14 @@ import React, { useCallback, useMemo } from "react";
 import { View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Copy, Ellipsis, Globe, Import as ImportIcon, Settings } from "lucide-react-native";
+import {
+  Copy,
+  Ellipsis,
+  Globe,
+  Import as ImportIcon,
+  ListChecks,
+  Settings,
+} from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { TerminalProfile } from "@getpaseo/protocol/messages";
 import {
@@ -31,13 +38,14 @@ import {
   useWorkspaceScriptsMenuPages,
   type UseWorkspaceScriptsMenuPagesInput,
 } from "@/screens/workspace/scripts";
-import { usePluginWorkspaceMenu } from "@/plugins";
+import { COMPACT_HEADER_PLUGIN_BUTTONS, usePluginWorkspaceMenu } from "@/plugins";
 
 const ThemedEllipsis = withUnistyles(Ellipsis);
 const ThemedCopy = withUnistyles(Copy);
 const ThemedGlobe = withUnistyles(Globe);
 const ThemedImport = withUnistyles(ImportIcon);
 const ThemedSettings = withUnistyles(Settings);
+const ThemedListChecks = withUnistyles(ListChecks);
 
 const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
@@ -45,6 +53,7 @@ const MENU_NEW_BROWSER_ICON = <ThemedGlobe size={16} uniProps={mutedColorMapping
 const MENU_IMPORT_ICON = <ThemedImport size={16} uniProps={mutedColorMapping} />;
 const MENU_COPY_ICON = <ThemedCopy size={16} uniProps={mutedColorMapping} />;
 const MENU_SETTINGS_ICON = <ThemedSettings size={16} uniProps={mutedColorMapping} />;
+const MENU_SELECT_ICON = <ThemedListChecks size={16} uniProps={mutedColorMapping} />;
 function WorkspaceHeaderMenuTriggerIcon() {
   return (
     <ThemedEllipsis
@@ -84,6 +93,8 @@ export interface WorkspaceHeaderWorkspaceActions {
   onCopyWorkspacePath: () => void;
   onCopyBranchName: () => void;
   onOpenSetupTab: () => void;
+  /** Starts selecting messages in the focused chat; null when no chat is focused. */
+  onSelectMessages?: (() => void) | null;
 }
 
 function WorkspaceHeaderWorkspaceActionItems({
@@ -95,10 +106,20 @@ function WorkspaceHeaderWorkspaceActionItems({
   onCopyWorkspacePath,
   onCopyBranchName,
   onOpenSetupTab,
+  onSelectMessages,
 }: WorkspaceHeaderWorkspaceActions) {
   const { t } = useTranslation();
   return (
     <>
+      {onSelectMessages ? (
+        <DropdownMenuItem
+          testID="workspace-header-select-messages"
+          leading={MENU_SELECT_ICON}
+          onSelect={onSelectMessages}
+        >
+          {t("message.selection.start")}
+        </DropdownMenuItem>
+      ) : null}
       <DropdownMenuItem
         testID="workspace-header-copy-path"
         leading={MENU_COPY_ICON}
@@ -246,7 +267,11 @@ export function WorkspaceHeaderMenuMobile({
     router.push(buildSettingsHostSectionRoute(normalizedServerId, "terminals") as Href);
   }, [normalizedServerId, router]);
   const scriptsMenu = useWorkspaceScriptsMenuPages(scripts);
-  const pluginMenu = usePluginWorkspaceMenu(normalizedServerId, normalizedWorkspaceId);
+  const pluginMenu = usePluginWorkspaceMenu(
+    normalizedServerId,
+    normalizedWorkspaceId,
+    COMPACT_HEADER_PLUGIN_BUTTONS,
+  );
   const pages = useMemo(
     () => [...scriptsMenu.pages, ...pluginMenu.pages],
     [scriptsMenu.pages, pluginMenu.pages],

@@ -628,20 +628,30 @@ export function PluginComposerPills({
 }
 
 /**
- * A workspace's header buttons as rows and pages of a host menu. Compact headers have no room for
- * the buttons themselves, so the workspace menu carries them instead.
+ * A workspace's header buttons as rows and pages of a host menu. Compact headers have room for one
+ * button (Paseoi), so the workspace menu carries the rest; `skip` is how many the header shows.
  */
-export function usePluginWorkspaceMenu(serverId: string, workspaceId: string): PluginButtonsMenu {
+export function usePluginWorkspaceMenu(
+  serverId: string,
+  workspaceId: string,
+  skip = 0,
+): PluginButtonsMenu {
   const entries = useButtons(serverId, workspaceId, null);
-  return useMemo(() => buttonsMenu(entries), [entries]);
+  return useMemo(() => buttonsMenu(entries.slice(skip)), [entries, skip]);
 }
+
+/** Compact headers show this many plugin buttons; the workspace menu carries the rest. */
+export const COMPACT_HEADER_PLUGIN_BUTTONS = 1;
 
 export function PluginHeaderButtons({
   serverId,
   workspaceId,
+  withoutOverflow = false,
 }: {
   serverId: string;
   workspaceId: string;
+  /** Leave the extra buttons to another menu instead of a ⋯ of their own. */
+  withoutOverflow?: boolean;
 }) {
   const entries = useButtons(serverId, workspaceId, null);
   const compact = useIsCompactFormFactor();
@@ -651,7 +661,7 @@ export function PluginHeaderButtons({
   const hostLabel = hosts.find((host) => host.serverId === serverId)?.label ?? serverId;
   const limit = compact || width < 1100 ? 1 : 3;
   const visible = entries.slice(0, limit);
-  const overflow = entries.slice(limit);
+  const overflow = withoutOverflow ? [] : entries.slice(limit);
   const overflowStyle = useCallback(
     (state: IconButtonChromeState) => headerButtonStyle(compact, state),
     [compact],

@@ -143,3 +143,52 @@ test("the Driveboard shows owner to-dos, progress and notes from the header", as
     await agent.cleanup();
   }
 });
+
+// Phones have room for one plugin button beside the workspace menu: the Driveboard sits in the
+// header, not inside the menu.
+test("the Driveboard button sits in the phone header and opens the board", async ({ page }) => {
+  test.setTimeout(180_000);
+  const client = await connectNewWorkspaceDaemonClient({ ownProjects: false });
+  const previousConfig = await client.getDaemonConfig();
+  const agent = await seedMockAgentWorkspace({
+    repoPrefix: "driveboard-compact-",
+    title: "Board on a phone",
+    initialPrompt: "Open the board",
+  });
+  await mkdir(path.join(agent.cwd, "docs"), { recursive: true });
+  await writeFile(path.join(agent.cwd, "docs", "owner-todo.md"), OWNER_TODO);
+  try {
+    await client.patchDaemonConfig({ pluginsEnabled: true });
+    await client.installDirectoryPlugin(DRIVEBOARD_DIRECTORY);
+    await agent.client.waitForFinish(agent.agentId, 15_000);
+    await page.setViewportSize({ width: 430, height: 932 });
+    await openAgentRoute(page, agent);
+
+    const button = page
+      .getByRole("toolbar", { name: "Workspace actions" })
+      .getByRole("button", { name: "Driveboard" })
+      .filter({ visible: true });
+    await expect(button).toBeVisible({ timeout: 30_000 });
+    if (SCREENSHOT_DIR)
+      await page.screenshot({ path: `${SCREENSHOT_DIR}/driveboard-phone-header.png` });
+
+    // The workspace menu no longer repeats it.
+    await page.getByTestId("workspace-header-menu-trigger").click();
+    await expect(page.getByText("Copy workspace path", { exact: true })).toBeVisible();
+    await expect(page.getByText("Driveboard", { exact: true })).toHaveCount(0);
+    // Tap the dimmed chat above the sheet to close it.
+    await page.mouse.click(215, 300);
+    await expect(page.getByText("Copy workspace path", { exact: true })).toHaveCount(0);
+
+    await button.click();
+    await expect(page.getByRole("tab", { name: "Owner todo", selected: true })).toBeVisible();
+    await expect(page.getByText("Pick the release name.")).toBeVisible();
+  } finally {
+    await client.removePlugin("driveboard").catch(() => undefined);
+    await client.patchDaemonConfig({
+      pluginsEnabled: previousConfig.config.pluginsEnabled ?? false,
+    });
+    await client.close();
+    await agent.cleanup();
+  }
+});

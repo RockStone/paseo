@@ -5,6 +5,7 @@ export { usePluginAttachmentPicker } from "./attachments/picker";
 export { PluginResourceAttachmentPill } from "./attachments/pill";
 export {
   PluginComposerPills,
+  COMPACT_HEADER_PLUGIN_BUTTONS,
   PluginHeaderButtons,
   useHasPluginComposerPills,
   usePluginWorkspaceMenu,

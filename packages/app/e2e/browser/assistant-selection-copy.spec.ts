@@ -1503,8 +1503,8 @@ for (const layout of ["desktop", "compact"] as const) {
       await openAgentRoute(page, agent);
       const middle = page.getByText("Leave this middle prompt unselected.", { exact: true });
       const before = await middle.boundingBox();
-      await page.getByTestId("message-selection-start").click();
-      await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
+      // A response's Select button starts the selection with that response checked.
+      await page.getByTestId("message-selection-start").first().click();
       if (layout === "desktop") {
         // Paseoi floats the checkboxes in the margin; the messages don't move.
         await expect(page.getByRole("checkbox").first()).toBeVisible();
@@ -1518,6 +1518,8 @@ for (const layout of ["desktop", "compact"] as const) {
       });
       await expect(users).toHaveCount(2);
       await expect(assistants).toHaveCount(2);
+      await expect(assistants.first()).toBeChecked();
+      await assistants.first().click();
       // Reverse click order must still copy chronological conversation order.
       await assistants.last().click();
       await users.first().click();
@@ -1530,15 +1532,19 @@ for (const layout of ["desktop", "compact"] as const) {
       expect(await readPlainClipboard(page)).toBe(
         `### User\n\n${prompt}\n\n---\n\n### Assistant\n\n${response}`,
       );
-      await expect(page.getByTestId("message-selection-start")).toBeVisible();
+      await expect(page.getByTestId("message-selection-start").last()).toBeVisible();
       await expect(users).toHaveCount(0);
-      await page.getByTestId("message-selection-start").click();
+      await page.getByTestId("message-selection-start").last().click();
       await users.first().click();
       await page.getByTestId("message-selection-cancel").click();
       await expect(users).toHaveCount(0);
-      await page.getByTestId("message-selection-start").click();
-      await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
-      await page.getByTestId("message-selection-cancel").click();
+      if (layout === "compact") {
+        // The workspace menu starts an empty selection.
+        await page.getByTestId("workspace-header-menu-trigger").click();
+        await page.getByTestId("workspace-header-select-messages").click();
+        await expect(page.getByTestId("message-selection-copy")).toBeDisabled();
+        await page.getByTestId("message-selection-cancel").click();
+      }
     } finally {
       await agent.cleanup();
     }
@@ -1561,6 +1567,7 @@ test("keeps message checkboxes selected after clipboard denial and allows Copy t
     await openAgentRoute(page, agent);
     await denyClipboardUntilAllowed(page);
     await page.getByTestId("message-selection-start").click();
+    await page.getByRole("checkbox", { name: "Select assistant message", exact: true }).click();
     const checkbox = page.getByRole("checkbox", { name: "Select user message", exact: true });
     await checkbox.click();
     await page.getByTestId("message-selection-copy").click();
@@ -1600,11 +1607,10 @@ test("keeps message selections while loading and scrolling to older conversation
     }
     await openAgentRoute(page, agent);
     await expect(page.getByText(firstPrompt, { exact: true })).toHaveCount(0);
-    await page.getByTestId("message-selection-start").click();
+    await page.getByTestId("message-selection-start").last().click();
     const latestCheckbox = page
       .getByRole("checkbox", { name: "Select assistant message", exact: true })
       .last();
-    await latestCheckbox.click();
     await expect(latestCheckbox).toBeChecked();
     await page.getByTestId("assistant-message").last().click();
     await page.keyboard.press("ControlOrMeta+f");
@@ -1620,7 +1626,7 @@ test("keeps message selections while loading and scrolling to older conversation
       "Copy selected messages (2)",
     );
     await page.getByTestId("message-selection-copy").click();
-    await expect(page.getByTestId("message-selection-start")).toBeVisible();
+    await expect(page.getByTestId("message-selection-start").last()).toBeVisible();
     expect(await readPlainClipboard(page)).toBe(
       `### User\n\n${firstPrompt}\n\n---\n\n### Assistant\n\n${response}`,
     );

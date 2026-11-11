@@ -1,5 +1,7 @@
 import { shellBackgroundTaskId } from "@/tool-calls/shell-task";
 import { ResponseReplyButton } from "@/agent-stream/response-reply-button";
+import { SelectMessageButton } from "@/agent-stream/message-selection";
+import type { SelectableMessage } from "@/agent-stream/message-selection/model";
 import { buildRewoundComposerMessage } from "@/components/rewind/attachments";
 import { useToast } from "@/contexts/toast-context";
 import {
@@ -735,6 +737,8 @@ const UserMessageContent = memo(function UserMessageContent({
 
 interface AssistantTurnFooterProps {
   replyCursor?: { epoch: string; seq: number };
+  /** The response the footer's Select button checks first. */
+  selectItem?: SelectableMessage;
   getContent?: () => string;
   completedAt?: Date;
   durationMs?: number | null;
@@ -791,6 +795,7 @@ const MessageTimeLabel = memo(function MessageTimeLabel({
  */
 export const AssistantTurnFooter = memo(function AssistantTurnFooter({
   replyCursor,
+  selectItem,
   getContent,
   completedAt,
   durationMs,
@@ -814,6 +819,7 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
       ) : null}
       {canFork ? <AssistantForkMenu onFork={handleFork} /> : null}
       {replyCursor ? <ResponseReplyButton cursor={replyCursor} /> : null}
+      {selectItem ? <SelectMessageButton item={selectItem} /> : null}
       <MessageTimeLabel
         date={completedAt}
         durationMs={durationMs}

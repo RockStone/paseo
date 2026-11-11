@@ -2,6 +2,7 @@ import { useHostFeature } from "@/runtime/host-features";
 import {
   MessageSelectionProvider,
   MessageSelectionToolbar,
+  useStartMessageSelection,
 } from "@/agent-stream/message-selection";
 import { messageSelectionTarget } from "@/agent-stream/message-selection/model";
 import {
@@ -490,6 +491,7 @@ interface WorkspaceHeaderTitleBarProps {
   onCopyWorkspacePath: () => void;
   onCopyBranchName: () => void;
   onOpenSetupTab: () => void;
+  onSelectMessages: (() => void) | null;
 }
 
 function WorkspaceHeaderTitleBar({
@@ -506,6 +508,7 @@ function WorkspaceHeaderTitleBar({
   onCopyWorkspacePath,
   onCopyBranchName,
   onOpenSetupTab,
+  onSelectMessages,
 }: WorkspaceHeaderTitleBarProps) {
   return (
     <View style={styles.headerTitleContainer}>
@@ -533,6 +536,7 @@ function WorkspaceHeaderTitleBar({
           onCopyWorkspacePath={onCopyWorkspacePath}
           onCopyBranchName={onCopyBranchName}
           onOpenSetupTab={onOpenSetupTab}
+          onSelectMessages={onSelectMessages}
         />
       </View>
     </View>
@@ -3077,6 +3081,7 @@ function WorkspaceScreenContent({
         : null,
     [focusedPaneAgentId, isRouteFocused, normalizedServerId],
   );
+  const startMessageSelection = useStartMessageSelection(selectionTarget);
   // The merged title bar drops the git actions to save space and moves plugin buttons right.
   const [headerRight, titleBarTrailing] = useMemo(() => {
     const renderActions = (inTitleBar: boolean) => (
@@ -3222,6 +3227,7 @@ function WorkspaceScreenContent({
                 onCopyWorkspacePath={handleCopyWorkspacePath}
                 onCopyBranchName={handleCopyBranchName}
                 onOpenSetupTab={handleOpenSetupTab}
+                onSelectMessages={startMessageSelection}
               />
             </>
           }
@@ -3229,6 +3235,7 @@ function WorkspaceScreenContent({
         />
       ) : null,
     [
+      startMessageSelection,
       canOpenImportSheet,
       currentBranchName,
       handleCopyBranchName,
@@ -3303,6 +3310,11 @@ function WorkspaceScreenContent({
             onCloseOtherTabs={handleCloseOtherTabs}
           />
           <MessageSelectionToolbar target={selectionTarget} />
+          <PluginHeaderButtons
+            serverId={normalizedServerId}
+            workspaceId={normalizedWorkspaceId}
+            withoutOverflow
+          />
           <WorkspaceHeaderMenuMobile
             normalizedServerId={normalizedServerId}
             normalizedWorkspaceId={normalizedWorkspaceId}
@@ -3319,11 +3331,13 @@ function WorkspaceScreenContent({
             onCopyWorkspacePath={handleCopyWorkspacePath}
             onCopyBranchName={handleCopyBranchName}
             onOpenSetupTab={handleOpenSetupTab}
+            onSelectMessages={startMessageSelection}
           />
         </CompactWorkspaceHeader>
       ) : null,
     [
       selectionTarget,
+      startMessageSelection,
       activeTabKey,
       canOpenImportSheet,
       compactHeaderScripts,

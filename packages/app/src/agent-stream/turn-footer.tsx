@@ -203,6 +203,7 @@ function CompletedTurnFooter({
             : undefined
         }
         getContent={items[startIndex]?.kind === "assistant_message" ? getContent : undefined}
+        selectItem={items[startIndex]?.kind === "assistant_message" ? items[startIndex] : undefined}
         completedAt={timing?.completedAt}
         durationMs={timing?.durationMs}
         onFork={boundary && onForkAssistantTurn ? handleFork : undefined}

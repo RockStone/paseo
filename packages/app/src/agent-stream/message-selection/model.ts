@@ -67,9 +67,12 @@ export function openMessageSelection() {
         if (sources.get(target) === read) sources.delete(target);
       };
     },
-    start: (target: string) => {
+    start: (target: string, first?: SelectableMessage) => {
       operation++;
-      publish({ target, selected: new Map(), pending: false, error: false });
+      const selected = new Map<string, SelectedMessage>();
+      // Starting from a message's own Select button checks that message.
+      if (first) selected.set(first.id, { item: first, order: 0 });
+      publish({ target, selected, pending: false, error: false });
     },
     cancel,
     toggle: (target: string, item: SelectableMessage) => {
