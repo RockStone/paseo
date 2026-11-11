@@ -344,3 +344,42 @@ test.describe("Tab transitions (no flash)", () => {
     await expectTabTitleFits(page, "New Agent", { min: 64, max: 160 });
   });
 });
+
+function readOverlayOpacity(element: Element): string {
+  return getComputedStyle(element.parentElement ?? element).opacity;
+}
+
+// A tablet browser at desktop width (iPad Safari) gets the desktop tab row but cannot hover,
+// so hover-revealed tab controls must already be showing.
+test.describe("Tab close on a touch screen at desktop width", () => {
+  test.use({ hasTouch: true, isMobile: false, viewport: { width: 1180, height: 820 } });
+
+  test("shows each tab's close button without hover and closes the tab on tap", async ({
+    page,
+  }) => {
+    await gotoWorkspace(page, workspace.workspaceId);
+    expect(
+      await page.evaluate(() => window.matchMedia("(hover: hover) and (pointer: fine)").matches),
+    ).toBe(false);
+
+    const newTabs = page
+      .locator('[data-testid^="workspace-tab-tab_"]')
+      .filter({ hasText: "New tab" })
+      .filter({ visible: true });
+    const countBefore = await newTabs.count();
+    await pressNewTabShortcut(page);
+    await expect(newTabs).toHaveCount(countBefore + 1);
+
+    const ids = await tabTestIds(newTabs);
+    const tabTestId = ids.at(-1);
+    if (!tabTestId) throw new Error("The new tab has no test id");
+    const tabId = tabTestId.slice("workspace-tab-".length);
+    const closeButton = page.getByTestId(`workspace-new-tab-close-${tabId}`);
+    await expect(closeButton).toBeVisible();
+    // The hidden overlay keeps its box at opacity 0, which Playwright still counts as visible.
+    await expect.poll(() => closeButton.evaluate(readOverlayOpacity)).toBe("1");
+
+    await closeButton.tap();
+    await expect(page.getByTestId(tabTestId)).toHaveCount(0);
+  });
+});

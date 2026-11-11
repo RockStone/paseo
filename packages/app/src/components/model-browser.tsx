@@ -17,6 +17,7 @@ import {
   FlatList as SheetFlatList,
   ScrollView as SheetScrollView,
 } from "@/components/ui/scroll-view";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
@@ -625,8 +626,8 @@ function ModelRowProfileAction({
   testID: string;
   children: React.ReactNode;
 }) {
-  const isCompact = useIsCompactFormFactor();
-  const visible = hovered || isNative || isCompact;
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
+  const visible = hovered || hoverControlsAlwaysVisible;
   const pressableStyle = useCallback(
     ({ hovered: buttonHovered, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
       styles.rowIconButton,

@@ -1,4 +1,5 @@
 import { useSessionStore } from "@/stores/session-store";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { sidebarWorkspaceTarget } from "@/subagents/sidebar-tree";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
@@ -435,7 +436,7 @@ function ProjectRowTrailingActions({
   settingsTarget,
   projectPath,
   isHovered,
-  isMobileBreakpoint,
+  actionsAlwaysVisible,
   isProjectActive,
   onBeginWorkspaceSetup,
   onRemoveProject,
@@ -447,13 +448,13 @@ function ProjectRowTrailingActions({
   settingsTarget: { serverId: string; projectId: string } | null;
   projectPath: string;
   isHovered: boolean;
-  isMobileBreakpoint: boolean;
+  actionsAlwaysVisible: boolean;
   isProjectActive: boolean;
   onBeginWorkspaceSetup: () => void;
   onRemoveProject?: () => void;
   removeProjectStatus: "idle" | "pending" | "success";
 }) {
-  const actionsVisible = isHovered || platformIsNative || isMobileBreakpoint;
+  const actionsVisible = isHovered || actionsAlwaysVisible;
   return (
     <View style={styles.projectTrailingActions}>
       {worktreeTarget ? (
@@ -979,7 +980,7 @@ function ProjectHeaderRow({
   const [isHovered, setIsHovered] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
-  const isMobileBreakpoint = useIsCompactFormFactor();
+  const actionsAlwaysVisible = useHoverControlsAlwaysVisible();
   const localDaemonServerId = useLocalDaemonServerId();
   const projectPath = resolveSidebarProjectLocalPath(project, localDaemonServerId);
   const settingsTarget = project.hosts[0] ?? null;
@@ -1074,7 +1075,7 @@ function ProjectHeaderRow({
         settingsTarget={settingsTarget}
         projectPath={projectPath}
         isHovered={isHovered}
-        isMobileBreakpoint={isMobileBreakpoint}
+        actionsAlwaysVisible={actionsAlwaysVisible}
         isProjectActive={isProjectActive}
         onBeginWorkspaceSetup={handleBeginWorkspaceSetup}
         onRemoveProject={onRemoveProject}
@@ -1186,7 +1187,8 @@ function WorkspaceRowInner({
 }: WorkspaceRowInnerProps) {
   const isCompact = useIsCompactFormFactor();
   const [isPressed, setIsPressed] = useState(false);
-  const isTouchPlatform = platformIsNative || isCompact;
+  const isTouchPlatform = useHoverControlsAlwaysVisible();
+  const isDesktopLayout = !(platformIsNative || isCompact);
   const interaction = useLongPressDragInteraction({
     drag,
     menuController,
@@ -1232,8 +1234,9 @@ function WorkspaceRowInner({
       isEditingTitle={isEditingTitle}
     >
       {({ isHovered, contextMenuOpen, onContextMenuOpenChange, hoverHandlers }) => {
-        const isDesktop = !isTouchPlatform;
-        const serviceSummary = isDesktop ? selectWorkspaceServiceSummary(workspace.scripts) : null;
+        const serviceSummary = isDesktopLayout
+          ? selectWorkspaceServiceSummary(workspace.scripts)
+          : null;
         const workspaceRowStyle = getProjectWorkspaceRowStyle({
           isDragging,
           isPressed,

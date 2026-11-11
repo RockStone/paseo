@@ -1,4 +1,5 @@
 import { Modal } from "@/components/ui/modal";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import {
   Children,
   cloneElement,
@@ -28,10 +29,9 @@ import {
 } from "react-native";
 import { FadeIn, FadeOut } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
-import { useIsCompactFormFactor } from "@/constants/layout";
 import { FloatingSurface } from "@/components/ui/floating";
 import { useRetainedPanelActive } from "@/components/retained-panel";
-import { isNative, isWeb } from "@/constants/platform";
+import { isWeb } from "@/constants/platform";
 import { getOverlayRoot, OVERLAY_Z } from "@/lib/overlay-root";
 import { holdSurfaceEdge, surfaceFrameStyles, type SurfacePosition } from "./anchor";
 
@@ -260,9 +260,10 @@ export function Tooltip({
     onOpenChange,
   });
 
-  const isCompact = useIsCompactFormFactor();
   const active = useRetainedPanelActive();
-  const opensOnPress = isNative || isCompact;
+  // Where nothing hovers (native, compact, a touch tablet on the desktop layout) a tooltip opens
+  // on press instead, and only when the caller enabled it for touch.
+  const opensOnPress = useHoverControlsAlwaysVisible();
   const enabled = active && (opensOnPress ? enabledOnMobile : enabledOnDesktop);
 
   // Remove the portal in the inactive commit, before the retained chat freezes.

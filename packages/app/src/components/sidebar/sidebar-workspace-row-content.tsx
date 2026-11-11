@@ -1,4 +1,5 @@
 import { SidebarAgentTree, useSidebarAgentTree } from "@/components/sidebar/sidebar-agent-tree";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { useSessionDragSource } from "@/attachments/use-session-drag-source";
 import {
   memo,
@@ -52,8 +53,6 @@ import {
   SidebarWorkspaceArchiveButton,
 } from "@/components/sidebar/sidebar-workspace-menu";
 import { useTranslation } from "react-i18next";
-import { isNative } from "@/constants/platform";
-import { useIsCompactFormFactor } from "@/constants/layout";
 import { useWorkspaceLabelDefinitions } from "@/workspace-labels";
 import { WorkspaceSelectionCheckbox } from "@/components/sidebar/workspace-selection";
 
@@ -281,9 +280,9 @@ function WorkspaceAgentDisclosure({
   children: ReactNode;
 }) {
   const disclosure = useContext(AgentTreeDisclosure);
-  const isCompact = useIsCompactFormFactor();
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const { t } = useTranslation();
-  const showDisclosure = disclosure?.hasChildren && (isHovered || isNative || isCompact);
+  const showDisclosure = disclosure?.hasChildren && (isHovered || hoverControlsAlwaysVisible);
   const ToggleIcon = disclosure?.collapsed ? ChevronRight : ChevronUp;
   const handlePress = useCallback(
     (event: GestureResponderEvent) => {

@@ -76,7 +76,7 @@ export function MarkdownRendererFrame({
         .paseo-table-tools { position: absolute; top: 4px; right: 4px; z-index: 1; opacity: 0; }
         .paseo-table-wrapper:hover > .paseo-table-tools,
         .paseo-table-tools:focus-within, .paseo-table-tools:has([role="alert"]) { opacity: 1; }
-        @media (hover: none) { .paseo-table-tools { opacity: 1; } }
+        @media not all and (hover: hover) and (pointer: fine) { .paseo-table-tools { opacity: 1; } }
       `}</style>
       {children}
       {controls.map(({ host }, index) =>

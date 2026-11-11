@@ -2,8 +2,8 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Image, Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { X } from "lucide-react-native";
-import { isNative, isWeb } from "@/constants/platform";
-import { useIsCompactFormFactor } from "@/constants/layout";
+import { isWeb } from "@/constants/platform";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import type { Theme } from "@/styles/theme";
@@ -33,10 +33,9 @@ export function AttachmentPill({
   variant = "default",
   children,
 }: AttachmentPillProps) {
-  const isCompact = useIsCompactFormFactor();
+  const alwaysShow = useHoverControlsAlwaysVisible();
   const [isHovered, setIsHovered] = useState(false);
   const isImage = variant === "image";
-  const alwaysShow = isNative || isCompact;
   const showRemove = alwaysShow || isHovered;
   const closeButtonStyle = useMemo(
     () => [

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import {
@@ -287,7 +288,8 @@ export function ZoomableViewport({
       transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
     };
   }, [clickToZoom, fittedContent, isDragging, transform]);
-  const controlsVisible = isHovered || isFocusWithin || hasTouchInput;
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
+  const controlsVisible = isHovered || isFocusWithin || hasTouchInput || hoverControlsAlwaysVisible;
   const handleFocus = useCallback(() => setIsFocusWithin(true), []);
   const handleBlur = useCallback(() => setIsFocusWithin(false), []);
   const handleMouseEnter = useCallback(() => setIsHovered(true), []);

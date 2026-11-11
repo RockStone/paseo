@@ -16,6 +16,10 @@ vi.mock("@/constants/layout", () => ({
   useIsCompactFormFactor: () => false,
 }));
 
+vi.mock("@/hooks/pointer-capabilities", () => ({
+  usePointerCapabilities: () => ({ finePointer: true, touchScreen: false }),
+}));
+
 vi.mock("@gorhom/portal", () => ({
   Portal: ({ children }: { children: React.ReactNode }) => children,
 }));

@@ -15,12 +15,11 @@ import {
   type WorkspaceLabelDefinition,
 } from "@getpaseo/protocol/workspace-labels";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { HostFilter } from "@/components/hosts/host-filter";
 import { Button } from "@/components/ui/button";
 import type { ControlSize } from "@/components/ui/control-geometry";
 import { Field, FormTextInput } from "@/components/ui/form-field";
-import { useIsCompactFormFactor } from "@/constants/layout";
-import { isNative } from "@/constants/platform";
 import { useHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
 import { confirmDialog } from "@/utils/confirm-dialog";
@@ -244,12 +243,12 @@ function WorkspaceLabelManagerRow({
   onEdit: (label: WorkspaceLabelDefinition) => void;
 }): ReactElement {
   const { t } = useTranslation();
-  const isCompact = useIsCompactFormFactor();
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const [isHovered, setIsHovered] = useState(false);
   const handlePointerEnter = useCallback(() => setIsHovered(true), []);
   const handlePointerLeave = useCallback(() => setIsHovered(false), []);
   const edit = useCallback(() => onEdit(label), [label, onEdit]);
-  const revealed = isHovered || isNative || isCompact;
+  const revealed = isHovered || hoverControlsAlwaysVisible;
   const editStyle = useCallback(
     ({ pressed }: PressableStateCallbackType) => [
       styles.rowEdit,

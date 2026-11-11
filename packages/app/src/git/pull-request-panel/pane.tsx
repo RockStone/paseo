@@ -18,6 +18,7 @@ import {
 import type { PressableStateCallbackType } from "react-native";
 import { useTranslation } from "react-i18next";
 import { openExternalUrl } from "@/utils/open-external-url";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -35,7 +36,6 @@ import { useSessionStore } from "@/stores/session-store";
 import { useWorkspaceAttachmentsStore } from "@/attachments/workspace-attachments-store";
 import { useToast } from "@/contexts/toast-context";
 import { useCheckoutGitActionsStore } from "@/git/actions-store";
-import { isNative } from "@/constants/platform";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import {
   PaneContentToolbar,
@@ -663,12 +663,12 @@ function TimelineEntryCard({
 }
 
 function useRevealOnHover() {
-  const isCompact = useIsCompactFormFactor();
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const [isHovered, setIsHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const handlePointerEnter = useCallback(() => setIsHovered(true), []);
   const handlePointerLeave = useCallback(() => setIsHovered(false), []);
-  const actionsVisible = isHovered || menuOpen || isNative || isCompact;
+  const actionsVisible = isHovered || menuOpen || hoverControlsAlwaysVisible;
   return { actionsVisible, handlePointerEnter, handlePointerLeave, setMenuOpen };
 }
 

@@ -1,5 +1,6 @@
 import type { AgentAddress } from "@getpaseo/protocol/addresses";
 import { useHosts } from "@/runtime/host-runtime";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -10,7 +11,6 @@ import { ComposerTrackActions, ComposerTrackPill, ComposerTrackRow } from "@/com
 import { mutedIconColorMapping } from "@/components/ui/icon-button-chrome";
 import { ToolbarButton, paneContentToolbarIconSize } from "@/components/ui/pane-content-toolbar";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { isNative } from "@/constants/platform";
 import {
   WorkspaceTabIcon,
   type WorkspaceTabPresentation,
@@ -225,7 +225,7 @@ function SubagentsTrackRow({
   const handleDetachPress = useCallback(() => {
     if (row.kind === "paseo") onDetachSubagent?.(row.address);
   }, [onDetachSubagent, row]);
-  const actionsAlwaysVisible = isNative || isCompact;
+  const actionsAlwaysVisible = useHoverControlsAlwaysVisible();
 
   const renderRow = useCallback(
     ({ active }: { active: boolean }) => (

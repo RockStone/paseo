@@ -177,7 +177,7 @@ The app runs on iOS, Android, web (browser), and web (Electron desktop). Code is
 | Use a native-only API (Haptics, push tokens, camera)           | `if (isNative)`                                                           |
 | Use an Electron bridge (file dialog, titlebar, updates)        | `if (getIsElectron())`                                                    |
 | Switch layout between phone and tablet/desktop                 | `useIsCompactFormFactor()`                                                |
-| Show something on hover, always-visible on native              | `isHovered \|\| isNative \|\| isCompact` (hover only works on web)        |
+| Show something on hover, always-visible without hover          | `isHovered \|\| useHoverControlsAlwaysVisible()` (covers touch tablets)   |
 | Gate to iOS or Android specifically                            | `Platform.OS === "ios"` / `Platform.OS === "android"` (rare, keep inline) |
 
 ### Rules
@@ -200,7 +200,7 @@ The app runs on iOS, Android, web (browser), and web (Electron desktop). Code is
   Import as `@/desktop/browser/pane` — Electron desktop gets the `.electron.tsx` file, browser web gets `.web.tsx`, and native gets the native/base implementation.
 - **NEVER use raw DOM APIs without `isWeb` guard.** DOM APIs crash native. Casting a RN ref to `HTMLElement` is a red flag — ensure the block is web-only.
 - **NEVER use `onPointerEnter`/`onPointerLeave`.** They don't fire on native iOS.
-- **Hover only works on web.** React Native's `onHoverIn`/`onHoverOut` on `Pressable` does NOT fire on native iOS/iPad — the underlying W3C pointer events are behind disabled experimental flags. For hover-to-show UI (kebab menus, action buttons), use `isHovered || isNative || isCompact` so the controls are always visible on native and hover-to-show on web.
+- **Hover only works on web.** React Native's `onHoverIn`/`onHoverOut` on `Pressable` does NOT fire on native iOS/iPad — the underlying W3C pointer events are behind disabled experimental flags. For hover-to-show UI (kebab menus, action buttons), use `isHovered || useHoverControlsAlwaysVisible()` so the controls are always visible on native, compact layouts and touch tablets (iPad Safari), and hover-to-show with a mouse. See [docs/hover.md](docs/hover.md#no-hover-fallback).
 - **Don't use Platform.OS as a proxy for layout capabilities.** Use breakpoints for layout decisions, not platform checks.
 - **Import `isWeb`/`isNative` from `@/constants/platform`.** Never write `const isWeb = Platform.OS === "web"` locally.
 

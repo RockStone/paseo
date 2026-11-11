@@ -39,6 +39,7 @@ import type {
   DraggableRenderItemInfo,
 } from "@/components/draggable-list.types";
 import { isNative, isWeb } from "@/constants/platform";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -735,8 +736,8 @@ function activeThinkingAgentId(tab: WorkspaceTabDescriptor, active: boolean) {
   return active && tab.target.kind === "agent" ? tab.target.agentId : undefined;
 }
 
-function showTabThinkingAction(hovered: boolean, compact: boolean) {
-  return hovered || isNative || compact;
+function showTabThinkingAction(hovered: boolean, alwaysVisible: boolean) {
+  return hovered || alwaysVisible;
 }
 
 function TabChip({
@@ -792,7 +793,7 @@ function TabChip({
   const middleClickRef = useMiddleClickClose(
     useCallback(() => void onCloseTab(tab.tabId), [onCloseTab, tab.tabId]),
   );
-  const isCompact = useIsCompactFormFactor();
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const [hovered, setHovered] = useState(false);
   // An active tab in a pane that does not have focus stays legible but quiet: it keeps the fill of
   // a hovered chip and the muted label, so only one chip in the window reads as the live one.
@@ -805,7 +806,8 @@ function TabChip({
     isActiveFocused,
     isFilled,
   });
-  const showCloseControl = showCloseButton && (isHovered || isNative || isCompact || isClosingTab);
+  const showCloseControl =
+    showCloseButton && (isHovered || hoverControlsAlwaysVisible || isClosingTab);
   const closeButtonDragBlockers = isWeb
     ? ({
         onPointerDown: (event: { stopPropagation?: () => void }) => {
@@ -897,7 +899,7 @@ function TabChip({
               <TabHandleContent
                 serverId={serverId}
                 thinkingAgentId={activeThinkingAgentId(tab, isActive)}
-                showThinkingAction={showTabThinkingAction(isHovered, isCompact)}
+                showThinkingAction={showTabThinkingAction(isHovered, hoverControlsAlwaysVisible)}
                 presentation={presentation}
                 isHighlighted={isHighlighted}
                 showLabel={showLabel}

@@ -3,8 +3,7 @@ import { View, type GestureResponderEvent } from "react-native";
 import { Settings2 } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
-import { useIsCompactFormFactor } from "@/constants/layout";
-import { isNative } from "@/constants/platform";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { useDropdownMenuClose } from "@/components/ui/dropdown-menu";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import type { Theme } from "@/styles/theme";
@@ -22,11 +21,11 @@ export function ScriptEditButton({
   onEdit: (name: string | null) => void;
 }) {
   const { t } = useTranslation();
-  const compact = useIsCompactFormFactor();
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const closeMenu = useDropdownMenuClose();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const reveal = hovered || focused || isNative || compact;
+  const reveal = hovered || focused || hoverControlsAlwaysVisible;
   const enter = useCallback(() => setHovered(true), []);
   const leave = useCallback(() => setHovered(false), []);
   const focus = useCallback(() => setFocused(true), []);

@@ -3,8 +3,7 @@ import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { DensityIcon } from "@/components/ui/density-icon";
-import { useIsCompactFormFactor } from "@/constants/layout";
-import { isNative } from "@/constants/platform";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { density } from "@/styles/density";
 
 /** A sidebar section label such as "Pinned" or "Workspaces". A section with `onToggle`
@@ -57,7 +56,7 @@ function CollapsibleTitle({
   testID?: string;
   leadingChevron: boolean;
 }) {
-  const isCompact = useIsCompactFormFactor();
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const accessibilityState = useMemo(() => ({ expanded: !collapsed }), [collapsed]);
 
   return (
@@ -79,7 +78,7 @@ function CollapsibleTitle({
             />
           ) : null}
           <Text style={styles.title}>{title}</Text>
-          {!leadingChevron && (hovered || isNative || isCompact) ? (
+          {!leadingChevron && (hovered || hoverControlsAlwaysVisible) ? (
             <DensityIcon
               icon={collapsed ? ChevronRight : ChevronDown}
               size="xs"

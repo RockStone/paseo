@@ -13,6 +13,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
+import { usePointerCapabilities } from "@/hooks/pointer-capabilities";
 import { useHostReportsUsage } from "@/usage";
 import type { Theme } from "@/styles/theme";
 import { TOOLBAR_DISC_SIZE, type ToolbarRing } from "@/components/ui/control-geometry";
@@ -166,6 +167,7 @@ export function ContextWindowMeter({
   const popoverWidth = Math.min(USAGE_POPOVER_WIDTH, width - 24);
   // Compact screens open the details in a sheet, which can hold a pressable Refresh.
   const isCompact = useIsCompactFormFactor();
+  const { finePointer } = usePointerCapabilities();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const openSheet = useCallback(() => setIsSheetOpen(true), []);
   const closeSheet = useCallback(() => setIsSheetOpen(false), []);
@@ -245,9 +247,9 @@ export function ContextWindowMeter({
     ? [styles.usagePopover, { width: popoverWidth }]
     : styles.plainPopover;
 
-  // Native wide screens have no hover, so the details open in a tooltip on press. The tooltip
-  // takes no presses, so its usage cards have no Refresh.
-  if (isNative) {
+  // Wide screens without hover (native, a touch tablet on the web layout) open the details in a
+  // tooltip on press. The tooltip takes no presses, so its usage cards have no Refresh.
+  if (!finePointer) {
     return (
       <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile>
         <TooltipTrigger asChild triggerRefProp="ref">

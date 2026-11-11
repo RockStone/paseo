@@ -1,4 +1,5 @@
 import { useSessionStore } from "@/stores/session-store";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { sidebarWorkspaceTarget } from "@/subagents/sidebar-tree";
 import {
   memo,
@@ -851,7 +852,7 @@ function StatusWorkspaceRowInnerContent({
   dragInteraction?: ReturnType<typeof useLongPressDragInteraction>;
 }) {
   const isCompact = useIsCompactFormFactor();
-  const isTouchPlatform = platformIsNative || isCompact;
+  const isTouchPlatform = useHoverControlsAlwaysVisible();
   const [isPressed, setIsPressed] = useState(false);
   const trailing = useSidebarWorkspaceTrailing();
   const {
@@ -861,7 +862,7 @@ function StatusWorkspaceRowInnerContent({
     ...dragAttributes
   } = dragHandleProps?.attributes ?? {};
 
-  const isDesktop = !isTouchPlatform;
+  const isDesktop = !(platformIsNative || isCompact);
   const serviceSummary = isDesktop ? selectWorkspaceServiceSummary(workspace.scripts) : null;
 
   const isSelecting = selectionChecked !== null;

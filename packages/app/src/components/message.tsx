@@ -1,4 +1,5 @@
 import { useDisclosureHold } from "@/agent-stream/disclosure";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { shellBackgroundTaskId } from "@/tool-calls/shell-task";
 import { ResponseReplyButton } from "@/agent-stream/response-reply-button";
 import { SelectMessageButton, useMessageSelectionCopy } from "@/agent-stream/message-selection";
@@ -429,10 +430,10 @@ const MESSAGE_TEXT_DATASET = { messageText: "true" };
 function showUserMessageActions(
   pending: boolean,
   hasText: boolean,
-  compact: boolean,
+  alwaysVisible: boolean,
   hovered: boolean,
 ) {
-  return !pending && hasText && (compact || isNative || hovered);
+  return !pending && hasText && (alwaysVisible || hovered);
 }
 
 export const UserMessage = memo(function UserMessage(props: UserMessageProps) {
@@ -522,7 +523,7 @@ const UserMessageContent = memo(function UserMessageContent({
   isPending = false,
   disableOuterSpacing,
 }: UserMessageProps) {
-  const isCompact = useIsCompactFormFactor();
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
   const [lightboxMetadata, setLightboxMetadata] = useState<UserMessageImageAttachment | null>(null);
@@ -570,7 +571,12 @@ const UserMessageContent = memo(function UserMessageContent({
     },
     [details, images, onOpenWorkspaceFile, fileLinkActions],
   );
-  const showTrailingRow = showUserMessageActions(isPending, hasText, isCompact, isHovered);
+  const showTrailingRow = showUserMessageActions(
+    isPending,
+    hasText,
+    hoverControlsAlwaysVisible,
+    isHovered,
+  );
   const timestampDate = useMemo(() => new Date(timestamp), [timestamp]);
   const toast = useToast();
   const rewindMutation = useRewindAgentMutation({ serverId, agentId, client, messageId });
@@ -2125,6 +2131,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
 }: ExpandableBadgeProps) {
   const resolvedDisableOuterSpacing = useDisableOuterSpacing(disableOuterSpacing);
   const [isHovered, setIsHovered] = useState(false);
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const [isPressed, setIsPressed] = useState(false);
   const isInteractive = Boolean(onToggle);
   const hasDetailContent = Boolean(renderDetails);
@@ -2411,7 +2418,11 @@ export const ExpandableBadge = memo(function ExpandableBadge({
             onSecondaryLayout={handleSecondaryLayout}
           />
         </Pressable>
-        <ExpandableBadgeOpenFileButton onOpenFile={onOpenFile} visible={isHovered} />
+        {/* Without hover the button would never show, so an expanded call offers it instead. */}
+        <ExpandableBadgeOpenFileButton
+          onOpenFile={onOpenFile}
+          visible={isHovered || (hoverControlsAlwaysVisible && isExpanded)}
+        />
       </View>
       {detailContent ? (
         <Pressable

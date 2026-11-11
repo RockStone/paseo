@@ -8,11 +8,11 @@ import {
   iconButtonChromeGlyphSize,
   smallIconButtonChromeFrameSize,
 } from "@/components/ui/icon-button-chrome";
+import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always-visible";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ToolbarButton, paneContentToolbarIconSize } from "@/components/ui/pane-content-toolbar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { isNative } from "@/constants/platform";
 import type { TFunction } from "i18next";
 import { UsageBalanceBar } from "./balance-bar";
 import type { UsageDisplay } from "./display";
@@ -61,6 +61,7 @@ export function UsageCard({
 }) {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
+  const hoverControlsAlwaysVisible = useHoverControlsAlwaysVisible();
   const { refresh, refreshState } = useReportRefresh(serverId, entry.id, agentId);
   const usage = entry.report;
   const footer = entry.account.label ?? null;
@@ -70,7 +71,8 @@ export function UsageCard({
   const status = statusText(usage, resolved, t);
   // Where there is no hover the freshness is printed on the card; elsewhere the Refresh tooltip.
   // The Claude refresh note carries its own freshness.
-  const showsFreshnessInline = (isNative || isCompact || !refreshable) && !awaitingClaudeRefresh;
+  const showsFreshnessInline =
+    (hoverControlsAlwaysVisible || !refreshable) && !awaitingClaudeRefresh;
 
   const containerStyle = useMemo(
     () => [styles.container, compact ? styles.containerCompact : styles.containerPadded],
