@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Paseoi: release build of the iOS app, installed on every USB-connected iPhone/iPad.
-# Usage: paseoi-ios-device.sh [device-udid ...]   (default: all connected physical devices)
+# Paseoi: release build of the iOS app, installed on every paired iPhone/iPad (USB or same Wi-Fi).
+# Usage: paseoi-ios-device.sh [device-udid ...]   (default: all connected or paired physical devices)
 # `expo run:ios` can't pass -allowProvisioningUpdates, and without it Xcode signs with the wildcard
 # team profile, which has no push entitlement. So build with xcodebuild and install with devicectl.
 # One generic-iOS build is installed on each device.
@@ -13,7 +13,7 @@ else
   devices=()
   while IFS= read -r udid; do
     [[ -n "$udid" ]] && devices+=("$udid")
-  done < <(xcrun devicectl list devices 2>/dev/null | awk '/ connected / && /physical/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) { print $i; break } }')
+  done < <(xcrun devicectl list devices 2>/dev/null | awk '(/ connected / || /available \(paired\)/) && /physical/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) { print $i; break } }')
 fi
 if [[ ${#devices[@]} -eq 0 ]]; then
   echo "No connected device. Plug one in, unlock it, or pass its UDID." >&2
