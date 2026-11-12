@@ -14,3 +14,12 @@ export function formatTokenCount(value: number): string {
   }
   return Math.round(value).toString();
 }
+
+// Paseoi: details with a pressable Refresh/Compact need a sheet wherever nobody can hover. Only a
+// wide layout with a fine pointer gets the hover card.
+export function meterPresentation(input: {
+  isCompact: boolean;
+  finePointer: boolean;
+}): "sheet" | "hover-card" {
+  return input.isCompact || !input.finePointer ? "sheet" : "hover-card";
+}

@@ -10,7 +10,6 @@ import Svg, { Circle } from "react-native-svg";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
 import { usePointerCapabilities } from "@/hooks/pointer-capabilities";
@@ -19,7 +18,7 @@ import type { Theme } from "@/styles/theme";
 import { TOOLBAR_DISC_SIZE, type ToolbarRing } from "@/components/ui/control-geometry";
 import { ContextWindowDetails } from "./context-window-details";
 import { ContextWindowSheet } from "./context-window-sheet";
-import { formatContextPercentage } from "./context-window-meter.utils";
+import { formatContextPercentage, meterPresentation } from "./context-window-meter.utils";
 
 interface ContextWindowMeterProps {
   serverId: string;
@@ -165,7 +164,9 @@ export function ContextWindowMeter({
   // Usage cards need a wider popover; without them it keeps the plain tooltip shape.
   const showsUsage = useHostReportsUsage(serverId);
   const popoverWidth = Math.min(USAGE_POPOVER_WIDTH, width - 24);
-  // Compact screens open the details in a sheet, which can hold a pressable Refresh.
+  // Paseoi: a sheet holds a pressable Refresh/Compact, so it serves compact layouts and every
+  // wide layout with no fine pointer (iPad, a touch tablet on the web layout). A tooltip takes
+  // no presses.
   const isCompact = useIsCompactFormFactor();
   const { finePointer } = usePointerCapabilities();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -215,7 +216,7 @@ export function ContextWindowMeter({
     ? t("contextWindow.accessibility", { percentage: context.percentage })
     : t("contextWindow.accessibilityNoData");
 
-  if (isCompact) {
+  if (meterPresentation({ isCompact, finePointer }) === "sheet") {
     return (
       <>
         <Pressable
@@ -246,43 +247,6 @@ export function ContextWindowMeter({
   const popoverStyle = showsUsage
     ? [styles.usagePopover, { width: popoverWidth }]
     : styles.plainPopover;
-
-  // Wide screens without hover (native, a touch tablet on the web layout) open the details in a
-  // tooltip on press. The tooltip takes no presses, so its usage cards have no Refresh.
-  if (!finePointer) {
-    return (
-      <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile>
-        <TooltipTrigger asChild triggerRefProp="ref">
-          <Pressable
-            style={pressableStyle}
-            testID="context-window-meter"
-            accessibilityRole="image"
-            accessibilityLabel={accessibilityLabel}
-          >
-            {ring}
-            {percentageLabel}
-          </Pressable>
-        </TooltipTrigger>
-        <TooltipContent
-          side="top"
-          align="center"
-          offset={8}
-          maxWidth={showsUsage ? popoverWidth : undefined}
-          style={popoverStyle}
-          testID="context-window-meter-tooltip"
-        >
-          <ContextWindowDetails
-            serverId={serverId}
-            agentId={agentId}
-            context={context}
-            sessionCost={formattedSessionCost}
-            showTitle
-            refreshable={false}
-          />
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
 
   return (
     <HoverCard>
