@@ -116,18 +116,27 @@ deliver_mobile() {
 
   # eas introspects the config and fails while packages/app/ios exists (the generated Info.plist
   # already declares scenes). Move it aside and always restore it.
-  local ios_dir="$ROOT_DIR/packages/app/ios" aside="$ROOT_DIR/packages/app/.ios-aside" moved=0
-  restore_ios() { if [[ "$moved" == 1 && -d "$aside" && ! -e "$ios_dir" ]]; then mv "$aside" "$ios_dir"; fi; }
+  # Globals, not locals: the EXIT trap runs after this function has returned.
+  IOS_DIR="$ROOT_DIR/packages/app/ios"
+  IOS_ASIDE="$ROOT_DIR/packages/app/.ios-aside"
+  IOS_MOVED=0
   trap restore_ios EXIT
-  if [[ -d "$ios_dir" ]]; then rm -rf "$aside"; mv "$ios_dir" "$aside"; moved=1; fi
+  if [[ -d "$IOS_DIR" ]]; then rm -rf "$IOS_ASIDE"; mv "$IOS_DIR" "$IOS_ASIDE"; IOS_MOVED=1; fi
 
   log "Mobile: publishing OTA update"
   local out
   out="$(cd packages/app && APP_VARIANT=paseoi npx eas-cli@latest update --channel paseoi \
-    --platform ios --message "$message" --non-interactive 2>&1 | tee /dev/stderr)"
+    --platform ios --environment production --message "$message" --non-interactive 2>&1 | tee /dev/stderr)"
   restore_ios
   trap - EXIT
   summary+=("ota: $(grep -iE 'group id' <<<"$out" | head -1 | sed 's/^ *//' || true)")
+}
+
+restore_ios() {
+  if [[ "${IOS_MOVED:-0}" == 1 && -d "$IOS_ASIDE" && ! -e "$IOS_DIR" ]]; then
+    mv "$IOS_ASIDE" "$IOS_DIR"
+    IOS_MOVED=0
+  fi
 }
 
 [[ "$skip_desktop" == 1 ]] || deliver_desktop
