@@ -25,5 +25,7 @@ export interface EditingTextInputProps extends Omit<
   onChangeText?: (text: string) => void;
   onPasteImages?: (files: readonly NativePastedFile[]) => void;
   onPasteError?: (message: string) => void;
+  /** Web editor only: fires after an undo with the text before and after it. */
+  onUndoText?: (previous: string, next: string) => void;
   variant?: "default" | "bottom-sheet";
 }

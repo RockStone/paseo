@@ -2,6 +2,7 @@ import {
   addFileReferences,
   addImageReferences,
   addContextReference,
+  attachmentWithUndoneMention,
   renumberContextReferences,
   renumberFileReferences,
   renumberImageReferences,
@@ -2346,6 +2347,18 @@ function ComposerContentImpl({
     ],
   );
 
+  const handleUndoText = useCallback(
+    (previousText: string, nextText: string) => {
+      const undone = attachmentWithUndoneMention({
+        previousText,
+        nextText,
+        attachments: selectedAttachments,
+      });
+      if (undone) handleRemoveAttachment(selectedAttachments.indexOf(undone as never));
+    },
+    [handleRemoveAttachment, selectedAttachments],
+  );
+
   const handleOpenAttachment = useCallback(
     (attachment: ComposerAttachment) => {
       openComposerAttachment({
@@ -3040,6 +3053,7 @@ function ComposerContentImpl({
                   onAttachButtonRef={handleAttachButtonRef}
                   onAddImages={addImages}
                   onPasteImages={handleNativePasteImages}
+                  onUndoText={handleUndoText}
                   client={client}
                   isReadyForDictation={isDictationReady}
                   placeholder={messagePlaceholder}

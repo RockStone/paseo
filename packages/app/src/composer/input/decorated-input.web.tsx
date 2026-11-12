@@ -283,6 +283,12 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
           }
           if (update.docChanged && !replacing.current && !update.view.composing)
             latest.current.onChangeText?.(text);
+          if (
+            update.docChanged &&
+            !replacing.current &&
+            update.transactions.some((transaction) => transaction.isUserEvent("undo"))
+          )
+            latest.current.onUndoText?.(update.startState.doc.toString(), text);
         }),
         EditorView.domEventHandlers({
           compositionend: (_event, view) => {

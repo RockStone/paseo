@@ -34,6 +34,7 @@ export const EditingTextInput = forwardRef<EditingTextInputHandle, EditingTextIn
       onChangeText,
       onPasteImages,
       onPasteError,
+      onUndoText: _undo,
       variant = isInsideBottomSheet ? "bottom-sheet" : "default",
       value: _,
       defaultValue: __,

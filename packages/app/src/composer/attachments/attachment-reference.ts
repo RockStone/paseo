@@ -51,6 +51,21 @@ export function addContextReference(
   };
 }
 
+/** The first image/file attachment whose inline mention an undo removed from the text. */
+export function attachmentWithUndoneMention(input: {
+  previousText: string;
+  nextText: string;
+  attachments: readonly ComposerAttachment[];
+}) {
+  return input.attachments.find(
+    (attachment) =>
+      (attachment.kind === "image" || attachment.kind === "file") &&
+      !!attachment.inlineMention &&
+      input.previousText.includes(attachment.inlineMention) &&
+      !input.nextText.includes(attachment.inlineMention),
+  );
+}
+
 interface RenumberInput<Attachment extends ComposerAttachment = UserComposerAttachment> {
   attachments: readonly Attachment[];
   text: string;

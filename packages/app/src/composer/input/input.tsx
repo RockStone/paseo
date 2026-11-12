@@ -182,6 +182,8 @@ export interface MessageInputProps {
   onAttachButtonRef?: (node: View | null) => void;
   onAddImages?: (images: ImageAttachment[]) => void;
   onPasteImages?: (files: readonly NativePastedFile[]) => void;
+  /** Web editor undo: text before and after. */
+  onUndoText?: (previous: string, next: string) => void;
   client: DaemonClient | null;
   /** Dictation start gate from host runtime (socket connected + directory ready). */
   isReadyForDictation?: boolean;
@@ -797,6 +799,7 @@ interface ComposerTextSurfaceProps {
     event: Pick<NativeSyntheticEvent<TextInputSelectionChangeEventData>, "nativeEvent">,
   ) => void;
   onPasteImages: ((files: readonly NativePastedFile[]) => void) | undefined;
+  onUndoText: ((previous: string, next: string) => void) | undefined;
   onPasteError: (message: string) => void;
   /** Fullscreen or split: the editor fills its slot instead of growing with its text. */
   fill: boolean;
@@ -867,6 +870,7 @@ function ComposerTextSurface(props: ComposerTextSurfaceProps): React.ReactElemen
         onKeyPress={props.onKeyPress}
         onSelectionChange={props.onSelectionChange}
         onPasteImages={props.onPasteImages}
+        onUndoText={props.onUndoText}
         onPasteError={props.onPasteError}
         autoFocus={props.autoFocus}
       />
@@ -1259,6 +1263,7 @@ interface ResolvedMessageInputProps {
   onAttachButtonRef: ((node: View | null) => void) | undefined;
   onAddImages: ((images: ImageAttachment[]) => void) | undefined;
   onPasteImages: ((files: readonly NativePastedFile[]) => void) | undefined;
+  onUndoText: ((previous: string, next: string) => void) | undefined;
   client: DaemonClient | null;
   isReadyForDictation: boolean | undefined;
   placeholder: string | undefined;
@@ -1307,6 +1312,7 @@ function resolveMessageInputProps(props: MessageInputProps): ResolvedMessageInpu
     onAttachButtonRef: props.onAttachButtonRef,
     onAddImages: props.onAddImages,
     onPasteImages: props.onPasteImages,
+    onUndoText: props.onUndoText,
     client: props.client,
     isReadyForDictation: props.isReadyForDictation,
     placeholder: props.placeholder,
@@ -1389,6 +1395,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       onAttachButtonRef,
       onAddImages,
       onPasteImages,
+      onUndoText,
       client,
       isReadyForDictation,
       placeholder,
@@ -2332,6 +2339,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             onKeyPress={shouldHandleWebKeyPress ? handleDesktopKeyPress : undefined}
             onSelectionChange={handleSelectionChange}
             onPasteImages={onPasteImages}
+            onUndoText={onUndoText}
             onPasteError={handlePasteError}
             fill={fillsSlot}
             compact={isCompact}
@@ -2364,6 +2372,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         handleDesktopKeyPress,
         handleSelectionChange,
         onPasteImages,
+        onUndoText,
         handlePasteError,
         isSplit,
         isFullscreen,

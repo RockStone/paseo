@@ -1,6 +1,7 @@
 import {
   addFileReferences,
   addImageReferences,
+  attachmentWithUndoneMention,
   renumberImageReferences,
   renumberFileReferences,
 } from "./attachments/attachment-reference";
@@ -1408,6 +1409,21 @@ describe("inline uploaded file references", () => {
 });
 
 describe("inline image references", () => {
+  it("finds the attachment whose mention an undo removed, and no other", () => {
+    const images = addImageReferences([], [imageWithId("a"), imageWithId("b")]);
+    const [a, b] = images;
+    const before = `x ${a!.inlineMention} y ${b!.inlineMention}`;
+    const after = `x ${a!.inlineMention} y `;
+    expect(
+      attachmentWithUndoneMention({ previousText: before, nextText: after, attachments: images }),
+    ).toBe(b);
+    expect(
+      attachmentWithUndoneMention({ previousText: after, nextText: after, attachments: images }),
+    ).toBeUndefined();
+    expect(
+      attachmentWithUndoneMention({ previousText: "hi", nextText: "h", attachments: images }),
+    ).toBeUndefined();
+  });
   it("renumbers surviving labels while preserving IDs, selection and submitted image positions", () => {
     const images = addImageReferences(
       [],
