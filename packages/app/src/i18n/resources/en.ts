@@ -228,6 +228,7 @@ export const en = {
     attachments: {
       addImage: "Add image",
       pasteImage: "Paste image",
+      pasteText: "Paste text as file",
       addFile: "Upload file",
       addIssueOrPr: "Add issue or PR",
       addIssueOrPr_mr: "Add issue or MR",

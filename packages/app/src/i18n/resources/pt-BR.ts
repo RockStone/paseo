@@ -233,6 +233,7 @@ export const ptBR: TranslationResources = {
     attachments: {
       addImage: "Adicionar imagem",
       pasteImage: "Colar imagem",
+      pasteText: "Colar texto como arquivo",
       addFile: "Enviar arquivo",
       addIssueOrPr: "Adicionar issue ou PR",
       addIssueOrPr_mr: "Adicionar issue ou MR",

@@ -2625,6 +2625,7 @@ function ComposerContentImpl({
     [githubSearchItems, githubSearchQueryTrimmed],
   );
 
+  const pasteTextStartRef = useRef<(() => void) | null>(null);
   const attachmentMenuItems = useMemo<AttachmentMenuItem[]>(() => {
     const items: AttachmentMenuItem[] = [
       {
@@ -2646,6 +2647,13 @@ function ComposerContentImpl({
         },
       });
     }
+    // Paseoi: touch users have no paste-as-file shortcut.
+    items.push({
+      id: "paste-text",
+      label: t("composer.attachments.pasteText"),
+      icon: <ThemedClipboardPaste size={ICON_SIZE.md} uniProps={iconForegroundMutedMapping} />,
+      onSelect: () => pasteTextStartRef.current?.(),
+    });
     items.push(
       {
         id: "github",
@@ -2989,6 +2997,7 @@ function ComposerContentImpl({
               addFiles={addFiles}
               focusInput={focusMessageInputForKeyboardAction}
               onPendingChange={setIsPastingTextFile}
+              startRef={pasteTextStartRef}
             />
 
             <ComposerAutocompleteBinding

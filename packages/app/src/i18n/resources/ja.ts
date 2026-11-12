@@ -231,6 +231,7 @@ export const ja: TranslationResources = {
     attachments: {
       addImage: "画像を追加",
       pasteImage: "画像を貼り付け",
+      pasteText: "テキストをファイルとして貼り付け",
       addFile: "ファイルをアップロード",
       addIssueOrPr: "イシューまたはPRを追加",
       addIssueOrPr_mr: "イシューまたはMRを追加",

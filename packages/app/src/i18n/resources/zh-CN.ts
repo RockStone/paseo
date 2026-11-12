@@ -230,6 +230,7 @@ export const zhCN: TranslationResources = {
     attachments: {
       addImage: "添加图片",
       pasteImage: "粘贴图片",
+      pasteText: "将文本粘贴为文件",
       addFile: "Upload file",
       addIssueOrPr: "添加 issue 或 PR",
       addIssueOrPr_mr: "添加 issue 或 MR",

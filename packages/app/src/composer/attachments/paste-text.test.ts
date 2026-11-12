@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { FileUploadInput, FileUploadResult } from "@getpaseo/client/internal/daemon-client";
-import { createTextFilePaste } from "./paste-text";
+import { canStartTextFilePaste, createTextFilePaste } from "./paste-text";
 
 const file: FileUploadInput = {
   fileName: "paste-test.txt",
@@ -85,5 +85,13 @@ describe("paste text as a file", () => {
     await paste.run();
     expect(capture).toHaveBeenCalledTimes(2);
     expect(attach).toHaveBeenCalledOnce();
+  });
+});
+
+describe("canStartTextFilePaste", () => {
+  it("starts from idle and pending-free states, and waits for Retry after an error", () => {
+    expect(canStartTextFilePaste({ blocked: false, status: "idle" })).toBe(true);
+    expect(canStartTextFilePaste({ blocked: true, status: "idle" })).toBe(false);
+    expect(canStartTextFilePaste({ blocked: false, status: "error" })).toBe(false);
   });
 });

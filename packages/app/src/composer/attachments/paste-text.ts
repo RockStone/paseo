@@ -59,3 +59,11 @@ export function createTextFilePaste(deps: PasteDependencies) {
     },
   };
 }
+
+/** Paseoi: the shortcut and the attachment menu share one rule; a failed paste waits for Retry. */
+export function canStartTextFilePaste(input: {
+  blocked: boolean;
+  status: PasteState["status"];
+}): boolean {
+  return !input.blocked && input.status !== "error";
+}

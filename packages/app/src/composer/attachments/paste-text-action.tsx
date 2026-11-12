@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useId, useMemo, useRef, useSyncExternalStore, type RefObject } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
@@ -13,7 +13,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useSessionStore } from "@/stores/session-store";
 import { useComposerKeyboardScope } from "../keyboard-scope";
-import { createTextFilePaste } from "./paste-text";
+import { canStartTextFilePaste, createTextFilePaste } from "./paste-text";
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const spinnerColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
@@ -27,6 +27,8 @@ interface PasteTextAsFileActionProps {
   addFiles(files: Extract<UserComposerAttachment, { kind: "file" }>[]): void;
   focusInput(): void;
   onPendingChange(pending: boolean): void;
+  /** Paseoi: filled with a starter so the attachment menu reaches the same paste as the shortcut. */
+  startRef?: RefObject<(() => void) | null>;
 }
 
 export function PasteTextAsFileAction(props: PasteTextAsFileActionProps) {
@@ -78,10 +80,21 @@ export function PasteTextAsFileAction(props: PasteTextAsFileActionProps) {
     priority: 20,
     isActive: () => isActiveComposer,
     handle: () => {
-      if (!props.blocked && state.status !== "error") void paste.run();
+      if (canStartTextFilePaste({ blocked: props.blocked, status: state.status })) void paste.run();
       return true;
     },
   });
+  const { startRef } = props;
+  useEffect(() => {
+    if (!startRef) return;
+    startRef.current = () => {
+      if (props.enabled && canStartTextFilePaste({ blocked: props.blocked, status: state.status }))
+        void paste.run();
+    };
+    return () => {
+      startRef.current = null;
+    };
+  }, [startRef, props.enabled, props.blocked, state.status, paste]);
   if (state.status === "idle") return null;
   if (state.status === "pending") {
     return (

@@ -230,6 +230,7 @@ export const ar: TranslationResources = {
     attachments: {
       addImage: "أضف صورة",
       pasteImage: "لصق صورة",
+      pasteText: "لصق النص كملف",
       addFile: "Upload file",
       addIssueOrPr: "أضف مشكلة أو PR",
       addIssueOrPr_mr: "أضف مشكلة أو MR",
