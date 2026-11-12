@@ -84,7 +84,7 @@ const variants = {
   // both need credentials that belong to the official bundle ID (see notificationPlugins below).
   paseoi: {
     name: "Paseoi",
-    packageId: "sh.paseo.paseoi",
+    packageId: "com.hydrodojo.paseoi",
     icon: "./assets/images/icon-paseoi.png",
     googleServicesFile: undefined,
     googleServiceInfoPlist: undefined,

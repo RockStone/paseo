@@ -313,14 +313,14 @@ down:
 ## Paseoi iPhone and iPad build
 
 The `paseoi` value of `APP_VARIANT` (`packages/app/app.config.js`) builds the native app as
-Paseoi: bundle ID `sh.paseo.paseoi` (the `sh.paseo.<variant>` pattern the other variants use),
+Paseoi: bundle ID `com.hydrodojo.paseoi` (under the owner's domain, not upstream's `sh.paseo`),
 so it installs beside the official Paseo app. The icon is `assets/images/icon-paseoi.png`, the
 root `Paseoi.icns` cropped to its tile and flattened, because iOS rejects alpha and applies its
 own corner mask.
 
 The variant carries no Firebase files and omits the `expo-notifications` plugin, so there is no
 push entitlement; both need credentials that belong to the official bundle ID. Add them for
-`sh.paseo.paseoi` before expecting push on this build.
+`com.hydrodojo.paseoi` before expecting push on this build.
 
 With a device connected and a signing team selected in Xcode:
 
