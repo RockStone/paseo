@@ -418,9 +418,11 @@ function UserMessageImagePreview({
   const handlePress = useCallback(() => {
     onOpen(image);
   }, [onOpen, image]);
+  // Paseoi: phones show a wrapping grid of small thumbnails instead of one large row each.
+  const compact = useIsCompactFormFactor();
   return (
     <AttachmentFrame onPress={handlePress} accessibilityLabel={accessibilityLabel}>
-      <AttachmentThumbnail metadata={image} size="message" />
+      <AttachmentThumbnail metadata={image} size={compact ? "messageCompact" : "message"} />
     </AttachmentFrame>
   );
 }

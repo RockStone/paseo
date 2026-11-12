@@ -11,6 +11,8 @@ import type { Theme } from "@/styles/theme";
 const ATTACHMENT_CONTENT_HEIGHT = 48;
 const IMAGE_PREVIEW_SIZE = 120;
 const MESSAGE_IMAGE_PREVIEW_SIZE = 200;
+// Paseoi: three of these plus two spacing[2] gaps fit a 390pt phone inside the message margins.
+const MESSAGE_IMAGE_PREVIEW_SIZE_COMPACT = 104;
 
 interface AttachmentPillProps {
   onOpen: () => void;
@@ -150,7 +152,7 @@ export function AttachmentThumbnail({
   size = "small",
 }: {
   metadata: AttachmentMetadata;
-  size?: "small" | "large" | "message";
+  size?: "small" | "large" | "message" | "messageCompact";
 }) {
   const uri = useAttachmentPreviewUrl(metadata);
   const source = useMemo(() => ({ uri: uri ?? "" }), [uri]);
@@ -159,6 +161,7 @@ export function AttachmentThumbnail({
       styles.thumbnail,
       size === "large" && styles.largeThumbnail,
       size === "message" && styles.messageThumbnail,
+      size === "messageCompact" && styles.messageThumbnailCompact,
     ],
     [size],
   );
@@ -218,6 +221,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   largeThumbnail: { width: IMAGE_PREVIEW_SIZE, height: IMAGE_PREVIEW_SIZE },
   messageThumbnail: { width: MESSAGE_IMAGE_PREVIEW_SIZE, height: MESSAGE_IMAGE_PREVIEW_SIZE },
+  messageThumbnailCompact: {
+    width: MESSAGE_IMAGE_PREVIEW_SIZE_COMPACT,
+    height: MESSAGE_IMAGE_PREVIEW_SIZE_COMPACT,
+  },
   thumbnailPlaceholder: {
     backgroundColor: theme.colors.surface1,
   },

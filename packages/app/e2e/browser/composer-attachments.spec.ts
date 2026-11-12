@@ -279,9 +279,15 @@ test.describe("Composer attachments", () => {
         return { gallery: element.getBoundingClientRect().toJSON(), images: rects };
       });
       expect(compactGeometry.gallery.width).toBeLessThanOrEqual(390);
-      expect(compactGeometry.images[1].y).toBeGreaterThan(compactGeometry.images[0].y);
+      // Paseoi: phones show small thumbnails, three or more to a row.
+      expect(compactGeometry.images[0].width).toBeLessThanOrEqual(112);
+      expect(compactGeometry.images[1].y).toBe(compactGeometry.images[0].y);
+      expect(compactGeometry.images[2].y).toBe(compactGeometry.images[0].y);
       expect(compactGeometry.images[0].right).toBeLessThanOrEqual(compactGeometry.gallery.right);
       expect(compactGeometry.images[0].left).toBeGreaterThanOrEqual(compactGeometry.gallery.left);
+      await page.screenshot({
+        path: "/private/tmp/claude-501/-Users-zono-Projects-paseo/bf6fa537-fe24-4b08-9a01-06e775742e60/scratchpad/ui-tweaks-phone-images-after.png",
+      });
       await page.setViewportSize(viewport);
       await attachImageFromMenu(page, { ...TEST_IMAGE, name: "other-message.png" });
       await fillComposerDraft(page, "Separate image group");
