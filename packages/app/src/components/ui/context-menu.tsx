@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useMemo,
   type ComponentProps,
   type PropsWithChildren,
   type ReactElement,
@@ -27,6 +28,7 @@ import {
   type MenuTriggerState,
 } from "@/components/ui/menu";
 import { PressHighlight } from "@/components/ui/press-highlight";
+import { bindLongPressMenuDismiss } from "@/components/ui/context-menu-long-press";
 
 /**
  * A menu opened by a long press or a right click, anchored to the point of the gesture rather
@@ -34,6 +36,11 @@ import { PressHighlight } from "@/components/ui/press-highlight";
  *
  * Everything below the trigger is the shared menu engine — see `@/components/ui/menu` and
  * docs/menus.md. Only the way it opens is different from `dropdown-menu.tsx`.
+ *
+ * On native the Pressable's `onLongPress` opens it. On web a right click does, and so does a
+ * touch long press: touch browsers never fire `contextmenu` for one, so
+ * `context-menu-long-press.web.ts` recognizes the hold and dispatches a synthetic `contextmenu`
+ * that lands in `handleContextMenu` below like a right click.
  */
 
 export { MenuItem as ContextMenuItem };
@@ -106,6 +113,7 @@ export function ContextMenuTrigger({
   enabledOnWeb = true,
   longPressDelayMs,
   onContextMenu,
+  selectableText = false,
   triggerRef,
   ...props
 }: PropsWithChildren<
@@ -119,6 +127,12 @@ export function ContextMenuTrigger({
     onContextMenu?: (event: unknown) => void;
     triggerRef?: Ref<View | null>;
     contextOnly?: boolean;
+    /**
+     * Keeps the trigger's text selectable on touch browsers. By default a trigger is a control
+     * whose text is not selectable under a coarse pointer, so iOS starts no selection under
+     * the long press that opens the menu.
+     */
+    selectableText?: boolean;
   }
 >): ReactElement {
   const ctx = useMenuContext("ContextMenuTrigger");
@@ -176,8 +190,18 @@ export function ContextMenuTrigger({
       }
       onContextMenu?.(event);
       openAtEvent(event);
+      bindLongPressMenuDismiss(event, () => ctx.setOpen(false));
     },
-    [onContextMenu, openAtEvent, shouldEnableOnThisPlatform],
+    [ctx, onContextMenu, openAtEvent, shouldEnableOnThisPlatform],
+  );
+
+  const callerDataSet = props.dataSet;
+  const triggerDataSet = useMemo(
+    () =>
+      isWeb && shouldEnableOnThisPlatform
+        ? { ...callerDataSet, contextMenuTrigger: selectableText ? "text" : "row" }
+        : callerDataSet,
+    [callerDataSet, selectableText, shouldEnableOnThisPlatform],
   );
 
   const resolveDynamicStyle = useCallback(
@@ -200,6 +224,7 @@ export function ContextMenuTrigger({
         {...(props as ViewProps)}
         ref={handleRef}
         collapsable={false}
+        dataSet={triggerDataSet}
         // @ts-ignore - onContextMenu is web-only and not in RN types.
         onContextMenu={handleContextMenu}
         style={contextOnlyStyle}
@@ -215,6 +240,7 @@ export function ContextMenuTrigger({
       ref={handleRef}
       collapsable={false}
       disabled={disabled}
+      dataSet={triggerDataSet}
       delayLongPress={longPressDelayMs}
       onLongPress={handleLongPress}
       // @ts-ignore - onContextMenu is web-only and not in RN types.

@@ -26,6 +26,26 @@ when you have actually looked at it on a phone.
 `ContextMenu` is the exception: it defaults to `compactMode="sheet"` and enables native long press.
 Disable mobile triggering explicitly on draggable rows, where long press belongs to drag instead.
 
+## Long press on touch browsers
+
+iPadOS Safari and Chrome never fire `contextmenu` for a long press, so a right-click menu has no
+touch path there. One document-level recognizer
+(`packages/app/src/components/ui/context-menu-long-press.web.ts`, installed in the root layout)
+covers every web context menu: after a 500ms touch hold that moved under 10px it dispatches a
+synthetic `contextmenu` at the touch point, and the trigger's right-click handler opens the menu.
+Don't add per-trigger long-press code; a raw `onContextMenu` handler gets long press for free.
+Call `bindLongPressMenuDismiss` from it so a drag that follows the hold can close the menu.
+
+- Only touch and pen pointers start a press, so a mouse + touch hybrid keeps right click.
+- The click after a recognized press is swallowed, so the row isn't also activated.
+- Moving before the hold elapses cancels it, so a scroll or a tab drag never opens a menu.
+  Moving after the menu opened closes it and leaves the gesture to the drag.
+- `ContextMenuTrigger` marks itself `data-context-menu-trigger="row"`, which removes the iOS
+  callout and text selection under a coarse pointer. Pass `selectableText` on a surface whose text
+  must stay selectable; it then loses only the callout.
+- Listeners are passive and the move listeners exist only while a finger is down. Keep it that way:
+  it runs on every touch in the app, including scrolls.
+
 ## When the items differ per form factor
 
 A menu whose contents depend on what else is on screen gets one component per surface, not one

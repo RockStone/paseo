@@ -147,6 +147,7 @@ import { getNextThemePreference, ICON_STROKE_WIDTH } from "@/styles/theme";
 import { useSessionStore } from "@/stores/session-store";
 import { WorkspaceLayoutModePublisher } from "@/workspace-tabs/layout-mode-publisher";
 import { installWebScrollbarStyles } from "@/styles/install-web-scrollbar-styles";
+import { installContextMenuLongPress } from "@/components/ui/context-menu-long-press";
 import type { HostProfile } from "@/types/host-connection";
 import {
   useHasWindowChromeObstruction,
@@ -1256,6 +1257,7 @@ function RootAppSurface() {
 
 export default function RootLayout() {
   useEffect(() => installWebScrollbarStyles(), []);
+  useEffect(() => installContextMenuLongPress(), []);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState !== "active") {

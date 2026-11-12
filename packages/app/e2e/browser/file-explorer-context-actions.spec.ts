@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { test } from "../support/fixtures";
 import { downloadFileFromExplorer, openFileExplorer } from "../support/helpers/file-explorer";
 import { openChangesPanel } from "../support/helpers/workspace-tabs";
@@ -331,7 +331,9 @@ test("creates, renames, copies, and deletes entries through the file explorer", 
   const menu = page.getByTestId(/file-explorer-row-\d+-context-menu$/);
   await expect(menu).toBeVisible();
 
-  await page.getByText("Copy path", { exact: true }).click({ button: "right" });
+  await page
+    .getByRole("menuitem", { name: "Copy full path", exact: true })
+    .click({ button: "right" });
   await expect(menu).toBeVisible();
 
   const backdrop = page.getByTestId(/file-explorer-row-\d+-context-menu-backdrop$/);
@@ -542,4 +544,83 @@ test("downloads a file over direct TCP with its original filename and bytes", as
   await downloaded.saveAs(savedFile);
   expect(await downloaded.failure()).toBeNull();
   expect(await readFile(savedFile)).toEqual(source);
+});
+
+// Hold a finger on the element's centre through Chromium's touch input. A CDP touch sequence
+// fires real touch pointer events, so the app's long-press recognizer sees what an iPad sends.
+async function touchHold(target: Locator, holdMs: number): Promise<void> {
+  const page = target.page();
+  const box = await target.boundingBox();
+  if (!box) throw new Error("Touch target has no bounding box");
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const input = await page.context().newCDPSession(page);
+  try {
+    await input.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+    await page.waitForTimeout(holdMs);
+    await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await input.detach();
+  }
+}
+
+function countTrustedContextMenus(): void {
+  const counts = { trusted: 0 };
+  Object.assign(window, { __contextMenuCounts: counts });
+  const count = (event: MouseEvent) => {
+    if (event.isTrusted) counts.trusted += 1;
+  };
+  window.addEventListener("contextmenu", count, { capture: true });
+}
+
+// iPadOS Safari and Chrome at desktop width: the desktop layout, no mouse, and no `contextmenu`
+// from a long press. The menu must still open from a hold, and a tap must still be a tap.
+test.describe("Context menus by long press on a touch screen at desktop width", () => {
+  test.use({ hasTouch: true, isMobile: false, viewport: { width: 1180, height: 820 } });
+
+  test("a long press opens a file row's and a tab's context menu; a tap does not", async ({
+    page,
+  }) => {
+    await gotoWorkspace(page, workspace.workspaceId);
+    expect(
+      await page.evaluate(() => window.matchMedia("(hover: hover) and (pointer: fine)").matches),
+    ).toBe(false);
+    await page.evaluate(countTrustedContextMenus);
+    await openFileExplorer(page);
+
+    const tree = page.getByTestId("file-explorer-tree-scroll");
+    const row = tree.getByText("README.md", { exact: true }).first();
+    const copyRelativePath = page.getByRole("menuitem", {
+      name: "Copy relative path",
+      exact: true,
+    });
+    const fileTab = page.getByTestId("workspace-tab-file_README.md").filter({ visible: true });
+
+    await touchHold(row, 800);
+    await expect(copyRelativePath).toBeVisible();
+    // The finger lifting off the row is not also a tap that opens the file.
+    await expect(fileTab).toHaveCount(0);
+    // The menu came from the app's recognizer, not from the browser's own long-press event.
+    expect(
+      await page.evaluate(
+        () =>
+          (window as unknown as { __contextMenuCounts: { trusted: number } }).__contextMenuCounts
+            .trusted,
+      ),
+    ).toBe(0);
+    await page.keyboard.press("Escape");
+    await expect(copyRelativePath).toHaveCount(0);
+
+    await row.tap();
+    await expect(fileTab).toHaveCount(1);
+    await expect(copyRelativePath).toHaveCount(0);
+
+    await touchHold(fileTab, 800);
+    await expect(copyRelativePath).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(copyRelativePath).toHaveCount(0);
+
+    await fileTab.tap();
+    await page.waitForTimeout(800);
+    await expect(copyRelativePath).toHaveCount(0);
+  });
 });

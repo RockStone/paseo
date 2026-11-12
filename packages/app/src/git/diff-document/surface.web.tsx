@@ -896,7 +896,7 @@ export function DiffSurface(props: DiffSurfaceProps) {
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger contextOnly style={CONTEXT_TRIGGER_STYLE}>
+      <ContextMenuTrigger contextOnly selectableText style={CONTEXT_TRIGGER_STYLE}>
         {surface}
       </ContextMenuTrigger>
       <ContextMenuContent align="start" minWidth={180} testID="diff-source-context-menu">

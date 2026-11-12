@@ -6,6 +6,7 @@ import {
   ContextMenuItem,
   useContextMenu,
 } from "@/components/ui/context-menu";
+import { bindLongPressMenuDismiss } from "@/components/ui/context-menu-long-press";
 import { useToast } from "@/contexts/toast-context";
 
 interface Props {
@@ -33,6 +34,7 @@ function FileLinkMenu({ path, onResolve, children }: Props) {
       onResolve();
       menu.setAnchorRect({ x: event.pageX, y: event.pageY, width: 0, height: 0 });
       menu.setOpen(true);
+      bindLongPressMenuDismiss(event, () => menu.setOpen(false));
     },
     [menu, onResolve],
   );
@@ -47,7 +49,10 @@ function FileLinkMenu({ path, onResolve, children }: Props) {
   }, [path, t, toast]);
   return (
     <>
-      <span onContextMenu={open}>{children}</span>
+      {/* "text": a touch long press opens this menu but the link stays selectable in the chat. */}
+      <span data-context-menu-trigger="text" onContextMenu={open}>
+        {children}
+      </span>
       <ContextMenuContent>
         <ContextMenuItem testID="file-link-copy-path" disabled={path === null} onSelect={copy}>
           {t("workspace.fileActions.copyPath")}

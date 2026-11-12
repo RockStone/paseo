@@ -59,6 +59,7 @@ import type {
 import { useSessionStore } from "@/stores/session-store";
 import { FileActionsContextMenuContent } from "@/components/file-actions-menu";
 import { ContextMenu, ContextMenuTrigger, useContextMenu } from "@/components/ui/context-menu";
+import { bindLongPressMenuDismiss } from "@/components/ui/context-menu-long-press";
 import { useFileDownload } from "@/hooks/use-file-download";
 import { useFileExplorerActions } from "@/hooks/use-file-explorer-actions";
 import { useIsLocalDaemon } from "@/hooks/use-is-local-daemon";
@@ -1126,6 +1127,8 @@ function isFileExplorerRowTarget(target: unknown): boolean {
   return target.closest('[data-testid^="file-explorer-row-"]') !== null;
 }
 
+const ROOT_CONTEXT_TARGET_DATA_SET = { contextMenuTrigger: "row" };
+
 function RootCreationContextTarget({
   children,
   enabled,
@@ -1148,6 +1151,7 @@ function RootCreationContextTarget({
         height: 0,
       });
       contextMenu.setOpen(true);
+      bindLongPressMenuDismiss(event, () => contextMenu.setOpen(false));
     },
     [contextMenu, enabled],
   );
@@ -1155,6 +1159,7 @@ function RootCreationContextTarget({
   return (
     <View
       {...{ onContextMenu: handleContextMenu }}
+      dataSet={enabled ? ROOT_CONTEXT_TARGET_DATA_SET : undefined}
       style={styles.rootContextTarget}
       testID="files-empty-area"
     >
