@@ -190,6 +190,11 @@ runs when that promise resolves: LegendList resolves it after it has re-aimed fo
 measured on the way. A drag, a newer jump or an unmount drops the landing. Before the list has placed
 its rows the jump waits, because the initial scroll to the end would override it.
 
+A hidden chat stays mounted, so only a remount or a relaunch restores a position
+(`unread-jump/use-reading-position.ts`, persisted in the read-marker store). The reader returns to the
+saved row unless they were at the bottom, a message arrived while they were away, or the row is not
+loaded; then the chat lands at the end as before. Nothing is saved before that decision.
+
 ### LegendList patch
 
 `patches/@legendapp+list+3.7.1.patch` carries twelve changes for the timeline. Its header lists

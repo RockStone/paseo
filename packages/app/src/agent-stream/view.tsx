@@ -115,6 +115,7 @@ import {
   UnreadJumpHighlightContext,
 } from "./unread-jump/highlight";
 import { UnreadJumpHighlight } from "./unread-jump/highlight-view";
+import { useReadingPosition } from "./unread-jump/use-reading-position";
 import { useUnreadJump } from "./unread-jump/use-unread-jump";
 import { layoutStream, type StreamLayoutItem } from "./layout";
 import {
@@ -716,6 +717,23 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       onJumpError: handleTimelineHistoryLoadError,
     });
 
+    // Paseoi: the native viewport keeps hidden chats mounted, so only a remount or relaunch needs
+    // the saved reading position. The web viewport restores its own offset.
+    const readingPosition = useReadingPosition({
+      enabled: !isWeb,
+      serverId: resolvedServerId,
+      agentId,
+      timelineEpoch,
+      tail: effectiveStreamItems,
+      head: effectiveStreamHead,
+      isActive,
+      isNearBottom,
+      isHistoryReady: isAuthoritativeHistoryReady,
+      viewportRef,
+      mountedHistoryMessageIds,
+      revealLoadedMessage: revealLoadedHistory,
+    });
+
     useImperativeHandle(
       ref,
       () => ({
@@ -1220,6 +1238,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       const seq = row?.item.timelineCursor?.seq ?? null;
       chatOutline.reportReadingPosition(seq);
       unreadJump.reportReadingTop(seq);
+      readingPosition.reportReadingTop(seq);
     });
 
     const handleReadThroughChange = useStableEvent((rowId: string | null) => {
