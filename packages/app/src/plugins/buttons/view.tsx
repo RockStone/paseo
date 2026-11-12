@@ -28,6 +28,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { HEADER_CONTROL_HEIGHT } from "@/components/ui/control-geometry";
 import {
+  HEADER_ICON_HIT_SLOP,
   iconButtonChromeStyle,
   type IconButtonChromeState,
 } from "@/components/ui/icon-button-chrome";
@@ -339,6 +340,7 @@ function ButtonControl({ view }: { view: ButtonView }) {
       accessibilityState={accessibilityState}
       disabled={disabled}
       onPress={press}
+      hitSlop={composer ? undefined : HEADER_ICON_HIT_SLOP}
       style={buttonStyle}
     >
       {contents}

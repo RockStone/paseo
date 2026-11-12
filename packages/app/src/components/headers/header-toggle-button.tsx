@@ -6,6 +6,7 @@ import { Shortcut } from "@/components/ui/shortcut";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import { isWeb } from "@/constants/platform";
 import {
+  HEADER_ICON_HIT_SLOP,
   iconButtonChromeFrameStyle,
   useIconButtonChromeStyle,
 } from "@/components/ui/icon-button-chrome";
@@ -55,6 +56,7 @@ export function HeaderToggleButton({
   return (
     <Tooltip delayDuration={tooltipDelayDuration} enabledOnDesktop enabledOnMobile={false}>
       <TooltipTrigger
+        hitSlop={HEADER_ICON_HIT_SLOP}
         {...props}
         {...ariaExpandedProps}
         disabled={disabled}

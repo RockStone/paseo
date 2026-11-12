@@ -14,7 +14,9 @@ export const HEADER_INNER_HEIGHT = bySizing(BAR_HEIGHT).md;
 export const HEADER_INNER_HEIGHT_MOBILE = 56;
 /** The tab rail and pane toolbars under the header. A breakpoint value for stylesheets. */
 export const WORKSPACE_SECONDARY_HEADER_HEIGHT = bySizing(BAR_HEIGHT);
-export const HEADER_TOP_PADDING_MOBILE = 8;
+// Paseoi: 0 (upstream 8). The status-bar inset already separates the header from the top edge;
+// the extra 8pt stacked above it left a visible band on phones.
+export const HEADER_TOP_PADDING_MOBILE = 0;
 
 // Measured composer width; independent of the window's compact/wide breakpoint.
 export const COMPACT_CONTENT_WIDTH = 500;

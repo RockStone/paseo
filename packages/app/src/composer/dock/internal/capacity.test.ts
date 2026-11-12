@@ -28,6 +28,20 @@ describe("composer bottom placement", () => {
     ).toBe(24);
   });
 
+  it("lets the composer overlap the indicator relief and still clears the keyboard", () => {
+    const placement = resolveComposerBottomPlacement({
+      safeAreaBottom: 34,
+      contentSpacing: 16,
+      indicatorRelief: 12,
+    });
+    expect(placement).toEqual({ restingPadding: 22, keyboardGap: 28 });
+    // Keyboard top minus composer bottom stays at the content spacing.
+    const shift = 264 - 34;
+    expect(placement.restingPadding + shift + Math.min(placement.keyboardGap, shift) - 264).toBe(
+      16,
+    );
+  });
+
   it.each([0, 20, 34])("never rests closer to the edge than the content spacing (%s)", (inset) => {
     expect(
       resolveComposerBottomPlacement({ safeAreaBottom: inset, contentSpacing: 16 }).restingPadding,

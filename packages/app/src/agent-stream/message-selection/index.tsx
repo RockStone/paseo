@@ -13,7 +13,11 @@ import { Check, ListChecks, X } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
-import { ToolbarButton } from "@/components/ui/pane-content-toolbar";
+import {
+  FooterActionButton,
+  footerActionHoverColor,
+  footerActionMutedColor,
+} from "@/components/ui/footer-action-button";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useToast } from "@/contexts/toast-context";
 import { PressHighlight } from "@/components/ui/press-highlight";
@@ -29,7 +33,6 @@ export const MessageSelectionTargetProvider = TargetContext.Provider;
 const CancelIcon = withUnistyles(X);
 const ListIcon = withUnistyles(ListChecks);
 const CheckIcon = withUnistyles(Check);
-const iconColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 const checkColor = (theme: Theme) => ({ color: theme.colors.accentForeground });
 const noopSubscribe = () => () => {};
 export function MessageSelectionProvider({ children }: { children: ReactNode }) {
@@ -94,26 +97,35 @@ export function SelectMessageButton({ item }: { item: SelectableMessage }) {
   // While selecting, the same spot cancels the selection.
   if (active)
     return (
-      <ToolbarButton
+      <FooterActionButton
         label={t("common.cancel")}
         onPress={cancel}
         testID="message-selection-cancel"
-        compact
-      >
-        <CancelIcon size={ICON_SIZE.sm} uniProps={iconColor} />
-      </ToolbarButton>
+        renderIcon={renderCancelIcon}
+      />
     );
   return (
-    <ToolbarButton
+    <FooterActionButton
       label={t("message.selection.start")}
       onPress={start}
       testID="message-selection-start"
-      compact
-    >
-      <ListIcon size={ICON_SIZE.sm} uniProps={iconColor} />
-    </ToolbarButton>
+      renderIcon={renderListIcon}
+    />
   );
 }
+
+const renderCancelIcon = (hovered: boolean) => (
+  <CancelIcon
+    size={ICON_SIZE.sm}
+    uniProps={hovered ? footerActionHoverColor : footerActionMutedColor}
+  />
+);
+const renderListIcon = (hovered: boolean) => (
+  <ListIcon
+    size={ICON_SIZE.sm}
+    uniProps={hovered ? footerActionHoverColor : footerActionMutedColor}
+  />
+);
 
 /** Starts selecting messages in a conversation with none checked, for menus. */
 export function useStartMessageSelection(target: string | null) {

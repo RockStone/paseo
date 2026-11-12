@@ -48,8 +48,16 @@ export interface ComposerBottomPlacement {
 export function resolveComposerBottomPlacement(input: {
   safeAreaBottom: number;
   contentSpacing: number;
+  /**
+   * Paseoi: how much of the safe-area bottom the composer may overlap. The home indicator sits
+   * in the bottom few points of the inset, so the full inset left a band under the composer.
+   */
+  indicatorRelief?: number;
 }): ComposerBottomPlacement {
-  const restingPadding = Math.max(input.safeAreaBottom, input.contentSpacing);
+  const restingPadding = Math.max(
+    input.safeAreaBottom - (input.indicatorRelief ?? 0),
+    input.contentSpacing,
+  );
   return {
     restingPadding,
     keyboardGap: input.safeAreaBottom + input.contentSpacing - restingPadding,

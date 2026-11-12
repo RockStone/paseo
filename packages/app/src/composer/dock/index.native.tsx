@@ -143,6 +143,7 @@ export function ComposerDock({
   const placement = resolveComposerBottomPlacement({
     safeAreaBottom: insets.bottom,
     contentSpacing: SPACING[4],
+    indicatorRelief: SPACING[3],
   });
   // Preserve the existing centered form's visual balance on tablets.
   const bottomInset = centered && !fullscreen ? HEADER_INNER_HEIGHT + 24 : 0;

@@ -14,6 +14,10 @@ export { extraMutedIconColorMapping, mutedIconColorMapping } from "@/components/
 
 export type IconButtonChromeSize = "large" | "small";
 
+const TOUCH_HEADER_ICON_WIDTH = 36;
+/** Restores the 44pt touch width of a 36pt header icon. */
+export const HEADER_ICON_HIT_SLOP = { left: 4, right: 4 } as const;
+
 // Touch-sized, every icon button is one target with one glyph size.
 const GLYPH_SIZES = {
   large: { touch: TOUCH_ICON_SIZE.md, pointer: ICON_SIZE.md },
@@ -85,7 +89,9 @@ export function iconButtonChromeStyle({
     resolveIconButtonFrame(size, compact),
     round ? styles.round : null,
     style,
-    highlighted ? styles.highlighted : null,
+    highlighted && size === "large" ? styles.highlightedLarge : null,
+    highlighted && size !== "large" ? styles.highlighted : null,
+    size === "large" && state?.pressed ? styles.pressedLarge : null,
     disabled ? styles.disabled : null,
   ];
 }
@@ -108,7 +114,9 @@ export function smallIconButtonChromeFrameSize(compact = false): number {
 
 const styles = StyleSheet.create((theme) => ({
   large: {
-    width: bySizing(ICON_BUTTON_SIZES.large),
+    // Paseoi: touch-sized header icons are 36pt wide (the glyph is 20pt) so the island sits
+    // tighter; the 44pt target is kept by `HEADER_ICON_HIT_SLOP` on the pressables.
+    width: bySizing({ touch: TOUCH_HEADER_ICON_WIDTH, pointer: ICON_BUTTON_SIZES.large.pointer }),
     height: bySizing(ICON_BUTTON_SIZES.large),
     padding: 0,
     borderRadius: theme.borderRadius.md,
@@ -145,6 +153,13 @@ const styles = StyleSheet.create((theme) => ({
   },
   highlighted: {
     backgroundColor: theme.colors.interactionHighlight,
+  },
+  // Paseoi: touch-sized header icons draw no filled box; pressing dims the glyph instead.
+  highlightedLarge: {
+    backgroundColor: { xs: "transparent", md: theme.colors.interactionHighlight },
+  },
+  pressedLarge: {
+    opacity: bySizing({ touch: 0.5, pointer: 1 }),
   },
   disabled: {
     opacity: theme.opacity[50],

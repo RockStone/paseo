@@ -26,6 +26,7 @@ import {
   iconButtonChromeGlyphSize,
   iconButtonChromeStyle,
   useIconButtonChromeStyle,
+  HEADER_ICON_HIT_SLOP,
 } from "@/components/ui/icon-button-chrome";
 import { TerminalProfileIcon } from "@/components/terminal-profile-icon";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
@@ -79,7 +80,7 @@ function WorkspaceHeaderMenuAttentionTriggerIcon() {
  * each other — so the slop can only grow vertically. Widening it would put two buttons' slop over
  * the same pixels, which is a worse miss than a small target.
  */
-const COMPACT_HEADER_BUTTON_HIT_SLOP = { top: 8, bottom: 8 } as const;
+const COMPACT_HEADER_BUTTON_HIT_SLOP = { top: 8, bottom: 8, ...HEADER_ICON_HIT_SLOP } as const;
 
 /**
  * Actions that belong to the workspace itself rather than to a tab. Both header menus render them,
