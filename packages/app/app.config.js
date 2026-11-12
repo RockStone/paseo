@@ -80,12 +80,19 @@ const variants = {
       fallbackRelativePath: "./.secrets/GoogleService-Info.prod.plist",
     }),
   },
-  // Paseoi: installs beside the official app. No Firebase files and no push entitlement, because
-  // both need credentials that belong to the official bundle ID (see notificationPlugins below).
+  // Paseoi: installs beside the official app, with its own Expo project (owner's zenter-inc org) so
+  // Expo push reaches it through the owner's APNs key. No Firebase files: iOS only.
   paseoi: {
     name: "Paseoi",
     packageId: "com.hydrodojo.paseoi",
     icon: "./assets/images/icon-paseoi.png",
+    // The owner's paid team (Zenter, Inc.), so Xcode signs device builds without a prompt.
+    appleTeamId: "87ZM8A42XK",
+    expo: {
+      owner: "zenter-inc",
+      slug: "paseoi",
+      projectId: "2131ad29-3d6f-475f-906c-9a82630be587",
+    },
     googleServicesFile: undefined,
     googleServiceInfoPlist: undefined,
   },
@@ -104,15 +111,19 @@ const variants = {
 };
 
 const variant = variants[appVariant] ?? variants.production;
-// Paseoi: the expo-notifications plugin adds the aps-environment entitlement, which a
-// device build can only sign with a push-enabled provisioning profile for the bundle ID.
-const notificationPlugins = appVariant === "paseoi" ? [] : buildProfile.notificationPlugins;
+const notificationPlugins = buildProfile.notificationPlugins;
+// Paseoi: variants may point at their own Expo project; the default is the official one.
+const expoProject = variant.expo ?? {
+  owner: "getpaseo",
+  slug: "voice-mobile",
+  projectId: "0e7f65ce-0367-46c8-a238-2b65963d235a",
+};
 const nativeReleaseVersion = getNativeReleaseVersion(pkg.version);
 
 export default {
   expo: {
     name: variant.name,
-    slug: "voice-mobile",
+    slug: expoProject.slug,
     version: nativeReleaseVersion.appVersion,
     orientation: "default",
     icon: variant.icon ?? "./assets/images/icon.png",
@@ -126,6 +137,7 @@ export default {
         ITSAppUsesNonExemptEncryption: false,
       },
       bundleIdentifier: variant.packageId,
+      ...(variant.appleTeamId ? { appleTeamId: variant.appleTeamId } : {}),
       ...(variant.googleServiceInfoPlist
         ? { googleServicesFile: variant.googleServiceInfoPlist }
         : {}),
@@ -210,9 +222,9 @@ export default {
       diagnosticBuildTime: process.env.PASEO_DIAGNOSTIC_BUILD_TIME,
       router: {},
       eas: {
-        projectId: "0e7f65ce-0367-46c8-a238-2b65963d235a",
+        projectId: expoProject.projectId,
       },
     },
-    owner: "getpaseo",
+    owner: expoProject.owner,
   },
 };

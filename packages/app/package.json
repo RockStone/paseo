@@ -14,7 +14,7 @@
     "android:release": "npm run android:production",
     "android:clear": "node -e \"require('node:fs').rmSync('android', { recursive: true, force: true })\"",
     "ios": "npm run dev:ios",
-    "ios:paseoi:device": "npm --prefix ../.. run build:client && cross-env APP_VARIANT=paseoi expo prebuild --platform ios --clean --non-interactive && cross-env APP_VARIANT=paseoi expo run:ios --configuration Release --device",
+    "ios:paseoi:device": "bash scripts/paseoi-ios-device.sh",
     "ios:release": "npm --prefix ../.. run build:client && expo run:ios --configuration Release",
     "web": "npm --prefix ../.. run build:client && concurrently --kill-others --names protocol,client,expo --prefix-colors yellow,blue,magenta \"npm --prefix ../.. run watch:protocol\" \"npm --prefix ../.. run watch:client\" \"npm run web:expo\"",
     "web:expo": "expo start --web",

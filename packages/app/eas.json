@@ -34,6 +34,12 @@
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease -x lint -x lintVitalAnalyzeRelease -x lintVitalRelease -x generateReleaseLintModel -x generateReleaseLintVitalModel"
       }
+    },
+    "paseoi": {
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "paseoi"
+      }
     }
   },
   "submit": {

@@ -318,19 +318,24 @@ so it installs beside the official Paseo app. The icon is `assets/images/icon-pa
 root `Paseoi.icns` cropped to its tile and flattened, because iOS rejects alpha and applies its
 own corner mask.
 
-The variant carries no Firebase files and omits the `expo-notifications` plugin, so there is no
-push entitlement; both need credentials that belong to the official bundle ID. Add them for
-`com.hydrodojo.paseoi` before expecting push on this build.
+Signing uses the owner's paid team (`appleTeamId` on the variant). Push goes through Expo like the
+official app, but to the variant's own Expo project, `@zenter-inc/paseoi`, which holds the APNs key
+for `com.hydrodojo.paseoi`. The key file, its IDs and an Expo robot token (`paseoi-cli`) live in
+`~/.config/paseoi/`, outside the repo. The variant has no Firebase files, so it is iOS only.
 
-With a device connected and a signing team selected in Xcode:
+With a device connected by USB, unlocked and in Developer Mode:
 
 ```bash
-npm run ios:paseoi:device --workspace=@getpaseo/app
+npm run ios:paseoi:device --workspace=@getpaseo/app   # optional: -- <device-udid>
 ```
 
-It builds the client, prebuilds iOS clean with `APP_VARIANT=paseoi`, and runs
-`expo run:ios --configuration Release --device`. Check the resolved config without building:
-`APP_VARIANT=paseoi npx expo config --type public` from `packages/app`.
+`packages/app/scripts/paseoi-ios-device.sh` builds the client, prebuilds iOS clean, builds Release
+with `xcodebuild -allowProvisioningUpdates` and installs with `devicectl`. Don't use
+`expo run:ios --device` for this variant: it can't let Xcode fetch the push-enabled profile, so
+signing falls back to the wildcard team profile and fails on `aps-environment`.
+
+`eas credentials` fails while `packages/app/ios` exists (the generated Info.plist already declares
+scenes). Move the folder aside, or change credentials through the Expo website or API.
 
 ## Nix desktop package
 
