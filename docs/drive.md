@@ -18,13 +18,13 @@ Desktop-only and out of scope: edge-reveal sidebar, title bar, hover cards, Elec
 - [x] N-2 Context meter Compact/Refresh on native iPad. `components/context-window-meter.tsx` uses a Tooltip that takes no presses on wide native layouts; use the sheet path whenever there is no fine pointer. <!-- priority:3 -->
 - [x] N-3 "Paste as file" in the composer attachment menu. Today it only fires from the keyboard shortcut (`composer/attachments/paste-text-action.tsx`); add a menu entry so touch users reach it. <!-- priority:2 -->
 - [x] N-4 Paseoi iOS app identity. Own bundle ID (e.g. `…paseoi`), Paseoi name and icon through the existing `APP_VARIANT` config in `packages/app/app.config.js`, so it installs beside the official Paseo app. Document the release device-build command in `docs/development.md`. <!-- priority:3 -->
-- [~] N-5 First release build on the owner's iPhone and iPad. `expo run:ios --configuration Release --device`, signed with the owner's team; verify pairing through relay.hydrodojo.com, Driveboard, multi-select, host password. Needs the owner's devices plugged in (see OT items). Installed on the iPhone 2026-11-12 with push wired to the `@zenter-inc/paseoi` Expo project; waiting on the owner's check (OT-2). iPad later. <!-- priority:3 -->
+- [x] N-5 First release build on the owner's iPhone and iPad. `expo run:ios --configuration Release --device`, signed with the owner's team; verify pairing through relay.hydrodojo.com, Driveboard, multi-select, host password. Needs the owner's devices plugged in (see OT items). Installed on the iPhone 2026-11-12 with push wired to the `@zenter-inc/paseoi` Expo project; waiting on the owner's check (OT-2). iPad installed 2026-11-12. <!-- priority:3 -->
 
 ## Step 2: reading position on native
 
 - [x] N-6 Native unread pill, jump and first-unread highlight. `agent-stream/view.tsx` enables `useUnreadJump` only on web; the native viewport (`agent-stream/strategy-native.tsx`) needs reading-row reporting (LegendList `onViewableItemsChanged`) and a `scrollToMessage` on its handle. <!-- priority:3 -->
 - [x] N-7 Native read-position restore and land-at-bottom on return, reusing the N-6 viewport work. <!-- priority:2 -->
-- [~] N-8 Rebuild and reinstall on the devices after step 2. iPhone done 2026-11-12; iPad when the owner frees it. <!-- priority:2 -->
+- [x] N-8 Rebuild and reinstall on the devices after step 2. iPhone and iPad done 2026-11-12. <!-- priority:2 -->
 
 ## Later (owner decides)
 
