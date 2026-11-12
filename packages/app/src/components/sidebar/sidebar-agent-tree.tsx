@@ -1,4 +1,5 @@
 import { SidebarAgentMenu } from "./sidebar-agent-menu";
+import { AgentRowKebab, AgentThreadPressable } from "./sidebar-agent-row-controls";
 import { memo, useCallback, useMemo, useState, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Pressable, Text, View } from "react-native";
@@ -320,7 +321,7 @@ function ThreadBranch({
               )}
             </View>
           )}
-          <Pressable
+          <AgentThreadPressable
             onPress={open}
             accessibilityRole="button"
             accessibilityLabel={t("agentTree.open", { title })}
@@ -331,7 +332,8 @@ function ThreadBranch({
             <Text ref={dragRef} style={styles.title} numberOfLines={1}>
               {title}
             </Text>
-          </Pressable>
+          </AgentThreadPressable>
+          <AgentRowKebab hovered={hovered} testID={`sidebar-agent-tree-kebab-${node.key}`} />
         </View>
       </SidebarAgentMenu>
       {hasChildren && expanded ? (

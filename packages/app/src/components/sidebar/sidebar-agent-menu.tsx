@@ -24,7 +24,6 @@ import {
 } from "@/screens/workspace/workspace-tab-menu";
 import { WorkspaceTabContextMenuItem } from "@/screens/workspace/workspace-tab-context-menu-item";
 import { confirmDialog } from "@/utils/confirm-dialog";
-import { isWeb } from "@/constants/platform";
 import type { SidebarThreadNode } from "@/subagents/sidebar-tree";
 import { useProviderSubagentNativeId } from "@/subagents/provider-store";
 
@@ -64,7 +63,7 @@ function ProviderSubagentMenu({
   });
   return (
     <ContextMenu>
-      <ContextMenuTrigger contextOnly={isWeb} enabledOnMobile={false}>
+      <ContextMenuTrigger contextOnly enabledOnMobile={false}>
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent width={220} testID={menuTestIDBase}>
@@ -192,7 +191,7 @@ function ManagedAgentMenu({
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger contextOnly={isWeb} enabledOnMobile={false}>
+        <ContextMenuTrigger contextOnly enabledOnMobile={false}>
           {children}
         </ContextMenuTrigger>
         <ContextMenuContent width={220} testID={`sidebar-agent-context-menu-${agentId}`}>

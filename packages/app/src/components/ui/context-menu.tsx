@@ -68,6 +68,21 @@ export function useContextMenu() {
   return useMenuContext("useContextMenu");
 }
 
+// Paseoi: lets a control inside a ContextMenu (a kebab, or a long press on a row's own
+// Pressable that swallows the trigger's gesture) open the menu at the press point.
+export function useOpenContextMenuAtEvent(): (event: unknown) => void {
+  const ctx = useMenuContext("useOpenContextMenuAtEvent");
+  return useCallback(
+    (event: unknown) => {
+      const point = coerceEventPoint(event);
+      if (!point) return;
+      ctx.setAnchorRect({ x: point.pageX, y: point.pageY, width: 0, height: 0 });
+      ctx.setOpen(true);
+    },
+    [ctx],
+  );
+}
+
 function isCallable(fn: unknown): fn is (...args: unknown[]) => void {
   return typeof fn === "function";
 }
