@@ -729,3 +729,29 @@ test("paste text as file retries an empty clipboard in New workspace", async ({
     await workspace.cleanup();
   }
 });
+
+test("undo of a pasted image drops its attachment and keeps earlier ones", async ({ page }) => {
+  const workspace = await seedMockAgentWorkspace({
+    repoPrefix: "image-undo-",
+    title: "Image undo",
+  });
+  try {
+    await openAgentRoute(page, workspace);
+    await expectComposerVisible(page);
+    const input = composerLocator(page);
+    await input.fill("Look ");
+    await selectComposerDraftRange(page, 5, 5);
+    expect(await pasteComposerTestImage(page)).toBe(true);
+    expect(await pasteComposerTestImage(page)).toBe(true);
+    const thumbnails = page.getByTestId("composer-image-attachment-pill");
+    await expect(thumbnails).toHaveCount(2);
+    await input.press("ControlOrMeta+z");
+    await expect(thumbnails).toHaveCount(1);
+    await expect(input.locator(".composer-reference")).toHaveText(["@Image 1"]);
+    await input.press("Backspace");
+    await input.pressSequentially("x");
+    await expect(thumbnails).toHaveCount(1);
+  } finally {
+    await workspace.cleanup();
+  }
+});

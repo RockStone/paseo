@@ -287,8 +287,11 @@ const DecoratedInput = forwardRef<EditingTextInputHandle, DecoratedInputProps>(
             update.docChanged &&
             !replacing.current &&
             update.transactions.some((transaction) => transaction.isUserEvent("undo"))
-          )
-            latest.current.onUndoText?.(update.startState.doc.toString(), text);
+          ) {
+            const previousText = update.startState.doc.toString();
+            // The handler edits the document; CodeMirror forbids dispatching inside an update.
+            queueMicrotask(() => latest.current.onUndoText?.(previousText, text));
+          }
         }),
         EditorView.domEventHandlers({
           compositionend: (_event, view) => {

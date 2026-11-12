@@ -2354,7 +2354,7 @@ function ComposerContentImpl({
         nextText,
         attachments: selectedAttachments,
       });
-      if (undone) handleRemoveAttachment(selectedAttachments.indexOf(undone as never));
+      if (undone) handleRemoveAttachment(selectedAttachments.indexOf(undone));
     },
     [handleRemoveAttachment, selectedAttachments],
   );
