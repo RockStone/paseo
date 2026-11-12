@@ -12,7 +12,9 @@ if [[ -z "$device" ]]; then
   exit 1
 fi
 npm --prefix ../.. run build:client
-CI=1 npx expo prebuild --platform ios --clean
+# prebuild --clean can leave ios/ half-deleted (ENOTEMPTY on Pods) and then find no Podfile.
+rm -rf ios
+CI=1 npx expo prebuild --platform ios
 xcodebuild -workspace ios/Paseoi.xcworkspace -scheme Paseoi -configuration Release \
   -destination "id=$device" -derivedDataPath ios/build/dd -allowProvisioningUpdates build
 xcrun devicectl device install app --device "$device" \
