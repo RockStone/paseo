@@ -24,7 +24,7 @@ Desktop-only and out of scope: edge-reveal sidebar, title bar, hover cards, Elec
 
 - [x] N-6 Native unread pill, jump and first-unread highlight. `agent-stream/view.tsx` enables `useUnreadJump` only on web; the native viewport (`agent-stream/strategy-native.tsx`) needs reading-row reporting (LegendList `onViewableItemsChanged`) and a `scrollToMessage` on its handle. <!-- priority:3 -->
 - [x] N-7 Native read-position restore and land-at-bottom on return, reusing the N-6 viewport work. <!-- priority:2 -->
-- [ ] N-8 Rebuild and reinstall on the devices after step 2. <!-- priority:2 -->
+- [~] N-8 Rebuild and reinstall on the devices after step 2. iPhone done 2026-11-12; iPad when the owner frees it. <!-- priority:2 -->
 
 ## Later (owner decides)
 
