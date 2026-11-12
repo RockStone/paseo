@@ -5,13 +5,15 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type ReactElement,
   type ReactNode,
 } from "react";
 import { Pressable, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import type { LucideIcon } from "lucide-react-native";
 import {
   MENU_ITEM_HEIGHT,
   MenuRoot,
@@ -34,6 +36,7 @@ import { isWeb } from "@/constants/platform";
 import { usePanelAwareHorizontalScrollGesture } from "@/mobile-panels/gestures";
 import { getStatusDotColor } from "@/utils/status-dot-color";
 import { STATUS_INDICATOR_FILLED_DOT_SIZE } from "@/utils/status-indicator-geometry";
+import type { Theme } from "@/styles/theme";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { COMPOSER_PILL_CLEARANCE, composerPillStyles } from "./pill-styles";
 import { useComposerSurface } from "./dock";
@@ -100,6 +103,11 @@ export interface ComposerTrackPillSegment {
   bucket: SidebarStateBucket | null;
   /** Short enough to stay on one line alongside its siblings: "1 failed", "2/7 tasks", "3". */
   text: string;
+  /**
+   * What the segment shows when the pill has an `icon`: the icon names the tracker, so the
+   * segment keeps only its count. Empty draws no text. `text` stays the spoken label.
+   */
+  compactText?: string;
 }
 
 export interface ComposerTrackPillProps {
@@ -114,6 +122,8 @@ export interface ComposerTrackPillProps {
   testID: string;
   /** Spell out anything the segments abbreviate — a bare count reads as nothing out loud. */
   accessibilityLabel?: string;
+  /** Leading icon that stands in for the tracker's name; segments then show `compactText`. */
+  icon?: LucideIcon;
   /** Panel body. Rendered into a popover on wide screens and a sheet on compact ones. */
   children: ReactNode;
   openOnHover?: boolean;
@@ -152,6 +162,7 @@ function ComposerTrackPillBody({
   panelTitle,
   testID,
   accessibilityLabel,
+  icon,
   children,
   openOnHover = false,
   pages,
@@ -198,6 +209,13 @@ function ComposerTrackPillBody({
       cancelClose();
     };
   }, [cancelClose, hoverEnabled, setOpen]);
+  const spokenLabel = accessibilityLabel ?? segments.map((segment) => segment.text).join(" ");
+  // Icon pills have no visible name, so the full text is the native browser tooltip.
+  useEffect(() => {
+    if (!isWeb || !icon) return;
+    const element = hoverRef.current as unknown as HTMLElement | null;
+    if (element) element.title = spokenLabel;
+  }, [icon, spokenLabel]);
   useHoverSafeZone({
     enabled: hoverEnabled && open,
     triggerRef,
@@ -210,7 +228,8 @@ function ComposerTrackPillBody({
       <ComposerTrackPillTrigger
         segments={segments}
         testID={testID}
-        accessibilityLabel={accessibilityLabel ?? segments.map((segment) => segment.text).join(" ")}
+        icon={icon}
+        accessibilityLabel={spokenLabel}
       />
       <MenuSurface
         animate={!hoverEnabled}
@@ -238,10 +257,12 @@ function ComposerTrackPillTrigger({
   segments,
   testID,
   accessibilityLabel,
+  icon,
 }: {
   segments: readonly ComposerTrackPillSegment[];
   testID: string;
   accessibilityLabel: string;
+  icon?: LucideIcon;
 }): ReactElement {
   const { open } = useMenuContext("ComposerTrackPill");
   const accessibilityState = useMemo(() => ({ expanded: open }), [open]);
@@ -270,21 +291,43 @@ function ComposerTrackPillTrigger({
       style={pillStyle}
     >
       <View style={styles.segments}>
-        {segments.map((segment, index) => (
-          <View
-            key={segment.bucket ?? "plain"}
-            style={styles.segment}
-            testID={`${testID}-segment-${index}`}
-          >
-            <ComposerTrackMark bucket={segment.bucket} />
-            <Text style={labelStyle} numberOfLines={1}>
-              {segment.text}
-            </Text>
-          </View>
-        ))}
+        {icon ? <ComposerTrackIcon icon={icon} /> : null}
+        {segments.map((segment, index) =>
+          icon && !segment.compactText && !segment.bucket ? null : (
+            <View
+              key={segment.bucket ?? "plain"}
+              style={styles.segment}
+              testID={`${testID}-segment-${index}`}
+            >
+              <ComposerTrackMark bucket={segment.bucket} />
+              {(icon ? segment.compactText : segment.text) ? (
+                <Text style={labelStyle} numberOfLines={1}>
+                  {icon ? segment.compactText : segment.text}
+                </Text>
+              ) : null}
+            </View>
+          ),
+        )}
       </View>
     </MenuTrigger>
   );
+}
+
+type ThemedLucideIcon = ComponentType<{
+  size: number;
+  uniProps: (theme: Theme) => { color: string };
+}>;
+const themedIcons = new WeakMap<LucideIcon, ThemedLucideIcon>();
+const mutedIconColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+
+/** Same 14px muted glyph as the branch pill's. */
+function ComposerTrackIcon({ icon }: { icon: LucideIcon }): ReactElement {
+  let Themed = themedIcons.get(icon);
+  if (!Themed) {
+    Themed = withUnistyles(icon) as unknown as ThemedLucideIcon;
+    themedIcons.set(icon, Themed);
+  }
+  return <Themed size={14} uniProps={mutedIconColor} />;
 }
 
 /**

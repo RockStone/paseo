@@ -97,11 +97,18 @@ export function buildSubagentPillPresentation(
   const counts = summarizeSubagentStatus(rows);
   if (counts.length === 0) {
     const label = totalLabel(t, rows.length);
-    return { segments: [{ bucket: null, text: label }], accessibilityLabel: label };
+    return {
+      segments: [{ bucket: null, text: label, compactText: String(rows.length) }],
+      accessibilityLabel: label,
+    };
   }
   const labels = counts.map(({ bucket, count }) => statusLabel(t, bucket, count));
   return {
-    segments: counts.map(({ bucket }, index) => ({ bucket, text: labels[index] ?? "" })),
+    segments: counts.map(({ bucket, count }, index) => ({
+      bucket,
+      text: labels[index] ?? "",
+      compactText: String(count),
+    })),
     // Marks separate the segments on screen; a screen reader needs the pause spelled out.
     accessibilityLabel: labels.join(", "),
   };

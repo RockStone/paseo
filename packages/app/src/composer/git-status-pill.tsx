@@ -1,7 +1,7 @@
 import { memo, useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { Undo2 } from "lucide-react-native";
+import { FilePen, Undo2 } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import type { CheckoutWorkingTreeSummary } from "@getpaseo/protocol/messages";
 import { CommitPushButton } from "@/composer/commit-push-button";
@@ -29,7 +29,14 @@ export const ComposerGitStatusPill = memo(function ComposerGitStatusPill({
   const { t } = useTranslation();
   return (
     <ComposerTrackPill
-      segments={[{ bucket: null, text: t("gitStatusPill.title", { count: summary.total }) }]}
+      segments={[
+        {
+          bucket: null,
+          text: t("gitStatusPill.title", { count: summary.total }),
+          compactText: String(summary.total),
+        },
+      ]}
+      icon={FilePen}
       panelTitle={t("gitStatusPill.heading")}
       testID="composer-git-status-pill"
     >

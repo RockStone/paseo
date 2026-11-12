@@ -1,3 +1,4 @@
+import { History } from "lucide-react-native";
 import { memo, useCallback } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useFetchQuery } from "@/data/query";
@@ -25,7 +26,8 @@ export const ComposerCommitHistoryPill = memo(function ComposerCommitHistoryPill
   if (!supported) return null;
   return (
     <ComposerTrackPill
-      segments={[{ bucket: null, text: t("commitHistoryPill.label") }]}
+      segments={[{ bucket: null, text: t("commitHistoryPill.label"), compactText: "" }]}
+      icon={History}
       panelTitle={t("commitHistoryPill.title")}
       testID="composer-commit-history-pill"
     >

@@ -4,7 +4,7 @@ import { useHoverControlsAlwaysVisible } from "@/hooks/use-hover-controls-always
 import { useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Archive, Unlink } from "lucide-react-native";
+import { Archive, Network, Unlink } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useProviderIcon } from "@/components/provider-icons";
 import { ComposerTrackActions, ComposerTrackPill, ComposerTrackRow } from "@/composer/tracks";
@@ -98,6 +98,7 @@ export function SubagentsTrack({
     <ComposerTrackPill
       pages={pages}
       testID="subagents-track-header"
+      icon={Network}
       segments={pill.segments}
       accessibilityLabel={pill.accessibilityLabel}
       panelTitle={t("subagents.title")}

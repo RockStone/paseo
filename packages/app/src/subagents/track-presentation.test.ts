@@ -44,7 +44,7 @@ describe("buildSubagentPillPresentation", () => {
 
   it("counts the children that are working, not the fan-out", () => {
     expect(pill([row({ id: "a" }), row({ id: "b", status: "running" })])).toEqual({
-      segments: [{ bucket: "running", text: "1 working" }],
+      segments: [{ bucket: "running", text: "1 working", compactText: "1" }],
       accessibilityLabel: "1 working",
     });
   });
@@ -57,7 +57,7 @@ describe("buildSubagentPillPresentation", () => {
         row({ id: "c" }),
       ]),
     ).toEqual({
-      segments: [{ bucket: "running", text: "2 working" }],
+      segments: [{ bucket: "running", text: "2 working", compactText: "2" }],
       accessibilityLabel: "2 working",
     });
   });
@@ -71,8 +71,8 @@ describe("buildSubagentPillPresentation", () => {
       ]),
     ).toEqual({
       segments: [
-        { bucket: "failed", text: "2 failed" },
-        { bucket: "running", text: "1 working" },
+        { bucket: "failed", text: "2 failed", compactText: "2" },
+        { bucket: "running", text: "1 working", compactText: "1" },
       ],
       accessibilityLabel: "2 failed, 1 working",
     });
@@ -80,21 +80,21 @@ describe("buildSubagentPillPresentation", () => {
 
   it("names what it opens once every child is done", () => {
     expect(pill([row({ id: "a" }), row({ id: "b" })])).toEqual({
-      segments: [{ bucket: null, text: "2 subagents" }],
+      segments: [{ bucket: null, text: "2 subagents", compactText: "2" }],
       accessibilityLabel: "2 subagents",
     });
   });
 
   it("keeps the singular for a lone child", () => {
     expect(pill([row({ id: "a" })])).toEqual({
-      segments: [{ bucket: null, text: "1 subagent" }],
+      segments: [{ bucket: null, text: "1 subagent", compactText: "1" }],
       accessibilityLabel: "1 subagent",
     });
   });
 
   it("has nothing to mark without rows", () => {
     expect(pill([])).toEqual({
-      segments: [{ bucket: null, text: "0 subagents" }],
+      segments: [{ bucket: null, text: "0 subagents", compactText: "0" }],
       accessibilityLabel: "0 subagents",
     });
   });

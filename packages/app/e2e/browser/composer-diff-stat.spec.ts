@@ -880,7 +880,8 @@ test("uncommitted status pill opens on click, lists all files and clears on comm
     await agent.client.checkoutRefresh(agent.cwd);
     await openAgentRoute(page, agent);
     const pill = page.getByTestId("composer-git-status-pill");
-    await expect(pill).toHaveText("13 uncommitted");
+    await expect(pill).toHaveAccessibleName("13 uncommitted");
+    await expect(pill).toHaveText("13");
     const total = composerChangesPill(page);
     await expect(total).toBeVisible();
     const left = await total.boundingBox();

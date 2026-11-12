@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { ListChecks } from "lucide-react-native";
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native-unistyles";
@@ -38,9 +39,11 @@ export function BackgroundWorkTrack({
     <ComposerTrackPill
       testID="background-work"
       panelTitle={t("message.backgroundWork.title")}
+      icon={ListChecks}
       segments={[
         {
           bucket: "running",
+          compactText: String(visibleCount),
           text:
             visibleCount === 1
               ? t("message.backgroundWork.pillOne")
