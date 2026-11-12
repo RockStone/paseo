@@ -120,7 +120,7 @@ See [docs/development.md](docs/development.md) for full setup, build sync requir
 
 ## Paseoi fix delivery
 
-After every Paseoi code fix, complete the [custom desktop delivery procedure](docs/development.md#paseoi-custom-desktop-build): rebuild the signed app, replace `/Applications/Paseoi.app`, and verify the installed bundle. Do not stop after source validation or wait for a separate installation request. Leave the running app and managed daemon alone; the user relaunches when ready. Documentation-only changes and explicit source-only requests do not require rebuilding.
+After every Paseoi code fix, deliver with `npm run deliver:paseoi` (desktop, web, iPhone/iPad OTA); see [Paseoi delivery](docs/development.md#paseoi-delivery). Leave the running app and managed daemon alone; the user relaunches when ready. Documentation-only changes and explicit source-only requests do not require delivery.
 
 ## Release branches
 

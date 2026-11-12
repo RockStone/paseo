@@ -93,6 +93,13 @@ const variants = {
       slug: "paseoi",
       projectId: "2131ad29-3d6f-475f-906c-9a82630be587",
     },
+    // OTA updates (EAS Update). Device builds are local, not EAS Build, so the channel is a request
+    // header. The fingerprint runtime version changes with native code, so an update only reaches
+    // builds that can run it. ON_LOAD downloads in the background; it applies on the next launch.
+    updates: {
+      url: "https://u.expo.dev/2131ad29-3d6f-475f-906c-9a82630be587",
+      channel: "paseoi",
+    },
     googleServicesFile: undefined,
     googleServiceInfoPlist: undefined,
   },
@@ -127,6 +134,17 @@ export default {
     version: nativeReleaseVersion.appVersion,
     orientation: "default",
     icon: variant.icon ?? "./assets/images/icon.png",
+    ...(variant.updates
+      ? {
+          runtimeVersion: { policy: "fingerprint" },
+          updates: {
+            url: variant.updates.url,
+            checkAutomatically: "ON_LOAD",
+            fallbackToCacheTimeout: 0,
+            requestHeaders: { "expo-channel-name": variant.updates.channel },
+          },
+        }
+      : {}),
     scheme: "paseo",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,

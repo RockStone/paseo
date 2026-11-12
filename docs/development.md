@@ -225,27 +225,10 @@ npm ci
 npm run build:custom:desktop
 ```
 
-After every Paseoi code fix, complete delivery without waiting for a separate
-rebuild or installation request. Documentation-only changes and explicit
-source-only requests are exempt.
-
-1. Run the relevant focused tests, typecheck, and lint.
-2. Increase the custom revision above the installed version and rebuild with
-   `npm run build:custom:desktop`, using the persistent signing identity.
-3. Run `node packages/desktop/e2e/packaged-app-smoke.js --app <built Paseoi.app>` with
-   isolated app data and daemon state. Keep its daemon off the live listener.
-4. Stage the tested build, verify its signature, and replace `/Applications/Paseoi.app`.
-   Don't keep rollback copies of the bundle, and delete `packages/desktop/release`
-   after installing; each copy takes about 500 MB. Roll back by rebuilding from the
-   previous commit or branch.
-5. Verify the installed version, signing identity, and file contents against the
-   tested build. Confirm the running app and managed daemon were not restarted.
-6. Review the task diff, commit focused changes, and push the current branch.
-   Preserve unrelated work.
-
-Report source validation, installation, and push results
-separately. Leave the running app and managed daemon alone; the installed bundle
-takes effect when the user relaunches the app.
+After every Paseoi code fix, run the focused tests, typecheck and lint, then deliver with one
+command (see [Paseoi delivery](#paseoi-delivery)). Documentation-only changes and explicit
+source-only requests are exempt. Commit focused changes and push the branch. Leave the running
+app and managed daemon alone; the installed bundle takes effect when the user relaunches.
 
 The output is `packages/desktop/release/mac-arm64/Paseoi.app` on Apple
 Silicon. The app is named Paseoi and uses the root `Paseoi.icns` for its bundle and
@@ -334,8 +317,51 @@ with `xcodebuild -allowProvisioningUpdates` and installs with `devicectl`. Don't
 `expo run:ios --device` for this variant: it can't let Xcode fetch the push-enabled profile, so
 signing falls back to the wildcard team profile and fails on `aps-environment`.
 
-`eas credentials` fails while `packages/app/ios` exists (the generated Info.plist already declares
-scenes). Move the folder aside, or change credentials through the Expo website or API.
+## Paseoi delivery
+
+```bash
+npm run deliver:paseoi -- [--skip-desktop] [--skip-web] [--skip-mobile] [--ios-device] \
+  [--revision N] [--message "text"]
+```
+
+`scripts/deliver-paseoi.sh` runs three steps in order and stops on the first failure:
+
+1. **Desktop.** Reads the installed `-paseoi.N` from `/Applications/Paseoi.app` (or `--revision`),
+   builds N+1 with `build:custom:desktop`, smoke-tests the built app (up to 3 attempts), installs
+   it through a `.new`/`.old` swap, verifies `app.asar` and the signature, and deletes
+   `packages/desktop/release`. It fails if the daemon's `startedAt` changed. It never restarts
+   the daemon or the app.
+2. **Web.** Rebuilds `packages/app/dist` (the desktop build overwrites it), then deploys
+   `wrangler.hydrodojo.toml` to `app.hydrodojo.com` and checks the served JS bundle changed. The
+   step is skipped when that local-only config is missing.
+3. **Mobile.** Publishes an OTA update to the `paseoi` channel. With `--ios-device` it does the
+   cable build instead.
+
+### OTA updates
+
+The `paseoi` variant ships `expo-updates` (EAS Update, project `@zenter-inc/paseoi`). Device
+builds are local, so the channel is the `expo-channel-name` request header in
+`app.config.js`, and the runtime version is `{ policy: "fingerprint" }`, which changes whenever
+native code or native config changes. The app checks on launch, downloads in the background, and
+applies the update on the next launch.
+
+- OTA carries JavaScript and assets only. Native code, config and icon changes need
+  `--ios-device`; the new build gets a new fingerprint, so older updates no longer apply to it.
+- The Expo robot token is read from `~/.config/paseoi/expo-token`.
+- `eas` fails while `packages/app/ios` exists (the generated Info.plist already declares
+  scenes). The script moves the folder to `packages/app/.ios-aside` for the publish and always
+  restores it. Do the same by hand for `eas credentials`, or use the Expo website.
+- Official variants set no `updates.url`, so `expo-updates` stays disabled for them.
+
+### Cable build
+
+`--ios-device` runs `packages/app/scripts/paseoi-ios-device.sh` (or run
+`npm run ios:paseoi:device --workspace=@getpaseo/app`, optionally with UDIDs). Devices must be
+connected by USB, unlocked and in Developer Mode. It builds the client, prebuilds iOS clean,
+builds Release once with `xcodebuild -allowProvisioningUpdates` for generic iOS, and installs with
+`devicectl` on every connected physical iPhone and iPad. Don't use `expo run:ios --device` for
+this variant: it can't let Xcode fetch the push-enabled profile, so signing falls back to the
+wildcard team profile and fails on `aps-environment`.
 
 ## Nix desktop package
 

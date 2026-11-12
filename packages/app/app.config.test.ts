@@ -1,4 +1,6 @@
+import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 // Load the copies the Expo CLI uses for prebuild, not older hoisted ones.
@@ -13,6 +15,7 @@ interface ManifestEntry {
   $: Record<string, string>;
 }
 
+const execFileAsync = promisify(execFile);
 const originalFdroidFlag = process.env.PASEO_FDROID_BUILD;
 
 async function resolveAndroidManifest() {
@@ -110,5 +113,38 @@ describe("hardware keyboard scene integration", () => {
       configured.indexOf(".observing(window)"),
     );
     expect(configureHardwareKeyboardAppDelegate(configured)).toBe(configured);
+  });
+});
+
+// Paseoi: OTA updates belong to the paseoi variant only.
+describe("Paseoi OTA updates config", () => {
+  async function loadExpoConfig(variant: string) {
+    // A fresh process: the config module is cached per process, keyed by nothing.
+    const { stdout } = await execFileAsync(
+      "npx",
+      ["expo", "config", "--type", "public", "--json"],
+      {
+        cwd: __dirname,
+        env: { ...process.env, APP_VARIANT: variant },
+      },
+    );
+    return JSON.parse(stdout.slice(stdout.indexOf("{")));
+  }
+
+  it("points the paseoi variant at its EAS Update channel with a fingerprint runtime", async () => {
+    const expo = await loadExpoConfig("paseoi");
+    expect(expo.updates).toEqual({
+      url: "https://u.expo.dev/2131ad29-3d6f-475f-906c-9a82630be587",
+      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: 0,
+      requestHeaders: { "expo-channel-name": "paseoi" },
+    });
+    expect(expo.runtimeVersion).toEqual({ policy: "fingerprint" });
+  });
+
+  it("leaves the production variant without updates config", async () => {
+    const expo = await loadExpoConfig("production");
+    expect(expo.updates).toBeUndefined();
+    expect(expo.runtimeVersion).toBeUndefined();
   });
 });

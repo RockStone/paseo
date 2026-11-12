@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
-# Paseoi: release build of the iOS app, installed on a USB-connected device.
-# Usage: paseoi-ios-device.sh [device-udid]   (default: the first connected physical iPhone/iPad)
+# Paseoi: release build of the iOS app, installed on every USB-connected iPhone/iPad.
+# Usage: paseoi-ios-device.sh [device-udid ...]   (default: all connected physical devices)
 # `expo run:ios` can't pass -allowProvisioningUpdates, and without it Xcode signs with the wildcard
 # team profile, which has no push entitlement. So build with xcodebuild and install with devicectl.
+# One generic-iOS build is installed on each device.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export APP_VARIANT=paseoi
-device="${1:-$(xcrun devicectl list devices 2>/dev/null | awk '/ connected / && /physical/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) { print $i; exit } }')}"
-if [[ -z "$device" ]]; then
+if [[ $# -gt 0 ]]; then
+  devices=("$@")
+else
+  devices=()
+  while IFS= read -r udid; do
+    [[ -n "$udid" ]] && devices+=("$udid")
+  done < <(xcrun devicectl list devices 2>/dev/null | awk '/ connected / && /physical/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) { print $i; break } }')
+fi
+if [[ ${#devices[@]} -eq 0 ]]; then
   echo "No connected device. Plug one in, unlock it, or pass its UDID." >&2
   exit 1
 fi
@@ -16,6 +24,15 @@ npm --prefix ../.. run build:client
 rm -rf ios
 CI=1 npx expo prebuild --platform ios
 xcodebuild -workspace ios/Paseoi.xcworkspace -scheme Paseoi -configuration Release \
-  -destination "id=$device" -derivedDataPath ios/build/dd -allowProvisioningUpdates build
-xcrun devicectl device install app --device "$device" \
-  ios/build/dd/Build/Products/Release-iphoneos/Paseoi.app
+  -destination "generic/platform=iOS" -derivedDataPath ios/build/dd -allowProvisioningUpdates build
+failed=0
+for device in "${devices[@]}"; do
+  if xcrun devicectl device install app --device "$device" \
+    ios/build/dd/Build/Products/Release-iphoneos/Paseoi.app; then
+    echo "DEVICE_INSTALL_OK $device"
+  else
+    echo "DEVICE_INSTALL_FAILED $device" >&2
+    failed=1
+  fi
+done
+exit "$failed"
