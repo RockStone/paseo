@@ -310,6 +310,28 @@ down:
   conflict.
 - Prefer upstream's version when it now covers a customization, and drop ours.
 
+## Paseoi iPhone and iPad build
+
+The `paseoi` value of `APP_VARIANT` (`packages/app/app.config.js`) builds the native app as
+Paseoi: bundle ID `sh.paseo.paseoi` (the `sh.paseo.<variant>` pattern the other variants use),
+so it installs beside the official Paseo app. The icon is `assets/images/icon-paseoi.png`, the
+root `Paseoi.icns` cropped to its tile and flattened, because iOS rejects alpha and applies its
+own corner mask.
+
+The variant carries no Firebase files and omits the `expo-notifications` plugin, so there is no
+push entitlement; both need credentials that belong to the official bundle ID. Add them for
+`sh.paseo.paseoi` before expecting push on this build.
+
+With a device connected and a signing team selected in Xcode:
+
+```bash
+npm run ios:paseoi:device --workspace=@getpaseo/app
+```
+
+It builds the client, prebuilds iOS clean with `APP_VARIANT=paseoi`, and runs
+`expo run:ios --configuration Release --device`. Check the resolved config without building:
+`APP_VARIANT=paseoi npx expo config --type public` from `packages/app`.
+
 ## Nix desktop package
 
 The flake exposes `packages.<system>.desktop` on Linux and macOS:

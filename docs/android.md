@@ -4,10 +4,13 @@
 
 Controlled by `APP_VARIANT` in `packages/app/app.config.js` (vanilla Expo, no custom Gradle plugin):
 
-| Variant       | App name    | Package ID       |
-| ------------- | ----------- | ---------------- |
-| `production`  | Paseo       | `sh.paseo`       |
-| `development` | Paseo Debug | `sh.paseo.debug` |
+| Variant       | App name    | Package ID        |
+| ------------- | ----------- | ----------------- |
+| `production`  | Paseo       | `sh.paseo`        |
+| `development` | Paseo Debug | `sh.paseo.debug`  |
+| `paseoi`      | Paseoi      | `sh.paseo.paseoi` |
+
+`paseoi` is the iOS-first Paseoi build: its own icon, no Firebase files, and no push-notification plugin. See [Paseoi iPhone and iPad build](development.md#paseoi-iphone-and-ipad-build).
 
 EAS profiles: `development`, `production`, and `production-apk` in `packages/app/eas.json`.
 

@@ -80,6 +80,15 @@ const variants = {
       fallbackRelativePath: "./.secrets/GoogleService-Info.prod.plist",
     }),
   },
+  // Paseoi: installs beside the official app. No Firebase files and no push entitlement, because
+  // both need credentials that belong to the official bundle ID (see notificationPlugins below).
+  paseoi: {
+    name: "Paseoi",
+    packageId: "sh.paseo.paseoi",
+    icon: "./assets/images/icon-paseoi.png",
+    googleServicesFile: undefined,
+    googleServiceInfoPlist: undefined,
+  },
   development: {
     name: "Paseo Debug",
     packageId: "sh.paseo.debug",
@@ -95,6 +104,9 @@ const variants = {
 };
 
 const variant = variants[appVariant] ?? variants.production;
+// Paseoi: the expo-notifications plugin adds the aps-environment entitlement, which a
+// device build can only sign with a push-enabled provisioning profile for the bundle ID.
+const notificationPlugins = appVariant === "paseoi" ? [] : buildProfile.notificationPlugins;
 const nativeReleaseVersion = getNativeReleaseVersion(pkg.version);
 
 export default {
@@ -103,7 +115,7 @@ export default {
     slug: "voice-mobile",
     version: nativeReleaseVersion.appVersion,
     orientation: "default",
-    icon: "./assets/images/icon.png",
+    icon: variant.icon ?? "./assets/images/icon.png",
     scheme: "paseo",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
@@ -161,7 +173,7 @@ export default {
           },
         },
       ],
-      ...buildProfile.notificationPlugins,
+      ...notificationPlugins,
       "expo-audio",
       [
         "expo-gradle-jvmargs",
