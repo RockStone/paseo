@@ -71,7 +71,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: 0, shouldPush: false });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
   });
 
   it("treats present clients focused on different agents as eligible", () => {
@@ -87,7 +87,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: 0, shouldPush: false });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
   });
 
   it("chooses the present client with the greatest clamped activity timestamp", () => {
@@ -102,7 +102,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: 1, shouldPush: false });
+    ).toEqual({ inAppRecipientIndex: 1, shouldPush: true });
   });
 
   it("uses the lower index when present clients have identical timestamps", () => {
@@ -116,7 +116,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: 0, shouldPush: false });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
   });
 
   it("clamps future timestamps to now and treats them as present", () => {
@@ -130,7 +130,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: 1, shouldPush: false });
+    ).toEqual({ inAppRecipientIndex: 1, shouldPush: true });
   });
 
   it("never treats no-heartbeat clients as present", () => {
@@ -171,7 +171,7 @@ describe("computeNotificationPlan", () => {
       computeNotificationPlan({
         allStates: [
           state({ focusedAgentId: "agent-2", lastActivityAtMs: nowMs - 20_000 }),
-          state({ focusedAgentId: null, lastActivityAtMs: nowMs - 500 }),
+          state({ deviceType: "mobile", focusedAgentId: null, lastActivityAtMs: nowMs - 500 }),
         ],
         focusTarget: { kind: "agent", id: "agent-1" },
         pushEligible: true,
@@ -199,7 +199,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: 0, shouldPush: false });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
   });
 
   it("suppresses terminal notifications when a present visible client focuses the terminal", () => {
@@ -230,5 +230,45 @@ describe("isPushEligibleAttentionReason", () => {
     expect(isPushEligibleAttentionReason("finished")).toBe(true);
     expect(isPushEligibleAttentionReason("permission")).toBe(true);
     expect(isPushEligibleAttentionReason("error")).toBe(false);
+  });
+});
+
+describe("computeNotificationPlan push with mobile clients", () => {
+  const nowMs = Date.parse("2026-04-19T12:00:00.000Z");
+
+  it("pushes while a desktop client is present and no mobile client is on screen", () => {
+    expect(
+      computeNotificationPlan({
+        allStates: [state({ deviceType: "web", lastActivityAtMs: nowMs - 1_000 })],
+        focusTarget: { kind: "agent", id: "agent-1" },
+        pushEligible: true,
+        nowMs,
+      }),
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
+  });
+
+  it("skips a backgrounded phone as the in-app recipient and pushes instead", () => {
+    expect(
+      computeNotificationPlan({
+        allStates: [
+          state({ deviceType: "web", lastActivityAtMs: nowMs - 60_000 }),
+          state({ deviceType: "mobile", appVisible: false, lastActivityAtMs: nowMs - 1_000 }),
+        ],
+        focusTarget: { kind: "agent", id: "agent-1" },
+        pushEligible: true,
+        nowMs,
+      }),
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
+  });
+
+  it("does not push while a phone has the app on screen", () => {
+    expect(
+      computeNotificationPlan({
+        allStates: [state({ deviceType: "mobile", lastActivityAtMs: nowMs - 1_000 })],
+        focusTarget: { kind: "agent", id: "agent-1" },
+        pushEligible: true,
+        nowMs,
+      }),
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: false });
   });
 });

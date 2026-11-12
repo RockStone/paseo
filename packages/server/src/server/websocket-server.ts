@@ -2902,6 +2902,7 @@ export class VoiceAssistantWebSocketServer {
     }
 
     return {
+      deviceType: activity.deviceType,
       appVisible: activity.appVisible,
       focusedAgentId: activity.focusedAgentId,
       focusedTerminalId: activity.focusedTerminalId,
