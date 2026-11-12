@@ -831,6 +831,70 @@ test.describe("Sidebar workspace rows on a touch screen", () => {
   });
 });
 
+// Paseoi: where nobody can hover, the built-in sidebar navigation is one row of icon buttons.
+const SIDEBAR_NAV_ICON_TEST_IDS = [
+  "sidebar-global-new-workspace",
+  "sidebar-sessions",
+  "sidebar-search",
+  "sidebar-schedules",
+] as const;
+const SIDEBAR_NAV_LABELS = ["New workspace", "History", "Search", "Schedules"] as const;
+
+async function expectSidebarNavIconRow(page: Page, testIds: readonly string[]): Promise<void> {
+  const boxes = [];
+  for (const [index, testId] of testIds.entries()) {
+    const button = page.locator(`[data-testid="${testId}"]:visible`).first();
+    await expect(button).toBeVisible();
+    if (index < SIDEBAR_NAV_LABELS.length && testId !== "sidebar-close") {
+      await expect(button).toHaveAccessibleName(SIDEBAR_NAV_LABELS[index]);
+      await expect(button).toHaveText("");
+    }
+    const box = await button.boundingBox();
+    if (!box) throw new Error(`${testId} must render`);
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    boxes.push(box);
+  }
+  for (const [index, box] of boxes.entries()) {
+    expect(Math.abs(box.y - boxes[0]!.y)).toBeLessThanOrEqual(3);
+    if (index > 0)
+      expect(box.x).toBeGreaterThanOrEqual(boxes[index - 1]!.x + boxes[index - 1]!.width - 1);
+  }
+}
+
+test.describe("Sidebar navigation on a docked touch tablet", () => {
+  test.use({ hasTouch: true, viewport: { width: 1180, height: 820 } });
+
+  test("shows the built-in navigation as one row of icon buttons", async ({ page }) => {
+    await gotoAppShell(page);
+    await expectSidebarNavIconRow(page, SIDEBAR_NAV_ICON_TEST_IDS);
+    await expect(page.getByTestId("sidebar-close").filter({ visible: true })).toHaveCount(0);
+    await page.screenshot({
+      path: "/private/tmp/claude-501/-Users-zono-Projects-paseo/bf6fa537-fe24-4b08-9a01-06e775742e60/scratchpad/sidebar-icons-ipad.png",
+    });
+    await page.getByTestId("sidebar-schedules").tap();
+    await expect(page).toHaveURL(/\/schedules/);
+    await expect(page.getByTestId("sidebar-schedules")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("sidebar-sessions")).not.toHaveAttribute("aria-selected", "true");
+  });
+});
+
+test.describe("Sidebar navigation with a mouse", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("keeps the labelled navigation rows", async ({ page }) => {
+    await gotoAppShell(page);
+    for (const [index, testId] of SIDEBAR_NAV_ICON_TEST_IDS.entries()) {
+      await expect(page.getByTestId(testId)).toContainText(SIDEBAR_NAV_LABELS[index]);
+    }
+    const first = await page.getByTestId("sidebar-global-new-workspace").boundingBox();
+    const second = await page.getByTestId("sidebar-sessions").boundingBox();
+    if (!first || !second) throw new Error("nav rows must render");
+    expect(second.y).toBeGreaterThan(first.y + first.height / 2);
+    await expect(page.getByTestId("sidebar-nav-icon-row")).toHaveCount(0);
+  });
+});
+
 test.describe("Mobile sidebar panelState transition", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -852,6 +916,32 @@ test.describe("Mobile sidebar panelState transition", () => {
     const closeButton = await page.getByTestId("sidebar-close").boundingBox();
     if (!firstRow || !closeButton) throw new Error("first nav row and close button must render");
     expect(closeButton.x).toBeGreaterThanOrEqual(firstRow.x + firstRow.width);
+  });
+
+  test("puts the navigation icons and the close button in one row", async ({ page }) => {
+    await gotoAppShell(page);
+    await openMobileAgentSidebar(page);
+    await expectMobileAgentSidebarVisible(page);
+    await expectSidebarNavIconRow(page, [...SIDEBAR_NAV_ICON_TEST_IDS, "sidebar-close"]);
+    await page.screenshot({
+      path: "/private/tmp/claude-501/-Users-zono-Projects-paseo/bf6fa537-fe24-4b08-9a01-06e775742e60/scratchpad/sidebar-icons-phone.png",
+    });
+
+    await page.getByTestId("sidebar-sessions").click();
+    await expect(page).toHaveURL(/\/sessions/);
+    await expectMobileAgentSidebarHidden(page);
+    await openMobileAgentSidebar(page);
+    await expectMobileAgentSidebarVisible(page);
+    await expect(page.getByTestId("sidebar-sessions")).toHaveAttribute("aria-selected", "true");
+
+    await page.getByTestId("sidebar-schedules").click();
+    await expect(page).toHaveURL(/\/schedules/);
+    await openMobileAgentSidebar(page);
+    await expectMobileAgentSidebarVisible(page);
+    await expect(page.getByTestId("sidebar-schedules")).toHaveAttribute("aria-selected", "true");
+
+    await page.getByTestId("sidebar-global-new-workspace").click();
+    await expect(page).toHaveURL((url) => url.pathname.endsWith("/new"));
   });
 
   test("keeps a pinned workspace rendered while the retained sidebar is closed", async ({
