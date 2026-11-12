@@ -175,6 +175,21 @@ With every turn collapsed, flinging from a cold open into history did not blank 
 500 to 2000, and jank followed host load (19 to 40 on 16 cores) rather than draw distance. Measure
 1000 and 1500 on the expanded chat, on a host under load 10, before lowering it.
 
+### Reading rows and jumps (Paseoi)
+
+The unread pill, its jump and the saved reading position need the rows the reader has seen and a
+scroll to a message. Web measures row geometry; native reads LegendList's `onViewableItemsChanged`
+at `itemVisiblePercentThreshold: 100` (`native-viewable-rows.ts`). The first and last fully visible
+rows reach `onReadingPositionChange` and `onReadThroughChange` only when the row changes, so
+scrolling inside a row re-renders nothing. A hidden chat keeps its viewability and reports nothing;
+a return resets the reporter and reports the current rows again. A row taller than the viewport
+never counts as read through; the read marker still advances once the list is at the end.
+
+`scrollToMessage` calls `scrollToIndex` without animation after detaching the bottom anchor, and `onLanded`
+runs when that promise resolves: LegendList resolves it after it has re-aimed for the sizes rows
+measured on the way. A drag, a newer jump or an unmount drops the landing. Before the list has placed
+its rows the jump waits, because the initial scroll to the end would override it.
+
 ### LegendList patch
 
 `patches/@legendapp+list+3.7.1.patch` carries twelve changes for the timeline. Its header lists

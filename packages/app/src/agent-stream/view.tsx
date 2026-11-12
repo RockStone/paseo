@@ -697,9 +697,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     // stream re-render; each row subscribes for its own message id.
     const [unreadJumpHighlight] = useState(createUnreadJumpHighlightStore);
     useEffect(() => () => unreadJumpHighlight.dispose(), [unreadJumpHighlight]);
-    // The read marker needs the viewport's read-through row, which only the web viewport reports.
+    // The read marker needs the viewport's read-through row and a scroll to a message. The web
+    // viewport measures them; the native viewport reports them from LegendList (Paseoi).
     const unreadJump = useUnreadJump({
-      enabled: isWeb,
+      enabled: true,
       serverId: resolvedServerId,
       agentId,
       timelineEpoch,

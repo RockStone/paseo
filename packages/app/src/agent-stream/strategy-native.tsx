@@ -23,6 +23,7 @@ import {
   type LegendListRenderItemProps,
   useSyncLayout,
 } from "@legendapp/list/react-native";
+import { getStreamItemMessageId } from "@/types/stream";
 import { withUnistyles } from "react-native-unistyles";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,13 @@ import {
 } from "./native-disclosure-hold";
 import { EndPinnedScrollView } from "./native-end-pin";
 import { createNewRowEstimates } from "./new-row-estimates";
+import {
+  createReadingRowReporter,
+  NATIVE_ROW_VISIBLE_PERCENT,
+  nativeReadingRows,
+  type NativeReadingRows,
+} from "./native-viewable-rows";
+import { PROMPT_JUMP_TOP_INSET_PX } from "./prompt-jump-settle";
 import type {
   DisclosureTriggerEdge,
   StreamRenderInput,
@@ -147,6 +155,8 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
     isInitialHistoryLoading,
     revealInitialHistory,
     onNearBottomChange,
+    onReadingPositionChange,
+    onReadThroughChange,
     onNearHistoryStart,
     isLoadingOlderHistory,
     hasOlderHistory,
@@ -181,6 +191,10 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
   const programmaticScrollEventBudgetRef = useRef(0);
   const historyStartReadyRef = useRef(false);
   const historyStartSettleSchedulerRef = useRef<HistoryStartSettleScheduler | null>(null);
+  // Paseoi: scrollToMessage state. A newer jump, a drag or an unmount drops the pending landing.
+  const jumpTokenRef = useRef(0);
+  const pendingJumpRef = useRef<(() => void) | null>(null);
+  const readingRowsRef = useRef<NativeReadingRows | null>(null);
 
   const historyItems = useMemo(() => {
     if (segments.historyVirtualized.length === 0) {
@@ -291,6 +305,41 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
     },
     [onNearBottomChange],
   );
+
+  // Paseoi: reading rows for the read marker and the unread jump. LegendList reports the rows fully
+  // on screen; only a change of row reaches the stream view, so scrolling inside a row re-renders
+  // nothing.
+  const [readingRowReporter] = useState(() =>
+    createReadingRowReporter({
+      onReadingPositionChange: (rowId) => onReadingPositionChangeRef.current?.(rowId),
+      onReadThroughChange: (rowId) => onReadThroughChangeRef.current?.(rowId),
+    }),
+  );
+  const onReadingPositionChangeRef = useRef(onReadingPositionChange);
+  onReadingPositionChangeRef.current = onReadingPositionChange;
+  const onReadThroughChangeRef = useRef(onReadThroughChange);
+  onReadThroughChangeRef.current = onReadThroughChange;
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+  const handleViewableItemsChanged = useStableEvent(
+    (info: { viewableItems: { index: number; item: StreamItem }[] }) => {
+      const reading = nativeReadingRows(info.viewableItems);
+      readingRowsRef.current = reading;
+      // A hidden chat keeps its viewability; its reads must not advance the marker.
+      if (!isActiveRef.current || !isListPlacedRef.current) return;
+      readingRowReporter.report(reading);
+    },
+  );
+  const viewabilityConfig = useMemo(
+    () => ({ itemVisiblePercentThreshold: NATIVE_ROW_VISIBLE_PERCENT }),
+    [],
+  );
+  // A return starts a new attending session upstream, which needs the current rows again.
+  useEffect(() => {
+    if (!isActive || !isListPlaced) return;
+    readingRowReporter.reset();
+    readingRowReporter.report(readingRowsRef.current);
+  }, [isActive, isListPlaced, readingRowReporter]);
 
   const bottomAnchorController = useBottomAnchorController({
     agentId,
@@ -448,6 +497,37 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
     };
   }, [clearPendingUserScrollEnd, disposeHistoryStart, evaluateHistoryStart]);
 
+  // Paseoi: LegendList's scrollToIndex resolves once its scroll has settled, after it re-aims for
+  // the sizes rows measure on the way, so `onLanded` follows that instead of a timer. Before the
+  // list has placed its rows the jump waits, so the initial scroll to the end cannot override it.
+  const scrollToMessage = useStableEvent((messageId: string, onLanded?: () => void) => {
+    const run = () => {
+      const index = rows.findIndex((item) => getStreamItemMessageId(item) === messageId);
+      const list = listRef.current;
+      if (index < 0 || !list) return;
+      jumpTokenRef.current += 1;
+      const token = jumpTokenRef.current;
+      cancelDisclosureHold();
+      programmaticScrollEventBudgetRef.current = 0;
+      bottomAnchorController.detachByUser();
+      onNearBottomChange(false);
+      list
+        .scrollToIndex({
+          index,
+          animated: false,
+          viewPosition: 0,
+          viewOffset: topOverlayInset + PROMPT_JUMP_TOP_INSET_PX,
+        })
+        .then(() => (jumpTokenRef.current === token ? onLanded?.() : undefined))
+        .catch(() => undefined);
+    };
+    if (isListPlacedRef.current) {
+      run();
+      return;
+    }
+    pendingJumpRef.current = run;
+  });
+
   useEffect(() => {
     const handle: StreamViewportHandle = {
       scrollToBottom: (reason = "jump-to-bottom") => {
@@ -460,6 +540,7 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
         bottomAnchorController.prepareForStickyViewportChange();
       },
       holdRow,
+      scrollToMessage: (messageId, _occurrence, onLanded) => scrollToMessage(messageId, onLanded),
     };
     viewportRef.current = handle;
     return () => {
@@ -467,7 +548,7 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
         viewportRef.current = null;
       }
     };
-  }, [agentId, bottomAnchorController, holdRow, viewportRef]);
+  }, [agentId, bottomAnchorController, holdRow, scrollToMessage, viewportRef]);
 
   // The scroll-to-bottom button shows whenever following would not resume on its own. A detached
   // list resumes only from the end, so the button shows anywhere short of it. While following, the
@@ -559,6 +640,7 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
   });
 
   const handleScrollBeginDrag = useStableEvent((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    jumpTokenRef.current += 1;
     finishInitialFill();
     clearPendingUserScrollEnd();
     isUserScrollActiveRef.current = true;
@@ -666,7 +748,18 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
     };
     bottomAnchorController.handleContentSizeChange();
     evaluateHistoryStart();
+    const pendingJump = pendingJumpRef.current;
+    pendingJumpRef.current = null;
+    pendingJump?.();
   });
+
+  useEffect(
+    () => () => {
+      jumpTokenRef.current += 1;
+      pendingJumpRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     evaluateHistoryStart();
@@ -758,6 +851,8 @@ function NativeStreamViewport(props: StreamRenderInput & { strategy: StreamStrat
         scrollEventThrottle={16}
         onContentSizeChange={handleContentSizeChange}
         onItemSizeChanged={handleItemSizeChanged}
+        onViewableItemsChanged={handleViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         onReady={handleListPlaced}
         maintainVisibleContentPosition={maintainVisibleContentPosition}
         renderScrollComponent={renderScrollComponent}
