@@ -89,19 +89,21 @@ deliver_web() {
     summary+=("web: skipped (no wrangler.hydrodojo.toml)")
     return 0
   fi
-  local before after out
-  before="$(web_bundle || true)"
-  log "Web: building (bundle before: ${before:-none})"
+  local built after out
+  log "Web: building"
   npm run build:web --workspace=@getpaseo/app
+  built="$(grep -oE '/_expo/static/js/web/[^"]+\.js' packages/app/dist/index.html | head -1)"
+  [[ -n "$built" ]] || { echo "Cannot find the built bundle in packages/app/dist/index.html." >&2; return 1; }
   out="$(cd packages/app && npx wrangler deploy -c wrangler.hydrodojo.toml 2>&1)"
   echo "$out"
-  # The edge can serve the old index for a few seconds after deploy.
+  # The edge can serve the old index for a few seconds after deploy. A server-only change
+  # builds the same bundle, so compare against what was built, not what was live before.
   for _ in 1 2 3 4 5 6; do
     after="$(web_bundle || true)"
-    [[ -n "$after" && "$before" != "$after" ]] && break
+    [[ "$after" == "$built" ]] && break
     sleep 5
   done
-  [[ -n "$after" && "$before" != "$after" ]] || { echo "Web bundle did not change after deploy ($before)." >&2; return 1; }
+  [[ "$after" == "$built" ]] || { echo "Live web bundle ($after) is not the built one ($built)." >&2; return 1; }
   summary+=("web: $(grep -oE 'Current Version ID: [0-9a-f-]+' <<<"$out" | head -1 || true) bundle $after")
 }
 
