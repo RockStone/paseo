@@ -2144,6 +2144,7 @@ export const ar: TranslationResources = {
   subagents: {
     parent: {
       backToParent: "العودة إلى الوكيل الأصلي",
+      detach: "فصل عن الوكيل الأصلي",
       backTo: "العودة إلى {{label}}",
       parentAgent: "الوكيل الأصلي",
       openParent: "فتح الوكيل الأصلي",

@@ -2192,6 +2192,7 @@ export const fr: TranslationResources = {
   subagents: {
     parent: {
       backToParent: "Retour au parent",
+      detach: "Détacher du parent",
       backTo: "Retour à {{label}}",
       parentAgent: "Agent parent",
       openParent: "Ouvrir le parent",

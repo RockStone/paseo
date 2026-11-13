@@ -2172,6 +2172,7 @@ export const en = {
   subagents: {
     parent: {
       backToParent: "Back to parent",
+      detach: "Detach from parent",
       backTo: "Back to {{label}}",
       parentAgent: "Parent agent",
       openParent: "Open parent",

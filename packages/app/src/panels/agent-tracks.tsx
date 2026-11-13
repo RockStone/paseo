@@ -120,6 +120,10 @@ export const AgentTracks = memo(function AgentTracks({
     },
     [openSubagentTarget],
   );
+  const handleDetachFromParent = useCallback(
+    () => detachSubagent({ serverId, agentId }),
+    [detachSubagent, serverId, agentId],
+  );
   const sheetTabFor = useSubagentSheetTab(workspaceKey, tabId);
   const handleOpenChanges = useCallback(() => {
     if (!workspaceKey) {
@@ -135,7 +139,13 @@ export const AgentTracks = memo(function AgentTracks({
   return (
     <ComposerTrackBar>
       <BackgroundWorkTrack model={backgroundModel} count={backgroundWorkCount} />
-      {parentAgentId ? <ParentAgentPill serverId={serverId} parentAgentId={parentAgentId} /> : null}
+      {parentAgentId ? (
+        <ParentAgentPill
+          serverId={serverId}
+          parentAgentId={parentAgentId}
+          onDetach={canDetachSubagents ? handleDetachFromParent : undefined}
+        />
+      ) : null}
       <AgentTaskList tasks={tasks} />
       <SubagentsTrack
         serverId={serverId}

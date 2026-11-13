@@ -2121,6 +2121,7 @@ export const zhCN: TranslationResources = {
   subagents: {
     parent: {
       backToParent: "返回父代理",
+      detach: "从父代理分离",
       backTo: "返回 {{label}}",
       parentAgent: "父代理",
       openParent: "打开父代理",

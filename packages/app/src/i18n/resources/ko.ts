@@ -2155,6 +2155,7 @@ export const ko: TranslationResources = {
   subagents: {
     parent: {
       backToParent: "상위 에이전트로 돌아가기",
+      detach: "상위 에이전트에서 분리",
       backTo: "{{label}}(으)로 돌아가기",
       parentAgent: "상위 에이전트",
       openParent: "상위 에이전트 열기",

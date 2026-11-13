@@ -2180,6 +2180,7 @@ export const ptBR: TranslationResources = {
   subagents: {
     parent: {
       backToParent: "Voltar ao pai",
+      detach: "Desvincular do pai",
       backTo: "Voltar para {{label}}",
       parentAgent: "Agente pai",
       openParent: "Abrir pai",

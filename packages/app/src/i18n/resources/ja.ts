@@ -2165,6 +2165,7 @@ export const ja: TranslationResources = {
   subagents: {
     parent: {
       backToParent: "親に戻る",
+      detach: "親から切り離す",
       backTo: "{{label}} に戻る",
       parentAgent: "親エージェント",
       openParent: "親を開く",

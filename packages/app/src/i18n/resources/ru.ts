@@ -2178,6 +2178,7 @@ export const ru: TranslationResources = {
   subagents: {
     parent: {
       backToParent: "Назад к родителю",
+      detach: "Отсоединить от родителя",
       backTo: "Назад к {{label}}",
       parentAgent: "Родительский агент",
       openParent: "Открыть родителя",
