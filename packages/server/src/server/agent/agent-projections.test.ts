@@ -126,7 +126,7 @@ it("keeps conversation activity separate from metadata timestamps in live and st
   const stored = toStoredAgentRecord(agent);
   expect(stored.lastActivityAt).toBe(lastActivityAt.toISOString());
   expect(toAgentPayload(agent).lastActivityAt).toBe(lastActivityAt.toISOString());
-  expect(buildStoredAgentPayload(stored, ["claude"]).lastActivityAt).toBe(
+  expect(buildStoredAgentPayload(stored, ["claude"], ownOptionsOnly).lastActivityAt).toBe(
     lastActivityAt.toISOString(),
   );
 });
@@ -145,6 +145,20 @@ function createPermission(overrides: Partial<AgentPermissionRequest> = {}): Agen
   };
   return { ...base, ...overrides };
 }
+
+describe("stored agent usage", () => {
+  test("a stored record projects lastUsage before the agent is loaded", () => {
+    const usage = { contextWindowUsedTokens: 500, contextWindowMaxTokens: 1000 };
+    const stored = toStoredAgentRecord(createManagedAgent({ lastUsage: usage }));
+    expect(stored.lastUsage).toEqual(usage);
+    expect(buildStoredAgentPayload(stored, ["claude"], ownOptionsOnly).lastUsage).toEqual(usage);
+  });
+
+  test("a record without lastUsage projects none", () => {
+    const stored = toStoredAgentRecord(createManagedAgent({}));
+    expect(buildStoredAgentPayload(stored, ["claude"], ownOptionsOnly).lastUsage).toBeUndefined();
+  });
+});
 
 describe("toStoredAgentRecord", () => {
   it("captures lifecycle metadata, config, and persistence", () => {

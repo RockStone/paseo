@@ -104,6 +104,7 @@ export function toStoredAgentRecord(
     controls: normalizeControls(agent.controls),
     persistence,
     lastError: agent.lastError ?? undefined,
+    lastUsage: sanitizeUsage(agent.lastUsage),
     requiresAttention: agent.attention.requiresAttention,
     attentionReason: agent.attention.requiresAttention ? agent.attention.attentionReason : null,
     attentionTimestamp: agent.attention.requiresAttention
@@ -331,6 +332,7 @@ export function buildStoredAgentPayload(
     labels: normalizeLabels(record.labels),
     metadata: record.metadata,
     ...(typeof record.lastError === "string" ? { lastError: record.lastError } : {}),
+    ...(sanitizeUsage(record.lastUsage) ? { lastUsage: sanitizeUsage(record.lastUsage) } : {}),
     ...(providerAvailable ? {} : { providerUnavailable: true }),
   };
 }

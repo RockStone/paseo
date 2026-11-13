@@ -78,6 +78,17 @@ const RAW_STORED_AGENT_SCHEMA = z.object({
   features: z.array(AgentFeatureSchema).optional(),
   persistence: PERSISTENCE_HANDLE_SCHEMA,
   lastError: z.string().nullable().optional(),
+  // Context window and cost usage, so it survives a daemon restart. Mirrors AgentUsage.
+  lastUsage: z
+    .object({
+      inputTokens: z.number().optional(),
+      cachedInputTokens: z.number().optional(),
+      outputTokens: z.number().optional(),
+      totalCostUsd: z.number().optional(),
+      contextWindowMaxTokens: z.number().optional(),
+      contextWindowUsedTokens: z.number().optional(),
+    })
+    .optional(),
   requiresAttention: z.boolean().optional(),
   attentionReason: z.enum(["finished", "error", "permission"]).nullable().optional(),
   attentionTimestamp: z.string().nullable().optional(),

@@ -143,6 +143,40 @@ test("resuming a stored agent keeps its unread flag and its last-activity time",
   }
 });
 
+test("resuming a stored agent starts with its stored lastUsage", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "agent-loading-usage-"));
+  const logger = createTestLogger();
+  const storage = new AgentStorage(path.join(root, "agents"), logger);
+  const manager = new AgentManager({
+    clients: createTestAgentClients(),
+    registry: storage,
+    logger,
+  });
+  const agentId = "00000000-0000-4000-8000-000000000402";
+  const usage = { contextWindowUsedTokens: 1200, contextWindowMaxTokens: 200000 };
+
+  try {
+    const agent = await manager.createAgent({ provider: "codex", cwd: root }, agentId, {
+      workspaceId: "workspace-a",
+    });
+    await manager.closeAgent(agent.id);
+    await manager.flush();
+    await storage.flush();
+    const stored = await storage.get(agentId);
+    if (!stored) throw new Error("expected a stored agent");
+    await storage.upsert({ ...stored, lastUsage: usage });
+
+    await ensureAgentLoaded(agentId, { agentManager: manager, agentStorage: storage, logger });
+
+    expect(manager.getAgent(agentId)?.lastUsage).toEqual(usage);
+  } finally {
+    await manager.closeAgent(agentId).catch(() => undefined);
+    await manager.flush().catch(() => undefined);
+    await storage.flush().catch(() => undefined);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("reopening an agent with no resumable session keeps a metadata write that overlaps it", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "agent-loading-handleless-metadata-"));
   const logger = createTestLogger();

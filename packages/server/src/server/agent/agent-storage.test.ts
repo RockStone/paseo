@@ -368,6 +368,15 @@ describe("AgentStorage", () => {
     expect(rewritten).not.toHaveProperty("features");
   });
 
+  test("applySnapshot persists lastUsage and reloads it from disk", async () => {
+    const usage = { contextWindowUsedTokens: 1200, contextWindowMaxTokens: 200000 };
+    await storage.applySnapshot(createManagedAgent({ id: "agent-usage", lastUsage: usage }));
+
+    const reloaded = new AgentStorage(storagePath, logger);
+    await reloaded.initialize();
+    expect((await reloaded.get("agent-usage"))?.lastUsage).toEqual(usage);
+  });
+
   test("applySnapshot preserves original createdAt timestamp", async () => {
     const agentId = "agent-created-at";
     const firstTimestamp = new Date("2025-01-01T00:00:00.000Z");
