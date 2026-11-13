@@ -15,11 +15,19 @@ import { Pressable, Text, View } from "react-native";
 import { type Board, markProgressSeenRpc, type TrackerItem } from "../shared/board";
 import { LinkedText } from "./notes-tab";
 import { SectionHeader } from "./owner-tab";
+import { SearchField } from "./search-field";
+import { type Highlights, useHighlights, useSearchQuery } from "./session";
+import { filterItems } from "../shared/search";
 import type { Styles } from "./theme";
 
 const RANK_NAMES: Record<number, string> = { 3: "Critical", 2: "Product", 1: "Later" };
 
-const NewTasksContext = createContext<ReadonlySet<string>>(new Set());
+const NO_HIGHLIGHTS: Highlights = {
+  labels: new Map(),
+  dismiss: () => undefined,
+  show: () => undefined,
+};
+const NewTasksContext = createContext<Highlights>(NO_HIGHLIGHTS);
 
 /** The project's progress from docs/drive.md: totals, then tasks by status and rank. */
 export function ProgressTab({
@@ -36,17 +44,21 @@ export function ProgressTab({
   onChanged(): Promise<void>;
 }) {
   const markSeen = useRpc(markProgressSeenRpc);
-  // Tasks that changed while the tab was open keep their highlight until it closes.
-  const [newIds, setNewIds] = useState<ReadonlySet<string>>(() => new Set());
+  // Highlights last 30 minutes or until the card is tapped, across drawer closes.
+  const highlights = useHighlights(workspaceId, "progress");
+  const { show } = highlights;
   const requested = useRef(new Set<string>());
   const { mutate: markProgressSeen } = useMutation({ mutationFn: markSeen, onSettled: onChanged });
   useEffect(() => {
     const fresh = board.newTaskIds.filter((id) => !requested.current.has(id));
     if (fresh.length === 0) return;
     for (const id of fresh) requested.current.add(id);
-    setNewIds((previous) => new Set([...previous, ...fresh]));
+    const added = new Set(board.addedTaskIds ?? []);
+    show(fresh.map((id) => ({ id, label: added.has(id) ? "New" : "Updated" })));
     markProgressSeen({ workspaceId });
-  }, [board.newTaskIds, markProgressSeen, workspaceId]);
+  }, [board.newTaskIds, board.addedTaskIds, show, markProgressSeen, workspaceId]);
+  const [query, setQuery] = useSearchQuery(workspaceId, "progress");
+  const searching = query.trim().length > 0;
   const [showDone, setShowDone] = useState(false);
   const toggleDone = useCallback(() => setShowDone((value) => !value), []);
   const percent = board.summary?.percent ?? 0;
@@ -55,16 +67,19 @@ export function ProgressTab({
     [styles.progressFill, percent],
   );
   const groups = useMemo(() => {
-    const valid = board.tasks.filter((item) => item.warnings.length === 0);
+    const tasks = filterItems(board.tasks, query);
+    const valid = tasks.filter((item) => item.warnings.length === 0);
     const byRank = (items: TrackerItem[]) =>
       [...items].sort((a, b) => b.rank - a.rank || a.line - b.line);
     return {
       inProgress: byRank(valid.filter((item) => item.status === "in progress")),
       open: byRank(valid.filter((item) => item.status === "open")),
       done: valid.filter((item) => item.status === "done").sort((a, b) => b.line - a.line),
-      invalid: board.tasks.filter((item) => item.warnings.length > 0),
+      invalid: tasks.filter((item) => item.warnings.length > 0),
     };
-  }, [board.tasks]);
+  }, [board.tasks, query]);
+  const matchCount =
+    groups.inProgress.length + groups.open.length + groups.done.length + groups.invalid.length;
 
   if (!board.hasTasks || !board.summary) {
     return (
@@ -76,8 +91,15 @@ export function ProgressTab({
   }
   const { summary } = board;
   return (
-    <NewTasksContext.Provider value={newIds}>
+    <NewTasksContext.Provider value={highlights}>
       <View style={styles.root}>
+        <SearchField
+          styles={styles}
+          theme={theme}
+          value={query}
+          placeholder="Search tasks"
+          onChange={setQuery}
+        />
         <View style={styles.card}>
           <View style={styles.meta}>
             <Text style={styles.percent}>{summary.percent}%</Text>
@@ -106,6 +128,7 @@ export function ProgressTab({
             </View>
           </View>
         </View>
+        {searching && matchCount === 0 ? <Text style={styles.empty}>No matches</Text> : null}
         <TaskGroup styles={styles} theme={theme} label="In progress" items={groups.inProgress} />
         <TaskGroup styles={styles} theme={theme} label="Open" items={groups.open} />
         {groups.invalid.length > 0 ? (
@@ -120,18 +143,18 @@ export function ProgressTab({
           <View style={styles.list}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={showDone ? "Hide done tasks" : "Show done tasks"}
+              accessibilityLabel={showDone || searching ? "Hide done tasks" : "Show done tasks"}
               onPress={toggleDone}
             >
               <SectionHeader
                 styles={styles}
                 label="Done"
                 count={groups.done.length}
-                chevron={showDone ? "ChevronDown" : "ChevronRight"}
+                chevron={showDone || searching ? "ChevronDown" : "ChevronRight"}
                 chevronColor={theme.colors.foregroundMuted}
               />
             </Pressable>
-            {showDone
+            {showDone || searching
               ? groups.done.map((item) => (
                   <TaskRow
                     key={`${item.id}-${item.line}`}
@@ -175,9 +198,14 @@ function TaskRow({
   styles: Styles;
   theme: PluginTheme;
 }) {
-  const isNew = useContext(NewTasksContext).has(item.id);
+  const { labels, dismiss } = useContext(NewTasksContext);
+  const newLabel = labels.get(item.id);
+  const isNew = newLabel !== undefined;
   const [expanded, setExpanded] = useState(false);
-  const toggle = useCallback(() => setExpanded((value) => !value), []);
+  const toggle = useCallback(() => {
+    dismiss(item.id);
+    setExpanded((value) => !value);
+  }, [dismiss, item.id]);
   const hasDetails = item.text.length > 0 || item.warnings.length > 0;
   const rank = RANK_NAMES[item.rank];
   return (
@@ -185,7 +213,6 @@ function TaskRow({
       accessibilityRole="button"
       accessibilityLabel={`${item.id} ${item.title}`}
       aria-expanded={expanded}
-      disabled={!hasDetails}
       onPress={toggle}
       style={cardStyle(styles, item, isNew)}
     >
@@ -194,7 +221,7 @@ function TaskRow({
           <Text style={styles.pillText}>{item.id}</Text>
         </View>
         {rank ? <Text style={styles.mutedTag}>{rank}</Text> : null}
-        {isNew ? <Text style={styles.newTag}>Updated</Text> : null}
+        {isNew ? <Text style={styles.newTag}>{newLabel}</Text> : null}
         <View style={styles.spacer} />
         {hasDetails ? (
           <Icon

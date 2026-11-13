@@ -114,6 +114,7 @@ export class BoardService {
         .filter((id) => state.notified.includes(id)),
       newOwnerIds: newOwnerIds(board, state.seen),
       newTaskIds: changedIds(board.tasks, state.progressSeen),
+      addedTaskIds: addedIds(board.tasks, state.progressSeen),
       agent,
     };
   }
@@ -294,6 +295,12 @@ function changedIds(items: TrackerItem[], seen: Record<string, string> | null): 
   return items
     .filter((item) => item.warnings.length === 0 && seen[item.id] !== item.contentVersion)
     .map((item) => item.id);
+}
+
+/** Changed ids the owner has no previous version of. */
+function addedIds(items: TrackerItem[], seen: Record<string, string> | null): string[] {
+  if (!seen) return [];
+  return changedIds(items, seen).filter((id) => !(id in seen));
 }
 
 function newOwnerIds(board: TrackerBoard, seen: Record<string, string> | null): string[] {

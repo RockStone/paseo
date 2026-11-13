@@ -22,8 +22,11 @@ import {
   type TrackerReply,
 } from "../shared/board";
 import { pendingReplyIds } from "../shared/prompt";
+import { filterItems } from "../shared/search";
 import { errorMessage, isSubmitChord, SUBMIT_HINT } from "./keys";
 import { FloatingSubmit, LinkedText, RichText } from "./notes-tab";
+import { SearchField } from "./search-field";
+import { useHighlights, useSearchQuery } from "./session";
 import type { Styles } from "./theme";
 
 const RANKS = [
@@ -47,20 +50,24 @@ export function OwnerTab(props: OwnerTabProps) {
   const [showDone, setShowDone] = useState(false);
   const toggleDone = useCallback(() => setShowDone((value) => !value), []);
   const markSeen = useRpc(markOwnersSeenRpc);
-  // Items that were new while the drawer was open keep their highlight until it closes.
-  const [newIds, setNewIds] = useState<ReadonlySet<string>>(() => new Set());
+  // Highlights last 30 minutes or until the card is tapped, across drawer closes.
+  const highlights = useHighlights(workspaceId, "owner");
+  const { show } = highlights;
   const requested = useRef(new Set<string>());
   const { mutate: markOwnersSeen } = useMutation({ mutationFn: markSeen, onSettled: onChanged });
   useEffect(() => {
     const fresh = board.newOwnerIds.filter((id) => !requested.current.has(id));
     if (fresh.length === 0) return;
     for (const id of fresh) requested.current.add(id);
-    setNewIds((previous) => new Set([...previous, ...fresh]));
+    show(fresh.map((id) => ({ id, label: "New" })));
     markOwnersSeen({ workspaceId });
-  }, [board.newOwnerIds, markOwnersSeen, workspaceId]);
+  }, [board.newOwnerIds, show, markOwnersSeen, workspaceId]);
+  const [query, setQuery] = useSearchQuery(workspaceId, "owner");
+  const searching = query.trim().length > 0;
 
   const groups = useMemo(() => {
-    const valid = board.owners.filter((item) => item.warnings.length === 0);
+    const owners = filterItems(board.owners, query);
+    const valid = owners.filter((item) => item.warnings.length === 0);
     const open = valid.filter((item) => item.status !== "done");
     return {
       ranks: RANKS.map(({ rank, name }) => ({
@@ -68,9 +75,13 @@ export function OwnerTab(props: OwnerTabProps) {
         items: open.filter((item) => item.rank === rank),
       })).filter((group) => group.items.length > 0),
       done: valid.filter((item) => item.status === "done"),
-      invalid: board.owners.filter((item) => item.warnings.length > 0),
+      invalid: owners.filter((item) => item.warnings.length > 0),
     };
-  }, [board.owners]);
+  }, [board.owners, query]);
+  const matchCount =
+    groups.ranks.reduce((sum, group) => sum + group.items.length, 0) +
+    groups.done.length +
+    groups.invalid.length;
 
   if (!board.hasOwners) {
     return (
@@ -83,15 +94,29 @@ export function OwnerTab(props: OwnerTabProps) {
 
   return (
     <View style={styles.root}>
+      <SearchField
+        styles={styles}
+        theme={props.theme}
+        value={query}
+        placeholder="Search owner to-dos"
+        onChange={setQuery}
+      />
       <NotifyBanner {...props} />
-      {groups.ranks.length === 0 ? (
+      {searching && matchCount === 0 ? <Text style={styles.empty}>No matches</Text> : null}
+      {!searching && groups.ranks.length === 0 ? (
         <Text style={styles.empty}>Nothing is waiting on you.</Text>
       ) : null}
       {groups.ranks.map((group) => (
         <View key={group.name} style={styles.list}>
           <SectionHeader styles={styles} label={group.name} count={group.items.length} />
           {group.items.map((item) => (
-            <OwnerCard key={item.id} {...props} item={item} isNew={newIds.has(item.id)} />
+            <OwnerCard
+              key={item.id}
+              {...props}
+              item={item}
+              newLabel={highlights.labels.get(item.id)}
+              onSeen={highlights.dismiss}
+            />
           ))}
         </View>
       ))}
@@ -114,20 +139,22 @@ export function OwnerTab(props: OwnerTabProps) {
         <View style={styles.list}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={showDone ? "Hide done owner to-dos" : "Show done owner to-dos"}
+            accessibilityLabel={
+              showDone || searching ? "Hide done owner to-dos" : "Show done owner to-dos"
+            }
             onPress={toggleDone}
           >
             <SectionHeader
               styles={styles}
               label="Done"
               count={groups.done.length}
-              chevron={showDone ? "ChevronDown" : "ChevronRight"}
+              chevron={showDone || searching ? "ChevronDown" : "ChevronRight"}
               chevronColor={props.theme.colors.foregroundMuted}
             />
           </Pressable>
-          {showDone
+          {showDone || searching
             ? groups.done.map((item) => (
-                <OwnerCard key={item.id} {...props} item={item} isNew={false} />
+                <OwnerCard key={item.id} {...props} item={item} newLabel={undefined} />
               ))
             : null}
         </View>
@@ -219,10 +246,20 @@ function NotifyBanner({ board, styles, workspaceId, onChanged }: OwnerTabProps) 
   );
 }
 
-function OwnerCard(props: OwnerTabProps & { item: TrackerItem; isNew: boolean }) {
-  const { item, isNew, styles, theme } = props;
+function OwnerCard(
+  props: OwnerTabProps & {
+    item: TrackerItem;
+    newLabel: string | undefined;
+    onSeen?(id: string): void;
+  },
+) {
+  const { item, newLabel, onSeen, styles, theme } = props;
+  const isNew = newLabel !== undefined;
   const [expanded, setExpanded] = useState(false);
-  const toggle = useCallback(() => setExpanded((value) => !value), []);
+  const toggle = useCallback(() => {
+    onSeen?.(item.id);
+    setExpanded((value) => !value);
+  }, [onSeen, item.id]);
   const replied = item.replies.length > 0;
   const done = item.status === "done";
   let cardStyle = styles.card;
@@ -242,7 +279,7 @@ function OwnerCard(props: OwnerTabProps & { item: TrackerItem; isNew: boolean })
             <Text style={isNew ? styles.pillAccentText : styles.pillText}>{item.id}</Text>
           </View>
           {item.status === "in progress" ? <Text style={styles.mutedTag}>In progress</Text> : null}
-          {isNew ? <Text style={styles.newTag}>New</Text> : null}
+          {isNew ? <Text style={styles.newTag}>{newLabel}</Text> : null}
           {replied ? (
             <Text style={styles.mutedTag}>
               {item.replies.length === 1 ? "Replied" : `${item.replies.length} replies`}

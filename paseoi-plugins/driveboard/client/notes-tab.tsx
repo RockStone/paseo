@@ -22,6 +22,9 @@ import {
   type Note,
 } from "../shared/notes";
 import { errorMessage, isSubmitChord, SUBMIT_HINT } from "./keys";
+import { SearchField } from "./search-field";
+import { useHighlights, useSearchQuery } from "./session";
+import { filterNotes } from "../shared/search";
 import type { Styles } from "./theme";
 
 const OPEN_REFETCH_MS = 5_000;
@@ -93,17 +96,19 @@ export function LinkedText({
 function NoteRow(props: {
   note: Note;
   isNew: boolean;
+  onSeen(id: string): void;
   now: Date;
   styles: Styles;
   iconColor: string;
   deleting: boolean;
   onDelete(id: string): void;
 }) {
-  const { note, isNew, now, styles, iconColor, deleting, onDelete } = props;
+  const { note, isNew, onSeen, now, styles, iconColor, deleting, onDelete } = props;
   const author = note.author.kind === "user" ? "You" : (note.author.agentTitle ?? "Agent");
   const handleDelete = useCallback(() => onDelete(note.id), [onDelete, note.id]);
+  const handleSeen = useCallback(() => onSeen(note.id), [onSeen, note.id]);
   return (
-    <View style={isNew ? styles.cardNew : styles.card}>
+    <Pressable onPress={handleSeen} style={isNew ? styles.cardNew : styles.card}>
       <View style={styles.meta}>
         <Text style={styles.author} numberOfLines={1}>
           {author}
@@ -125,7 +130,7 @@ function NoteRow(props: {
       {note.title ? <Text style={styles.title}>{note.title}</Text> : null}
       <LinkedText text={note.text} style={styles.body} styles={styles} />
       {note.url ? <Link url={note.url} label={note.url} style={styles.url} /> : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -190,8 +195,10 @@ export function NotesTab(props: {
   const queryKey = useMemo(() => notesQueryKey(hostId, workspaceId), [hostId, workspaceId]);
   const now = useClock();
   const [draft, setDraft] = useState("");
-  // Notes that were unseen while this tab was open keep their highlight until the drawer closes.
-  const [newIds, setNewIds] = useState<ReadonlySet<string>>(() => new Set());
+  // Highlights last 30 minutes or until the note is tapped, across drawer closes.
+  const highlights = useHighlights(workspaceId, "notes");
+  const { show } = highlights;
+  const [query, setQuery] = useSearchQuery(workspaceId, "notes");
 
   const notes = useQuery({
     queryKey,
@@ -223,9 +230,9 @@ export function NotesTab(props: {
     const fresh = unseenIds.filter((id) => !requested.current.has(id));
     if (fresh.length === 0) return;
     for (const id of fresh) requested.current.add(id);
-    setNewIds((previous) => new Set([...previous, ...fresh]));
+    show(fresh.map((id) => ({ id, label: "New" })));
     markWorkspaceSeen({ workspaceId });
-  }, [unseenIds, markWorkspaceSeen, workspaceId]);
+  }, [unseenIds, show, markWorkspaceSeen, workspaceId]);
 
   const text = draft.trim();
   const canAdd = text.length > 0 && text.length <= MAX_TEXT_LENGTH && !add.isPending;
@@ -248,12 +255,14 @@ export function NotesTab(props: {
   );
 
   const error = add.error ?? remove.error ?? notes.error;
-  const list = notes.data?.notes ?? [];
+  const all = notes.data?.notes;
+  const list = useMemo(() => filterNotes(all ?? [], query), [all, query]);
   const deletingId = remove.isPending ? remove.variables?.id : undefined;
 
   let body: ReactElement;
   if (notes.isPending) body = <Text style={styles.empty}>Loading notes…</Text>;
-  else if (list.length === 0) body = <Text style={styles.empty}>No notes yet.</Text>;
+  else if (!all || all.length === 0) body = <Text style={styles.empty}>No notes yet.</Text>;
+  else if (list.length === 0) body = <Text style={styles.empty}>No matches</Text>;
   else
     body = (
       <View style={styles.list}>
@@ -261,7 +270,8 @@ export function NotesTab(props: {
           <NoteRow
             key={note.id}
             note={note}
-            isNew={newIds.has(note.id)}
+            isNew={highlights.labels.has(note.id)}
+            onSeen={highlights.dismiss}
             now={now}
             styles={styles}
             iconColor={theme.colors.foregroundMuted}
@@ -274,6 +284,13 @@ export function NotesTab(props: {
 
   return (
     <View style={styles.root}>
+      <SearchField
+        styles={styles}
+        theme={theme}
+        value={query}
+        placeholder="Search notes"
+        onChange={setQuery}
+      />
       <View style={styles.composer}>
         <TextInput
           value={draft}

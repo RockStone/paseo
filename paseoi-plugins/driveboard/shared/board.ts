@@ -67,6 +67,8 @@ export const boardSchema = z.object({
   newOwnerIds: z.array(z.string()),
   /** Tasks that are new or changed since the owner last opened the Progress tab. */
   newTaskIds: z.array(z.string()),
+  /** The subset of `newTaskIds` that was not in the version the owner last saw. */
+  addedTaskIds: z.array(z.string()).optional(),
   /** The workspace's top-level agent that notifications go to. */
   agent: z.object({ id: z.string(), title: z.string() }).nullable(),
 });

@@ -123,7 +123,9 @@ describe("BoardService", () => {
       path.join(root, "docs", "drive.md"),
       `${TASKS.replace("[~] Z-2", "[x] Z-2")}- [ ] Z-4 Add dots. <!-- priority:2 -->\n`,
     );
-    expect((await boards.read(paseo, "ws-1")).newTaskIds).toEqual(["Z-2", "Z-4"]);
+    const changed = await boards.read(paseo, "ws-1");
+    expect(changed.newTaskIds).toEqual(["Z-2", "Z-4"]);
+    expect(changed.addedTaskIds).toEqual(["Z-4"]);
     // Progress changes do not count toward the header badge.
     expect(await boards.badgeCounts(paseo, {})).toEqual({});
     expect(await boards.markProgressSeen(paseo, "ws-1")).toBe(2);

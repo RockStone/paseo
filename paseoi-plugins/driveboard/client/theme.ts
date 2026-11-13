@@ -1,5 +1,20 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 
+/** `#rrggbb` (or short form) with an alpha, or null for other color formats. */
+function withAlpha(color: string, alpha: number): string | null {
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color);
+  if (!match) return null;
+  const hex =
+    match[1].length === 3
+      ? match[1]
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : match[1];
+  const channel = (offset: number) => parseInt(hex.slice(offset, offset + 2), 16);
+  return `rgba(${channel(0)}, ${channel(2)}, ${channel(4)}, ${alpha})`;
+}
+
 /** The drawer's shared look: the sticky note's cards, in the app's own tokens. */
 export function createStyles(theme: PluginTheme) {
   const { colors } = theme;
@@ -91,7 +106,26 @@ export function createStyles(theme: PluginTheme) {
     empty: { color: colors.foregroundMuted, fontSize: 13, paddingVertical: 8, lineHeight: 19 },
     list: { gap: 8 },
     card,
-    cardNew: { ...card, borderColor: colors.accent },
+    // A box highlight: accent border and a faint accent wash over the card background.
+    cardNew: {
+      ...card,
+      borderWidth: 2,
+      padding: 9,
+      borderColor: colors.accent,
+      backgroundColor: withAlpha(colors.accent, 0.14) ?? colors.surface2,
+    },
+    searchBox: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 6,
+      height: 32,
+      paddingHorizontal: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface0,
+    },
+    searchInput: { flex: 1, paddingVertical: 0, color: colors.foreground, fontSize: 13 },
     cardMuted: { ...card, opacity: 0.7 },
     meta: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
     author: { color: colors.foreground, fontSize: 12, fontWeight: "600" as const, flexShrink: 1 },
