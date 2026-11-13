@@ -67,7 +67,7 @@ export function formatFinishNotificationBody(params: FinishNotificationBodyInput
     sections.push(`<agent-response>\n${lastAssistantMessage}\n</agent-response>`);
   }
   sections.push(
-    `To stop these notifications, call set_agent_notifications with agentId ${params.childAgentId}${params.serverId ? ` and serverId ${params.serverId}` : ""} and notify false.`,
+    "To stop these notifications without prompting the agent, call set_agent_notifications with notify false.",
   );
   return sections.join("\n\n");
 }

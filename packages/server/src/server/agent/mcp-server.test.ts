@@ -4458,8 +4458,8 @@ describe("send_agent_prompt MCP tool", () => {
         expect(
           parentClient.sessions[0]!.prompts.map((prompt) => parseAgentMessage(prompt)?.text),
         ).toEqual([
-          `Agent ${childId} (Background child) finished.\n\nServer: self\n\n<agent-response>\nWaiting on the background task.\n</agent-response>`,
-          `Agent ${childId} (Background child) finished.\n\nServer: self\n\n<agent-response>\nFinal report: committed and checked.\n</agent-response>`,
+          `Agent ${childId} (Background child) finished.\n\nServer: self\n\n<agent-response>\nWaiting on the background task.\n</agent-response>\n\nTo stop these notifications without prompting the agent, call set_agent_notifications with notify false.`,
+          `Agent ${childId} (Background child) finished.\n\nServer: self\n\n<agent-response>\nFinal report: committed and checked.\n</agent-response>\n\nTo stop these notifications without prompting the agent, call set_agent_notifications with notify false.`,
         ]);
         const attention = manager.getAgent(childId)!.attention;
         assert(attention.requiresAttention);
