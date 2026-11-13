@@ -453,6 +453,9 @@ function SidebarFooter({
     [rowWidth, isCompactLayout],
   );
   const isInline = (action: SidebarFooterAction) => inline.includes(action);
+  // Inline plugin popovers anchor to the whole icon line so they open aligned with the sidebar,
+  // like the footer rows' popovers, instead of starting at the gap's left edge.
+  const bottomLineRef = useRef<View | null>(null);
 
   // One line of icons: Add project, Usage, Hosts, then Help and Settings at the end. Actions that
   // don't fit move behind a caret before Settings.
@@ -461,6 +464,8 @@ function SidebarFooter({
       <View style={styles.footerContainer} testID="sidebar-footer">
         <SidebarFooterRows onBeforeNavigate={onBeforeNavigate} />
         <View
+          ref={bottomLineRef}
+          collapsable={false}
           style={styles.sidebarFooter}
           onLayout={handleRowLayout}
           testID="sidebar-footer-bottom-line"
@@ -482,7 +487,7 @@ function SidebarFooter({
               onOpenHostSettings={handleOpenHostSettings}
             />
           ) : null}
-          <SidebarFooterInlineSlot onBeforeNavigate={onBeforeNavigate} />
+          <SidebarFooterInlineSlot anchorRef={bottomLineRef} onBeforeNavigate={onBeforeNavigate} />
           {isInline("help") ? <SidebarHelpMenu /> : null}
           {overflow.length > 0 ? (
             <SidebarFooterOverflowMenu
@@ -514,23 +519,22 @@ function SidebarFooter({
  * leave (basis 0, so its content never widens it) and hosts the plugins' inline items clipped to
  * it. Below the minimum width the items are not drawn.
  */
-function SidebarFooterInlineSlot({ onBeforeNavigate }: { onBeforeNavigate?: () => void }) {
+function SidebarFooterInlineSlot({
+  anchorRef,
+  onBeforeNavigate,
+}: {
+  anchorRef: RefObject<View | null>;
+  onBeforeNavigate?: () => void;
+}) {
   const plugins = useInstalledPlugins();
   const groups = useMemo(() => groupPluginFooterInlineItems(plugins), [plugins]);
-  const slotRef = useRef<View | null>(null);
   const [gapWidth, setGapWidth] = useState(0);
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     setGapWidth(event.nativeEvent.layout.width);
   }, []);
   const show = groups.length > 0 && shouldShowSidebarFooterInline(gapWidth);
   return (
-    <View
-      ref={slotRef}
-      collapsable={false}
-      onLayout={handleLayout}
-      style={styles.footerSpacer}
-      testID="sidebar-footer-inline-slot"
-    >
+    <View onLayout={handleLayout} style={styles.footerSpacer} testID="sidebar-footer-inline-slot">
       {show ? (
         <View style={styles.footerInlineItems}>
           {groups.map((group) => (
@@ -539,7 +543,7 @@ function SidebarFooterInlineSlot({ onBeforeNavigate }: { onBeforeNavigate?: () =
                 group={group}
                 section="footer"
                 inline
-                fallbackAnchorRef={slotRef}
+                fallbackAnchorRef={anchorRef}
                 onBeforeNavigate={onBeforeNavigate}
               />
             </View>
