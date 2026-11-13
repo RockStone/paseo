@@ -727,8 +727,11 @@ screen with other params shows the new params.
 ### Sidebar items
 
 `addSidebarHeaderItem` adds a row to the list at the top of the sidebar. `addSidebarFooterItem`
-adds a row to the footer, between **Add project** and the footer's icon row. The icon row is fixed;
-plugins can't add to it. Both take `{ id, title, Component }`. `title` labels the item in
+adds a row to the footer, between **Add project** and the footer's icon row.
+`addSidebarFooterInlineItem` puts a compact item inside the icon row, in the free space between the
+left icons and Help and Settings. Inline items get only the width the icons leave over, are clipped
+to it, and are hidden when less than 48px is left; keep them to one short line, and open a popover
+or screen for detail. They have no entry in Settings > Sidebar. All three take `{ id, title, Component }`. `title` labels the item in
 Settings > Sidebar, where users reorder and hide items, and is the default label and accessibility
 label of `SidebarRow`. Settings shows a generic plugin icon for these items; a row from the
 deprecated `addSidebarItem` keeps its registered icon.

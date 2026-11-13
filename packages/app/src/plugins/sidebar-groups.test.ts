@@ -7,7 +7,11 @@ import {
   pluginScreensHostKey,
   rememberPluginContributionHost,
 } from "./contribution-host";
-import { groupPluginSidebarItems, selectPluginSidebarTarget } from "./sidebar-groups";
+import {
+  groupPluginFooterInlineItems,
+  groupPluginSidebarItems,
+  selectPluginSidebarTarget,
+} from "./sidebar-groups";
 
 function installed(
   serverId: string,
@@ -36,6 +40,7 @@ function installed(
       header: [{ id: contributionId, title: "Example", Component: () => null }],
       footer: [{ id: "status", title: "Status", Component: () => null }],
     },
+    sidebarFooterInlineItems: [{ id: "usage", title: "Usage", Component: () => null }],
     legacySidebarItems,
     filePanels: [],
     composerItems: [],
@@ -49,6 +54,23 @@ function installed(
     timelineRenderers: [],
   };
 }
+
+describe("groupPluginFooterInlineItems", () => {
+  it("coalesces an inline item across hosts and keeps it out of the footer rows", () => {
+    const plugins = [installed("host-a"), installed("host-b")];
+    const groups = groupPluginFooterInlineItems(plugins);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.contributionId).toBe("usage");
+    expect(groups[0]?.targets.map((target) => target.plugin.serverId)).toEqual([
+      "host-a",
+      "host-b",
+    ]);
+    expect(groupPluginSidebarItems(plugins, "footer").map((group) => group.contributionId)).toEqual(
+      ["status"],
+    );
+  });
+});
 
 describe("groupPluginSidebarItems", () => {
   it("coalesces the same plugin contribution across hosts", () => {

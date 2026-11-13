@@ -60,3 +60,14 @@ export function resolveSidebarFooterLayout(input: {
     overflow: actions.filter((action) => !kept.has(action)),
   };
 }
+
+/** The narrowest gap an inline plugin item gets drawn in; below it the item is hidden. */
+export const SIDEBAR_FOOTER_INLINE_MIN_WIDTH = 48;
+
+/**
+ * Whether the icon row's flexible gap is wide enough to draw inline plugin items. The gap is what
+ * the icons leave over, so inline items never move an icon into overflow.
+ */
+export function shouldShowSidebarFooterInline(gapWidth: number): boolean {
+  return gapWidth >= SIDEBAR_FOOTER_INLINE_MIN_WIDTH;
+}

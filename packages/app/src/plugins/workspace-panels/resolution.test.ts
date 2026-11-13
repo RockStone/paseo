@@ -23,6 +23,7 @@ function installed(): InstalledPlugin {
     surfaces: [],
     sidebarViews: [],
     sidebarItems: { header: [], footer: [] },
+    sidebarFooterInlineItems: [],
     legacySidebarItems: [],
     filePanels: [],
     composerItems: [],

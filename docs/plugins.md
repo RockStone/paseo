@@ -600,8 +600,16 @@ one section's order from built-ins, plugin groups, and the section's preference
 - The item's `Component` renders directly in the section, with no wrapper, so a fragment or array
   of rows lays out like separate items while Settings keeps one entry for the block. Footer items
   are rows between Add project and the footer's icon row. The icon row (Hosts,
-  Help and support, Settings) is fixed app code, not a contribution slot, so the kit has no icon
-  button.
+  Help and support, Settings) is fixed app code; the only contribution point in it is the
+  flexible gap between its left and right icons (`addSidebarFooterInlineItem`), so the kit has no
+  icon button.
+- Inline footer items are not a `SidebarSection`: they have no user order or visibility
+  preference, and `PluginSidebarItem` takes `inline` for them. They live in
+  `sidebarFooterInlineItems`, grouped by `groupPluginFooterInlineItems`. The gap is a `flex: 1`,
+  basis-0, clipped view, so its width is exactly what the icons leave and `resolveSidebarFooterLayout`
+  never sees it: an inline item can't push an icon into overflow. Items mount only while the gap is
+  at least `SIDEBAR_FOOTER_INLINE_MIN_WIDTH`; popovers anchor to the gap unless a kit `SidebarRow`
+  claims the anchor.
 - `openPopover` opens through the same `PluginPopoverSurface` as header buttons
   (`plugins/popover.tsx`). Any press inside a `SidebarRow`, including its `trailing` content, moves
   the menu anchor to that row: a capture-phase `onStartShouldSetResponderCapture` runs before the

@@ -25,6 +25,7 @@ function installation(id = "review"): InstalledPlugin {
     surfaces: [],
     sidebarViews: [],
     sidebarItems: { header: [], footer: [] },
+    sidebarFooterInlineItems: [],
     legacySidebarItems: [],
     filePanels: [],
     composerItems: [],

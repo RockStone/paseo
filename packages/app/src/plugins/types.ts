@@ -53,6 +53,8 @@ export interface EvaluatedPlugin {
   settingsScreens: PluginSettingsScreenContribution[];
   sidebarViews: PluginSidebarViewContribution<PluginText>[];
   sidebarItems: Record<PluginSidebarSection, PluginSidebarItemContribution[]>;
+  /** `addSidebarFooterInlineItem` registrations: the icon row's flexible gap, not an ordered section. */
+  sidebarFooterInlineItems: PluginSidebarItemContribution[];
   // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
   /** `addSidebarItem` registrations, so `/plugin/<id>/sidebar/<item>` routes keep resolving. */
   legacySidebarItems: PluginSidebarContribution[];

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   resolveSidebarFooterLayout,
+  shouldShowSidebarFooterInline,
   SIDEBAR_FOOTER_ACTIONS,
+  SIDEBAR_FOOTER_INLINE_MIN_WIDTH,
 } from "@/components/sidebar-footer-layout";
 import { DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/stores/panel-store";
 
@@ -85,5 +87,17 @@ describe("sidebar footer layout", () => {
     for (const controlSize of [TOUCH, POINTER]) {
       expect(layout(0, controlSize)).toEqual({ inline: [], overflow: [] });
     }
+  });
+
+  it("keeps every icon inline whatever the inline slot holds", () => {
+    // The slot is the leftover width; the icon layout never takes it as an input.
+    const exact = 5 * TOUCH + 2 * ROW_PADDING;
+    expect(layout(exact, TOUCH).overflow).toEqual([]);
+  });
+
+  it("draws inline plugin items only in a gap of at least the minimum width", () => {
+    expect(shouldShowSidebarFooterInline(0)).toBe(false);
+    expect(shouldShowSidebarFooterInline(SIDEBAR_FOOTER_INLINE_MIN_WIDTH - 1)).toBe(false);
+    expect(shouldShowSidebarFooterInline(SIDEBAR_FOOTER_INLINE_MIN_WIDTH)).toBe(true);
   });
 });

@@ -58,6 +58,8 @@ interface PluginSidebarItemEntryProps {
   /** Anchors a popover opened by an item that renders no kit component. */
   fallbackAnchorRef: RefObject<View | null>;
   onBeforeNavigate?: () => void;
+  /** An item in the footer icon row's gap rather than a footer row; styled and ids differ. */
+  inline?: boolean;
 }
 
 type PluginSidebarItemHostProps = Omit<PluginSidebarItemEntryProps, "group"> & {
@@ -81,6 +83,7 @@ function PluginSidebarItemHost({
   section,
   fallbackAnchorRef,
   onBeforeNavigate,
+  inline,
   theme,
 }: PluginSidebarItemHostProps & { theme: PluginTheme }) {
   const pathname = usePathname();
@@ -130,6 +133,7 @@ function PluginSidebarItemHost({
             showPopover={showPopover}
             fallbackAnchorRef={fallbackAnchorRef}
             onBeforeNavigate={onBeforeNavigate}
+            inline={inline}
           />
         </SidebarPopoverRoot>
       </PluginEnvironmentProvider>
@@ -150,6 +154,7 @@ function SidebarItemContent({
   showPopover,
   fallbackAnchorRef,
   onBeforeNavigate,
+  inline,
 }: {
   plugin: PluginSidebarTarget["plugin"];
   item: PluginSidebarTarget["item"];
@@ -161,6 +166,7 @@ function SidebarItemContent({
   showPopover: (content: PopoverContent | null) => void;
   fallbackAnchorRef: RefObject<View | null>;
   onBeforeNavigate?: () => void;
+  inline?: boolean;
 }) {
   const { anchorTo, offerAnchor, releaseAnchor, anchorToFallback } =
     useSidebarPopoverAnchor("PluginSidebarItem");
@@ -209,12 +215,12 @@ function SidebarItemContent({
       testID:
         section === "header"
           ? `plugin-sidebar-${plugin.id}-${item.id}`
-          : `plugin-sidebar-${section}-${plugin.id}-${item.id}`,
+          : `plugin-sidebar-${inline ? "footer-inline" : section}-${plugin.id}-${item.id}`,
       anchorTo,
       offerAnchor,
       releaseAnchor,
     }),
-    [anchorTo, item.id, item.title, offerAnchor, plugin, releaseAnchor, section],
+    [anchorTo, inline, item.id, item.title, offerAnchor, plugin, releaseAnchor, section],
   );
   const itemProps = useMemo<PluginSidebarItemProps>(
     () => ({ ...hostProps, currentScreen, openScreen, openPopover }),

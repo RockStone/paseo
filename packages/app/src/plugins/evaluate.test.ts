@@ -218,6 +218,7 @@ describe("evaluatePluginClientBundle", () => {
         plugin.addScreen({ id: "bot", title: (params) => params.botId, Component: Screen });
         plugin.addSidebarHeaderItem({ id: "main", title: " Example ", Component: Item });
         plugin.addSidebarFooterItem({ id: "main", title: "Status", Component: Item });
+        plugin.addSidebarFooterInlineItem({ id: "main", title: " Usage ", Component: Item });
       `),
     );
 
@@ -230,6 +231,9 @@ describe("evaluatePluginClientBundle", () => {
     ]);
     expect(plugin.sidebarItems.footer.map(({ id, title }) => ({ id, title }))).toEqual([
       { id: "main", title: "Status" },
+    ]);
+    expect(plugin.sidebarFooterInlineItems.map(({ id, title }) => ({ id, title }))).toEqual([
+      { id: "main", title: "Usage" },
     ]);
     expect(plugin.legacySidebarItems).toEqual([]);
   });
@@ -269,6 +273,16 @@ describe("evaluatePluginClientBundle", () => {
     expect(() =>
       evaluatePluginClientBundle(
         "example",
+        bundle(`
+          function Item() { return null; }
+          plugin.addSidebarFooterInlineItem({ id: "main", title: "One", Component: Item });
+          plugin.addSidebarFooterInlineItem({ id: "main", title: "Two", Component: Item });
+        `),
+      ),
+    ).toThrow("Duplicate sidebar footer inline item: main");
+    expect(() =>
+      evaluatePluginClientBundle(
+        "example",
         bundle(`plugin.addSidebarHeaderItem({ id: "main", title: "Main", Component: "Main" });`),
       ),
     ).toThrow("Sidebar item main is not a component");
@@ -296,6 +310,7 @@ describe("evaluatePluginClientBundle", () => {
       { id: "main", title: "main" },
     ]);
     expect(plugin.sidebarItems).toEqual({ header: [], footer: [] });
+    expect(plugin.sidebarFooterInlineItems).toEqual([]);
     expect(plugin.legacySidebarItems).toEqual([
       { id: "entry", title: "Example", icon: "Blocks", surface: "main" },
     ]);

@@ -47,6 +47,29 @@ function groupKey(pluginId: string, section: PluginSidebarSection, itemId: strin
     : `${pluginId}/sidebar-${section}/${itemId}`;
 }
 
+/** The footer icon row's inline items, coalesced across hosts like any other footer item. */
+export function groupPluginFooterInlineItems(plugins: InstalledPlugin[]): PluginSidebarGroup[] {
+  const groups = new Map<string, PluginSidebarGroup>();
+  for (const plugin of plugins) {
+    for (const item of plugin.sidebarFooterInlineItems) {
+      const key = `${plugin.id}/sidebar-footer-inline/${item.id}`;
+      const existing = groups.get(key);
+      if (existing?.kind === "item") existing.targets.push({ plugin, item });
+      else if (!existing) {
+        groups.set(key, {
+          kind: "item",
+          key,
+          pluginId: plugin.id,
+          contributionId: item.id,
+          title: plugin.i18n.resolve(item.title, plugin.locale),
+          targets: [{ plugin, item }],
+        });
+      }
+    }
+  }
+  return [...groups.values()];
+}
+
 export function groupPluginSidebarItems(
   plugins: InstalledPlugin[],
   section: PluginSidebarSection,

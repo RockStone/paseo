@@ -132,6 +132,7 @@ export function runPluginClientBundle(
     settingsScreens: [],
     sidebarViews: [],
     sidebarItems: { header: [], footer: [] },
+    sidebarFooterInlineItems: [],
     legacySidebarItems: [],
     filePanels: [],
     composerItems: [],
@@ -151,6 +152,7 @@ export function runPluginClientBundle(
     header: new Set(),
     footer: new Set(),
   };
+  const sidebarFooterInlineIds = new Set<string>();
   const filePanelIds = new Set<string>();
   const composerItemIds = new Set<string>();
   const newWorkspaceItemIds = new Set<string>();
@@ -202,10 +204,12 @@ export function runPluginClientBundle(
     return remove;
   }
   function addSidebarItem(
-    section: PluginSidebarSection,
+    section: PluginSidebarSection | "footer inline",
     contribution: PluginSidebarItemContribution,
   ): PluginCleanup {
-    const ids = sidebarItemIds[section];
+    const inline = section === "footer inline";
+    const ids = inline ? sidebarFooterInlineIds : sidebarItemIds[section];
+    const items = inline ? collector.sidebarFooterInlineItems : collector.sidebarItems[section];
     const normalizedId = requireId(contribution.id, `sidebar ${section} item id`);
     if (ids.has(normalizedId))
       throw new Error(`Duplicate sidebar ${section} item: ${normalizedId}`);
@@ -215,10 +219,8 @@ export function runPluginClientBundle(
       throw new Error(`Sidebar item ${normalizedId} is not a component`);
     }
     ids.add(normalizedId);
-    return register(
-      collector.sidebarItems[section],
-      { id: normalizedId, title, Component: contribution.Component },
-      () => ids.delete(normalizedId),
+    return register(items, { id: normalizedId, title, Component: contribution.Component }, () =>
+      ids.delete(normalizedId),
     );
   }
   function registerPanel(contribution: PluginWorkspacePanelContribution): PluginCleanup {
@@ -322,6 +324,9 @@ export function runPluginClientBundle(
     },
     addSidebarFooterItem(contribution: PluginSidebarItemContribution) {
       return addSidebarItem("footer", contribution);
+    },
+    addSidebarFooterInlineItem(contribution: PluginSidebarItemContribution) {
+      return addSidebarItem("footer inline", contribution);
     },
     // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
     // Titled by its id; a legacy item pointing at it lends the header its own title instead.
@@ -633,6 +638,7 @@ export function runPluginClientBundle(
     settingsScreens: collector.settingsScreens,
     sidebarViews: collector.sidebarViews,
     sidebarItems: collector.sidebarItems,
+    sidebarFooterInlineItems: collector.sidebarFooterInlineItems,
     legacySidebarItems: collector.legacySidebarItems,
     filePanels: collector.filePanels,
     composerItems: collector.composerItems,

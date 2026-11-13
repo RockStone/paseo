@@ -223,6 +223,14 @@ export interface PluginClientContext extends PluginCommandCapabilities, PluginCl
   addSidebarView(contribution: PluginSidebarViewContribution<PluginText>): PluginCleanup;
   addSidebarHeaderItem(contribution: PluginSidebarItemContribution<PluginText>): PluginCleanup;
   addSidebarFooterItem(contribution: PluginSidebarItemContribution<PluginText>): PluginCleanup;
+  /**
+   * Adds an item to the flexible gap of the footer's icon row, between the left icons and the right
+   * icons. It takes only the width the icons leave over, clips to it, and is hidden when too little
+   * is left. Renders like a footer item otherwise: same props, `openPopover` anchors to the item.
+   */
+  addSidebarFooterInlineItem(
+    contribution: PluginSidebarItemContribution<PluginText>,
+  ): PluginCleanup;
   addAgentPanel(contribution: PluginAgentPanelContribution<PluginText>): PluginCleanup;
   addWorkspacePanel(contribution: PluginWorkspacePanelContribution<PluginText>): PluginCleanup;
   addCommandCenterItem(

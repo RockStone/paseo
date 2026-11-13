@@ -49,6 +49,7 @@ import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
 import { SidebarFooterOverflowMenu } from "@/components/sidebar/sidebar-footer-overflow-menu";
 import {
   resolveSidebarFooterLayout,
+  shouldShowSidebarFooterInline,
   SIDEBAR_FOOTER_ACTIONS,
   type SidebarFooterAction,
 } from "@/components/sidebar-footer-layout";
@@ -84,6 +85,8 @@ import { useHosts } from "@/runtime/host-runtime";
 import { PluginSidebarItem } from "@/plugins/sidebar-items";
 import { builtinSidebarNavLabelKey } from "@/sidebar-nav/model";
 import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
+import { useInstalledPlugins } from "@/plugins/registry";
+import { groupPluginFooterInlineItems } from "@/plugins/sidebar-groups";
 import { usePanelStore } from "@/stores/panel-store";
 import { useOwnsWindowChromeCorner, WindowChromeSafeArea } from "@/utils/desktop-window";
 import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
@@ -479,7 +482,7 @@ function SidebarFooter({
               onOpenHostSettings={handleOpenHostSettings}
             />
           ) : null}
-          <View style={styles.footerSpacer} />
+          <SidebarFooterInlineSlot onBeforeNavigate={onBeforeNavigate} />
           {isInline("help") ? <SidebarHelpMenu /> : null}
           {overflow.length > 0 ? (
             <SidebarFooterOverflowMenu
@@ -503,6 +506,47 @@ function SidebarFooter({
         </View>
       </View>
     </UsageSidebarRoot>
+  );
+}
+
+/**
+ * The icon row's flexible gap, between the left and right icons. It takes whatever width the icons
+ * leave (basis 0, so its content never widens it) and hosts the plugins' inline items clipped to
+ * it. Below the minimum width the items are not drawn.
+ */
+function SidebarFooterInlineSlot({ onBeforeNavigate }: { onBeforeNavigate?: () => void }) {
+  const plugins = useInstalledPlugins();
+  const groups = useMemo(() => groupPluginFooterInlineItems(plugins), [plugins]);
+  const slotRef = useRef<View | null>(null);
+  const [gapWidth, setGapWidth] = useState(0);
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    setGapWidth(event.nativeEvent.layout.width);
+  }, []);
+  const show = groups.length > 0 && shouldShowSidebarFooterInline(gapWidth);
+  return (
+    <View
+      ref={slotRef}
+      collapsable={false}
+      onLayout={handleLayout}
+      style={styles.footerSpacer}
+      testID="sidebar-footer-inline-slot"
+    >
+      {show ? (
+        <View style={styles.footerInlineItems}>
+          {groups.map((group) => (
+            <View key={group.key} style={styles.footerInlineItem}>
+              <PluginSidebarItem
+                group={group}
+                section="footer"
+                inline
+                fallbackAnchorRef={slotRef}
+                onBeforeNavigate={onBeforeNavigate}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -1045,9 +1089,23 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: FOOTER_ROW_PADDING,
     paddingVertical: theme.spacing[1.5],
   },
-  // Pushes Help and Settings to the end of the icon line.
+  // Pushes Help and Settings to the end of the icon line. Basis 0 and minWidth 0 keep the width
+  // equal to the leftover space whatever the inline plugin items inside want.
   footerSpacer: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  footerInlineItems: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+    paddingHorizontal: theme.spacing[1],
+  },
+  footerInlineItem: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   // Usage and plugin rows sit above the footer's icon line, spaced like the header nav rows.
   footerRows: {

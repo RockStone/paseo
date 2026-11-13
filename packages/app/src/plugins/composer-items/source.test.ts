@@ -42,6 +42,7 @@ function plugin(): InstalledPlugin {
     settingsScreens: [],
     surfaces: [],
     sidebarItems: { header: [], footer: [] },
+    sidebarFooterInlineItems: [],
     legacySidebarItems: [],
     sidebarViews: [],
     filePanels: [],
