@@ -119,7 +119,7 @@ export class BoardService {
     };
   }
 
-  /** Badge counts per workspace: new owner items for its project plus unseen notes. */
+  /** Badge counts per workspace: new owner items and added tasks for its project, plus unseen notes. */
   async badgeCounts(paseo: Paseo, unseenNotes: Record<string, number>) {
     const workspaces = await this.allWorkspaces(paseo);
     const perProject = new Map<string, Promise<number>>();
@@ -128,7 +128,7 @@ export class BoardService {
       [...workspaces.values()].map(async (workspace) => {
         let pending = perProject.get(workspace.projectId);
         if (!pending) {
-          pending = this.newOwnerCount(workspace).catch(() => 0);
+          pending = this.newItemCount(workspace).catch(() => 0);
           perProject.set(workspace.projectId, pending);
         }
         const total = (await pending) + (unseenNotes[workspace.workspaceId] ?? 0);
@@ -254,11 +254,13 @@ export class BoardService {
     return target ? { id: target.id, title: target.title } : null;
   }
 
-  private async newOwnerCount(workspace: WorkspaceProject): Promise<number> {
+  private async newItemCount(workspace: WorkspaceProject): Promise<number> {
     const board = await this.badgeBoards.read(workspace.root);
-    if (!board.hasOwners) return 0;
+    if (!board.hasOwners && !board.hasTasks) return 0;
     const state = await this.ensureBaseline(workspace.projectId, board);
-    return newOwnerIds(board, state.seen).length;
+    // Added tasks count; status and wording changes only dot the Progress tab, since agents tick
+    // tasks off all day and would keep the badge lit.
+    return newOwnerIds(board, state.seen).length + addedIds(board.tasks, state.progressSeen).length;
   }
 
   private async ensureBaseline(projectId: string, board: TrackerBoard) {

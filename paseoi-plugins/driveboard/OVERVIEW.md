@@ -14,7 +14,7 @@ The workspace's sticky notes. Agents in the workspace get `post_sticky_note` and
 
 ## Badge and storage
 
-The header button counts owner items that are new or changed since you last opened the board, plus agent notes you have not seen. It refreshes about every 10 seconds.
+The header button counts owner items that are new or changed since you last opened the board, tasks added to docs/drive.md since you last opened Progress, and agent notes you have not seen. Task status changes only dot the Progress tab. It refreshes about every 10 seconds.
 
 The tracker files belong to the project: every workspace of a project shows the files in the project's root checkout. Replies are written there with a stale-file guard and an atomic rename. Notes and the record of sent replies live on the daemon machine in `plugin-data/driveboard/` inside the Paseo home (`PASEO_HOME`, usually `~/.paseo`). On first start the plugin copies notes from the retired Sticky notes plugin and sent replies from the retired standalone Driveboard.
 

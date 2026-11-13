@@ -126,10 +126,11 @@ describe("BoardService", () => {
     const changed = await boards.read(paseo, "ws-1");
     expect(changed.newTaskIds).toEqual(["Z-2", "Z-4"]);
     expect(changed.addedTaskIds).toEqual(["Z-4"]);
-    // Progress changes do not count toward the header badge.
-    expect(await boards.badgeCounts(paseo, {})).toEqual({});
+    // Only the added task counts toward the header badge; the status change does not.
+    expect(await boards.badgeCounts(paseo, {})).toEqual({ "ws-1": 1 });
     expect(await boards.markProgressSeen(paseo, "ws-1")).toBe(2);
     expect((await boards.read(paseo, "ws-1")).newTaskIds).toEqual([]);
+    expect(await boards.badgeCounts(paseo, {})).toEqual({});
   });
 
   it("writes a reply and sends only the new replies to the agent", async () => {

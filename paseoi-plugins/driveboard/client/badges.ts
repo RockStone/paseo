@@ -11,7 +11,7 @@ const BUTTON_ID = "driveboard";
 
 /**
  * Registers one header button per workspace by following the workspace directory, and keeps
- * each button's count current by polling the summary RPC: owner to-dos that are new to the owner
+ * each button's count current by polling the summary RPC: owner to-dos and tasks that are new to the owner
  * plus unseen agent notes.
  */
 export function contributeHeaderButtons(client: PluginClientContext) {
