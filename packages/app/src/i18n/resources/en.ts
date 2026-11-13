@@ -56,6 +56,7 @@ export const en = {
     showMore: "View {{count}} more files",
     workspace: "Workspace changes during this response",
     recordedTotals: "Recorded edits; totals may count a line more than once",
+    sharedCheckout: "May include changes from other agents in this checkout.",
   },
   pluginCombobox: {
     searching: "Searching…",

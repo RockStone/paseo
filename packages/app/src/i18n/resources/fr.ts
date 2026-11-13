@@ -57,6 +57,7 @@ export const fr: TranslationResources = {
     showMore: "Voir {{count}} autres fichiers",
     workspace: "Modifications de l’espace de travail pendant cette réponse",
     recordedTotals: "Modifications enregistrées ; une ligne peut être comptée plusieurs fois",
+    sharedCheckout: "Peut inclure des modifications d'autres agents dans ce checkout.",
   },
   pluginCombobox: {
     searching: "Recherche…",

@@ -23,6 +23,8 @@ export interface ResponseFileChanges {
   counts: ChangeCounts | null;
   scope?: "workspace";
   recordedTotals?: boolean;
+  /** Another agent overlapped this checkout during the response. */
+  shared?: boolean;
 }
 
 function textLines(text: string): string[] {
@@ -225,6 +227,11 @@ function summarize(items: StreamItem[], root: string): ResponseFileChanges | nul
     files: changes,
     counts,
     ...(snapshots.length ? { scope: "workspace" as const } : {}),
+    ...(snapshots.some(
+      (item) => item.payload.source === "agent" && item.payload.data.metadata?.shared === true,
+    )
+      ? { shared: true }
+      : {}),
     ...(changes.some((file) => file.edits.length > 1 && file.counts)
       ? { recordedTotals: true }
       : {}),

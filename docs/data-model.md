@@ -107,16 +107,20 @@ only when its matching assistant message still exists. Older shell-only changes
 are not backfilled. Deleting an agent removes its derived history.
 
 A snapshot describes workspace activity during a response, not process ownership.
-An overlapping Paseo turn in the same checkout suppresses inferred snapshots for
-both turns; explicit provider edit records remain available. External editors
-can still contribute workspace changes. Already dirty content is the baseline,
-so it is not counted unless it changes during the response.
+Each turn hashes the working tree into a Git tree object at the start and end
+(`git add -A` plus `git write-tree` against a temporary copy of the index, so the
+real index, refs and stash are never touched; only unreferenced objects are
+written). The changed files and patches come from `git diff-tree` between the two
+trees. Untracked files are included and Git ignore rules are respected. Binary
+files carry no patch. Already dirty content is the baseline, so it is not counted
+unless it changes during the response.
 
-Snapshots respect Git ignore rules for untracked files, skip symlinks and binary
-files, and retain at most 256 KiB per file and 32 MiB per baseline. Repositories
-above 20,000 listed paths are skipped. At most four captures run concurrently;
-saved patches are capped at 128 KiB per response. Partial captures supplement
-explicit edits rather than claiming complete coverage. New snapshots require a
+Concurrent turns are never skipped. When another turn overlapped the same checkout
+at any point, the end marker carries `shared: true` and the card says the changes
+may include other agents' work; external editors can contribute the same way.
+Saved patches are capped at 128 KiB per response; past that the marker reports
+`complete: false`. A non-Git directory or a failing Git command records nothing,
+and explicit provider edit records remain available. New snapshots require a
 response started on the rebuilt daemon; installing only the UI cannot add them.
 
 ## 1. Agent Record

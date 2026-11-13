@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { constants } from "node:fs";
-import { mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -11,21 +10,18 @@ import type { AgentTimelineItem } from "./agent-sdk-types.js";
 import { writeJsonFileAtomic } from "../atomic-file.js";
 
 const exec = promisify(execFile);
-const MAX_FILE_BYTES = 256 * 1024;
-const MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024;
 const MAX_RECORD_BYTES = 128 * 1024;
-const MAX_FILES = 20_000;
+const GIT_TIMEOUT_MS = 30_000;
+const GIT_MAX_BUFFER = 256 * 1024 * 1024;
 const MARKER = "paseoiWorkspaceSnapshot";
 
-interface Snapshot {
-  root: string;
-  files: Map<string, string | null>;
-  complete: boolean;
-}
 interface Capture {
   root: string;
-  conflicted: boolean;
-  snapshot?: Snapshot;
+  /** True once `root` is the resolved Git top level. */
+  resolved: boolean;
+  /** Another capture overlapped this root at any time during the turn. */
+  shared: boolean;
+  tree?: string;
 }
 const RecordSchema = z.object({
   afterMessageId: z.string(),
@@ -33,68 +29,40 @@ const RecordSchema = z.object({
 });
 type SavedRecord = z.infer<typeof RecordSchema>;
 
-async function git(cwd: string, args: string[]): Promise<string> {
+async function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<string> {
   return (
     await exec("git", ["--no-optional-locks", "-C", cwd, ...args], {
-      timeout: 5000,
-      maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      timeout: GIT_TIMEOUT_MS,
+      maxBuffer: GIT_MAX_BUFFER,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...env },
     })
   ).stdout;
 }
 
-async function snapshot(root: string): Promise<Snapshot> {
-  const paths = [
-    ...new Set(
-      (await git(root, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]))
-        .split("\0")
-        .filter(Boolean),
-    ),
-  ];
-  if (paths.length > MAX_FILES) throw new Error("Workspace snapshot file limit exceeded");
-  const result: Snapshot = { root, files: new Map(), complete: true };
-  let remaining = MAX_SNAPSHOT_BYTES;
-  // Keep file descriptors and memory bounded even for a large monorepo. Symlinks,
-  // binary files and large/generated files never enter saved source previews.
-  for (let offset = 0; offset < paths.length; offset += 8) {
-    await Promise.all(
-      paths.slice(offset, offset + 8).map(async (path) => {
-        const absolute = resolve(root, path);
-        if (!absolute.startsWith(root + sep)) return;
-        let handle;
-        let reserved = 0;
-        try {
-          handle = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-          const stat = await handle.stat();
-          if (!stat.isFile() || stat.size > MAX_FILE_BYTES || stat.size > remaining) {
-            result.files.set(path, null);
-            result.complete = false;
-            return;
-          }
-          remaining -= stat.size;
-          reserved = stat.size;
-          const buffer = Buffer.alloc(stat.size + 1);
-          const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-          const content = buffer.subarray(0, bytesRead);
-          if (bytesRead > stat.size || content.includes(0)) {
-            remaining += reserved;
-            result.files.set(path, null);
-            result.complete = false;
-          } else result.files.set(path, new TextDecoder("utf-8", { fatal: true }).decode(content));
-        } catch (error) {
-          remaining += reserved;
-          if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-            result.files.set(path, null);
-            result.complete = false;
-          }
-        } finally {
-          await handle?.close();
-        }
-      }),
-    );
+/**
+ * Hashes the working tree (tracked + untracked, honoring .gitignore) into a Git tree
+ * object using a private copy of the index. The real index, refs and stash are untouched;
+ * only unreferenced blob/tree objects are written.
+ */
+async function snapshotTree(root: string): Promise<string> {
+  const temp = await mkdtemp(join(tmpdir(), "paseoi-index-"));
+  try {
+    const indexFile = join(temp, "index");
+    const realIndex = resolve(root, (await git(root, ["rev-parse", "--git-path", "index"])).trim());
+    try {
+      await copyFile(realIndex, indexFile);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    const env = { GIT_INDEX_FILE: indexFile };
+    await git(root, ["add", "-A", "--", "."], env);
+    return (await git(root, ["write-tree"], env)).trim();
+  } finally {
+    await rm(temp, { recursive: true, force: true });
   }
-  return result;
 }
+
+const DIFF_TREE_ARGS = ["diff-tree", "-r", "--no-ext-diff", "--no-textconv", "--no-renames"];
 
 function overlaps(a: string, b: string): boolean {
   return a === b || a.startsWith(b + sep) || b.startsWith(a + sep);
@@ -105,26 +73,26 @@ export class ResponseChangeRecorder {
   private readonly active = new Map<string, Capture>();
   constructor(private readonly directory?: string) {}
 
-  private markOverlaps(capture: Capture): void {
-    for (const other of this.active.values()) {
-      if (other !== capture && overlaps(capture.root, other.root)) {
-        capture.conflicted = other.conflicted = true;
+  private markOverlaps(agentId: string, capture: Capture): void {
+    for (const [otherId, other] of this.active) {
+      if (otherId !== agentId && other.resolved && overlaps(capture.root, other.root)) {
+        capture.shared = other.shared = true;
       }
     }
   }
 
   async begin(agentId: string, cwd: string): Promise<void> {
     if (!this.directory) return;
-    const capture: Capture = { root: resolve(cwd), conflicted: this.active.size >= 4 };
+    const capture: Capture = { root: resolve(cwd), resolved: false, shared: false };
     this.active.set(agentId, capture);
-    this.markOverlaps(capture);
     try {
       capture.root = resolve((await git(cwd, ["rev-parse", "--show-toplevel"])).trim());
-      this.markOverlaps(capture);
-      if (!capture.conflicted) capture.snapshot = await snapshot(capture.root);
+      capture.resolved = true;
+      this.markOverlaps(agentId, capture);
+      capture.tree = await snapshotTree(capture.root);
     } catch {
       // Non-Git and unavailable workspaces retain their explicit provider edits.
-      capture.conflicted = true;
+      if (this.active.get(agentId) === capture) this.active.delete(agentId);
     }
   }
 
@@ -135,42 +103,30 @@ export class ResponseChangeRecorder {
   async finish(agentId: string, turnId: string): Promise<AgentTimelineItem[]> {
     const capture = this.active.get(agentId);
     if (!capture) return [];
-    let temp: string | undefined;
     try {
-      if (capture.conflicted || !capture.snapshot) return [];
-      const before = capture.snapshot;
-      const after = await snapshot(capture.root);
+      if (!capture.tree) return [];
+      const before = capture.tree;
+      const after = await snapshotTree(capture.root);
+      const numstat = (
+        await git(capture.root, [...DIFF_TREE_ARGS, "--numstat", "-z", before, after])
+      )
+        .split("\0")
+        .filter(Boolean);
+      const paths = numstat.map((entry) => entry.split("\t").slice(2).join("\t"));
+      const patches = paths.length
+        ? (await git(capture.root, [...DIFF_TREE_ARGS, "-p", before, after]))
+            .split(/^(?=diff --git )/m)
+            .filter(Boolean)
+        : [];
       const items: AgentTimelineItem[] = [];
       const captureId = `paseoi-changes:${turnId}:${randomUUID()}`;
-      let complete = before.complete && after.complete;
+      let complete = patches.length === paths.length;
       let bytes = 0;
-      for (const path of new Set([...before.files.keys(), ...after.files.keys()])) {
-        if (capture.conflicted) return [];
-        const oldText = before.files.get(path);
-        const newText = after.files.get(path);
-        if (oldText === null || newText === null || oldText === newText) continue;
-        // Git lists tracked deletions too; a missing entry is an absent file.
-        temp ??= await mkdtemp(join(tmpdir(), "paseoi-diff-"));
-        await writeFile(join(temp, "before"), oldText ?? "", { mode: 0o600 });
-        await writeFile(join(temp, "after"), newText ?? "", { mode: 0o600 });
-        let patch: string;
-        try {
-          patch = await git(temp, [
-            "diff",
-            "--no-index",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--text",
-            "--",
-            "before",
-            "after",
-          ]);
-        } catch (error) {
-          const failure = error as { code?: number; stdout?: string };
-          if (failure.code !== 1 || typeof failure.stdout !== "string") throw error;
-          patch = failure.stdout;
-        }
+      for (let index = 0; index < Math.min(paths.length, patches.length); index++) {
+        let patch = patches[index]!;
+        const path = paths[index]!;
         const headerEnd = patch.indexOf("\n@@");
+        // Binary and mode-only changes carry no hunk.
         if (headerEnd < 0) continue;
         const absolute = join(capture.root, path).replace(/\\/g, "/");
         patch = `--- ${JSON.stringify("a/" + absolute)}\n+++ ${JSON.stringify("b/" + absolute)}${patch.slice(headerEnd)}`;
@@ -189,7 +145,6 @@ export class ResponseChangeRecorder {
           detail: { type: "edit", filePath: join(capture.root, path), unifiedDiff: patch },
         });
       }
-      if (capture.conflicted) return [];
       // An empty complete snapshot also matters: edits may have been reverted.
       items.push({
         type: "tool_call",
@@ -197,13 +152,19 @@ export class ResponseChangeRecorder {
         name: "Workspace changes",
         status: "completed",
         error: null,
-        metadata: { [MARKER]: true, complete, root: capture.root.replace(/\\/g, "/") },
+        metadata: {
+          [MARKER]: true,
+          complete,
+          root: capture.root.replace(/\\/g, "/"),
+          ...(capture.shared ? { shared: true } : {}),
+        },
         detail: { type: "plain_text", text: "Workspace changes observed during this response" },
       });
       return items;
+    } catch {
+      return [];
     } finally {
       this.active.delete(agentId);
-      if (temp) await rm(temp, { recursive: true, force: true });
     }
   }
 

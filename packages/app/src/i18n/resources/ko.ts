@@ -57,6 +57,7 @@ export const ko: TranslationResources = {
     showMore: "파일 {{count}}개 더 보기",
     workspace: "이 응답 중 작업 공간 변경 사항",
     recordedTotals: "기록된 편집: 같은 줄이 여러 번 집계될 수 있습니다",
+    sharedCheckout: "이 체크아웃의 다른 에이전트 변경 사항이 포함될 수 있습니다.",
   },
   pluginCombobox: {
     searching: "검색 중…",

@@ -59,6 +59,7 @@ export const es: TranslationResources = {
     showMore: "Ver {{count}} archivos más",
     workspace: "Cambios del espacio de trabajo durante esta respuesta",
     recordedTotals: "Ediciones registradas; una línea puede contarse más de una vez",
+    sharedCheckout: "Puede incluir cambios de otros agentes en este checkout.",
   },
   pluginCombobox: {
     searching: "Buscando…",

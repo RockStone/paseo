@@ -57,6 +57,7 @@ export const zhCN: TranslationResources = {
     showMore: "查看其余 {{count}} 个文件",
     workspace: "本次回复期间的工作区更改",
     recordedTotals: "已记录的编辑；同一行可能被重复计数",
+    sharedCheckout: "可能包含此检出中其他代理的更改。",
   },
   pluginCombobox: {
     searching: "搜索中…",

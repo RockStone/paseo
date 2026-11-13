@@ -57,6 +57,7 @@ export const ar: TranslationResources = {
     showMore: "عرض {{count}} ملفات أخرى",
     workspace: "تغييرات مساحة العمل أثناء هذا الرد",
     recordedTotals: "التعديلات المسجلة؛ قد يُحتسب السطر أكثر من مرة",
+    sharedCheckout: "قد تتضمن تغييرات من وكلاء آخرين في هذا المستودع.",
   },
   pluginCombobox: {
     searching: "جارٍ البحث…",

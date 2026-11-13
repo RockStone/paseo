@@ -153,6 +153,9 @@ export const ChangedFilesCard = memo(function ChangedFilesCard({
               )}
             </Text>
           ) : null}
+          {summary.shared ? (
+            <Text style={styles.note}>{t("responseChanges.sharedCheckout")}</Text>
+          ) : null}
           {files.map((file) => (
             <ChangedFileRow key={file.path} file={file} onOpenFile={onOpenFile} />
           ))}

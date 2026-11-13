@@ -57,6 +57,7 @@ export const ja: TranslationResources = {
     showMore: "残り {{count}} 個のファイルを表示",
     workspace: "この応答中のワークスペースの変更",
     recordedTotals: "記録された編集。同じ行を複数回数える場合があります",
+    sharedCheckout: "このチェックアウト内の他のエージェントによる変更が含まれる場合があります。",
   },
   pluginCombobox: {
     searching: "検索中…",

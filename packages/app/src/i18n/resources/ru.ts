@@ -57,6 +57,7 @@ export const ru: TranslationResources = {
     showMore: "Ещё файлов: {{count}}",
     workspace: "Изменения рабочей области во время этого ответа",
     recordedTotals: "Записанные правки; строка может учитываться несколько раз",
+    sharedCheckout: "Могут быть включены изменения других агентов в этом checkout.",
   },
   pluginCombobox: {
     searching: "Поиск…",

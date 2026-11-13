@@ -1107,6 +1107,33 @@ describe("recorded file-change accuracy", () => {
     ).toEqual({ additions: 4, deletions: 4 });
   });
 
+  it("flags a summary whose workspace snapshot was shared with another agent", () => {
+    function snapshot(shared: boolean): StreamItem[] {
+      const items = changeResponse([
+        {
+          type: "edit",
+          filePath: "/repo/a",
+          unifiedDiff: '--- "a//repo/a"\n+++ "b//repo/a"\n@@ -1 +1 @@\n-x\n+y\n',
+        },
+      ]);
+      for (const item of items) {
+        if (item.kind === "tool_call" && item.payload.source === "agent") {
+          item.payload.data.metadata = {
+            paseoiWorkspaceSnapshot: true,
+            complete: true,
+            root: "/repo",
+            ...(shared ? { shared: true } : {}),
+          };
+        }
+      }
+      return items;
+    }
+    expect(collectResponseFileChanges(snapshot(true), "/repo").get("reply")?.shared).toBe(true);
+    expect(
+      collectResponseFileChanges(snapshot(false), "/repo").get("reply")?.shared,
+    ).toBeUndefined();
+  });
+
   it("does not invent net totals for unrelated repeated snippets or a file overwrite", () => {
     const summary = collectResponseFileChanges(
       changeResponse([
