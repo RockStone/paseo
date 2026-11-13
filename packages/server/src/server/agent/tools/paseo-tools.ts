@@ -682,6 +682,13 @@ function createToolCatalog(
     if (!options.finishSubscriptions) throw new Error("Finish subscriptions are not configured");
     return options.finishSubscriptions();
   }
+  function isNotifyingCaller(agentId: string, serverId?: string): boolean | undefined {
+    if (!callerAgentId || !options.finishSubscriptions) return undefined;
+    return options.finishSubscriptions().isSubscribed(callerAgentId, agentId, serverId);
+  }
+  function notifyingCallerField(value: boolean | undefined): { notifyingCaller?: boolean } {
+    return value === undefined ? {} : { notifyingCaller: value };
+  }
   async function prepareRemoteNotification(
     name: string,
     destination: string | undefined,
@@ -2135,9 +2142,16 @@ function createToolCatalog(
       outputSchema: {
         status: AgentStatusEnum,
         snapshot: AgentSnapshotPayloadSchema,
+        notifyingCaller: z
+          .boolean()
+          .optional()
+          .describe(
+            "Agent callers only: whether you still get finish notifications for this agent.",
+          ),
       },
     },
     async ({ agentId }) => {
+      const notifyingCaller = isNotifyingCaller(agentId);
       const snapshot = agentManager.getAgent(agentId);
       if (snapshot) {
         const structuredSnapshot = await serializeSnapshotWithMetadata(
@@ -2150,6 +2164,7 @@ function createToolCatalog(
           structuredContent: ensureValidJson({
             status: snapshot.lifecycle,
             snapshot: structuredSnapshot,
+            ...notifyingCallerField(notifyingCaller),
           }),
         };
       }
@@ -2169,6 +2184,7 @@ function createToolCatalog(
         structuredContent: ensureValidJson({
           status: structuredSnapshot.status,
           snapshot: structuredSnapshot,
+          ...notifyingCallerField(notifyingCaller),
         }),
       };
     },
@@ -2194,7 +2210,14 @@ function createToolCatalog(
         limit: z.number().int().positive().max(200).optional().default(50),
       },
       outputSchema: {
-        agents: z.array(AgentListItemPayloadSchema),
+        agents: z.array(
+          AgentListItemPayloadSchema.extend({
+            notifyingCaller: z
+              .boolean()
+              .optional()
+              .describe("Agent callers only: whether you still get finish notifications."),
+          }),
+        ),
       },
     },
     async ({
@@ -2234,7 +2257,14 @@ function createToolCatalog(
 
       return {
         content: [],
-        structuredContent: ensureValidJson({ agents }),
+        structuredContent: ensureValidJson({
+          agents: callerAgentId
+            ? agents.map((agent) => ({
+                ...agent,
+                notifyingCaller: isNotifyingCaller(agent.id),
+              }))
+            : agents,
+        }),
       };
     },
   );
@@ -2349,6 +2379,73 @@ function createToolCatalog(
       return {
         content: [],
         structuredContent: ensureValidJson({ success: true }),
+      };
+    },
+  );
+
+  registerTool(
+    "set_agent_notifications",
+    {
+      title: "Set agent notifications",
+      description:
+        "Stop or resume your finish, error, and permission notifications for an agent without prompting it. Only affects your own subscription.",
+      inputSchema: {
+        agentId: z.string(),
+        notify: z.boolean().describe("false unsubscribes; true re-subscribes."),
+        serverId: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Server ID from list_hosts for a remote agent; omit for this host."),
+      },
+      outputSchema: {
+        agentId: z.string(),
+        notify: z.boolean(),
+        serverId: z.string().optional(),
+      },
+    },
+    async ({ agentId, notify, serverId }) => {
+      if (!callerAgentId) {
+        throw new PaseoToolInputError("set_agent_notifications can only be called by an agent");
+      }
+      const localServerId = options.serverId ?? "self";
+      const remote = serverId !== undefined && serverId !== localServerId;
+      let requireParentOwnership: boolean | undefined;
+      if (notify && !remote) {
+        const target = agentManager.getAgent(agentId) ?? (await agentStorage.get(agentId));
+        if (!target) throw new PaseoToolInputError(`Agent ${agentId} not found`);
+        const parent = getParentAddressFromLabels(target.labels ?? {}, localServerId);
+        requireParentOwnership =
+          parent?.agentId === callerAgentId && parent.serverId === localServerId;
+      }
+      if (!options.finishSubscriptions) throw new Error("Finish subscriptions are not configured");
+      let policy:
+        | { disabled: true }
+        | { preserveParentOwnership: true }
+        | { requireParentOwnership?: boolean };
+      if (!notify) policy = { disabled: true };
+      else if (remote) policy = { preserveParentOwnership: true };
+      else policy = { requireParentOwnership };
+      await options.finishSubscriptions().register({
+        childAgentId: agentId,
+        callerAgentId,
+        ...(remote ? { serverId } : {}),
+        ...policy,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: notify
+              ? `You will be notified when agent ${agentId} finishes, errors, or needs permission.`
+              : `Notifications for agent ${agentId} are off. You will not be told when it finishes.`,
+          },
+        ],
+        structuredContent: ensureValidJson({
+          agentId,
+          notify,
+          ...(remote ? { serverId } : {}),
+        }),
       };
     },
   );

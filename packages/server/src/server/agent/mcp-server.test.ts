@@ -7332,3 +7332,77 @@ describe("local durable finish subscription MCP wiring", () => {
     }
   });
 });
+
+describe("set_agent_notifications MCP tool", () => {
+  const logger = createTestLogger();
+  async function setup(agentScoped: boolean) {
+    const workdir = await mkdtemp(join(tmpdir(), "mcp-notify-"));
+    const storage = new AgentStorage(join(workdir, "agents"), logger);
+    const manager = new AgentManager({
+      clients: { codex: new HeldTurnAgentClient("codex", true) },
+      registry: storage,
+      logger,
+    });
+    const parent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: "wks_parent",
+    });
+    const child = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: "wks_parent",
+      labels: { [PARENT_AGENT_ID_LABEL]: parent.id },
+    });
+    const registrations: Array<Record<string, unknown>> = [];
+    const server = await createAgentMcpServer({
+      agentManager: manager,
+      agentStorage: storage,
+      callerAgentId: agentScoped ? parent.id : undefined,
+      providerSnapshotManager: createOpenCodeManager().manager,
+      logger,
+      finishSubscriptions: () =>
+        ({
+          register: async (input: Record<string, unknown>) => {
+            registrations.push(input);
+            return { accept() {}, reject: async () => {} };
+          },
+          isSubscribed: () => false,
+        }) as never,
+    });
+    return { workdir, storage, manager, parent, child, registrations, server };
+  }
+
+  it("unsubscribes and re-subscribes only the caller's watch", async () => {
+    const { workdir, storage, manager, parent, child, registrations, server } = await setup(true);
+    try {
+      const tool = registeredTool(server, "set_agent_notifications");
+      const off = await invokeToolWithParsedInput(tool, { agentId: child.id, notify: false });
+      expect(off.structuredContent).toEqual({ agentId: child.id, notify: false });
+      expect(registrations[0]).toEqual({
+        childAgentId: child.id,
+        callerAgentId: parent.id,
+        disabled: true,
+      });
+      const on = await invokeToolWithParsedInput(tool, { agentId: child.id, notify: true });
+      expect(on.structuredContent).toEqual({ agentId: child.id, notify: true });
+      expect(registrations[1]).toMatchObject({
+        childAgentId: child.id,
+        callerAgentId: parent.id,
+        requireParentOwnership: true,
+      });
+    } finally {
+      await removeAgentStateDir(manager, storage, workdir);
+    }
+  });
+
+  it("rejects top-level callers", async () => {
+    const { workdir, storage, manager, child, server } = await setup(false);
+    try {
+      await expect(
+        invokeToolWithParsedInput(registeredTool(server, "set_agent_notifications"), {
+          agentId: child.id,
+          notify: false,
+        }),
+      ).rejects.toThrow("only be called by an agent");
+    } finally {
+      await removeAgentStateDir(manager, storage, workdir);
+    }
+  });
+});

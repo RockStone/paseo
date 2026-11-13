@@ -55,6 +55,8 @@ export interface FinishSubscriptions {
   start(): Promise<void>;
   /** Pending notification intent, including registration, recovery and unacknowledged delivery. */
   hasPendingForCaller(agentId: string): boolean;
+  /** True when a live, non-disabled watch exists for this caller/child/host. */
+  isSubscribed(callerAgentId: string, childAgentId: string, serverId?: string): boolean;
   register(
     input: Omit<FinishSubscription, "id" | "acknowledgedActivityAt"> & {
       preserveParentOwnership?: boolean;
@@ -346,6 +348,19 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
       for (const group of watches.values()) {
         for (const watch of group) if (watch.records[0]!.callerAgentId === agentId) return true;
       }
+      return false;
+    },
+    isSubscribed(callerAgentId, childAgentId, serverId) {
+      const group = watches.get(
+        JSON.stringify([
+          callerAgentId,
+          childAgentId,
+          serverId === deps.serverId ? undefined : serverId,
+        ]),
+      );
+      if (!group) return false;
+      for (const watch of group)
+        if (!watch.pending && watch.records.some((record) => !record.disabled)) return true;
       return false;
     },
     start: () =>

@@ -692,3 +692,44 @@ test("finish recovery protects callers before durable intent has loaded", async 
   expect(recovered.hasPendingForCaller("parent")).toBe(true);
   expect(recovered.hasPendingForCaller("unrelated")).toBe(false);
 });
+
+test("unsubscribing stops a retained parent-owned subscription from notifying the next turn", async () => {
+  const state = await scenario();
+  await state.service.register({ ...intent, requireParentOwnership: true });
+  await until(() => state.observation.waits.length === 1);
+  expect(state.service.isSubscribed("parent", "child")).toBe(true);
+  state.observation.waits[0]!.result.resolve(outcome("idle"));
+  await until(() => state.delivery.prompts.length === 1);
+  expect(state.delivery.prompts[0]).toContain("set_agent_notifications");
+  state.delivery.acknowledgments[0]!.resolve("steered");
+  await until(() => state.observation.waits.length === 2);
+  await state.service.register({ ...intent, disabled: true });
+  expect(state.service.isSubscribed("parent", "child")).toBe(false);
+  await expect.poll(async () => (await state.store.list()).length).toBe(0);
+  state.observation.waits[1]!.result.resolve(outcome("idle"));
+  await setImmediate();
+  expect(state.delivery.prompts).toHaveLength(1);
+});
+
+test("unsubscribing leaves another caller's subscription to the same child untouched", async () => {
+  const state = await scenario();
+  await state.service.register(intent);
+  await state.service.register({ callerAgentId: "other", childAgentId: "child" });
+  expect(state.service.isSubscribed("other", "child")).toBe(true);
+  await state.service.register({ ...intent, disabled: true });
+  expect(state.service.isSubscribed("parent", "child")).toBe(false);
+  expect(state.service.isSubscribed("other", "child")).toBe(true);
+  expect(await state.store.list()).toHaveLength(1);
+});
+
+test("re-subscribing after an unsubscribe notifies again", async () => {
+  const state = await scenario();
+  expect(state.service.isSubscribed("parent", "child")).toBe(false);
+  await state.service.register({ ...intent, requireParentOwnership: true });
+  await state.service.register({ ...intent, disabled: true });
+  await state.service.register({ ...intent, requireParentOwnership: true });
+  expect(state.service.isSubscribed("parent", "child")).toBe(true);
+  await until(() => state.observation.waits.some((wait) => !wait.signal.aborted));
+  state.observation.waits.find((wait) => !wait.signal.aborted)!.result.resolve(outcome("idle"));
+  await until(() => state.delivery.prompts.length === 1);
+});

@@ -182,6 +182,12 @@ export const PASEO_TOOL_CATALOG = {
     context: fieldOrTargetAgent("name"),
     detail: { inputOrder: AGENT_FIELDS },
   },
+  set_agent_notifications: {
+    label: "Set agent notifications",
+    completedLabel: "Set agent notifications",
+    context: targetAgent(),
+    detail: { inputOrder: ["agentId", "notify"] },
+  },
   set_agent_mode: {
     label: "Set agent mode",
     completedLabel: "Set agent mode",

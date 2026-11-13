@@ -135,6 +135,7 @@ Schedules have the full list/inspect/update/pause/resume/run-once/log/delete sur
 
 When you create or prompt a subagent, `notifyOnFinish` defaults to `true` and reports completion, errors, or permission requests, including across hosts.
 Finish your turn and wait for that notification instead of polling.
+To stop (or later resume) notifications for an agent without prompting it, call `set_agent_notifications` with `{ agentId, notify: false }` (`serverId` for a remote agent). `get_agent_status` and `list_agents` show `notifyingCaller`.
 If you want an explicit reply with `send_agent_prompt`, have the sender check `list_hosts` for the recipient’s server before setting `notifyOnFinish: false`.
 
 ## CLI semantics

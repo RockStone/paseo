@@ -171,6 +171,8 @@ Users can also detach an existing subagent from the subagents track. Detach is d
 
 `notifyOnFinish` defaults to `true` for agent-scoped creation and prompt follow-ups because most delegated work needs to report back to the creating agent. Set it to `false` only for truly fire-and-forget agents or prompts.
 
+A caller can stop or resume its own notifications for an agent later, without prompting it, with the MCP tool `set_agent_notifications({ agentId, notify, serverId? })`. It registers a disabled (or active) watch for that caller/child/host pair only, so other callers' subscriptions are untouched. `get_agent_status` and `list_agents` report `notifyingCaller` to agent callers. Owner takeover does not detach the parent's watch automatically; that would be a check in `suppressed()` in `finish-subscriptions/index.ts`.
+
 Agent-originated messages and automatic notifications share a recipient-daemon delivery module. A queued receipt acknowledges admission before provider dispatch, allowing a child to report and finish in the same two-second quiet window. Human prompts dispatch directly. Conflicting explicit interruption or session-mode choices retain separate ordered dispatches.
 
 Keep received agent messages in attributed agent cards. Their arrival can start a turn, but that
