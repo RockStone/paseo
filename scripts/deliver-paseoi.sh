@@ -95,7 +95,12 @@ deliver_web() {
   npm run build:web --workspace=@getpaseo/app
   out="$(cd packages/app && npx wrangler deploy -c wrangler.hydrodojo.toml 2>&1)"
   echo "$out"
-  after="$(web_bundle || true)"
+  # The edge can serve the old index for a few seconds after deploy.
+  for _ in 1 2 3 4 5 6; do
+    after="$(web_bundle || true)"
+    [[ -n "$after" && "$before" != "$after" ]] && break
+    sleep 5
+  done
   [[ -n "$after" && "$before" != "$after" ]] || { echo "Web bundle did not change after deploy ($before)." >&2; return 1; }
   summary+=("web: $(grep -oE 'Current Version ID: [0-9a-f-]+' <<<"$out" | head -1 || true) bundle $after")
 }
