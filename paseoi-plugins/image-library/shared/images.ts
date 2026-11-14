@@ -43,7 +43,26 @@ export const listImagesRpc = defineRpc({
     total: z.number(),
     /** True while agents are still being indexed; poll again for more. */
     scanning: z.boolean(),
+    /** Agents idle for days are indexed only when the owner scans them. */
+    older: z.object({
+      pending: z.number(),
+      running: z.boolean(),
+      done: z.number(),
+      total: z.number(),
+    }),
   }),
+});
+
+export const scanOlderRpc = defineRpc({
+  name: "images.scan_older",
+  input: z.object({ workspaceId: z.string() }),
+  output: z.object({ started: z.boolean() }),
+});
+
+export const stopScanRpc = defineRpc({
+  name: "images.stop_scan",
+  input: z.object({}),
+  output: z.object({ stopped: z.boolean() }),
 });
 
 export const imageBytesRpc = defineRpc({

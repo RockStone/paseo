@@ -19,6 +19,8 @@ import {
   imageBytesRpc,
   listImagesRpc,
   markSeenRpc,
+  scanOlderRpc,
+  stopScanRpc,
 } from "../shared/images";
 import { formatBytes, formatWhen } from "./format";
 import { createStyles, type Styles } from "./theme";
@@ -48,6 +50,8 @@ export function createLibrary(
     const [selected, setSelected] = useState<ImageEntry | null>(null);
     const list = useRpc(listImagesRpc);
     const markSeen = useRpc(markSeenRpc);
+    const scanOlder = useRpc(scanOlderRpc);
+    const stopScan = useRpc(stopScanRpc);
 
     useEffect(() => {
       markSeen({ workspaceId })
@@ -68,7 +72,9 @@ export function createLibrary(
         }),
       getNextPageParam: (last) => last.nextCursor ?? undefined,
       refetchInterval: (state) =>
-        state.state.data?.pages.at(-1)?.scanning ? SCANNING_REFETCH_MS : LIST_REFETCH_MS,
+        state.state.data?.pages.at(-1)?.scanning || state.state.data?.pages.at(-1)?.older.running
+          ? SCANNING_REFETCH_MS
+          : LIST_REFETCH_MS,
     });
     const entries = useMemo(
       () => images.data?.pages.flatMap((page) => page.images) ?? [],
@@ -76,6 +82,18 @@ export function createLibrary(
     );
     const total = images.data?.pages[0]?.total ?? 0;
     const scanning = images.data?.pages.at(-1)?.scanning ?? false;
+    const older = images.data?.pages.at(-1)?.older;
+    const { refetch } = images;
+    const startScan = useCallback(() => {
+      scanOlder({ workspaceId })
+        .then(() => refetch())
+        .catch(() => undefined);
+    }, [scanOlder, workspaceId, refetch]);
+    const cancelScan = useCallback(() => {
+      stopScan({})
+        .then(() => refetch())
+        .catch(() => undefined);
+    }, [stopScan, refetch]);
     const { hasNextPage, isFetching, fetchNextPage } = images;
     const loadMore = useCallback(() => {
       if (hasNextPage && !isFetching) void fetchNextPage();
@@ -137,6 +155,9 @@ export function createLibrary(
             onSelect={setSelected}
             onLoadMore={loadMore}
           />
+          {older && (older.pending > 0 || older.running) ? (
+            <OlderScan styles={styles} older={older} onStart={startScan} onStop={cancelScan} />
+          ) : null}
         </>
       );
     }
@@ -213,6 +234,32 @@ function Controls(props: {
         ) : null}
       </View>
     </>
+  );
+}
+
+function OlderScan(props: {
+  styles: Styles;
+  older: { pending: number; running: boolean; done: number; total: number };
+  onStart(): void;
+  onStop(): void;
+}) {
+  const { styles, older, onStart, onStop } = props;
+  if (older.running) {
+    return (
+      <>
+        <Text style={styles.meta}>
+          Scanning older conversations… {older.done} of {older.total}
+        </Text>
+        <Pressable accessibilityRole="button" onPress={onStop} style={styles.button}>
+          <Text style={styles.buttonText}>Stop</Text>
+        </Pressable>
+      </>
+    );
+  }
+  return (
+    <Pressable accessibilityRole="button" onPress={onStart} style={styles.button}>
+      <Text style={styles.buttonText}>Scan older conversations ({older.pending} not scanned)</Text>
+    </Pressable>
   );
 }
 

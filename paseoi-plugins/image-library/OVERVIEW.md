@@ -9,7 +9,9 @@ Filter by All, Mine or Agents, and search by agent title. Tap a thumbnail for a 
 
 ## How it works
 
-The daemon reads each agent's timeline, finds the image files it references, and keeps an index in `plugin-data/image-library/` inside the Paseo home (`PASEO_HOME`, usually `~/.paseo`). Only agents that changed since the last visit are rescanned, so opening a workspace for the first time can take a moment while it indexes. Images stay on the daemon machine; thumbnails and large views travel to the app over the plugin connection and nothing leaves your network.
+The daemon reads each agent's timeline, finds the image files it references, and keeps an index in `plugin-data/image-library/` inside the Paseo home (`PASEO_HOME`, usually `~/.paseo`). Only agents that changed since the last visit are rescanned, and a changed agent reads only its new rows.
+
+Reading the timeline of a stored agent resumes it, so the index does that on its own only for agents that are loaded or were active in the last 3 days. Older conversations are indexed when you press **Scan older conversations** at the bottom of the grid, which shows how many are not scanned yet. A press scans up to 20 agents one after another, shows its progress and can be stopped with **Stop**. Press it again for the next 20. Images you attached to an older conversation that was never scanned are not listed until it is scanned. Images stay on the daemon machine; thumbnails and large views travel to the app over the plugin connection and nothing leaves your network.
 
 ## Limits
 

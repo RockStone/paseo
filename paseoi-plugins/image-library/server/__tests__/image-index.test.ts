@@ -27,7 +27,7 @@ const assistant = (file: string, timestamp: string, seq: number) => ({
   item: { type: "assistant_message", text: `\n\n![Image](file://${file})\n\n` } as { type: string },
 });
 
-function createIndex() {
+function createIndex(extra: Partial<ConstructorParameters<typeof ImageIndex>[1]> = {}) {
   return new ImageIndex(
     {
       listAgents: async () => agents,
@@ -50,6 +50,8 @@ function createIndex() {
       stateFile: path.join(root, "data", "index.json"),
       attachments: new AttachmentDirectory(attachmentsDir, () => clock, 0),
       now: () => clock,
+      sleep: async () => undefined,
+      ...extra,
     },
   );
 }
@@ -75,8 +77,22 @@ describe("ImageIndex", () => {
     const attached = path.join(attachmentsDir, "att_msg_100_abc.png");
     await writeFile(attached, "owner");
     agents = [
-      { id: "a1", title: "Fix the login bug", workspaceId: "w1", updatedAt: "1" },
-      { id: "a2", title: "Elsewhere", workspaceId: "w2", updatedAt: "1" },
+      {
+        id: "a1",
+        title: "Fix the login bug",
+        workspaceId: "w1",
+        updatedAt: "1",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
+      {
+        id: "a2",
+        title: "Elsewhere",
+        workspaceId: "w2",
+        updatedAt: "1",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
     ];
     pages.set("a1", [
       {
@@ -120,8 +136,22 @@ describe("ImageIndex", () => {
   it("filters by source and agent title and pages with a cursor", async () => {
     const files = await Promise.all(["a.png", "b.png", "c.png"].map((name) => image(name)));
     agents = [
-      { id: "a1", title: "Login work", workspaceId: "w1", updatedAt: "1" },
-      { id: "a2", title: "Docs", workspaceId: "w1", updatedAt: "1" },
+      {
+        id: "a1",
+        title: "Login work",
+        workspaceId: "w1",
+        updatedAt: "1",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
+      {
+        id: "a2",
+        title: "Docs",
+        workspaceId: "w1",
+        updatedAt: "1",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
     ];
     pages.set("a1", [
       {
@@ -159,7 +189,16 @@ describe("ImageIndex", () => {
   it("rescans only changed agents, from the last cursor, and rescans whole after a reset", async () => {
     const one = await image("one.png");
     const two = await image("two.png");
-    agents = [{ id: "a1", title: "T", workspaceId: "w1", updatedAt: "1" }];
+    agents = [
+      {
+        id: "a1",
+        title: "T",
+        workspaceId: "w1",
+        updatedAt: "1",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
+    ];
     pages.set("a1", [
       {
         epoch: "e",
@@ -175,7 +214,16 @@ describe("ImageIndex", () => {
     expect(fetches).toHaveLength(1);
 
     clock += 10_000;
-    agents = [{ id: "a1", title: "T", workspaceId: "w1", updatedAt: "2" }];
+    agents = [
+      {
+        id: "a1",
+        title: "T",
+        workspaceId: "w1",
+        updatedAt: "2",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
+    ];
     pages.set("a1", [
       {
         epoch: "e",
@@ -190,7 +238,16 @@ describe("ImageIndex", () => {
     expect((await index.list("w1", {})).total).toBe(2);
 
     clock += 10_000;
-    agents = [{ id: "a1", title: "T", workspaceId: "w1", updatedAt: "3" }];
+    agents = [
+      {
+        id: "a1",
+        title: "T",
+        workspaceId: "w1",
+        updatedAt: "3",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
+    ];
     pages.set("a1", [
       { epoch: "f", reset: true, staleCursor: false, endCursor: null, entries: [] },
       {
@@ -208,7 +265,16 @@ describe("ImageIndex", () => {
 
   it("persists the index so a restart does not rescan", async () => {
     const one = await image("one.png");
-    agents = [{ id: "a1", title: "T", workspaceId: "w1", updatedAt: "1" }];
+    agents = [
+      {
+        id: "a1",
+        title: "T",
+        workspaceId: "w1",
+        updatedAt: "1",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
+    ];
     pages.set("a1", [
       {
         epoch: "e",
@@ -227,7 +293,16 @@ describe("ImageIndex", () => {
 
   it("serves only files the index knows by id", async () => {
     const one = await image("one.png");
-    agents = [{ id: "a1", title: "T", workspaceId: "w1", updatedAt: "1" }];
+    agents = [
+      {
+        id: "a1",
+        title: "T",
+        workspaceId: "w1",
+        updatedAt: "1",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
+    ];
     pages.set("a1", [
       {
         epoch: "e",
@@ -249,7 +324,16 @@ describe("countUnseen", () => {
   it("counts images newer than the drawer's last opening and starts new workspaces at zero", async () => {
     const old = await image("old.png");
     const fresh = await image("fresh.png");
-    agents = [{ id: "a1", title: "T", workspaceId: "w1", updatedAt: "1" }];
+    agents = [
+      {
+        id: "a1",
+        title: "T",
+        workspaceId: "w1",
+        updatedAt: "1",
+        loaded: true,
+        activityAt: "2026-11-13T11:00:00.000Z",
+      },
+    ];
     pages.set("a1", [
       {
         epoch: "e",
@@ -306,6 +390,107 @@ describe("ImageMedia", () => {
     expect(await media.bytes(path.join(root, "missing.png"), "thumb")).toMatchObject({
       data: null,
       reason: "missing",
+    });
+  });
+
+  describe("indexing policy", () => {
+    const day = 24 * 60 * 60 * 1000;
+    const stored = (id: string, ageDays: number, extra: Partial<AgentInfo> = {}): AgentInfo => ({
+      id,
+      title: id,
+      workspaceId: "w1",
+      updatedAt: `u-${id}`,
+      loaded: false,
+      activityAt: new Date(clock - ageDays * day).toISOString(),
+      ...extra,
+    });
+
+    const fetched = () => fetches.map((fetch) => fetch.agentId).sort();
+    const oldAgents = (count: number, ageDays: number) =>
+      Array.from({ length: count }, (_, n) => stored(`old${n}`, ageDays + n));
+
+    it("indexes loaded and recently active agents on its own, never old stored ones", async () => {
+      agents = [
+        stored("loaded-old", 90, { loaded: true }),
+        stored("recent", 2),
+        stored("old", 4),
+        stored("ancient", 90),
+      ];
+      const index = createIndex();
+      expect(await index.refresh({ workspaceId: "w1", budgetMs: 1000 })).toBe(false);
+      expect(fetched()).toEqual(["loaded-old", "recent"]);
+      expect((await index.olderStatus("w1")).pending).toBe(2);
+    });
+
+    it("scans at most one batch per press, one agent at a time, and counts what remains", async () => {
+      agents = oldAgents(5, 30);
+      const index = createIndex({ scanLimit: 3 });
+      await index.refresh({ workspaceId: "w1", budgetMs: 1000 });
+      expect(fetches).toEqual([]);
+      expect(await index.startOlderScan("w1")).toBe(true);
+      await index.idle();
+      expect(fetches).toHaveLength(3);
+      expect(await index.olderStatus("w1")).toEqual({
+        pending: 2,
+        running: false,
+        done: 3,
+        total: 3,
+      });
+      expect(await index.startOlderScan("w1")).toBe(true);
+      await index.idle();
+      expect(fetches).toHaveLength(5);
+      expect((await index.olderStatus("w1")).pending).toBe(0);
+      expect(await index.startOlderScan("w1")).toBe(false);
+    });
+
+    it("stops a running scan between agents", async () => {
+      agents = oldAgents(5, 30);
+      let index: ImageIndex;
+      index = createIndex({
+        sleep: async () => {
+          index.stopOlderScan();
+        },
+      });
+      await index.startOlderScan("w1");
+      await index.idle();
+      expect(fetches).toHaveLength(1);
+      expect((await index.olderStatus("w1")).pending).toBe(4);
+    });
+
+    it("never reads an unchanged agent again, scanned or not, even across a restart", async () => {
+      agents = [stored("old", 30), stored("recent", 1)];
+      const first = createIndex();
+      await first.refresh({ budgetMs: 1000 });
+      await first.startOlderScan("w1");
+      await first.idle();
+      expect(fetched()).toEqual(["old", "recent"]);
+      fetches = [];
+      const restarted = createIndex();
+      await restarted.refresh({ budgetMs: 1000 });
+      await restarted.startOlderScan("w1");
+      await restarted.idle();
+      expect(fetches).toEqual([]);
+      expect((await restarted.olderStatus("w1")).pending).toBe(0);
+    });
+
+    it("fetches only new rows for a changed agent after it was scanned", async () => {
+      agents = [stored("old", 30)];
+      pages.set("old", [
+        {
+          epoch: "e",
+          reset: false,
+          staleCursor: false,
+          endCursor: { epoch: "e", seq: 4 },
+          entries: [],
+        },
+      ]);
+      const index = createIndex();
+      await index.startOlderScan("w1");
+      await index.idle();
+      agents = [stored("old", 0, { updatedAt: "changed" })];
+      clock += 10_000;
+      await index.refresh({ budgetMs: 1000, workspaceId: "w1" });
+      expect(fetches.at(-1)).toEqual({ agentId: "old", cursor: { epoch: "e", seq: 4 } });
     });
   });
 });

@@ -16,6 +16,10 @@ export function resolvePaseoHome(env: NodeJS.ProcessEnv = process.env): string {
   return path.resolve(home);
 }
 
+function latest(a: string, b: string | null): string {
+  return b && b > a ? b : a;
+}
+
 export interface Services {
   index: ImageIndex;
   media: ImageMedia;
@@ -48,6 +52,10 @@ export function createServices(home: string = resolvePaseoHome()): Services {
             title: agent.title?.trim() || "Untitled agent",
             workspaceId: agent.workspaceId,
             updatedAt: agent.updatedAt,
+            // A stored agent reports its last status, idle or closed, exactly like a resident one,
+            // and the list carries no loaded flag. Only a turn in progress proves it is resident.
+            loaded: agent.status === "running" || agent.status === "initializing",
+            activityAt: latest(agent.updatedAt, agent.lastUserMessageAt),
           });
         }
         cursor = page.pageInfo.hasMore ? (page.pageInfo.nextCursor ?? undefined) : undefined;

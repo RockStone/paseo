@@ -1,5 +1,12 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { countsRpc, imageBytesRpc, listImagesRpc, markSeenRpc } from "./shared/images";
+import {
+  countsRpc,
+  imageBytesRpc,
+  listImagesRpc,
+  markSeenRpc,
+  scanOlderRpc,
+  stopScanRpc,
+} from "./shared/images";
 import { countUnseen } from "./server/counts";
 import { createServices } from "./server/service";
 
@@ -13,7 +20,21 @@ export default function contribute(server: PluginServerContext) {
   server.handle(listImagesRpc, async ({ workspaceId, ...options }, { paseo }) => {
     services.use(paseo);
     const scanning = await index.refresh({ workspaceId, budgetMs: LIST_BUDGET_MS });
-    return { ...(await index.list(workspaceId, options)), scanning };
+    return {
+      ...(await index.list(workspaceId, options)),
+      scanning,
+      older: await index.olderStatus(workspaceId),
+    };
+  });
+
+  server.handle(scanOlderRpc, async ({ workspaceId }, { paseo }) => {
+    services.use(paseo);
+    return { started: await index.startOlderScan(workspaceId) };
+  });
+
+  server.handle(stopScanRpc, async () => {
+    index.stopOlderScan();
+    return { stopped: true };
   });
 
   server.handle(imageBytesRpc, async ({ id, variant }, { paseo }) => {

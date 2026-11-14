@@ -16,6 +16,20 @@ export interface AgentInfo {
   title: string;
   workspaceId: string;
   updatedAt: string;
+  /** Resident in the daemon right now; reading a stored agent's timeline would resume it. */
+  loaded: boolean;
+  /** The latest of `updatedAt` and `lastUserMessageAt`. */
+  activityAt: string;
+}
+
+export interface OlderScanStatus {
+  /** Older agents of the workspace that were never indexed or changed since. */
+  pending: number;
+  running: boolean;
+  /** Agents handled by the current or last press. */
+  done: number;
+  /** Agents this press covers. */
+  total: number;
 }
 
 export interface TimelinePage {
@@ -43,7 +57,17 @@ export interface IndexOptions {
   now?: () => number;
   log?: (message: string, error?: unknown) => void;
   concurrency?: number;
+  /** Stored agents idle for longer than this are indexed only by an explicit scan. */
+  recentWindowMs?: number;
+  /** Agents one press of the older scan covers. */
+  scanLimit?: number;
+  scanPauseMs?: number;
+  sleep?: (ms: number) => Promise<void>;
 }
+
+export const RECENT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+export const SCAN_LIMIT = 20;
+const SCAN_PAUSE_MS = 400;
 
 const storedRefSchema = z.object({
   path: z.string(),
@@ -83,6 +107,8 @@ export class ImageIndex {
   private readonly byId = new Map<string, string>();
   private saveTimer: Promise<void> = Promise.resolve();
   private readonly now: () => number;
+  private job: { workspaceId: string; done: number; total: number; stop: boolean } | null = null;
+  private lastJob: { workspaceId: string; done: number; total: number } | null = null;
 
   constructor(
     private readonly deps: IndexDeps,
@@ -122,6 +148,22 @@ export class ImageIndex {
     await this.saveTimer;
   }
 
+  /**
+   * Whether the index may read this agent on its own. Loaded agents and recently active ones
+   * are cheap; reading any other stored agent resumes its runtime.
+   */
+  private automatic(agent: AgentInfo): boolean {
+    if (agent.loaded) return true;
+    const at = Date.parse(agent.activityAt);
+    return (
+      Number.isFinite(at) && this.now() - at <= (this.options.recentWindowMs ?? RECENT_WINDOW_MS)
+    );
+  }
+
+  private changed(state: State, agent: AgentInfo): boolean {
+    return state.agents[agent.id]?.updatedAt !== agent.updatedAt;
+  }
+
   private async agentList(): Promise<AgentInfo[]> {
     if (!this.agents || this.now() - this.agents.at > AGENT_CACHE_MS) {
       this.agents = { at: this.now(), list: await this.deps.listAgents() };
@@ -147,7 +189,8 @@ export class ImageIndex {
     const stale = agents.filter(
       (agent) =>
         (!input.workspaceId || agent.workspaceId === input.workspaceId) &&
-        state.agents[agent.id]?.updatedAt !== agent.updatedAt,
+        this.automatic(agent) &&
+        this.changed(state, agent),
     );
     const deadline = this.now() + input.budgetMs;
     const queue = [...stale];
@@ -171,6 +214,79 @@ export class ImageIndex {
     await Promise.all(Array.from({ length: this.options.concurrency ?? 3 }, worker));
     if (dirty) await this.save();
     return queue.length > 0;
+  }
+
+  /** Older agents of a workspace the owner has not scanned yet. */
+  private olderPending(state: State, agents: AgentInfo[], workspaceId: string): AgentInfo[] {
+    return agents.filter(
+      (agent) =>
+        agent.workspaceId === workspaceId && !this.automatic(agent) && this.changed(state, agent),
+    );
+  }
+
+  async olderStatus(workspaceId: string): Promise<OlderScanStatus> {
+    const state = await this.loadState();
+    const pending = this.olderPending(state, await this.agentList(), workspaceId).length;
+    const job = this.job?.workspaceId === workspaceId ? this.job : null;
+    const last = this.lastJob?.workspaceId === workspaceId ? this.lastJob : null;
+    const shown = job ?? last;
+    return {
+      pending,
+      running: !!job,
+      done: shown?.done ?? 0,
+      total: shown?.total ?? 0,
+    };
+  }
+
+  /** Starts one press of the older scan; resolves once the job is running, not finished. */
+  async startOlderScan(workspaceId: string): Promise<boolean> {
+    if (this.job) return false;
+    const state = await this.loadState();
+    const queue = this.olderPending(state, await this.agentList(), workspaceId).slice(
+      0,
+      this.options.scanLimit ?? SCAN_LIMIT,
+    );
+    if (queue.length === 0) return false;
+    const job = { workspaceId, done: 0, total: queue.length, stop: false };
+    this.job = job;
+    void this.runOlderScan(state, queue, job);
+    return true;
+  }
+
+  stopOlderScan(): void {
+    if (this.job) this.job.stop = true;
+  }
+
+  /** Resolves when the running scan has ended. */
+  async idle(): Promise<void> {
+    while (this.job) await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  private async runOlderScan(
+    state: State,
+    queue: AgentInfo[],
+    job: { workspaceId: string; done: number; total: number; stop: boolean },
+  ): Promise<void> {
+    const sleep = this.options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+    try {
+      const attachmentsFor = await this.options.attachments.load();
+      for (const agent of queue) {
+        if (job.stop) break;
+        try {
+          await this.scan(state, agent, attachmentsFor);
+        } catch (error) {
+          this.options.log?.(`Indexing agent ${agent.id} failed`, error);
+          state.agents[agent.id] ??= { updatedAt: agent.updatedAt, cursor: null, refs: [] };
+        }
+        job.done += 1;
+        if (job.done < queue.length && !job.stop)
+          await sleep(this.options.scanPauseMs ?? SCAN_PAUSE_MS);
+      }
+    } finally {
+      this.lastJob = { workspaceId: job.workspaceId, done: job.done, total: job.total };
+      this.job = null;
+      await this.save();
+    }
   }
 
   private async scan(
