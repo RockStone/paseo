@@ -1,4 +1,4 @@
-import { useGlobalOverlayLayer } from "./overlay-root";
+import { hasModalAbove, useGlobalOverlayLayer, useModalHold } from "./overlay-root";
 import { useOverlayRegistration } from "@/keyboard";
 import React, { type RefCallback } from "react";
 import { flushSync } from "react-dom";
@@ -196,4 +196,76 @@ it("keeps the opening layer across rerenders and captures a new layer on reopeni
     root.unmount();
     container.remove();
   }
+});
+
+function ModalOverHarness({ modalOpen, hostLayer }: { modalOpen: boolean; hostLayer: number }) {
+  const held = useModalHold(hostLayer);
+  const modalLayer = useGlobalOverlayLayer("modal", modalOpen);
+  const setScope = useOverlayRegistration({
+    keys: ["Escape"],
+    active: modalOpen,
+    layer: modalLayer,
+    onKeyDown: () => false,
+  });
+  return (
+    <div>
+      <output data-testid="held">{String(held)}</output>
+      <output data-testid="above">{String(hasModalAbove(hostLayer))}</output>
+      {modalOpen ? <div ref={setScope as RefCallback<HTMLDivElement>} tabIndex={-1} /> : null}
+    </div>
+  );
+}
+
+describe("a modal opened over a self-dismissing surface", () => {
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    root.unmount();
+    document.body.replaceChildren();
+  });
+
+  async function render(modalOpen: boolean, hostLayer = 0): Promise<void> {
+    flushSync(() => {
+      root.render(<ModalOverHarness modalOpen={modalOpen} hostLayer={hostLayer} />);
+    });
+    await nextFrame();
+  }
+
+  const read = (id: string) => container.querySelector(`[data-testid="${id}"]`)?.textContent;
+  const move = (movementX: number, movementY: number) =>
+    document.dispatchEvent(new PointerEvent("pointermove", { movementX, movementY }));
+
+  it("holds while the modal is open and until the pointer really moves after it closes", async () => {
+    await render(false);
+    expect(read("held")).toBe("false");
+    expect(read("above")).toBe("false");
+
+    await render(true);
+    expect(read("held")).toBe("true");
+    expect(read("above")).toBe("true");
+
+    await render(false);
+    expect(read("above")).toBe("false");
+    expect(read("held")).toBe("true");
+
+    // The replayed move a browser sends when the layout under the cursor changes.
+    flushSync(() => move(0, 0));
+    expect(read("held")).toBe("true");
+
+    flushSync(() => move(3, 0));
+    expect(read("held")).toBe("false");
+  });
+
+  it("does not count a modal that sits below the surface", async () => {
+    await render(true, 40);
+    expect(read("above")).toBe("false");
+    expect(read("held")).toBe("false");
+  });
 });

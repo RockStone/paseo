@@ -90,6 +90,7 @@ import {
   readSidebarPreviewPointer,
   subscribeInactiveWindowPointer,
 } from "@/desktop/sidebar-preview-pointer";
+import { hasModalAbove, useCurrentOverlayLayer, useModalHold } from "@/lib/overlay-root";
 import { HorizontalScrollProvider } from "@/contexts/horizontal-scroll-context";
 import { SessionProvider } from "@/contexts/session-context";
 import { SidebarCalloutProvider } from "@/contexts/sidebar-callout-context";
@@ -759,8 +760,12 @@ function SidebarPreviewFrame({
     return () => setOpenMenuCount((count) => count - 1);
   }, []);
   const menuOpen = openMenuCount > 0;
+  // A modal opened from the sidebar (the Command Center) holds the preview open: its backdrop,
+  // Escape and the pointer wandering over it are not the sidebar's outside interactions.
+  const overlayLayer = useCurrentOverlayLayer();
+  const modalHeld = useModalHold(overlayLayer);
   useHoverSafeZone({
-    enabled: preview && !closing && !menuOpen,
+    enabled: preview && !closing && !menuOpen && !modalHeld,
     triggerRef: frameRef,
     contentRef: frameRef,
     onEnterSafeZone: stayOpen,
@@ -773,11 +778,15 @@ function SidebarPreviewFrame({
   useEffect(() => {
     if (!isWeb || !preview || closing) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onDismiss();
+      if (event.key === "Escape" && !hasModalAbove(overlayLayer)) onDismiss();
+    };
+    const onBlur = () => {
+      if (!hasModalAbove(overlayLayer)) onDismiss();
     };
     const onPointerDown = (event: PointerEvent) => {
       const frame = frameRef.current as unknown as HTMLElement | null;
       if (!(event.target instanceof Node) || frame?.contains(event.target)) return;
+      if (hasModalAbove(overlayLayer)) return;
       // The open menu lives in the overlay root. Its items and the backdrop over the sidebar
       // belong to the sidebar; the backdrop beside it is still a click away.
       if (menuOpen && (isInsideMenuSurface(event.target) || isPointInside(frame, event))) return;
@@ -785,13 +794,13 @@ function SidebarPreviewFrame({
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointerDown, true);
-    window.addEventListener("blur", onDismiss);
+    window.addEventListener("blur", onBlur);
     return () => {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointerDown, true);
-      window.removeEventListener("blur", onDismiss);
+      window.removeEventListener("blur", onBlur);
     };
-  }, [preview, closing, menuOpen, onDismiss]);
+  }, [preview, closing, menuOpen, onDismiss, overlayLayer]);
   const drawer = overlay && !preview;
   let framePointerEvents: "none" | "box-none" | "auto" = "auto";
   if (closing) framePointerEvents = "none";

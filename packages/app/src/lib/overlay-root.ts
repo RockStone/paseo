@@ -1,5 +1,13 @@
-import { createContext, createElement, useContext, useState, type ReactNode } from "react";
-import { getTopOverlayLayer } from "@/keyboard";
+import {
+  createContext,
+  createElement,
+  useContext,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import { getTopOverlayLayer, subscribeOverlays } from "@/keyboard";
 
 /**
  * Shared overlay root for web portals (modals, toasts, etc.)
@@ -83,4 +91,52 @@ export function useCurrentOverlayLayer(): number {
 
 export function OverlayLayerProvider({ layer, children }: { layer: number; children?: ReactNode }) {
   return createElement(OverlayLayerContext.Provider, { value: layer }, children);
+}
+
+/**
+ * True while a modal that opened over the overlay at `layer` is open. A modal resolves at least
+ * `OVERLAY_Z.modal` above the topmost overlay when it opened, so a menu (`floating`) above `layer`
+ * does not count. Read it live from an event handler: it is current at the moment of a press, which
+ * is before the modal's own closing press has been handled.
+ */
+export function hasModalAbove(layer: number): boolean {
+  return getTopOverlayLayer() >= layer + OVERLAY_Z.modal;
+}
+
+function isRealPointerMove(event: PointerEvent): boolean {
+  // The browser replays the last position as a zero-movement move when the layout under the
+  // cursor changes, which is exactly what closing a modal does.
+  return event.movementX !== 0 || event.movementY !== 0;
+}
+
+/**
+ * For a surface that dismisses itself on hover leave, outside presses or blur (the sidebar
+ * preview, the edge drawer): true while a modal opened from it is open, and after it closes until
+ * the pointer really moves. Interactions inside the modal, including the one that closes it, are
+ * not the surface's outside interactions, and the pointer resting outside the surface when the modal
+ * closes has not left it.
+ */
+export function useModalHold(layer: number): boolean {
+  const modalOpen = useSyncExternalStore(
+    subscribeOverlays,
+    () => hasModalAbove(layer),
+    () => false,
+  );
+  const [settled, setSettled] = useState(true);
+  useEffect(() => {
+    if (modalOpen) {
+      setSettled(false);
+      return undefined;
+    }
+    if (settled || typeof document === "undefined") {
+      setSettled(true);
+      return undefined;
+    }
+    const release = (event: PointerEvent) => {
+      if (isRealPointerMove(event)) setSettled(true);
+    };
+    document.addEventListener("pointermove", release);
+    return () => document.removeEventListener("pointermove", release);
+  }, [modalOpen, settled]);
+  return modalOpen || !settled;
 }

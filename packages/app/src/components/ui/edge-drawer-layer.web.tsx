@@ -3,7 +3,12 @@ import { createPortal } from "react-dom";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useOverlayRegistration, type KeyboardInputEvent } from "@/keyboard";
-import { getOverlayRoot, OverlayLayerProvider, useOverlayLayer } from "@/lib/overlay-root";
+import {
+  getOverlayRoot,
+  hasModalAbove,
+  OverlayLayerProvider,
+  useOverlayLayer,
+} from "@/lib/overlay-root";
 import type { EdgeDrawerLayerProps } from "./edge-drawer-layer";
 
 export type { EdgeDrawerLayerProps } from "./edge-drawer-layer";
@@ -51,11 +56,14 @@ export function EdgeDrawerLayer({ active, onClose, triggerRef, children }: EdgeD
       const trigger: unknown = triggerRef.current;
       if (trigger instanceof HTMLElement && trigger.contains(target)) return;
       if (getOverlayRoot().contains(target)) return;
+      // A modal the drawer opened (a lightbox) lives outside the overlay root. Its presses,
+      // including the one that closes it, are not outside the drawer.
+      if (hasModalAbove(layer)) return;
       onClose();
     };
     document.addEventListener("pointerdown", handlePointerDown, true);
     return () => document.removeEventListener("pointerdown", handlePointerDown, true);
-  }, [active, onClose, triggerRef]);
+  }, [active, layer, onClose, triggerRef]);
 
   if (typeof document === "undefined") return null;
   return createPortal(

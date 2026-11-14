@@ -30,6 +30,13 @@ An independent close grace period can leave the previous card open beside its re
 Reanimated exit clones can then paint that stale content above the new card. Grouped cards
 keep the trigger-to-card crossing grace but release the previous surface without an exit clone.
 
+A surface that dismisses itself on outside presses, Escape, blur or hover leave (the edge drawer,
+the sidebar preview) must not treat a modal opened from it as outside. The modal's DOM sits outside
+the surface and, for RN-web `Modal`, outside the overlay root, and its closing press lands before
+it unmounts. Ask `hasModalAbove(layer)` in the press handler and gate hover dismissal with
+`useModalHold(layer)` (`lib/overlay-root.ts`); both read the overlay registry, so any modal that
+registers with `useGlobalOverlayLayer("modal", …)` is covered. A menu above the surface is not a modal.
+
 On web, hover cards opened inside menus use the shared overlay root. An app-local
 portal stays below the menu backdrop regardless of the card's own z-index, which
 prevents the pointer from reaching scrollable content.
