@@ -1000,6 +1000,34 @@ import { Text } from "react-native";
 For horizontal tabs, place `<ScrollView horizontal style={{ flexGrow: 0 }}>…</ScrollView>` inside the
 default `Modal.Content`. Keep the content's vertical scrolling on the host.
 
+### Image lightbox
+
+Import `ImageLightbox` from `@getpaseo/plugin/client/ui` to open Paseo's full-screen image viewer, the
+one chat images use: mouse-wheel zoom and drag-pan on web and desktop, pinch and pan on iOS and
+Android.
+
+```tsx
+import * as ui from "@getpaseo/plugin/client/ui";
+
+const [open, setOpen] = useState<number | null>(null);
+// `sources` is a list of `{ uri }`; `uri` may be an `https:`, `file:` or `data:` URI.
+{
+  open !== null && typeof ui.ImageLightbox === "function" ? (
+    <ui.ImageLightbox
+      sources={sources}
+      index={open}
+      onIndexChange={setOpen}
+      onClose={() => setOpen(null)}
+    />
+  ) : null;
+}
+```
+
+Pass `onIndexChange` and more than one source to get previous/next buttons and the arrow keys.
+Hosts older than this export lack `ImageLightbox`; read it off the module namespace and fall back to
+your own view when it is not a function. It is a full-screen overlay with no slot for your own
+actions, so keep them on the screen that opens it.
+
 ### Copy and paste
 
 `copyText(text): Promise<void>` writes to the clipboard on the device running the app. Call it from a

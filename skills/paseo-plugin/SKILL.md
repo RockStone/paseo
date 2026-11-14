@@ -198,7 +198,7 @@ capabilities.
 
 ## Add a screen and a sidebar item
 
-Plugin screens use React Native primitives and work across desktop, browser, iOS, and Android. A sidebar item, in the header or the footer, is a component: render one or more `SidebarRow`s from `@getpaseo/plugin/client/ui`, with `SidebarSeparator` between groups, and call `openScreen` or `openPopover` from them. A screen's `title` is a string or a function of its `params`; its component receives the `params` it was opened with. Color text from `theme.colors` and pad from `layout.compact`.
+Plugin screens use React Native primitives and work across desktop, browser, iOS, and Android. A sidebar item, in the header or the footer, is a component: render one or more `SidebarRow`s from `@getpaseo/plugin/client/ui`, with `SidebarSeparator` between groups, and call `openScreen` or `openPopover` from them. For a full-screen image viewer with zoom and pan, render `ImageLightbox` (`sources: {uri}[]`, `index`, `onIndexChange?`, `onClose`) from the same entry; it is absent on older hosts, so guard it with `typeof ui.ImageLightbox === "function"` and keep a fallback view. A screen's `title` is a string or a function of its `params`; its component receives the `params` it was opened with. Color text from `theme.colors` and pad from `layout.compact`.
 
 ```tsx
 import type {

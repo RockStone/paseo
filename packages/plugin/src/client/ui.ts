@@ -86,6 +86,22 @@ export declare const TextInput: ForwardRefExoticComponent<
   TextInputProps & RefAttributes<NativeTextInput>
 >;
 
+export interface ImageLightboxProps {
+  /** Image URIs the host's Image can load: `https:`, `file:`, or `data:` URIs. */
+  sources: readonly { uri: string }[];
+  /** The source on show. An out-of-range index renders nothing. */
+  index: number;
+  /** Called with the new index on arrow keys or the previous/next buttons. Omit it for a single image. */
+  onIndexChange?(index: number): void;
+  onClose(): void;
+}
+/**
+ * Paseo's full-screen image viewer: wheel zoom and drag-pan on web and desktop, pinch on native.
+ * Added after the first host release, so a plugin that supports older hosts checks
+ * `typeof ImageLightbox === "function"` on the module before rendering it.
+ */
+export declare const ImageLightbox: ComponentType<ImageLightboxProps>;
+
 export interface SettingsSectionProps {
   title: string;
   info?: ReactNode;

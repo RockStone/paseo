@@ -27,5 +27,6 @@ export { TextInput } from "./text-input";
 export { copyText } from "./clipboard";
 export { useToast } from "./toast";
 export { StreamedText } from "./streamed-text";
+export { ImageLightbox } from "./image-lightbox";
 
 export { Markdown } from "./markdown";

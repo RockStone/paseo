@@ -1,5 +1,6 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { type PluginButtonContentProps, useRpc } from "@getpaseo/plugin/client";
+import * as ui from "@getpaseo/plugin/client/ui";
 import { copyText, Icon, ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { type ComponentType, memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -301,6 +302,20 @@ function emptyMessage(scanning: boolean, searching: boolean): string {
   return "No images in this workspace yet.";
 }
 
+/** Props of the host's `ImageLightbox`, declared here because the pinned SDK predates it. */
+interface LightboxProps {
+  sources: readonly { uri: string }[];
+  index: number;
+  onClose(): void;
+}
+/** Hosts that predate `ImageLightbox` lack the export, so the large view stays in the drawer. */
+const ImageLightbox = pickLightbox(ui);
+
+function pickLightbox(module: object): ComponentType<LightboxProps> | null {
+  const candidate = (module as { ImageLightbox?: unknown }).ImageLightbox;
+  return typeof candidate === "function" ? (candidate as ComponentType<LightboxProps>) : null;
+}
+
 function dataUri(mimeType: string, data: string): string {
   return `data:${mimeType};base64,${data}`;
 }
@@ -371,20 +386,34 @@ function Viewer(props: {
       () => toast.error("Could not copy the path"),
     );
   }, [entry.path, toast]);
+  const [zoomed, setZoomed] = useState(false);
+  const openZoom = useCallback(() => setZoomed(true), []);
+  const closeZoom = useCallback(() => setZoomed(false), []);
   const result = full.data;
   const source = useMemo(
     () => (result?.data ? { uri: dataUri(result.mimeType, result.data) } : null),
     [result],
   );
+  const lightboxSources = useMemo(() => (source ? [source] : []), [source]);
   let picture;
   if (source) {
-    picture = (
+    const image = (
       <Image
         source={source}
         style={styles.viewerImage}
         resizeMode="contain"
         accessibilityLabel={entry.fileName}
       />
+    );
+    picture = ImageLightbox ? (
+      <>
+        <Pressable accessibilityRole="button" accessibilityLabel="Zoom image" onPress={openZoom}>
+          {image}
+        </Pressable>
+        {zoomed ? <ImageLightbox sources={lightboxSources} index={0} onClose={closeZoom} /> : null}
+      </>
+    ) : (
+      image
     );
   } else if (full.isPending) {
     picture = <Text style={styles.empty}>Loading…</Text>;
