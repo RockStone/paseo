@@ -132,7 +132,10 @@ deliver_mobile() {
 
   log "Mobile: publishing OTA update"
   local out
-  out="$(cd packages/app && APP_VARIANT=paseoi npx eas-cli@latest update --channel paseoi \
+  # About > Update shows this, so a device can be matched to the commit it runs.
+  local commit
+  commit="$(git rev-parse --short HEAD)"
+  out="$(cd packages/app && EXPO_PUBLIC_PASEOI_COMMIT="$commit" APP_VARIANT=paseoi npx eas-cli@latest update --channel paseoi \
     --platform ios --environment production --message "$message" --non-interactive 2>&1 | tee /dev/stderr)"
   restore_ios
   trap - EXIT

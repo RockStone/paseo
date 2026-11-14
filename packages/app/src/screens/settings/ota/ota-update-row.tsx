@@ -41,12 +41,15 @@ export function OtaUpdateRow() {
         id: currentlyRunning.updateId?.slice(0, 8) ?? "?",
         date: currentlyRunning.createdAt?.toLocaleString() ?? "?",
       });
+  // Set by scripts/deliver-paseoi.sh when it publishes; the update id is per platform, so the
+  // commit is what matches a device to a delivery.
+  const commit = process.env.EXPO_PUBLIC_PASEOI_COMMIT;
   return (
     <View style={[settingsStyles.row, settingsStyles.rowBorder]} testID="settings-ota-update">
       <View style={settingsStyles.rowContent}>
         <Text style={settingsStyles.rowTitle}>{t("settings.about.ota.title")}</Text>
         <Text style={settingsStyles.rowHint} selectable>
-          {hint}
+          {commit ? `${hint} · ${commit}` : hint}
         </Text>
       </View>
       <Button variant="secondary" size="sm" onPress={check} disabled={busy}>
