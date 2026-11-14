@@ -107,7 +107,8 @@ export class ImageIndex {
   private async save(): Promise<void> {
     const state = this.state;
     if (!state) return;
-    this.saveTimer = this.saveTimer.then(async () => {
+    const write = async () => {
+      await this.saveTimer;
       try {
         await mkdir(path.dirname(this.options.stateFile), { recursive: true });
         const temporary = `${this.options.stateFile}.tmp`;
@@ -116,7 +117,8 @@ export class ImageIndex {
       } catch (error) {
         this.options.log?.("Saving the image index failed", error);
       }
-    });
+    };
+    this.saveTimer = write();
     await this.saveTimer;
   }
 

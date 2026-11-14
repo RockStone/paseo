@@ -61,6 +61,14 @@ export function markdownImagePaths(text: string): string[] {
   return found;
 }
 
+function sourcePaths(sources: unknown): string[] {
+  if (!Array.isArray(sources)) return [];
+  return sources.flatMap((source) => {
+    const file = typeof source === "string" ? localImagePath(source) : null;
+    return file ? [file] : [];
+  });
+}
+
 /**
  * Images in a page of timeline entries. The owner's come from a user message's `imageSources` (and
  * any markdown image in its text); agents' come from assistant messages, where providers append
@@ -80,14 +88,7 @@ export function imageRefsFromEntries(
       const clientMessageId =
         typeof item.clientMessageId === "string" ? item.clientMessageId : undefined;
       const stored = clientMessageId ? attachmentsFor(clientMessageId) : [];
-      const sources = Array.isArray(item.imageSources) ? item.imageSources : [];
-      const paths: string[] = [...stored];
-      if (stored.length === 0) {
-        for (const source of sources) {
-          const file = typeof source === "string" ? localImagePath(source) : null;
-          if (file) paths.push(file);
-        }
-      }
+      const paths: string[] = stored.length > 0 ? [...stored] : sourcePaths(item.imageSources);
       if (typeof item.text === "string") paths.push(...markdownImagePaths(item.text));
       for (const file of paths)
         refs.push({ path: file, source: "you", timestamp, clientMessageId });

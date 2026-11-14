@@ -30,11 +30,13 @@ export class SeenStore {
 
   private persist(): Promise<void> {
     const data = this.data;
-    const next = this.chain.then(async () => {
+    const write = async () => {
+      await this.chain;
       await mkdir(path.dirname(this.file), { recursive: true });
       await writeFile(`${this.file}.tmp`, JSON.stringify(data));
       await rename(`${this.file}.tmp`, this.file);
-    });
+    };
+    const next = write();
     this.chain = next.catch(() => undefined);
     return next;
   }

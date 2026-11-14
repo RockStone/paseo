@@ -259,17 +259,9 @@ function Grid(props: {
     );
   }
   if (loading)
-    return <Text style={styles.empty}>Looking through this workspace's conversations…</Text>;
+    return <Text style={styles.empty}>Looking through the conversations in this workspace…</Text>;
   if (entries.length === 0) {
-    return (
-      <Text style={styles.empty}>
-        {scanning
-          ? "Still indexing this workspace's agents…"
-          : searching
-            ? "No images match."
-            : "No images in this workspace's conversations yet."}
-      </Text>
-    );
+    return <Text style={styles.empty}>{emptyMessage(scanning, searching)}</Text>;
   }
   return (
     <>
@@ -303,6 +295,12 @@ function Grid(props: {
   );
 }
 
+function emptyMessage(scanning: boolean, searching: boolean): string {
+  if (scanning) return "Still indexing the agents in this workspace…";
+  if (searching) return "No images match.";
+  return "No images in this workspace yet.";
+}
+
 function dataUri(mimeType: string, data: string): string {
   return `data:${mimeType};base64,${data}`;
 }
@@ -329,6 +327,10 @@ const Tile = memo(function Tile(props: {
   const thumb = useImageBytes(hostId, entry.id, "thumb");
   const select = useCallback(() => onSelect(entry), [onSelect, entry]);
   const data = thumb.data?.data;
+  const uri = useMemo(
+    () => (thumb.data && data ? { uri: dataUri(thumb.data.mimeType, data) } : null),
+    [thumb.data, data],
+  );
   return (
     <Pressable
       accessibilityRole="button"
@@ -336,12 +338,8 @@ const Tile = memo(function Tile(props: {
       onPress={select}
       style={styles.tile}
     >
-      {data && thumb.data ? (
-        <Image
-          source={{ uri: dataUri(thumb.data.mimeType, data) }}
-          style={styles.tileImage}
-          resizeMode="cover"
-        />
+      {uri ? (
+        <Image source={uri} style={styles.tileImage} resizeMode="cover" />
       ) : (
         <View style={styles.tilePlaceholder}>
           <Icon name="Image" size={20} color={theme.colors.foregroundMuted} />
@@ -374,11 +372,15 @@ function Viewer(props: {
     );
   }, [entry.path, toast]);
   const result = full.data;
+  const source = useMemo(
+    () => (result?.data ? { uri: dataUri(result.mimeType, result.data) } : null),
+    [result],
+  );
   let picture;
-  if (result?.data) {
+  if (source) {
     picture = (
       <Image
-        source={{ uri: dataUri(result.mimeType, result.data) }}
+        source={source}
         style={styles.viewerImage}
         resizeMode="contain"
         accessibilityLabel={entry.fileName}
