@@ -1,0 +1,112 @@
+import type { PluginTheme } from "@getpaseo/plugin";
+
+export function createStyles(theme: PluginTheme, compact: boolean) {
+  const { colors } = theme;
+  const segment = {
+    flex: 1,
+    alignItems: "center" as const,
+    paddingVertical: 6,
+    borderRadius: 6,
+  };
+  const tile = {
+    width: compact ? ("31.5%" as const) : 104,
+    aspectRatio: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface1,
+    overflow: "hidden" as const,
+  };
+  return {
+    root: { gap: 10 },
+    rootFill: { flex: 1, gap: 10 },
+    scroll: { flex: 1 },
+    scrollContent: { gap: 10, paddingBottom: 16 },
+    segments: {
+      flexDirection: "row" as const,
+      gap: 4,
+      padding: 3,
+      borderRadius: 8,
+      backgroundColor: colors.surface0,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    segment,
+    segmentActive: { ...segment, backgroundColor: colors.surface2 },
+    segmentLabel: { color: colors.foregroundMuted, fontSize: 13, fontWeight: "500" as const },
+    segmentLabelActive: { color: colors.foreground, fontSize: 13, fontWeight: "600" as const },
+    searchBox: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 6,
+      height: 32,
+      paddingHorizontal: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface0,
+    },
+    searchInput: { flex: 1, paddingVertical: 0, color: colors.foreground, fontSize: 13 },
+    iconButton: { padding: 4, borderRadius: 6 },
+    grid: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 },
+    tile,
+    tileImage: { width: "100%" as const, height: "100%" as const },
+    tilePlaceholder: {
+      flex: 1,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      padding: 6,
+    },
+    tileBadge: {
+      position: "absolute" as const,
+      left: 4,
+      bottom: 4,
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+      backgroundColor: colors.surface0,
+      opacity: 0.9,
+    },
+    tileBadgeText: { color: colors.foregroundMuted, fontSize: 10, fontWeight: "600" as const },
+    empty: { color: colors.foregroundMuted, fontSize: 13, paddingVertical: 8, lineHeight: 19 },
+    error: { color: colors.statusDanger, fontSize: 12 },
+    button: {
+      alignSelf: "center" as const,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface1,
+    },
+    buttonText: { color: colors.foreground, fontSize: 13, fontWeight: "500" as const },
+    actions: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 8,
+      flexWrap: "wrap" as const,
+    },
+    actionButton: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface1,
+    },
+    viewerImage: {
+      width: "100%" as const,
+      height: compact ? 320 : 420,
+      borderRadius: 8,
+      backgroundColor: colors.surface1,
+    },
+    title: { color: colors.foreground, fontSize: 14, fontWeight: "600" as const, lineHeight: 20 },
+    meta: { color: colors.foregroundMuted, fontSize: 12, lineHeight: 17 },
+    path: { color: colors.foregroundMuted, fontSize: 11, lineHeight: 16 },
+  };
+}
+
+export type Styles = ReturnType<typeof createStyles>;

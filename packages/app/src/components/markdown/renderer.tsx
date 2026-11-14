@@ -1,4 +1,5 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useContext, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { EnrichedMarkdownText, type LinkPressEvent } from "react-native-enriched-markdown";
@@ -15,6 +16,7 @@ import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attac
 import type { Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
 import { density, resolveDensity } from "@/styles/density";
+import { SelectionReplyContext } from "@/assistant-selection-copy/reply";
 import {
   markdownCopyDataSet,
   markdownCopyImageSourcesDataSet,
@@ -182,6 +184,23 @@ const MarkdownPart = memo(function MarkdownPart({
     [markdown],
   );
   const uniStyle = resolveMarkdownStyle(compact, muted, variant);
+  // Web shows its own Copy | Reply popover (assistant-selection-copy/surface.web.tsx); native
+  // adds Reply to the system selection menu instead.
+  const { t } = useTranslation();
+  const onReply = useContext(SelectionReplyContext);
+  const contextMenuItems = useMemo(
+    () =>
+      !isWeb && onReply && selectable
+        ? [
+            {
+              text: t("common.reply", { defaultValue: "Reply" }),
+              icon: "arrowshape.turn.up.left",
+              onPress: ({ text: selected }: { text: string }) => onReply(selected),
+            },
+          ]
+        : undefined,
+    [onReply, selectable, t],
+  );
   if (imageLayout === "gallery" && imageOnly) {
     return (
       <View
@@ -239,6 +258,7 @@ const MarkdownPart = memo(function MarkdownPart({
                 streamingAnimation={false}
                 onLinkPress={pressLink}
                 onImagePress={pressImage}
+                contextMenuItems={contextMenuItems}
                 renderers={isWeb ? WEB_RENDERERS : undefined}
               />
             ),

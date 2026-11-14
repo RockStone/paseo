@@ -1,0 +1,9 @@
+{
+  "id": "image-library",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.15.4"
+  },
+  "name": "Image library",
+  "description": "Every image from your agent conversations in one grid: yours and the agents'"
+}
