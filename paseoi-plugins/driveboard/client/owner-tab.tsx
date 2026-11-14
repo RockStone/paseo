@@ -180,6 +180,26 @@ export function SectionHeader(props: {
   );
 }
 
+const MAX_REPLY_PREVIEWS = 5;
+
+/** One line per pending reply: the to-do id, then the reply with whitespace collapsed. */
+function replyPreviews(owners: TrackerItem[], pending: string[]) {
+  const wanted = new Set(pending);
+  const all = owners.flatMap((item) =>
+    item.replies
+      .filter((reply) => wanted.has(reply.id))
+      .map((reply) => ({
+        id: reply.id,
+        itemId: item.id,
+        text: reply.text.replace(/\s+/g, " ").trim(),
+      })),
+  );
+  return {
+    shown: all.slice(0, MAX_REPLY_PREVIEWS),
+    more: Math.max(0, all.length - MAX_REPLY_PREVIEWS),
+  };
+}
+
 function NotifyBanner({ board, styles, workspaceId, onChanged }: OwnerTabProps) {
   const notify = useRpc(notifyRpc);
   const dismiss = useRpc(dismissRpc);
@@ -212,6 +232,7 @@ function NotifyBanner({ board, styles, workspaceId, onChanged }: OwnerTabProps) 
     return error ? <Text style={styles.error}>{errorMessage(error)}</Text> : null;
   }
   const replies = pending.length === 1 ? "1 new reply" : `${pending.length} new replies`;
+  const previews = replyPreviews(board.owners, pending);
   return (
     <View style={styles.banner}>
       <Text style={styles.body}>
@@ -219,6 +240,12 @@ function NotifyBanner({ board, styles, workspaceId, onChanged }: OwnerTabProps) 
           ? `${replies} for ${board.agent.title}.`
           : `${replies}. This workspace has no agent to send them to.`}
       </Text>
+      {previews.shown.map((preview) => (
+        <Text key={preview.id} style={styles.muted} numberOfLines={1}>
+          <Text style={styles.previewId}>{preview.itemId}</Text> {preview.text}
+        </Text>
+      ))}
+      {previews.more > 0 ? <Text style={styles.muted}>and {previews.more} more</Text> : null}
       <View style={styles.actions}>
         {board.agent ? (
           <Pressable
