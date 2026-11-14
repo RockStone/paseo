@@ -3459,9 +3459,17 @@ function WorkspaceScreenContent({
   const titleBarSlots = useMemo<WorkspaceTitleBarSlots | null>(
     () =>
       mergedTitleBarEnabled && !isMobile
-        ? { leading: <WorkspaceTitleBarLeading />, trailing: titleBarTrailing }
+        ? {
+            leading: (
+              <WorkspaceTitleBarLeading
+                serverId={normalizedServerId}
+                workspaceId={normalizedWorkspaceId}
+              />
+            ),
+            trailing: titleBarTrailing,
+          }
         : null,
-    [isMobile, mergedTitleBarEnabled, titleBarTrailing],
+    [isMobile, mergedTitleBarEnabled, normalizedServerId, normalizedWorkspaceId, titleBarTrailing],
   );
   const workspaceCompactHeaderTabs = {
     tabs,

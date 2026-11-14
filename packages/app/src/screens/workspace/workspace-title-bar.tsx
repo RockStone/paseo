@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { SidebarMenuToggle } from "@/components/headers/sidebar-menu-toggle";
+import { WorkspaceTitleBarProjectPill } from "@/screens/workspace/workspace-title-bar-project-pill";
 
 /**
  * Paseoi's merged title bar: a desktop workspace drops its header row and shows the header's
@@ -55,13 +56,20 @@ function resolvePaneTitleBarSlots(
 }
 
 /**
- * The header row's leading content in the title bar. Paseoi keeps only the sidebar toggle: the
- * project name and workspace menu cost tab space and stay reachable from the sidebar.
+ * The header row's leading content in the title bar: the sidebar toggle, plus a compact project
+ * pill while the sidebar is not pinned open (the tab row measures this slot, so tabs shrink for it).
  */
-export function WorkspaceTitleBarLeading() {
+export function WorkspaceTitleBarLeading({
+  serverId,
+  workspaceId,
+}: {
+  serverId: string;
+  workspaceId: string;
+}) {
   return (
     <View style={styles.leading} testID="workspace-title-bar-leading">
       <SidebarMenuToggle />
+      <WorkspaceTitleBarProjectPill serverId={serverId} workspaceId={workspaceId} />
     </View>
   );
 }
