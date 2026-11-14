@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 
 /** `#rrggbb` (or short form) with an alpha, or null for other color formats. */
@@ -87,7 +88,11 @@ export function createStyles(theme: PluginTheme) {
     composer: { position: "relative" as const },
     input: {
       minHeight: 64,
-      maxHeight: 160,
+      // Web textareas get the browser's corner grip, so the owner can drag a long reply taller.
+      // react-native-web passes `resize` through; native ignores it and keeps the 160 cap.
+      ...(Platform.OS === "web"
+        ? ({ resize: "vertical", maxHeight: 600 } as object)
+        : { maxHeight: 160 }),
       paddingLeft: 10,
       paddingRight: 42,
       paddingVertical: 8,
