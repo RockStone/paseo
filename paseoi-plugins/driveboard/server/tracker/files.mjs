@@ -141,13 +141,20 @@ export async function mutateReply(path, expectedVersion, id, mutation) {
       const matches = parse(current.bytes.toString("utf8"), true).filter((item) => item.id === id);
       if (!matches.length) throw new Error("Owner item not found");
       if (matches.length !== 1 || matches[0].warnings.length)
-        throw new Error("Owner item has validation warnings; fix it before changing replies");
+        throw new Error("Owner item has validation warnings; fix it before changing it");
       const item = matches[0];
       const source = current.bytes.toString("utf8"),
         eol = source.includes("\r\n") ? "\r\n" : "\n",
         lines = byteLines(current.bytes);
       let start, end, insertion;
-      if (mutation.action === "add") {
+      if (mutation.action === "status") {
+        // Only the checkbox character changes; every other byte stays as is.
+        start = lines[item.line].start + 3;
+        end = start + 1;
+        if (source[start] === undefined || !/[ ~x]/.test(source[start]))
+          throw new Error("Owner item checkbox not found");
+        insertion = Buffer.from(mutation.done ? "x" : " ");
+      } else if (mutation.action === "add") {
         start = end = lines[item.line].end;
         const terminated = current.bytes[start - 1] === 10;
         insertion = Buffer.from(

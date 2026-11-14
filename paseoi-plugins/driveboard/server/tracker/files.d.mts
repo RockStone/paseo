@@ -17,7 +17,8 @@ export function mutateReply(
   id: string,
   mutation:
     | { action: "edit"; replyId: string; text: string }
-    | { action: "remove"; replyId: string },
+    | { action: "remove"; replyId: string }
+    | { action: "status"; done: boolean },
 ): Promise<string>;
 export class TrackerStore {
   constructor(options?: { timestamps?: boolean });

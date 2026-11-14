@@ -191,6 +191,15 @@ export class BoardService {
     return { version: await mutateReply(owner, input.version, input.id, mutation) };
   }
 
+  async setOwnerDone(
+    paseo: Paseo,
+    input: { workspaceId: string; version: string; id: string; done: boolean },
+  ) {
+    const owner = await this.ownerFile(paseo, input.workspaceId);
+    const mutation = { action: "status" as const, done: input.done };
+    return { version: await mutateReply(owner, input.version, input.id, mutation) };
+  }
+
   async notify(paseo: Paseo, input: { workspaceId: string; version: string; replyIds: string[] }) {
     const workspace = await this.requireWorkspace(paseo, input.workspaceId);
     const owner = await this.ownerFile(paseo, input.workspaceId);

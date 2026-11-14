@@ -102,6 +102,12 @@ export const removeReplyRpc = defineRpc({
   output: z.object({ version: z.string() }),
 });
 
+export const setOwnerDoneRpc = defineRpc({
+  name: "board.owner.set_done",
+  input: versioned.extend({ done: z.boolean() }),
+  output: z.object({ version: z.string() }),
+});
+
 const replySelection = workspace.extend({
   replyIds: z.array(z.string().min(1)).min(1).max(2000),
 });

@@ -138,6 +138,7 @@ export function createStyles(theme: PluginTheme) {
     newTag: { color: colors.accent, fontSize: 11, fontWeight: "600" as const },
     mutedTag: { color: colors.foregroundMuted, fontSize: 11, fontWeight: "500" as const },
     spacer: { flex: 1 },
+    metaGrow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, flex: 1 },
     iconButton: { padding: 4, borderRadius: 6 },
     title: { color: colors.foreground, fontSize: 14, fontWeight: "600" as const, lineHeight: 20 },
     body: { color: colors.foreground, fontSize: 14, lineHeight: 20 },

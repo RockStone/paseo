@@ -115,6 +115,68 @@ describe("BoardService", () => {
     expect(await boards.badgeCounts(paseo, {})).toEqual({});
   });
 
+  it("flips only the checkbox of one owner item and reopens it", async () => {
+    const paseo = fakePaseo(AGENTS);
+    const boards = service();
+    const file = path.join(root, "docs", "owner-todo.md");
+    const before = await boards.read(paseo, "ws-1");
+    await boards.markOwnersSeen(paseo, "ws-1");
+    const done = await boards.setOwnerDone(paseo, {
+      workspaceId: "ws-1",
+      version: before.version,
+      id: "OT-1",
+      done: true,
+    });
+    expect(await readFile(file, "utf8")).toBe(OWNER.replace("- [ ] **OT-1", "- [x] **OT-1"));
+    const after = await boards.read(paseo, "ws-1");
+    expect(after.version).toBe(done.version);
+    expect(after.owners.find((item) => item.id === "OT-1")?.status).toBe("done");
+    // A done item is not flagged as new.
+    expect(after.newOwnerIds).toEqual([]);
+    await boards.setOwnerDone(paseo, {
+      workspaceId: "ws-1",
+      version: done.version,
+      id: "OT-1",
+      done: false,
+    });
+    expect(await readFile(file, "utf8")).toBe(OWNER);
+    // An in-progress item can be finished too.
+    const again = await boards.read(paseo, "ws-1");
+    await boards.setOwnerDone(paseo, {
+      workspaceId: "ws-1",
+      version: again.version,
+      id: "OT-2",
+      done: true,
+    });
+    expect(await readFile(file, "utf8")).toBe(OWNER.replace("- [~] **OT-2", "- [x] **OT-2"));
+  });
+
+  it("rejects marking done on a stale version or an unknown item", async () => {
+    const paseo = fakePaseo(AGENTS);
+    const boards = service();
+    const file = path.join(root, "docs", "owner-todo.md");
+    const before = await boards.read(paseo, "ws-1");
+    await writeFile(file, `${OWNER}\n`);
+    await expect(
+      boards.setOwnerDone(paseo, {
+        workspaceId: "ws-1",
+        version: before.version,
+        id: "OT-1",
+        done: true,
+      }),
+    ).rejects.toThrow("File changed");
+    const fresh = await boards.read(paseo, "ws-1");
+    await expect(
+      boards.setOwnerDone(paseo, {
+        workspaceId: "ws-1",
+        version: fresh.version,
+        id: "OT-9",
+        done: true,
+      }),
+    ).rejects.toThrow("Owner item not found");
+    expect(await readFile(file, "utf8")).toBe(`${OWNER}\n`);
+  });
+
   it("flags changed and added tasks until the Progress tab is seen", async () => {
     const paseo = fakePaseo(AGENTS);
     const boards = service();

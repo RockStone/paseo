@@ -15,6 +15,7 @@ import {
   notifyRpc,
   readBoardRpc,
   removeReplyRpc,
+  setOwnerDoneRpc,
 } from "./shared/board";
 import { addNoteRpc, deleteNoteRpc, listNotesRpc, markSeenRpc } from "./shared/notes";
 
@@ -52,6 +53,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(addReplyRpc, (input, { paseo }) => board.addReply(paseo, input));
   server.handle(editReplyRpc, (input, { paseo }) => board.editReply(paseo, input));
   server.handle(removeReplyRpc, (input, { paseo }) => board.removeReply(paseo, input));
+  server.handle(setOwnerDoneRpc, (input, { paseo }) => board.setOwnerDone(paseo, input));
   server.handle(notifyRpc, async (input, { paseo }) => {
     await ready;
     return board.notify(paseo, input);

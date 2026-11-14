@@ -1,6 +1,6 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
-import { Icon, TextInput } from "@getpaseo/plugin/client/ui";
+import { Icon, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -18,6 +18,7 @@ import {
   markOwnersSeenRpc,
   notifyRpc,
   removeReplyRpc,
+  setOwnerDoneRpc,
   type TrackerItem,
   type TrackerReply,
 } from "../shared/board";
@@ -280,7 +281,16 @@ function OwnerCard(
     onSeen?(id: string): void;
   },
 ) {
-  const { item, newLabel, onSeen, styles, theme } = props;
+  const { item, newLabel, onSeen, styles, theme, board, workspaceId, onChanged } = props;
+  const setDone = useRpc(setOwnerDoneRpc);
+  const toast = useToast();
+  const status = useMutation({
+    mutationFn: setDone,
+    onSuccess: (_result, input) =>
+      toast.show(input.done ? `Marked ${input.id} done` : `Reopened ${input.id}`),
+    onSettled: onChanged,
+  });
+  const { mutate: statusMutate } = status;
   const isNew = newLabel !== undefined;
   const [expanded, setExpanded] = useState(false);
   const toggle = useCallback(() => {
@@ -289,19 +299,23 @@ function OwnerCard(
   }, [onSeen, item.id]);
   const replied = item.replies.length > 0;
   const done = item.status === "done";
+  const toggleStatus = useCallback(
+    () => statusMutate({ workspaceId, version: board.version, id: item.id, done: !done }),
+    [statusMutate, workspaceId, board.version, item.id, done],
+  );
   let cardStyle = styles.card;
   if (isNew) cardStyle = styles.cardNew;
   else if (done || (replied && !expanded)) cardStyle = styles.cardMuted;
   return (
     <View style={cardStyle}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${item.id} ${item.title}`}
-        aria-expanded={expanded}
-        onPress={toggle}
-        style={styles.list}
-      >
-        <View style={styles.meta}>
+      <View style={styles.meta}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${item.id} ${item.title}`}
+          aria-expanded={expanded}
+          onPress={toggle}
+          style={styles.metaGrow}
+        >
           <View style={isNew ? styles.pillAccent : styles.pill}>
             <Text style={isNew ? styles.pillAccentText : styles.pillText}>{item.id}</Text>
           </View>
@@ -318,7 +332,28 @@ function OwnerCard(
             size={14}
             color={theme.colors.foregroundMuted}
           />
-        </View>
+        </Pressable>
+        {/* Always visible: touch devices have no hover. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={done ? `Reopen ${item.id}` : `Mark ${item.id} done`}
+          disabled={status.isPending}
+          onPress={toggleStatus}
+          style={styles.iconButton}
+        >
+          <Icon
+            name={done ? "RotateCcw" : "Check"}
+            size={16}
+            color={theme.colors.foregroundMuted}
+          />
+        </Pressable>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${item.id} details`}
+        onPress={toggle}
+        style={styles.list}
+      >
         <Text style={styles.title}>{item.title}</Text>
         {!expanded && item.text ? (
           <Text style={styles.muted} numberOfLines={2}>
@@ -326,6 +361,7 @@ function OwnerCard(
           </Text>
         ) : null}
       </Pressable>
+      {status.error ? <Text style={styles.error}>{errorMessage(status.error)}</Text> : null}
       {expanded ? <OwnerDetails {...props} /> : null}
     </View>
   );

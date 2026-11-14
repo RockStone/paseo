@@ -18,6 +18,6 @@ The header button counts owner items that are new or changed since you last open
 
 The tracker files belong to the project: every workspace of a project shows the files in the project's root checkout. Replies are written there with a stale-file guard and an atomic rename. Notes and the record of sent replies live on the daemon machine in `plugin-data/driveboard/` inside the Paseo home (`PASEO_HOME`, usually `~/.paseo`). On first start the plugin copies notes from the retired Sticky notes plugin and sent replies from the retired standalone Driveboard.
 
-Tracker format: top-level checkboxes `[ ]`, `[~]` or `[x]`, an ID (`Z-1` for tasks, `**OT-1 Title.**` for owner items) and one `<!-- priority:3|2|1 -->` marker. Owner replies are stored as `  > Owner reply (YYYY-MM-DD HH:MM UTC): text` lines under the item.
+Tracker format: top-level checkboxes `[ ]`, `[~]` or `[x]`, an ID (`Z-1` for tasks, `**OT-1 Title.**` for owner items) and one `<!-- priority:3|2|1 -->` marker. Owner replies are stored as `  > Owner reply (YYYY-MM-DD HH:MM UTC): text` lines under the item. The owner can mark an item done (or reopen it) from its card: `board.owner.set_done` flips only that item's checkbox (`[ ]`/`[~]` → `[x]`, `[x]` → `[ ]`) through the same version-guarded atomic write as replies. This does not go through the "new replies" notification; the agent sees it in the file.
 
 Requires Paseo 0.15.4 or later on both the daemon and the app.
