@@ -30,7 +30,9 @@ function observeState(
     return;
   }
   cycle.running = snapshot.status === "running" || snapshot.status === "initializing";
-  if (cycle.running) cycle.armed = true;
+  // "initializing" is also what a resume from persistence reports (a timeline read, an idle
+  // collection's reload). Only a running turn is new work that a later close should report.
+  if (snapshot.status === "running") cycle.armed = true;
   if (event?.type === "permission_resolved") {
     buffer.resolved(event.requestId);
     return;
@@ -107,11 +109,7 @@ export async function openFinishObservation(
               if (!observedWork) cycle.armed = false;
               return;
             }
-            if (
-              snapshot?.status === "running" ||
-              snapshot?.status === "initializing" ||
-              (!initial && event?.type === "turn_started")
-            )
+            if (snapshot?.status === "running" || (!initial && event?.type === "turn_started"))
               observedWork = true;
             observeState(buffer, snapshot, event, lastMessage ?? null, cycle);
           },

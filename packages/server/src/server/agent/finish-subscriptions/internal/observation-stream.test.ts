@@ -293,6 +293,52 @@ test("closing an already reported turn silently retires the persistent parent wa
   }
 });
 
+test("resuming a reported child and collecting its idle runtime does not notify the parent", async () => {
+  const { host, observation } = await scenario();
+  try {
+    host.emit("running", { type: "turn_started", provider: "claude" });
+    host.emit("idle", { type: "turn_completed", provider: "claude" });
+    expect((await observation.next()).silent).toBeUndefined();
+    // A timeline read resumes the runtime (initializing), then the idle sweep closes it again.
+    host.handler!({ ...outcomeSnapshot(), status: "initializing" }, undefined, "Already reported");
+    host.handler!({ ...outcomeSnapshot(), status: "closed" }, undefined, "Already reported");
+    expect(await observation.next()).toMatchObject({ silent: true, final: { status: "closed" } });
+  } finally {
+    await observation.close();
+  }
+});
+
+test("resuming an acknowledged child after recovery and closing it stays silent", async () => {
+  const final = outcomeSnapshot();
+  const { host, observation } = await scenario({ acknowledgedActivityAt: final.lastActivityAt });
+  try {
+    host.handler!(final, undefined, "Already reported", true);
+    host.baseline.resolve({ status: "idle", final, lastMessage: "Already reported", error: null });
+    host.handler!({ ...final, status: "initializing" }, undefined, "Already reported");
+    host.handler!(final, undefined, "Already reported");
+    expect(await observation.next()).toMatchObject({ silent: true, final: { status: "closed" } });
+  } finally {
+    await observation.close();
+  }
+});
+
+test("a turn run after a resume still notifies when the runtime closes mid-work", async () => {
+  const { host, observation } = await scenario();
+  try {
+    host.emit("running", { type: "turn_started", provider: "claude" });
+    host.emit("idle", { type: "turn_completed", provider: "claude" });
+    expect((await observation.next()).silent).toBeUndefined();
+    host.handler!({ ...outcomeSnapshot(), status: "initializing" }, undefined, "Reported");
+    host.emit("running", { type: "turn_started", provider: "claude" });
+    host.handler!(outcomeSnapshot(), undefined, "Interrupted new work");
+    const result = await observation.next();
+    expect(result.final?.status).toBe("closed");
+    expect(result.silent).toBeUndefined();
+  } finally {
+    await observation.close();
+  }
+});
+
 test.each(["idle", "error", "closed"] as const)(
   "recovery ignores an acknowledged %s baseline and retains observation for new work",
   async (status) => {
@@ -398,5 +444,6 @@ function outcomeSnapshot() {
       updatedAt: "2026-01-01",
     },
     ["claude"],
+    (_provider, own) => own ?? {},
   );
 }
